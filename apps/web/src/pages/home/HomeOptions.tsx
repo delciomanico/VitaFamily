@@ -111,7 +111,7 @@ export function HomeOptions({ summary, unreadAlerts }: HomeOptionsProps) {
       <div
         ref={track}
         onScroll={onScroll}
-        className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+        className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain pt-2"
       >
         {pages.map((options, index) => (
           <ul
