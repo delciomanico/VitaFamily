@@ -53,7 +53,7 @@ describe('fluxos de autenticação', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
     expect(await screen.findByRole('heading', { name: /Olá, Monarca/ })).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: /Próximo compromisso/ })).toHaveAttribute('href', '/app/appointments/apt_cardio')
-    expect(screen.getByRole('link', { name: /^Relatórios, 1 pendente$/ })).toHaveAttribute('href', '/app/reports/family')
+    expect(screen.getByRole('link', { name: 'Relatórios, 1 pendente' })).toHaveAttribute('href', '/app/reports/family')
     expect(screen.getByRole('link', { name: 'Marcar consulta' })).toHaveAttribute('href', '/app/appointments/new')
   })
 

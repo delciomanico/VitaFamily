@@ -26,38 +26,24 @@ interface Option {
   to: string
   label: string
   icon: LucideIcon
-  /** Resumo curto de hoje (ex.: “2 lembretes”). */
-  caption?: string
+  /** Contador no canto do ícone (só aparece se > 0). */
+  count?: number
+  /** Significado do contador (singular, plural), para leitores de ecrã. */
+  countLabel?: [string, string]
 }
 
 /** Opções por página: 1.ª as áreas do MVP, 2.ª as ações rápidas. */
 function buildPages({ today, family }: HomeSummary, unreadAlerts: number): Option[][] {
-  const when = (condition: boolean, text: string) => (condition ? text : undefined)
   return [
     [
       { to: paths.appointments, label: 'Agenda', icon: CalendarDays },
-      {
-        to: paths.medications,
-        label: 'Medicamentos',
-        icon: Pill,
-        caption: when(today.pendingDoses > 0, formatCount(today.pendingDoses, 'lembrete', 'lembretes')),
-      },
+      { to: paths.medications, label: 'Medicamentos', icon: Pill, count: today.pendingDoses, countLabel: ['lembrete', 'lembretes'] },
       { to: paths.prescriptions, label: 'Receitas', icon: FileText },
-      {
-        to: paths.examinations,
-        label: 'Exames',
-        icon: FlaskConical,
-        caption: when(today.newResults > 0, formatCount(today.newResults, 'novo', 'novos')),
-      },
+      { to: paths.examinations, label: 'Exames', icon: FlaskConical, count: today.newResults, countLabel: ['resultado novo', 'resultados novos'] },
       { to: paths.medicalHistory, label: 'Histórico', icon: History },
-      { to: paths.family, label: 'Família', icon: Users, caption: formatCount(today.members, 'membro', 'membros') },
-      { to: paths.alerts, label: 'Alertas', icon: Bell, caption: when(unreadAlerts > 0, `${unreadAlerts} por ler`) },
-      {
-        to: paths.familyReport,
-        label: 'Relatórios',
-        icon: ClipboardList,
-        caption: when(family.withPending > 0, `${family.withPending} pendente${family.withPending === 1 ? '' : 's'}`),
-      },
+      { to: paths.family, label: 'Família', icon: Users, count: today.members, countLabel: ['membro', 'membros'] },
+      { to: paths.alerts, label: 'Alertas', icon: Bell, count: unreadAlerts, countLabel: ['por ler', 'por ler'] },
+      { to: paths.familyReport, label: 'Relatórios', icon: ClipboardList, count: family.withPending, countLabel: ['pendente', 'pendentes'] },
     ],
     [
       { to: paths.healthProfile, label: 'Meu perfil', icon: UserRound },
@@ -70,21 +56,30 @@ function buildPages({ today, family }: HomeSummary, unreadAlerts: number): Optio
   ]
 }
 
-function OptionTile({ to, label, icon: Icon, caption }: Option) {
+/** Contador máximo mostrado no ícone; acima disso aparece “9+”. */
+const MAX_BADGE = 9
+
+function OptionTile({ to, label, icon: Icon, count = 0, countLabel }: Option) {
+  const hasCount = count > 0
   return (
     <Link
       to={to}
-      aria-label={caption ? `${label}, ${caption}` : label}
-      className="group flex flex-col items-center gap-1 rounded-xl p-1 text-center"
+      aria-label={hasCount && countLabel ? `${label}, ${formatCount(count, ...countLabel)}` : label}
+      className="group flex flex-col items-center gap-1.5 rounded-xl p-1 text-center"
     >
-      <span className="flex size-12 items-center justify-center rounded-xl bg-primary-soft text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+      <span className="relative flex size-12 items-center justify-center rounded-xl bg-primary-soft text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
         <Icon className="size-6" strokeWidth={1.7} aria-hidden />
+        {hasCount && (
+          <span
+            className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[0.6875rem] font-semibold text-primary-foreground ring-2 ring-background"
+            aria-hidden
+          >
+            {count > MAX_BADGE ? `${MAX_BADGE}+` : count}
+          </span>
+        )}
       </span>
       <span className="text-xs leading-tight font-medium text-foreground" aria-hidden>
         {label}
-      </span>
-      <span className="h-3.5 text-[0.6875rem] leading-3.5 text-primary" aria-hidden>
-        {caption}
       </span>
     </Link>
   )
