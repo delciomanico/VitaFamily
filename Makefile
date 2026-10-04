@@ -5,6 +5,7 @@ SQLC_IMAGE ?= sqlc/sqlc:1.31.1
 GO_CACHE   ?= /tmp/vita-go-cache
 API_DIR    := apps/api
 COMPOSE    ?= docker compose -p vitafamily -f deploy/docker-compose.dev.yml
+WEB_COMPOSE ?= docker compose -f deploy/docker-compose.web.yml
 ROOT       := $(CURDIR)
 
 DOCKER_GO = docker run --rm -v $(ROOT):/src -w /src/$(API_DIR) \
@@ -12,10 +13,11 @@ DOCKER_GO = docker run --rm -v $(ROOT):/src -w /src/$(API_DIR) \
 	-e GOCACHE=/gocache -e GOFLAGS=-buildvcs=false -e HOME=/tmp -e CGO_ENABLED=0
 GO = $(DOCKER_GO) $(GO_IMAGE)
 
-.PHONY: help cache gen test lint fmt tidy build migrate image up down
+.PHONY: help cache gen test lint fmt tidy build migrate image up down web-up web-down web-logs
 
 help:
 	@echo "make gen|test|lint|fmt|tidy|build|migrate|image|up|down   (API em $(API_DIR))"
+	@echo "make web-up|web-down|web-logs                           (só o frontend em Docker, http://localhost:8088)"
 
 cache:
 	@mkdir -p $(GO_CACHE)/mod $(GO_CACHE)/build
@@ -58,3 +60,13 @@ up:
 
 down:
 	$(COMPOSE) down
+
+# Só o frontend (apps/web): build (com testes) e nginx em http://localhost:$${WEB_PORT:-8088}.
+web-up:
+	$(WEB_COMPOSE) up -d --build
+
+web-down:
+	$(WEB_COMPOSE) down
+
+web-logs:
+	$(WEB_COMPOSE) logs -f web

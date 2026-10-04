@@ -20,6 +20,20 @@ npm test           # testes
 npx pwa-assets-generator   # regenera os ícones a partir de public/favicon.svg
 ```
 
+## Docker (só o frontend)
+
+Na raiz do repositório:
+
+```bash
+make web-up      # build (corre os testes) + nginx em http://localhost:8088
+make web-logs
+make web-down
+```
+
+Outra porta: `WEB_PORT=9000 make web-up`. A imagem (`Dockerfile`, `nginx.conf`) serve a PWA estática com fallback
+de SPA, sem cache para `index.html`/service worker e cache longa para `assets/`. Não precisa dos serviços do backend
+(`deploy/docker-compose.web.yml` é independente de `docker-compose.dev.yml`).
+
 ## Estrutura
 
 ```
