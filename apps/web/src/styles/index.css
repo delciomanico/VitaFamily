@@ -98,3 +98,11 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Carrosséis com gesto de deslizar: sem barra de scroll visível. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

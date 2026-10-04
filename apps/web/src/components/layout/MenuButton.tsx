@@ -35,7 +35,7 @@ export function MenuButton({ variant = 'icon' }: MenuButtonProps) {
             aria-label={label}
             className="relative shrink-0 rounded-full ring-2 ring-white/70 lg:hidden"
           >
-            <Avatar name={name} size="lg" className="bg-white" />
+            <Avatar name={name} size="md" className="bg-white" />
             {dot}
           </button>
           <Link
@@ -43,7 +43,7 @@ export function MenuButton({ variant = 'icon' }: MenuButtonProps) {
             aria-label="O meu perfil de saúde"
             className="hidden shrink-0 rounded-full ring-2 ring-white/70 lg:inline-flex"
           >
-            <Avatar name={name} size="lg" className="bg-white" />
+            <Avatar name={name} size="md" className="bg-white" />
           </Link>
         </>
       ) : (
@@ -55,7 +55,7 @@ export function MenuButton({ variant = 'icon' }: MenuButtonProps) {
             'relative -mr-2 flex size-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/15 lg:hidden',
           )}
         >
-          <Menu className="size-7" aria-hidden />
+          <Menu className="size-6" aria-hidden />
           {dot}
         </button>
       )}
