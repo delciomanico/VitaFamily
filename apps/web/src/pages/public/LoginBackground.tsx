@@ -40,7 +40,8 @@ export function LoginBackground() {
   }, [])
 
   return (
-    <div aria-hidden className="absolute inset-0 overflow-hidden bg-brand">
+    // `isolate`: os z-index das fotos ficam contidos aqui e não passam por cima do formulário.
+    <div aria-hidden className="absolute inset-0 isolate overflow-hidden bg-brand">
       {LOGIN_SLIDES.map((src, index) => (
         <img
           key={src}
