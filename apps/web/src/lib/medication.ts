@@ -1,5 +1,5 @@
 import type { MedicationPlan } from '@/types/medication'
-import { todayISO } from './date'
+import { localTime, todayISO } from './date'
 
 /*
  * Regras de horário de um plano de toma (BR-MED-01/02), partilhadas pela UI e pelo backend simulado.
@@ -20,12 +20,6 @@ function toTime(minutes: number): string {
 function toMinutes(time: string): number {
   const [hours = 0, minutes = 0] = time.split(':').map(Number)
   return hours * 60 + minutes
-}
-
-/** Hora local HH:mm de um instante ISO. */
-export function localTime(iso: string): string {
-  const date = new Date(iso)
-  return toTime(date.getHours() * 60 + date.getMinutes())
 }
 
 /** Horários de “de X em X horas” num dia, a partir da hora da primeira toma. */

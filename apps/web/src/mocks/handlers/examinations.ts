@@ -13,6 +13,7 @@ import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
 import { attachDocuments, documentsOf, validateUploads } from '../documents'
 import { respond } from '../respond'
+import { visibleClinics } from './clinics'
 
 /** Resultado estruturado (BR-EXM-01): valor numérico ou texto livre, referência opcional do utilizador. */
 export interface ExamResultInput {
@@ -63,23 +64,10 @@ function validateResult(result: ExamResultInput) {
 function matchClinic(familyId: string, name?: string) {
   const wanted = name?.trim()
   if (!wanted) return {}
-  const clinic = db.clinics.find(
-    (c) =>
-      c.status === 'ACTIVE' &&
-      (c.type === 'PARTNER' || c.familyId === familyId) &&
-      c.name.toLocaleLowerCase('pt-PT') === wanted.toLocaleLowerCase('pt-PT'),
+  const clinic = visibleClinics(familyId).find(
+    (c) => c.name.toLocaleLowerCase('pt-PT') === wanted.toLocaleLowerCase('pt-PT'),
   )
   return { clinicId: clinic?.id, clinicName: clinic?.name ?? wanted }
-}
-
-/** Nomes de clínicas e laboratórios que a família pode escolher (sugestões no formulário). */
-export function listClinicNames(familyId: string) {
-  return respond(() =>
-    db.clinics
-      .filter((c) => c.status === 'ACTIVE' && (c.type === 'PARTNER' || c.familyId === familyId))
-      .map((c) => c.name)
-      .sort((a, b) => a.localeCompare(b, 'pt-PT')),
-  )
 }
 
 /** Exames visíveis, mais recentes primeiro (UC-EXM-04). */

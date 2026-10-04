@@ -9,5 +9,4 @@ export const examinationService = {
   createExamination: api.createExamination,
   setExaminationStatus: api.setExaminationStatus,
   getParameterHistory: api.getParameterHistory,
-  listClinicNames: api.listClinicNames,
 }

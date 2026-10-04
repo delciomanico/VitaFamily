@@ -1,6 +1,9 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
+import { AppointmentDetailPage } from '@/pages/appointments/AppointmentDetailPage'
+import { AppointmentsPage } from '@/pages/appointments/AppointmentsPage'
+import { NewAppointmentPage } from '@/pages/appointments/NewAppointmentPage'
 import { ExaminationDetailPage } from '@/pages/examinations/ExaminationDetailPage'
 import { ExaminationHistoryPage } from '@/pages/examinations/ExaminationHistoryPage'
 import { ExaminationsPage } from '@/pages/examinations/ExaminationsPage'
@@ -90,9 +93,9 @@ export const routes: RouteObject[] = [
               { path: 'health/examinations/new', element: <NewExaminationPage /> },
               { path: 'health/examinations/:id', element: <ExaminationDetailPage /> },
               { path: 'health/examinations/:id/history', element: <ExaminationHistoryPage /> },
-              placeholder('appointments', 'Agenda', 8),
-              placeholder('appointments/new', 'Marcar consulta', 8, paths.appointments),
-              placeholder('appointments/:id', 'Consulta', 8, paths.appointments),
+              { path: 'appointments', element: <AppointmentsPage /> },
+              { path: 'appointments/new', element: <NewAppointmentPage /> },
+              { path: 'appointments/:id', element: <AppointmentDetailPage /> },
               placeholder('family', 'Minha família', 9),
               placeholder('family/:id', 'Membro', 9, paths.family),
               placeholder('family/:id/history', 'Histórico completo', 9, paths.family),

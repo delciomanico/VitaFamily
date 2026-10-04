@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
+import { StepProgress } from '@/components/ui/StepProgress'
 import { cn } from '@/lib/cn'
 
 interface AuthScreenProps {
@@ -41,7 +42,7 @@ export function AuthScreen({ title, description, backTo, progress, leading, chil
               <ArrowLeft className="size-5" aria-hidden />
             </Link>
           )}
-          {progress && <ProgressBar {...progress} />}
+          {progress && <StepProgress {...progress} label="Progresso da configuração" />}
         </div>
       ) : (
         <div className="h-8 shrink-0 md:h-4" />
@@ -55,28 +56,6 @@ export function AuthScreen({ title, description, backTo, progress, leading, chil
 
       <div className="flex flex-1 flex-col">{children}</div>
     </div>
-  )
-}
-
-function ProgressBar({ step, total }: { step: number; total: number }) {
-  const percent = Math.round((step / total) * 100)
-  return (
-    <>
-      <div
-        role="progressbar"
-        aria-label="Progresso da configuração"
-        aria-valuemin={1}
-        aria-valuemax={total}
-        aria-valuenow={step}
-        aria-valuetext={`Passo ${step} de ${total}`}
-        className="mx-auto h-2 w-full max-w-48 overflow-hidden rounded-full bg-surface-muted"
-      >
-        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />
-      </div>
-      <span className="shrink-0 text-sm font-semibold tabular-nums" aria-hidden>
-        {step} / {total}
-      </span>
-    </>
   )
 }
 

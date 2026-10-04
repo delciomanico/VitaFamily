@@ -20,3 +20,23 @@ export interface Appointment {
   reason?: string
   notes?: string
 }
+
+/** Consulta pronta a mostrar, com o nome do membro. */
+export interface AppointmentItem {
+  appointment: Appointment
+  memberName: string
+}
+
+/**
+ * TBD (ver `specialty`): sugestões de especialidade no formulário; o utilizador pode escrever outra.
+ */
+export const SPECIALTY_SUGGESTIONS = [
+  'Medicina geral',
+  'Pediatria',
+  'Cardiologia',
+  'Ginecologia',
+  'Dermatologia',
+  'Oftalmologia',
+  'Ortopedia',
+  'Medicina dentária',
+] as const

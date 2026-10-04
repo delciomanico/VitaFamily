@@ -21,6 +21,7 @@ import { errorMessage } from '@/lib/errors'
 import { parseNumber } from '@/lib/examination'
 import { paths } from '@/routes/paths'
 import { examinationService, type ExamResultInput } from '@/services/examination.service'
+import { clinicService } from '@/services/clinic.service'
 import { familyService } from '@/services/family.service'
 import type { DocumentUpload } from '@/types/document'
 import type { FamilyMember } from '@/types/family'
@@ -258,8 +259,7 @@ export function NewExaminationPage() {
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
   const { state, reload } = useAsync(
-    () =>
-      Promise.all([familyService.listManagedMembers(familyId, userId), examinationService.listClinicNames(familyId)]),
+    () => Promise.all([familyService.listManagedMembers(familyId, userId), clinicService.listClinics(familyId)]),
     [familyId, userId],
   )
 
@@ -268,7 +268,11 @@ export function NewExaminationPage() {
       {state.status === 'loading' && <LoadingState rows={4} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
-        <NewExaminationForm members={state.data[0]} clinics={state.data[1]} selfMemberId={member?.id ?? ''} />
+        <NewExaminationForm
+          members={state.data[0]}
+          clinics={state.data[1].map((c) => c.name)}
+          selfMemberId={member?.id ?? ''}
+        />
       )}
     </Page>
   )
