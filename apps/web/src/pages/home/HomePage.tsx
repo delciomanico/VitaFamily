@@ -28,7 +28,7 @@ export function HomePage() {
   )
 
   return (
-    <Page title="Início" header={greeting} menu="avatar" fullScreen>
+    <Page title="Início" header={greeting} fullScreen>
       <HomeBanner next={state.status === 'success' ? state.data.nextAppointment : null} />
       {state.status === 'loading' && (
         <div role="status" className="grid shrink-0 grid-cols-4 gap-x-1 gap-y-9" aria-label="A carregar…">

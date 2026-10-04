@@ -15,8 +15,6 @@ interface PageProps {
   action?: ReactNode
   /** Substitui o título (ex.: saudação da Home). */
   header?: ReactNode
-  /** Como abrir o menu: ícone (padrão) ou avatar (Home). */
-  menu?: 'icon' | 'avatar'
   /** Ecrã fixo à altura da janela, sem scroll vertical (Home). */
   fullScreen?: boolean
   children: ReactNode
@@ -36,7 +34,6 @@ export function Page({
   backLabel = 'Voltar',
   action,
   header,
-  menu = 'icon',
   fullScreen = false,
   children,
 }: PageProps) {
@@ -54,7 +51,7 @@ export function Page({
             </Link>
           )}
           <div className="min-w-0 flex-1">{header ?? <h1 className={bandTitleClass}>{title}</h1>}</div>
-          <MenuButton variant={menu} />
+          <MenuButton />
         </div>
       </header>
       <div
