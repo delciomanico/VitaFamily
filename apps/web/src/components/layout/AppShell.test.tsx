@@ -1,6 +1,9 @@
 import { render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { AuthProvider } from '@/contexts/AuthContext'
+import { resetDb } from '@/mocks/db'
+import { sessionStore } from '@/lib/storage'
 import { AppShell } from './AppShell'
 
 function renderAt(path: string) {
@@ -8,8 +11,18 @@ function renderAt(path: string) {
     [{ path: '/app', element: <AppShell />, children: [{ path: '*', element: <p>conteúdo</p> }] }],
     { initialEntries: [path] },
   )
-  render(<RouterProvider router={router} />)
+  render(
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>,
+  )
 }
+
+beforeEach(() => {
+  // Dados criados num instante passado fixo (meio-dia), para o número de alertas não depender da hora do teste.
+  resetDb(new Date(2026, 9, 4, 12, 0))
+  sessionStore.setUserId('usr_monarca')
+})
 
 describe('AppShell', () => {
   it('renderiza a navegação principal com os 4 destinos', () => {
@@ -28,9 +41,9 @@ describe('AppShell', () => {
     screen.getAllByRole('link', { name: 'Início' }).forEach((link) => expect(link).not.toHaveAttribute('aria-current'))
   })
 
-  it('dá acesso a Alertas e Configurações', () => {
+  it('mostra o número de alertas por ler no sino', async () => {
     renderAt('/app')
-    expect(screen.getByRole('link', { name: 'Alertas' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Alertas, 3 por ler' })).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Configurações' }).length).toBeGreaterThan(0)
   })
 })

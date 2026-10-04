@@ -1,6 +1,7 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
+import { HomePage } from '@/pages/home/HomePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { ForgotPasswordPage } from '@/pages/public/ForgotPasswordPage'
@@ -64,7 +65,7 @@ export const routes: RouteObject[] = [
             path: paths.home,
             element: <AppShell />,
             children: [
-              { index: true, element: <PlaceholderPage title="Olá" phase={4} /> },
+              { index: true, element: <HomePage /> },
               placeholder('health', 'Minha saúde', 5),
               placeholder('health/profile', 'Perfil de saúde', 5, paths.health),
               placeholder('health/history', 'Histórico médico', 5, paths.health),

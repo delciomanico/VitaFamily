@@ -1,20 +1,35 @@
-import { families, invitations, members } from './data/families'
+import { seedAlerts } from './data/alerts'
+import { seedAppointments } from './data/appointments'
+import { clinics } from './data/clinics'
+import { seedExamResults, seedExaminations } from './data/examinations'
+import { families, guardianships, invitations, members } from './data/families'
 import { allergies, conditions } from './data/health'
+import { seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
 import { users } from './data/users'
 
 /**
  * “Base de dados” em memória do backend simulado.
- * Começa com os dados demo e perde as alterações ao recarregar a página.
+ * Começa com os dados demo (datas relativas a agora) e perde as alterações ao recarregar.
  */
-function seed() {
-  return structuredClone({ users, families, members, invitations, allergies, conditions })
+function seed(now: Date = new Date()) {
+  const medicationPlans = seedMedicationPlans(now)
+  return {
+    ...structuredClone({ users, families, members, guardianships, invitations, allergies, conditions, clinics }),
+    appointments: seedAppointments(now),
+    prescriptions: seedPrescriptions(now),
+    medicationPlans,
+    doses: seedDoses(medicationPlans, now),
+    examinations: seedExaminations(now),
+    examResults: seedExamResults(now),
+    alerts: seedAlerts(now),
+  }
 }
 
 export let db = seed()
 
-/** Repõe os dados demo (usado nos testes). */
-export function resetDb() {
-  db = seed()
+/** Repõe os dados demo (usado nos testes, opcionalmente num instante fixo). */
+export function resetDb(now?: Date) {
+  db = seed(now)
 }
 
 export function newId(prefix: string): string {

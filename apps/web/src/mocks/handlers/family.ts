@@ -1,6 +1,4 @@
-import { ageOn } from '@/lib/date'
 import { AppError } from '@/lib/errors'
-import { ADULT_AGE } from '@/lib/policy'
 import type { FamilyMember, Membership, Relationship } from '@/types/family'
 import { db, newId } from '../db'
 import { respond } from '../respond'
@@ -29,6 +27,7 @@ function requireAdmin(familyId: string, actorUserId: string) {
   const actor = db.members.find((m) => m.familyId === familyId && m.userId === actorUserId)
   if (!actor) throw new AppError('NOT_FOUND')
   if (actor.role !== 'FAMILY_ADMIN') throw new AppError('FORBIDDEN')
+  return actor
 }
 
 export function getMembership(userId: string) {
@@ -89,18 +88,19 @@ export function listMembers(familyId: string) {
 /** Adiciona um perfil sem conta (só Admin). */
 export function addMember(familyId: string, actorUserId: string, input: NewMemberInput) {
   return respond((): FamilyMember => {
-    requireAdmin(familyId, actorUserId)
+    const actor = requireAdmin(familyId, actorUserId)
+    // Perfil sem conta é sempre dependente com tutor (BR-MEM-03/04); quem o cria fica tutor principal.
     const member: FamilyMember = {
       id: newId('mem'),
       familyId,
       name: input.name.trim(),
       birthDate: input.birthDate,
-      // TBD: regras de tutela (BR-MEM-03..08) ficam para o módulo Família; aqui só menores.
-      isDependent: ageOn(input.birthDate) < ADULT_AGE,
+      isDependent: true,
       status: 'ACTIVE',
       relationship: input.relationship,
     }
     db.members.push(member)
+    db.guardianships.push({ familyId, dependentId: member.id, guardianId: actor.id, isPrimary: true })
     return member
   })
 }
@@ -113,6 +113,7 @@ export function removeMember(familyId: string, actorUserId: string, memberId: st
     if (!target) throw new AppError('NOT_FOUND')
     if (target.userId === actorUserId) throw new AppError('FORBIDDEN')
     db.members.splice(index, 1)
+    db.guardianships = db.guardianships.filter((g) => g.dependentId !== memberId && g.guardianId !== memberId)
     return undefined
   })
 }

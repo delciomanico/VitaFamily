@@ -1,6 +1,10 @@
 import type { Family, FamilyMember } from '@/types/family'
 
-/** Família demo. Todos os dados são fictícios. */
+/*
+ * Família demo. Todos os dados são fictícios.
+ * Perfis adultos sem conta só existem como dependentes com tutor (BR-MEM-04),
+ * por isso Maria e João são dependentes de Monarca.
+ */
 export const families: Family[] = [{ id: 'fam_monarca', name: 'Família Monarca', createdBy: 'usr_monarca' }]
 
 export const members: FamilyMember[] = [
@@ -21,7 +25,7 @@ export const members: FamilyMember[] = [
     familyId: 'fam_monarca',
     name: 'Maria Lopes',
     birthDate: '1987-05-20',
-    isDependent: false,
+    isDependent: true,
     bloodType: 'A+',
     status: 'ACTIVE',
     relationship: 'SPOUSE',
@@ -32,7 +36,7 @@ export const members: FamilyMember[] = [
     familyId: 'fam_monarca',
     name: 'João Lopes',
     birthDate: '1958-09-02',
-    isDependent: false,
+    isDependent: true,
     bloodType: 'B+',
     status: 'ACTIVE',
     relationship: 'FATHER',
@@ -50,6 +54,21 @@ export const members: FamilyMember[] = [
     sex: 'MALE',
   },
 ]
+
+/** Tutela tutor ↔ dependente (Guardianship). */
+export interface MockGuardianship {
+  familyId: string
+  dependentId: string
+  guardianId: string
+  isPrimary: boolean
+}
+
+export const guardianships: MockGuardianship[] = ['mem_maria', 'mem_joao', 'mem_pedro'].map((dependentId) => ({
+  familyId: 'fam_monarca',
+  dependentId,
+  guardianId: 'mem_monarca',
+  isPrimary: true,
+}))
 
 export interface MockInvitation {
   code: string

@@ -45,6 +45,17 @@ describe('fluxos de autenticação', () => {
     expect(router.state.location.pathname).toBe('/app/health')
   })
 
+  it('login demo a partir do login abre a Home com o resumo', async () => {
+    renderAt('/login')
+    await screen.findByRole('heading', { name: 'Entrar' })
+    type('E-mail', DEMO_EMAIL)
+    type('Palavra-passe', DEMO_PASSWORD)
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
+    expect(await screen.findByRole('heading', { name: /Olá, Monarca/ })).toBeInTheDocument()
+    expect(await screen.findByText('Próximo compromisso')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Ver relatório/ })).toHaveAttribute('href', '/app/reports/family')
+  })
+
   it('credenciais erradas mostram mensagem amigável', async () => {
     renderAt('/login')
     await screen.findByRole('heading', { name: 'Entrar' })

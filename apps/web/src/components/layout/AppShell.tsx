@@ -1,7 +1,23 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
+import { useAsync } from '@/hooks/useAsync'
+import { alertService } from '@/services/alert.service'
 import { BottomNavigation } from './BottomNavigation'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
+
+/** Alertas por ler para o sino do cabeçalho; atualiza a cada navegação. */
+function useUnreadAlerts(): number {
+  const { user, family } = useAuth()
+  const { pathname } = useLocation()
+  const familyId = family?.id
+  const userId = user?.id
+  const { state } = useAsync(
+    () => (familyId && userId ? alertService.countUnread(familyId, userId) : Promise.resolve(0)),
+    [familyId, userId, pathname],
+  )
+  return state.status === 'success' ? state.data : 0
+}
 
 /**
  * Estrutura da área autenticada.
@@ -9,6 +25,8 @@ import { Sidebar } from './Sidebar'
  * Desktop (≥ lg): Sidebar + conteúdo.
  */
 export function AppShell() {
+  const unreadAlerts = useUnreadAlerts()
+
   return (
     <div className="min-h-dvh">
       <a
@@ -19,8 +37,7 @@ export function AppShell() {
       </a>
       <Sidebar />
       <div className="lg:pl-(--spacing-sidebar)">
-        {/* TODO(fase 10): ligar ao número real de alertas por ler. */}
-        <Header unreadAlerts={0} />
+        <Header unreadAlerts={unreadAlerts} />
         <main
           id="conteudo"
           className="mx-auto flex max-w-3xl flex-col gap-6 px-4 pt-4 pb-[calc(var(--spacing-bottom-nav)+env(safe-area-inset-bottom)+1.5rem)] lg:px-8 lg:pb-12"

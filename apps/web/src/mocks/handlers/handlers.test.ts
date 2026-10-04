@@ -18,7 +18,7 @@ const newAccount = {
 
 const code = (promise: Promise<unknown>) => promise.then(() => 'OK', (e: AppError) => e.code)
 
-beforeEach(resetDb)
+beforeEach(() => resetDb())
 
 describe('auth', () => {
   it('entra com as credenciais demo e não devolve a palavra-passe', async () => {
