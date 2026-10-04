@@ -3,7 +3,7 @@ import { Link, type LinkProps } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
+type Variant = 'primary' | 'soft' | 'secondary' | 'ghost' | 'danger'
 type Size = 'sm' | 'md' | 'lg'
 
 interface StyleProps {
@@ -14,6 +14,7 @@ interface StyleProps {
 
 const variants: Record<Variant, string> = {
   primary: 'bg-primary text-primary-foreground shadow-button hover:bg-primary-hover',
+  soft: 'bg-primary-soft text-primary hover:bg-primary-soft-hover',
   secondary: 'bg-surface text-foreground border border-border hover:bg-surface-muted',
   ghost: 'text-foreground hover:bg-surface-muted',
   danger: 'bg-danger text-white hover:opacity-90',

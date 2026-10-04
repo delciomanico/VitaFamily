@@ -1,7 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { HealthProfileForm, profileToFormValues } from '@/components/domain/HealthProfileForm'
-import { PageHeader } from '@/components/layout/PageHeader'
-import { SetupProgress } from '@/components/layout/SetupProgress'
+import { AuthScreen } from '@/components/layout/AuthScreen'
 import { Button } from '@/components/ui/Button'
 import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
@@ -40,15 +39,17 @@ export function SetupHealthPage() {
   }
 
   const skip = (
-    <Button variant="ghost" size="lg" fullWidth onClick={next}>
+    <Button variant="soft" size="lg" fullWidth onClick={next}>
       Pular por agora
     </Button>
   )
 
   return (
-    <div className="flex flex-col gap-8">
-      <SetupProgress step={2} total={total} />
-      <PageHeader title="Perfil de saúde" description="Estas informações ajudam a acompanhar a sua saúde." />
+    <AuthScreen
+      title="Perfil de saúde"
+      description="Estas informações ajudam a acompanhar a sua saúde."
+      progress={{ step: 2, total }}
+    >
       {state.status === 'loading' && <LoadingState rows={4} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
@@ -59,6 +60,6 @@ export function SetupHealthPage() {
           secondaryAction={skip}
         />
       )}
-    </div>
+    </AuthScreen>
   )
 }

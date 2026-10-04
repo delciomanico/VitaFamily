@@ -5,9 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronRight, House, Ticket, type LucideIcon } from 'lucide-react'
 import { z } from 'zod'
 import { DemoHint, demoInvitationCode } from '@/components/domain/DemoHint'
-import { Logo } from '@/components/layout/Logo'
-import { PageHeader } from '@/components/layout/PageHeader'
-import { SetupProgress } from '@/components/layout/SetupProgress'
+import { AuthFooter, AuthScreen } from '@/components/layout/AuthScreen'
+import { LogoMark } from '@/components/layout/Logo'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { FormError } from '@/components/ui/states'
@@ -33,20 +32,31 @@ export function SetupFamilyPage() {
 function ChooseStart() {
   const { logout } = useAuth()
   return (
-    <div className="flex flex-1 flex-col gap-8">
-      <Logo />
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Bem-vindo ao Vita Family</h1>
-        <p className="text-muted">Como deseja começar?</p>
-      </div>
+    <AuthScreen
+      title="Bem-vindo ao Vita Family"
+      description="Como deseja começar?"
+      leading={<LogoMark className="mb-4 size-14" />}
+    >
       <div className="flex flex-col gap-3">
-        <StartOption to="?mode=create" icon={House} title="Criar uma família" description="Comece do zero e convide quem quiser." />
-        <StartOption to="?mode=join" icon={Ticket} title="Entrar numa família" description="Use o código de convite que recebeu." />
+        <StartOption
+          to="?mode=create"
+          icon={House}
+          title="Criar uma família"
+          description="Comece do zero e convide quem quiser."
+        />
+        <StartOption
+          to="?mode=join"
+          icon={Ticket}
+          title="Entrar numa família"
+          description="Use o código de convite que recebeu."
+        />
       </div>
-      <Button variant="ghost" onClick={logout} className="mt-auto">
-        Sair
-      </Button>
-    </div>
+      <AuthFooter>
+        <Button variant="soft" size="lg" fullWidth onClick={logout}>
+          Sair
+        </Button>
+      </AuthFooter>
+    </AuthScreen>
   )
 }
 
@@ -61,9 +71,9 @@ function StartOption({ to, icon: Icon, title, description }: StartOptionProps) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-4 rounded-lg border border-border bg-surface p-4 shadow-card transition-colors hover:border-primary active:bg-surface-muted"
+      className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-primary active:bg-surface-muted"
     >
-      <span className="flex size-12 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">
+      <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
         <Icon className="size-6" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
@@ -75,7 +85,9 @@ function StartOption({ to, icon: Icon, title, description }: StartOptionProps) {
   )
 }
 
-const createSchema = z.object({ name: z.string().trim().min(2, 'Introduza o nome da família.') })
+const createSchema = z.object({
+  name: z.string().trim().min(2, 'Introduza o nome da família.'),
+})
 
 function CreateFamily() {
   const { createFamily } = useAuth()
@@ -85,7 +97,9 @@ function CreateFamily() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<z.infer<typeof createSchema>>({ resolver: zodResolver(createSchema) })
+  } = useForm<z.infer<typeof createSchema>>({
+    resolver: zodResolver(createSchema),
+  })
 
   async function onSubmit({ name }: z.infer<typeof createSchema>) {
     setFormError(null)
@@ -98,21 +112,36 @@ function CreateFamily() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <SetupProgress step={1} total={SETUP_STEPS.create} />
-      <PageHeader title="Criar família" description="Dê um nome à sua família." backTo={paths.setupFamily} />
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Input label="Nome da família" placeholder="Ex.: Família Silva" error={errors.name?.message} {...register('name')} />
-        <FormError message={formError} />
-        <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
-          Continuar
-        </Button>
+    <AuthScreen
+      title="Criar família"
+      description="Dê um nome à sua família."
+      backTo={paths.setupFamily}
+      progress={{ step: 1, total: SETUP_STEPS.create }}
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-1 flex-col">
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Nome da família"
+            icon={House}
+            placeholder="Ex.: Família Silva"
+            error={errors.name?.message}
+            {...register('name')}
+          />
+          <FormError message={formError} />
+        </div>
+        <AuthFooter>
+          <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
+            Continuar
+          </Button>
+        </AuthFooter>
       </form>
-    </div>
+    </AuthScreen>
   )
 }
 
-const joinSchema = z.object({ code: z.string().trim().min(1, 'Introduza o código do convite.') })
+const joinSchema = z.object({
+  code: z.string().trim().min(1, 'Introduza o código do convite.'),
+})
 
 function JoinFamily() {
   const { joinFamily } = useAuth()
@@ -123,7 +152,9 @@ function JoinFamily() {
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<z.infer<typeof joinSchema>>({ resolver: zodResolver(joinSchema) })
+  } = useForm<z.infer<typeof joinSchema>>({
+    resolver: zodResolver(joinSchema),
+  })
 
   async function onSubmit({ code }: z.infer<typeof joinSchema>) {
     setFormError(null)
@@ -136,29 +167,33 @@ function JoinFamily() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <SetupProgress step={1} total={SETUP_STEPS.join} />
-      <PageHeader
-        title="Entrar numa família"
-        description="Introduza o código do convite que recebeu."
-        backTo={paths.setupFamily}
-      />
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Input
-          label="Código do convite"
-          autoCapitalize="characters"
-          autoComplete="off"
-          spellCheck={false}
-          className="uppercase tracking-widest"
-          error={errors.code?.message}
-          {...register('code')}
-        />
-        <FormError message={formError} />
-        <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
-          Entrar na família
-        </Button>
+    <AuthScreen
+      title="Entrar numa família"
+      description="Introduza o código do convite que recebeu."
+      backTo={paths.setupFamily}
+      progress={{ step: 1, total: SETUP_STEPS.join }}
+    >
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-1 flex-col">
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Código do convite"
+            icon={Ticket}
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            className="uppercase tracking-widest"
+            error={errors.code?.message}
+            {...register('code')}
+          />
+          <FormError message={formError} />
+          <DemoHint kind="invitation" onFill={() => setValue('code', demoInvitationCode, { shouldValidate: true })} />
+        </div>
+        <AuthFooter>
+          <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
+            Entrar na família
+          </Button>
+        </AuthFooter>
       </form>
-      <DemoHint kind="invitation" onFill={() => setValue('code', demoInvitationCode, { shouldValidate: true })} />
-    </div>
+    </AuthScreen>
   )
 }

@@ -24,13 +24,21 @@ interface OtpInputProps {
  */
 export function OtpInput({ label, value, onChange, length = 6, error = false, disabled = false }: OtpInputProps) {
   const refs = useRef<Array<HTMLInputElement | null>>([])
+  // Valor mais recente, já antes do re-render: o foco muda logo a seguir a cada alteração
+  // e o onFocus da caixa seguinte não pode ver o valor antigo.
+  const latest = useRef(value)
+  latest.current = value
+  const update = (next: string) => {
+    latest.current = next
+    onChange(next)
+  }
   const focusAt = (index: number) => refs.current[Math.max(0, Math.min(index, length - 1))]?.focus()
 
   function insert(index: number, raw: string) {
     const digits = raw.replace(/\D/g, '')
     if (!digits) return
-    const next = (value.slice(0, index) + digits).slice(0, length)
-    onChange(next)
+    const next = (latest.current.slice(0, index) + digits).slice(0, length)
+    update(next)
     focusAt(next.length)
   }
 
@@ -39,7 +47,7 @@ export function OtpInput({ label, value, onChange, length = 6, error = false, di
       event.preventDefault()
       const target = value[index] ? index : index - 1
       if (target < 0) return
-      onChange(value.slice(0, target) + value.slice(target + 1))
+      update(value.slice(0, target) + value.slice(target + 1))
       focusAt(target)
     } else if (event.key === 'ArrowLeft') {
       focusAt(index - 1)
@@ -66,7 +74,7 @@ export function OtpInput({ label, value, onChange, length = 6, error = false, di
           onKeyDown={(event) => onKeyDown(event, index)}
           onPaste={(event) => onPaste(event, index)}
           // Não deixa saltar caixas: o foco vai sempre para a próxima posição livre.
-          onFocus={() => index > value.length && focusAt(value.length)}
+          onFocus={() => index > latest.current.length && focusAt(latest.current.length)}
           inputMode="numeric"
           autoComplete={index === 0 ? 'one-time-code' : 'off'}
           maxLength={length}
@@ -74,9 +82,9 @@ export function OtpInput({ label, value, onChange, length = 6, error = false, di
           aria-label={`Dígito ${index + 1} de ${length}`}
           aria-invalid={error || undefined}
           className={cn(
-            'h-14 w-full min-w-0 rounded-md border bg-surface text-center text-xl font-semibold transition-colors',
-            'focus-visible:outline-2 focus-visible:outline-offset-0 disabled:opacity-60',
-            error ? 'border-danger' : 'border-border',
+            'h-14 w-full min-w-0 rounded-xl border bg-surface-muted text-center text-xl font-semibold transition-colors',
+            'focus:border-primary focus:bg-surface focus-visible:outline-2 focus-visible:outline-offset-0 disabled:opacity-60',
+            error ? 'border-danger' : value[index] ? 'border-border-strong bg-surface' : 'border-border',
           )}
         />
       ))}

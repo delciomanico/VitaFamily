@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Mail } from 'lucide-react'
 import { z } from 'zod'
-import { Logo } from '@/components/layout/Logo'
+import { AuthFooter, AuthScreen, AuthSwitch } from '@/components/layout/AuthScreen'
 import { DemoHint, demoCredentials } from '@/components/domain/DemoHint'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import { Input, PasswordInput } from '@/components/ui/Input'
 import { FormError } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { errorMessage, isAppError } from '@/lib/errors'
@@ -47,41 +48,39 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-6">
-        <Logo />
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Entrar</h1>
-          <p className="text-muted">Bem-vindo de volta.</p>
+    <AuthScreen title="Entrar" description="Bem-vindo de volta. Aceda à saúde da sua família." backTo={paths.onboarding}>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-1 flex-col">
+        <div className="flex flex-col gap-4">
+          <Input
+            label="E-mail"
+            type="email"
+            icon={Mail}
+            placeholder="nome@exemplo.com"
+            autoComplete="email"
+            error={errors.email?.message}
+            {...register('email')}
+          />
+          <PasswordInput
+            label="Palavra-passe"
+            placeholder="A sua palavra-passe"
+            autoComplete="current-password"
+            error={errors.password?.message}
+            {...register('password')}
+          />
+          <Link to={paths.forgotPassword} className="-mt-1 self-end text-sm font-semibold text-primary hover:underline">
+            Esqueceu a palavra-passe?
+          </Link>
+          <FormError message={formError} />
+          <DemoHint kind="login" onFill={fillDemo} />
         </div>
-      </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Input label="E-mail" type="email" autoComplete="email" error={errors.email?.message} {...register('email')} />
-        <Input
-          label="Palavra-passe"
-          type="password"
-          autoComplete="current-password"
-          error={errors.password?.message}
-          {...register('password')}
-        />
-        <Link to={paths.forgotPassword} className="w-fit text-sm font-medium text-primary hover:underline">
-          Esqueci a palavra-passe
-        </Link>
-        <FormError message={formError} />
-        <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
-          Entrar
-        </Button>
+        <AuthFooter>
+          <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
+            Entrar
+          </Button>
+          <AuthSwitch text="Ainda não tem conta?" to={paths.register} label="Criar conta" />
+        </AuthFooter>
       </form>
-
-      <DemoHint kind="login" onFill={fillDemo} />
-
-      <p className="text-center text-sm text-muted">
-        Ainda não tem conta?{' '}
-        <Link to={paths.register} className="font-medium text-primary hover:underline">
-          Criar conta
-        </Link>
-      </p>
-    </div>
+    </AuthScreen>
   )
 }

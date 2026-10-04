@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { DemoHint } from '@/components/domain/DemoHint'
-import { PageHeader } from '@/components/layout/PageHeader'
+import { AuthFooter, AuthScreen } from '@/components/layout/AuthScreen'
 import { Button } from '@/components/ui/Button'
 import { OtpInput } from '@/components/ui/OtpInput'
 import { FormError } from '@/components/ui/states'
@@ -64,32 +64,54 @@ export function VerifyPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        title="Digite o código enviado"
-        description={`Enviámos um código de ${CODE_LENGTH} dígitos para ${pendingEmail ?? 'o seu e-mail'}.`}
-        backTo={paths.register}
-      />
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <OtpInput
-          label="Código de verificação"
-          value={code}
-          onChange={onChange}
-          length={CODE_LENGTH}
-          error={Boolean(error)}
-          disabled={submitting}
-        />
-        <FormError message={error} />
-        <Button type="submit" size="lg" fullWidth loading={submitting} disabled={code.length < CODE_LENGTH}>
-          Verificar
-        </Button>
+    <AuthScreen
+      title="Digite o código enviado"
+      description={
+        <>
+          Enviámos um código de {CODE_LENGTH} dígitos para{' '}
+          <span className="font-medium text-foreground">{pendingEmail ?? 'o seu e-mail'}</span>.
+        </>
+      }
+      backTo={paths.register}
+    >
+      <form onSubmit={onSubmit} className="flex flex-1 flex-col">
+        <div className="flex flex-col gap-5">
+          <OtpInput
+            label="Código de verificação"
+            value={code}
+            onChange={onChange}
+            length={CODE_LENGTH}
+            error={Boolean(error)}
+            disabled={submitting}
+          />
+          <FormError message={error} />
+          <div className="flex flex-col items-center gap-1 text-sm">
+            {cooldown > 0 ? (
+              <p className="text-muted">
+                Pode reenviar o código em <span className="font-semibold text-primary tabular-nums">{cooldown}</span>{' '}
+                segundos
+              </p>
+            ) : (
+              <p className="text-muted">Não recebeu o código?</p>
+            )}
+            <button
+              type="button"
+              onClick={onResend}
+              disabled={cooldown > 0}
+              className="h-9 px-3 font-semibold text-primary hover:underline disabled:pointer-events-none disabled:text-muted"
+            >
+              Reenviar código
+            </button>
+          </div>
+          <DemoHint kind="verification" />
+        </div>
+
+        <AuthFooter>
+          <Button type="submit" size="lg" fullWidth loading={submitting} disabled={code.length < CODE_LENGTH}>
+            Verificar
+          </Button>
+        </AuthFooter>
       </form>
-
-      <Button variant="ghost" onClick={onResend} disabled={cooldown > 0}>
-        {cooldown > 0 ? `Reenviar código em ${cooldown}s` : 'Reenviar código'}
-      </Button>
-
-      <DemoHint kind="verification" />
-    </div>
+    </AuthScreen>
   )
 }

@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Trash2, Users } from 'lucide-react'
 import { AddMemberForm } from '@/components/domain/AddMemberForm'
 import { MemberListItem } from '@/components/domain/MemberListItem'
-import { PageHeader } from '@/components/layout/PageHeader'
-import { SetupProgress } from '@/components/layout/SetupProgress'
+import { AuthFooter, AuthScreen } from '@/components/layout/AuthScreen'
 import { Button } from '@/components/ui/Button'
 import { Card, Section } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
@@ -59,38 +58,52 @@ export function SetupMembersPage() {
   const added = state.status === 'success' ? state.data.filter((m) => m.userId !== userId) : []
 
   return (
-    <div className="flex flex-col gap-8">
-      <SetupProgress step={3} total={SETUP_STEPS.create} />
-      <PageHeader title="Adicionar membros" description="Quem mais quer acompanhar no Vita Family?" />
+    <AuthScreen
+      title="Adicionar membros"
+      description="Quem mais quer acompanhar no Vita Family?"
+      progress={{ step: 3, total: SETUP_STEPS.create }}
+    >
+      <div className="flex flex-col gap-8">
+        <AddMemberForm onAdd={onAdd} />
 
-      <AddMemberForm onAdd={onAdd} />
+        <Section title="Membros adicionados">
+          {state.status === 'loading' && <LoadingState rows={2} />}
+          {state.status === 'error' && <ErrorState onRetry={reload} />}
+          {state.status === 'success' &&
+            (added.length === 0 ? (
+              <EmptyState
+                icon={Users}
+                title="Ainda não adicionou membros."
+                description="Pode fazê-lo agora ou mais tarde."
+              />
+            ) : (
+              <Card className="divide-y divide-border py-0">
+                {added.map((member) => (
+                  <MemberListItem
+                    key={member.id}
+                    member={member}
+                    action={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setToRemove(member)}
+                        aria-label={`Remover ${member.name}`}
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                      </Button>
+                    }
+                  />
+                ))}
+              </Card>
+            ))}
+        </Section>
+      </div>
 
-      <Section title="Membros adicionados">
-        {state.status === 'loading' && <LoadingState rows={2} />}
-        {state.status === 'error' && <ErrorState onRetry={reload} />}
-        {state.status === 'success' &&
-          (added.length === 0 ? (
-            <EmptyState icon={Users} title="Ainda não adicionou membros." description="Pode fazê-lo agora ou mais tarde." />
-          ) : (
-            <Card className="divide-y divide-border py-0">
-              {added.map((member) => (
-                <MemberListItem
-                  key={member.id}
-                  member={member}
-                  action={
-                    <Button variant="ghost" size="sm" onClick={() => setToRemove(member)} aria-label={`Remover ${member.name}`}>
-                      <Trash2 className="size-4" aria-hidden />
-                    </Button>
-                  }
-                />
-              ))}
-            </Card>
-          ))}
-      </Section>
-
-      <Button size="lg" fullWidth onClick={() => navigate(paths.home)}>
-        {added.length > 0 ? 'Concluir' : 'Pular por agora'}
-      </Button>
+      <AuthFooter>
+        <Button size="lg" fullWidth onClick={() => navigate(paths.home)}>
+          {added.length > 0 ? 'Concluir' : 'Pular por agora'}
+        </Button>
+      </AuthFooter>
 
       <ConfirmDialog
         open={toRemove !== null}
@@ -102,6 +115,6 @@ export function SetupMembersPage() {
         onConfirm={confirmRemove}
         onCancel={() => setToRemove(null)}
       />
-    </div>
+    </AuthScreen>
   )
 }

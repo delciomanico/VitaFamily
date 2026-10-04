@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
-import { Logo } from '@/components/layout/Logo'
+import { LogoMark } from '@/components/layout/Logo'
 import { useAuth } from '@/contexts/AuthContext'
 import { preferences } from '@/lib/storage'
 import { paths } from '@/routes/paths'
@@ -28,12 +28,13 @@ export function SplashPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-      <Logo size="lg" className="flex-col" />
-      {/* TBD: slogan oficial não definido na especificação. */}
-      <p className="text-muted">A saúde da sua família, organizada.</p>
-      <div role="status" className="mt-8">
-        <LoaderCircle className="size-6 animate-spin text-primary" aria-hidden />
+    <div className="fixed inset-0 flex flex-col items-center bg-brand pt-safe pb-[max(3rem,env(safe-area-inset-bottom))] text-white">
+      <div className="flex flex-1 flex-col items-center justify-center gap-5">
+        <LogoMark tone="inverse" className="size-24 drop-shadow-lg" />
+        <p className="text-[1.75rem] font-bold tracking-tight">Vita Family</p>
+      </div>
+      <div role="status">
+        <LoaderCircle className="size-9 animate-spin" strokeWidth={2.5} aria-hidden />
         <span className="sr-only">A iniciar…</span>
       </div>
     </div>

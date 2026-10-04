@@ -1,10 +1,14 @@
 import { Outlet } from 'react-router-dom'
 
-/** Estrutura das telas públicas e de configuração inicial: coluna única centrada. */
+/**
+ * Telas públicas e de configuração inicial. Cada tela controla a sua coluna:
+ * `AuthScreen` no mobile ocupa o ecrã e no desktop aparece como cartão centrado;
+ * splash e onboarding ocupam o ecrã inteiro.
+ */
 export function PublicLayout() {
   return (
-    <div className="flex min-h-dvh flex-col bg-background pt-safe pb-safe">
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-6 md:justify-center md:py-12">
+    <div className="flex min-h-dvh flex-col bg-surface md:justify-center md:bg-background">
+      <main className="flex flex-1 flex-col md:flex-none">
         <Outlet />
       </main>
     </div>

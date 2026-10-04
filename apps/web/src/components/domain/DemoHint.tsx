@@ -23,7 +23,7 @@ interface DemoHintProps {
 
 export function DemoHint({ kind, onFill }: DemoHintProps) {
   return (
-    <div className="flex items-center gap-3 rounded-md border border-dashed border-border-strong px-3.5 py-3 text-sm">
+    <div className="flex items-center gap-3 rounded-xl border border-dashed border-border-strong px-3.5 py-3 text-sm">
       <FlaskConical className="size-4 shrink-0 text-muted" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="font-medium">Modo demonstração</p>

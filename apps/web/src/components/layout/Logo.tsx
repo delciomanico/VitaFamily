@@ -7,15 +7,23 @@ interface LogoProps {
   className?: string
 }
 
-export function LogoMark({ className }: { className?: string }) {
+interface LogoMarkProps {
+  className?: string
+  /** `inverse`: símbolo branco para fundos de cor (splash). */
+  tone?: 'default' | 'inverse'
+}
+
+export function LogoMark({ className, tone = 'default' }: LogoMarkProps) {
+  const base = tone === 'inverse' ? '#fff' : 'var(--color-primary)'
+  const heart = tone === 'inverse' ? 'var(--color-brand)' : '#fff'
   return (
     <svg viewBox="0 0 512 512" className={className} aria-hidden>
-      <rect width="512" height="512" rx="112" fill="var(--color-primary)" />
+      <rect width="512" height="512" rx="112" fill={base} />
       <path
         d="M256 404s-132-78-132-178c0-48 36-82 80-82 26 0 44 12 52 24 8-12 26-24 52-24 44 0 80 34 80 82 0 100-132 178-132 178z"
-        fill="#fff"
+        fill={heart}
       />
-      <path d="M236 206h40v36h36v40h-36v36h-40v-36h-36v-40h36z" fill="var(--color-primary)" />
+      <path d="M236 206h40v36h36v40h-36v36h-40v-36h-36v-40h36z" fill={base} />
     </svg>
   )
 }

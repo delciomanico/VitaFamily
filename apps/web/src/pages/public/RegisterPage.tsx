@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { PageHeader } from '@/components/layout/PageHeader'
+import { Mail, UserRound } from 'lucide-react'
+import { AuthFooter, AuthScreen, AuthSwitch } from '@/components/layout/AuthScreen'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { Input } from '@/components/ui/Input'
+import { Input, PasswordInput } from '@/components/ui/Input'
 import { FormError } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { todayISO } from '@/lib/date'
@@ -46,53 +47,63 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader title="Criar conta" description="Comece a organizar a saúde da sua família." backTo={paths.login} />
+    <AuthScreen title="Criar conta" description="Comece a organizar a saúde da sua família." backTo={paths.login}>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-1 flex-col">
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Nome"
+            icon={UserRound}
+            placeholder="O seu nome"
+            autoComplete="name"
+            error={errors.name?.message}
+            {...register('name')}
+          />
+          <Input
+            label="E-mail"
+            type="email"
+            icon={Mail}
+            placeholder="nome@exemplo.com"
+            autoComplete="email"
+            error={errors.email?.message}
+            {...register('email')}
+          />
+          <Input
+            label="Data de nascimento"
+            type="date"
+            max={todayISO()}
+            autoComplete="bday"
+            error={errors.birthDate?.message}
+            {...register('birthDate')}
+          />
+          <PasswordInput
+            label="Palavra-passe"
+            autoComplete="new-password"
+            hint={`Pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`}
+            error={errors.password?.message}
+            {...register('password')}
+          />
+          <PasswordInput
+            label="Confirmar palavra-passe"
+            autoComplete="new-password"
+            error={errors.confirmPassword?.message}
+            {...register('confirmPassword')}
+          />
+          {/* TODO(fase 12): ligar às páginas de Termos e Política de privacidade. */}
+          <Checkbox
+            label="Li e aceito os Termos de utilização e a Política de privacidade."
+            error={errors.acceptTerms?.message}
+            {...register('acceptTerms')}
+          />
+          <FormError message={formError} />
+        </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-        <Input label="Nome" autoComplete="name" error={errors.name?.message} {...register('name')} />
-        <Input label="E-mail" type="email" autoComplete="email" error={errors.email?.message} {...register('email')} />
-        <Input
-          label="Data de nascimento"
-          type="date"
-          max={todayISO()}
-          autoComplete="bday"
-          error={errors.birthDate?.message}
-          {...register('birthDate')}
-        />
-        <Input
-          label="Palavra-passe"
-          type="password"
-          autoComplete="new-password"
-          hint={`Pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`}
-          error={errors.password?.message}
-          {...register('password')}
-        />
-        <Input
-          label="Confirmar palavra-passe"
-          type="password"
-          autoComplete="new-password"
-          error={errors.confirmPassword?.message}
-          {...register('confirmPassword')}
-        />
-        {/* TODO(fase 12): ligar às páginas de Termos e Política de privacidade. */}
-        <Checkbox
-          label="Li e aceito os Termos de utilização e a Política de privacidade."
-          error={errors.acceptTerms?.message}
-          {...register('acceptTerms')}
-        />
-        <FormError message={formError} />
-        <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
-          Criar conta
-        </Button>
+        <AuthFooter>
+          <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
+            Criar conta
+          </Button>
+          <AuthSwitch text="Já tem conta?" to={paths.login} label="Entrar" />
+        </AuthFooter>
       </form>
-
-      <p className="text-center text-sm text-muted">
-        Já tem conta?{' '}
-        <Link to={paths.login} className="font-medium text-primary hover:underline">
-          Entrar
-        </Link>
-      </p>
-    </div>
+    </AuthScreen>
   )
 }

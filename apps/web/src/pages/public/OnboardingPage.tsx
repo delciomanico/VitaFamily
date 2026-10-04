@@ -1,20 +1,32 @@
 import { useRef, useState, type TouchEvent } from 'react'
-import { BellRing, HeartPulse, Users, type LucideIcon } from 'lucide-react'
-import { Logo } from '@/components/layout/Logo'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
 import { preferences } from '@/lib/storage'
 import { paths } from '@/routes/paths'
+import { OnboardingPreview, type PreviewKind } from './OnboardingPreview'
 
 interface Slide {
-  icon: LucideIcon
-  lines: string[]
+  preview: PreviewKind
+  title: string
+  description: string
 }
 
 const slides: Slide[] = [
-  { icon: HeartPulse, lines: ['Sua saúde,', 'num só lugar.'] },
-  { icon: Users, lines: ['Cuide da saúde', 'de quem importa.'] },
-  { icon: BellRing, lines: ['Acompanhe.', 'Lembre-se.', 'Previna.'] },
+  {
+    preview: 'health',
+    title: 'A sua saúde, num só lugar',
+    description: 'Perfil de saúde, receitas, exames e consultas organizados e sempre à mão.',
+  },
+  {
+    preview: 'family',
+    title: 'Cuide da saúde de quem importa',
+    description: 'Acompanhe os membros da sua família e os dependentes ao seu cuidado.',
+  },
+  {
+    preview: 'reminders',
+    title: 'Acompanhe. Lembre-se. Previna.',
+    description: 'Receba lembretes de tomas, consultas e exames na hora certa.',
+  },
 ]
 
 /** Distância mínima (px) de um gesto horizontal para mudar de tela. */
@@ -26,7 +38,6 @@ export function OnboardingPage() {
   const lastIndex = slides.length - 1
   const isLast = index === lastIndex
   const slide = slides[index] ?? slides[0]!
-  const Icon = slide.icon
 
   function goTo(next: number) {
     const clamped = Math.max(0, Math.min(next, lastIndex))
@@ -45,39 +56,34 @@ export function OnboardingPage() {
 
   return (
     <div
-      className="flex flex-1 flex-col"
+      className={cn(
+        'fixed inset-0 flex flex-col overflow-hidden bg-brand',
+        'md:relative md:inset-auto md:mx-auto md:my-10 md:h-[min(46rem,calc(100dvh-5rem))] md:w-full md:max-w-md md:rounded-3xl md:shadow-overlay',
+      )}
       onTouchStart={(event) => (touchStartX.current = event.touches[0]?.clientX ?? null)}
       onTouchEnd={onTouchEnd}
     >
-      <div className="flex h-11 items-center justify-between">
-        <Logo />
-        {!isLast && (
-          <Button variant="ghost" size="sm" onClick={() => goTo(lastIndex)}>
-            Saltar
-          </Button>
-        )}
+      <div className="relative min-h-0 flex-1 pt-safe">
+        <div className="absolute inset-x-0 top-[max(2.5rem,env(safe-area-inset-top))] bottom-0 flex justify-center">
+          <div className="aspect-[9/16] h-[calc(100%+3rem)] max-w-[72%]">
+            <OnboardingPreview kind={slide.preview} />
+          </div>
+        </div>
       </div>
 
       <section
         aria-roledescription="diapositivo"
         aria-label={`${index + 1} de ${slides.length}`}
         aria-live="polite"
-        className="flex flex-1 flex-col items-center justify-center gap-10 py-10 text-center"
+        className="relative flex shrink-0 flex-col gap-5 bg-surface px-6 pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center"
+        style={{ borderRadius: '50% 50% 0 0 / 2.5rem 2.5rem 0 0' }}
       >
-        <span className="flex size-28 items-center justify-center rounded-full bg-primary-soft text-primary">
-          <Icon className="size-12" strokeWidth={1.5} aria-hidden />
-        </span>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          {slide.lines.map((line) => (
-            <span key={line} className="block">
-              {line}
-            </span>
-          ))}
-        </h1>
-      </section>
+        <div className="flex flex-col gap-2.5">
+          <h1 className="text-[1.625rem] leading-tight font-bold tracking-tight text-balance">{slide.title}</h1>
+          <p className="text-muted text-balance">{slide.description}</p>
+        </div>
 
-      <div className="flex flex-col gap-6">
-        <div className="flex justify-center gap-2">
+        <div className="flex justify-center gap-1">
           {slides.map((_, dot) => (
             <button
               key={dot}
@@ -85,33 +91,40 @@ export function OnboardingPage() {
               onClick={() => goTo(dot)}
               aria-label={`Ir para o passo ${dot + 1}`}
               aria-current={dot === index ? 'step' : undefined}
-              className="flex size-6 items-center justify-center"
+              className="flex h-6 items-center justify-center px-0.5"
             >
               <span
                 className={cn(
-                  'h-2 rounded-full transition-all',
-                  dot === index ? 'w-6 bg-primary' : 'w-2 bg-border-strong',
+                  'h-1.5 rounded-full transition-all',
+                  dot === index ? 'w-6 bg-primary' : 'w-1.5 bg-border-strong',
                 )}
               />
             </button>
           ))}
         </div>
 
-        {isLast ? (
-          <div className="flex flex-col gap-2">
-            <ButtonLink to={paths.register} size="lg" fullWidth>
-              Criar conta
-            </ButtonLink>
-            <ButtonLink to={paths.login} size="lg" variant="ghost" fullWidth>
-              Já tenho uma conta
-            </ButtonLink>
-          </div>
-        ) : (
-          <Button size="lg" fullWidth onClick={() => goTo(index + 1)}>
-            Continuar
-          </Button>
-        )}
-      </div>
+        <div className="mt-2 grid grid-cols-2 gap-3">
+          {isLast ? (
+            <>
+              <ButtonLink to={paths.login} size="lg" variant="soft">
+                Entrar
+              </ButtonLink>
+              <ButtonLink to={paths.register} size="lg">
+                Criar conta
+              </ButtonLink>
+            </>
+          ) : (
+            <>
+              <Button size="lg" variant="soft" onClick={() => goTo(lastIndex)}>
+                Saltar
+              </Button>
+              <Button size="lg" onClick={() => goTo(index + 1)}>
+                Continuar
+              </Button>
+            </>
+          )}
+        </div>
+      </section>
     </div>
   )
 }
