@@ -1,4 +1,5 @@
 import type { Appointment } from '@/types/appointment'
+import { raiseAlerts } from './alertRules'
 import { db } from './db'
 
 /*
@@ -24,13 +25,30 @@ export function expireRequests(now: Date) {
     if (appointment.status === 'REQUESTED' && Date.parse(appointment.scheduledAt) <= now.getTime()) {
       appointment.status = 'CANCELLED'
       appointment.responseNote = NO_RESPONSE_NOTE
+      notifyResponse(appointment, appointment.scheduledAt)
     }
   }
 }
 
-/** Lembretes ainda por disparar deixam de fazer sentido ao reagendar ou cancelar (BR-APT-03). */
-export function dropFutureAlerts(appointmentId: string, now: Date) {
-  db.alerts = db.alerts.filter(
-    (a) => a.sourceType !== 'APPOINTMENT' || a.sourceId !== appointmentId || Date.parse(a.triggerAt) <= now.getTime(),
-  )
+const RESPONSE_ALERT = {
+  SCHEDULED: { type: 'APPOINTMENT_CONFIRMED', ruleKey: 'appointment.confirmed' },
+  REJECTED: { type: 'APPOINTMENT_REJECTED', ruleKey: 'appointment.rejected' },
+  CANCELLED: { type: 'APPOINTMENT_CANCELLED', ruleKey: 'appointment.cancelled' },
+} as const
+
+/** Avisa a família da resposta da clínica ao pedido ou à consulta (FR-APT-07). */
+export function notifyResponse(appointment: Appointment, at: string) {
+  if (!(appointment.status in RESPONSE_ALERT)) return
+  const rule = RESPONSE_ALERT[appointment.status as keyof typeof RESPONSE_ALERT]
+  raiseAlerts(db, [
+    {
+      familyId: appointment.familyId,
+      memberId: appointment.memberId,
+      ...rule,
+      sourceType: 'APPOINTMENT',
+      sourceId: appointment.id,
+      triggerAt: at,
+      occurrence: appointment.scheduledAt,
+    },
+  ])
 }

@@ -3,6 +3,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { ClinicShell } from '@/components/layout/ClinicShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { AppointmentDetailPage } from '@/pages/appointments/AppointmentDetailPage'
+import { AlertsPage } from '@/pages/alerts/AlertsPage'
 import { AppointmentsPage } from '@/pages/appointments/AppointmentsPage'
 import { NewAppointmentPage } from '@/pages/appointments/NewAppointmentPage'
 import { ExaminationDetailPage } from '@/pages/examinations/ExaminationDetailPage'
@@ -106,7 +107,7 @@ export const routes: RouteObject[] = [
               { path: 'family', element: <FamilyPage /> },
               { path: 'family/:id', element: <MemberProfilePage /> },
               { path: 'family/:id/history', element: <MemberHistoryPage /> },
-              placeholder('alerts', 'Alertas', 10),
+              { path: 'alerts', element: <AlertsPage /> },
               placeholder('reports/family', 'Saúde da família', 11),
               placeholder('reports/preventive', 'Relatório preventivo', 11, paths.familyReport),
               { path: 'settings', element: <SettingsPage /> },

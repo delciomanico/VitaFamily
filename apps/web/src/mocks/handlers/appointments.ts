@@ -3,7 +3,7 @@ import type { Appointment, AppointmentItem } from '@/types/appointment'
 import type { AvailableSlot } from '@/types/clinic'
 import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
-import { bookingOf, dropFutureAlerts, expireRequests } from '../bookings'
+import { bookingOf, expireRequests } from '../bookings'
 import { respond } from '../respond'
 import { visibleClinics } from './clinics'
 
@@ -175,9 +175,8 @@ export function updateAppointment(
     const appointment = findAppointment(familyId, userId, id)
     // As de clínica parceira mudam-se cancelando e pedindo outro horário (BR-APT-09).
     if (appointment.status !== 'SCHEDULED' || appointment.slotId) throw new AppError('VALIDATION_ERROR')
-    const rescheduled = new Date(input.scheduledAt).toISOString() !== appointment.scheduledAt
+    // Os lembretes seguem a nova data (a chave de cada alerta inclui a data da consulta).
     Object.assign(appointment, fields(familyId, input, now))
-    if (rescheduled) dropFutureAlerts(id, now)
     return appointment
   })
 }
@@ -202,7 +201,6 @@ export function setAppointmentStatus(
     const past = Date.parse(appointment.scheduledAt) <= now.getTime()
     if (status !== 'CANCELLED' && !past) throw new AppError('VALIDATION_ERROR')
     appointment.status = status
-    dropFutureAlerts(id, now)
     return appointment
   })
 }

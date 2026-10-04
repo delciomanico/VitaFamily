@@ -2,7 +2,7 @@ import { AppError } from '@/lib/errors'
 import type { Appointment } from '@/types/appointment'
 import type { Clinic, ClinicBooking, ClinicSlot, ClinicSlotView } from '@/types/clinic'
 import { memberName } from '../access'
-import { bookingOf, dropFutureAlerts, expireRequests } from '../bookings'
+import { bookingOf, expireRequests, notifyResponse } from '../bookings'
 import { db, newId } from '../db'
 import { respond } from '../respond'
 
@@ -84,6 +84,7 @@ export function confirmBooking(userId: string, id: string, now: Date = new Date(
     const appointment = findBooking(clinic, id)
     if (appointment.status !== 'REQUESTED') throw new AppError('CONFLICT')
     appointment.status = 'SCHEDULED'
+    notifyResponse(appointment, now.toISOString())
     return toBooking(appointment)
   })
 }
@@ -97,6 +98,7 @@ export function rejectBooking(userId: string, id: string, note?: string, now: Da
     if (appointment.status !== 'REQUESTED') throw new AppError('CONFLICT')
     appointment.status = 'REJECTED'
     appointment.responseNote = note?.trim() || undefined
+    notifyResponse(appointment, now.toISOString())
     return toBooking(appointment)
   })
 }
@@ -112,7 +114,7 @@ export function cancelBooking(userId: string, id: string, note: string, now: Dat
     }
     appointment.status = 'CANCELLED'
     appointment.responseNote = note.trim()
-    dropFutureAlerts(id, now)
+    notifyResponse(appointment, now.toISOString())
     return toBooking(appointment)
   })
 }

@@ -98,7 +98,7 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-APT-04 | O sistema deve gerar lembretes de consulta antes da hora (antecedência: ver FR-ALR-04). | scope §2 |
 | FR-APT-05 | ~~Não existe fluxo de pedido/confirmação com a clínica no MVP.~~ **Substituído por D17:** numa clínica parceira, a consulta é marcada num horário publicado pela clínica e fica a aguardar confirmação; noutras clínicas ou sem clínica, é registada diretamente. | D17 |
 | FR-APT-06 | O Gestor da clínica parceira publica e remove horários livres, confirma ou recusa pedidos (com motivo opcional) e pode cancelar consultas confirmadas com motivo. | D17 |
-| FR-APT-07 | O titular/tutor é informado quando a clínica confirma, recusa ou cancela (alerta; detalhe na fase de alertas). | D17 |
+| FR-APT-07 | O titular/tutor é informado quando a clínica confirma, recusa ou cancela (alerta `APPOINTMENT_CONFIRMED`/`REJECTED`/`CANCELLED`, ver UC-ALR-01). | D17 |
 
 ## 9. Exames (EXM)
 

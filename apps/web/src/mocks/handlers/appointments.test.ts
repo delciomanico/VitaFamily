@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { AppError } from '@/lib/errors'
-import { db, resetDb } from '../db'
+import { resetDb } from '../db'
 import { at } from '../time'
 import * as apt from './appointments'
 import * as portal from './clinicPortal'
@@ -52,21 +52,7 @@ describe('consultas', () => {
     )
   })
 
-  it('reagendar remove os lembretes ainda por disparar', async () => {
-    db.alerts.push({
-      id: 'alr_futuro',
-      recipientUserId: MONARCA,
-      familyId: FAMILY,
-      memberId: 'mem_monarca',
-      type: 'APPOINTMENT_REMINDER',
-      sourceType: 'APPOINTMENT',
-      sourceId: 'apt_cardio',
-      triggerAt: at(1, '07:30', NOW),
-    })
-    const direct = await apt.createAppointment(FAMILY, MONARCA, input(), NOW)
-    db.alerts.push({ ...db.alerts.at(-1)!, id: 'alr_direta', sourceId: direct.id })
-    await apt.updateAppointment(FAMILY, MONARCA, direct.id, { scheduledAt: at(5, '11:00', NOW) }, NOW)
-    expect(db.alerts.some((a) => a.id === 'alr_direta')).toBe(false)
+  it('consultas de clínica parceira não se reagendam (BR-APT-09)', async () => {
     // As de clínica parceira não se reagendam: cancela-se e pede-se outro horário (BR-APT-09).
     expect(
       await code(apt.updateAppointment(FAMILY, MONARCA, 'apt_cardio', { scheduledAt: at(2, '11:00', NOW) }, NOW)),

@@ -41,6 +41,15 @@ export function seedExaminations(now: Date = new Date()): Examination[] {
       status: 'SCHEDULED',
     },
     {
+      // Amanhã: o lembrete de 24 h já disparou (alerta de exame na demo).
+      ...lab,
+      id: 'exm_pedro',
+      memberId: 'mem_pedro',
+      name: 'Análises clínicas',
+      examDate: day(1, now),
+      status: 'SCHEDULED',
+    },
+    {
       ...lab,
       id: 'exm_joao',
       memberId: 'mem_joao',

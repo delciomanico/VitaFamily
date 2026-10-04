@@ -13,7 +13,16 @@ function renderAt(path: string) {
       {
         path: '/app',
         element: <AppShell />,
-        children: [{ path: '*', element: <Page title="Página de teste" backTo="/app">conteúdo</Page> }],
+        children: [
+          {
+            path: '*',
+            element: (
+              <Page title="Página de teste" backTo="/app">
+                conteúdo
+              </Page>
+            ),
+          },
+        ],
       },
     ],
     { initialEntries: [path] },
@@ -26,7 +35,7 @@ function renderAt(path: string) {
 }
 
 beforeEach(() => {
-  // Dados criados num instante passado fixo (meio-dia), para o número de alertas não depender da hora do teste.
+  // Dados criados num instante passado fixo (meio-dia); os alertas por ler dependem da hora real do teste.
   resetDb(new Date(2026, 9, 4, 12, 0))
   sessionStore.setUserId('usr_monarca')
 })
@@ -38,7 +47,10 @@ describe('AppShell', () => {
     for (const label of ['Início', 'Saúde', 'Agenda', 'Família']) {
       expect(within(sidebar).getByRole('link', { name: label })).toBeInTheDocument()
     }
-    expect(await within(sidebar).findByRole('link', { name: 'Alertas, 3 por ler' })).toHaveAttribute('href', '/app/alerts')
+    expect(await within(sidebar).findByRole('link', { name: /^Alertas, \d+ por ler$/ })).toHaveAttribute(
+      'href',
+      '/app/alerts',
+    )
   })
 
   it('marca como ativa a secção atual e não a Início', () => {
@@ -53,7 +65,7 @@ describe('AppShell', () => {
     expect(screen.getByRole('heading', { name: 'Página de teste' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Voltar' })).toHaveAttribute('href', '/app')
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Abrir menu, 3 alertas por ler' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Abrir menu, \d+ alertas por ler$/ }))
     const menu = screen.getByRole('navigation', { name: 'Menu principal', hidden: true })
     for (const label of ['Início', 'Saúde', 'Agenda', 'Família', 'Configurações']) {
       expect(within(menu).getByRole('link', { name: label, hidden: true })).toBeInTheDocument()

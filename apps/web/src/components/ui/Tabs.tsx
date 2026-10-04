@@ -11,6 +11,8 @@ interface TabsProps<T extends string> {
   value: T
   onChange: (value: T) => void
   label: string
+  /** Muitos separadores: deslizam na horizontal em vez de se apertarem. */
+  scrollable?: boolean
   className?: string
 }
 
@@ -18,7 +20,7 @@ interface TabsProps<T extends string> {
  * Separadores segmentados (ex.: Ativas / Histórico).
  * O painel associado usa `tabPanelProps(id, value)`.
  */
-export function Tabs<T extends string>({ items, value, onChange, label, className }: TabsProps<T>) {
+export function Tabs<T extends string>({ items, value, onChange, label, scrollable, className }: TabsProps<T>) {
   const baseId = useId()
   const refs = useRef<Array<HTMLButtonElement | null>>([])
 
@@ -34,7 +36,15 @@ export function Tabs<T extends string>({ items, value, onChange, label, classNam
   }
 
   return (
-    <div role="tablist" aria-label={label} className={cn('flex gap-1 rounded-full bg-surface-muted p-1', className)}>
+    <div
+      role="tablist"
+      aria-label={label}
+      className={cn(
+        'flex gap-1 rounded-full bg-surface-muted p-1',
+        scrollable && 'no-scrollbar overflow-x-auto',
+        className,
+      )}
+    >
       {items.map((item, index) => {
         const selected = item.value === value
         return (
@@ -51,7 +61,8 @@ export function Tabs<T extends string>({ items, value, onChange, label, classNam
             onClick={() => onChange(item.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              'h-9 flex-1 rounded-full px-3 text-sm font-medium transition-colors',
+              'h-9 rounded-full px-3 text-sm font-medium whitespace-nowrap transition-colors',
+              scrollable ? 'shrink-0' : 'flex-1',
               selected ? 'bg-surface text-foreground shadow-card' : 'text-muted hover:text-foreground',
             )}
           >

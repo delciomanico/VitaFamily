@@ -1,6 +1,6 @@
 import type { Tone } from '@/components/ui/Badge'
 import type { SelectOption } from '@/components/ui/Select'
-import type { AlertItem } from '@/types/alert'
+import type { AlertCategory, AlertItem, AlertType } from '@/types/alert'
 import type { AppointmentStatus } from '@/types/appointment'
 import type { ExaminationStatus } from '@/types/examination'
 import type { DoseStatus, MedicationPlanStatus } from '@/types/medication'
@@ -82,18 +82,46 @@ export const doseStatus: Record<DoseStatus, StatusLabel> = {
   UNCONFIRMED: { label: 'Não confirmada', tone: 'warning' },
 }
 
-/** Título do alerta a partir do tipo e do resumo da origem. */
-export function alertTitle({ type, sourceLabel }: Pick<AlertItem, 'type' | 'sourceLabel'>): string {
+/** Título do alerta a partir da regra e do resumo da origem (sem dados clínicos, FR-ALR-07). */
+export function alertTitle({
+  type,
+  ruleKey,
+  sourceLabel,
+}: Pick<AlertItem, 'type' | 'ruleKey' | 'sourceLabel'>): string {
   switch (type) {
     case 'MEDICATION_DUE':
-      return `Hora de tomar ${sourceLabel}`
+      return ruleKey === 'dose.repeat' ? `Toma por confirmar: ${sourceLabel}` : `Hora de tomar ${sourceLabel}`
     case 'APPOINTMENT_REMINDER':
       return `Lembrete de consulta: ${sourceLabel}`
     case 'EXAM_REMINDER':
       return `Lembrete de exame: ${sourceLabel}`
     case 'APPOINTMENT_OUTCOME_REQUEST':
       return `Como correu a consulta de ${sourceLabel}?`
+    case 'APPOINTMENT_CONFIRMED':
+      return `Consulta confirmada: ${sourceLabel}`
+    case 'APPOINTMENT_REJECTED':
+      return `Pedido de consulta recusado: ${sourceLabel}`
+    case 'APPOINTMENT_CANCELLED':
+      return `Consulta cancelada: ${sourceLabel}`
   }
+}
+
+/** Grupo do centro de alertas de cada tipo (Medicamentos, Consultas, Exames, Acompanhamento). */
+export const alertCategoryOf: Record<AlertType, AlertCategory> = {
+  MEDICATION_DUE: 'MEDICATION',
+  APPOINTMENT_REMINDER: 'APPOINTMENTS',
+  APPOINTMENT_CONFIRMED: 'APPOINTMENTS',
+  APPOINTMENT_REJECTED: 'APPOINTMENTS',
+  APPOINTMENT_CANCELLED: 'APPOINTMENTS',
+  EXAM_REMINDER: 'EXAMS',
+  APPOINTMENT_OUTCOME_REQUEST: 'FOLLOW_UP',
+}
+
+export const alertCategoryLabels: Record<AlertCategory, string> = {
+  MEDICATION: 'Medicamentos',
+  APPOINTMENTS: 'Consultas',
+  EXAMS: 'Exames',
+  FOLLOW_UP: 'Acompanhamento',
 }
 
 export function bloodTypeLabel(value: BloodType): string {

@@ -49,15 +49,22 @@ describe('resumo da Home (Monarca, tutor de Maria, João e Pedro)', () => {
 
   it('lista os alertas recentes, lidos e por ler, mais recentes primeiro', async () => {
     const { recentAlerts } = await getHomeSummary('fam_monarca', 'usr_monarca', NOW)
-    // Ao meio-dia: lembrete de consulta (10:00), toma das 08:00, pedido de resultado (ontem), exame (lido).
-    expect(recentAlerts.map((a) => a.id)).toEqual(['alr_cardio', 'alr_amox', 'alr_endocrino', 'alr_maria'])
-    expect(recentAlerts[3]?.readAt).toBeDefined()
-    expect(recentAlerts[1]).toMatchObject({
-      memberName: 'Monarca Lopes',
-      sourceLabel: 'Amoxicilina 500 mg',
-      sourceId: 'dose_med_amox_0800',
-    })
-    expect(recentAlerts[1]).not.toHaveProperty('recipientUserId')
+    // Ao meio-dia: lembrete da consulta de amanhã (09:30), tomas da manhã, exame de amanhã, consulta por atualizar.
+    expect(recentAlerts.map((a) => a.ruleKey)).toEqual([
+      'appointment.24h',
+      'dose.due',
+      'dose.repeat',
+      'dose.due',
+      'dose.due',
+      'exam.24h',
+      'appointment.outcome',
+    ])
+    const amox = recentAlerts.find((a) => a.sourceId === 'dose_med_amox_0800')
+    expect(amox).toMatchObject({ memberName: 'Monarca Lopes', sourceLabel: 'Amoxicilina 500 mg', targetId: 'med_amox' })
+    // Toma já tomada: o alerta fica lido (demo).
+    expect(amox?.readAt).toBeDefined()
+    expect(amox).not.toHaveProperty('recipientUserId')
+    expect(amox).not.toHaveProperty('dedupeKey')
   })
 })
 

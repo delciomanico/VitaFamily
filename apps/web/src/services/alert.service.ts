@@ -4,4 +4,6 @@ import * as api from '@/mocks/handlers/alerts'
 export const alertService = {
   listAlerts: api.listAlerts,
   countUnread: api.countUnread,
+  markAlertRead: api.markAlertRead,
+  markAllAlertsRead: api.markAllAlertsRead,
 }

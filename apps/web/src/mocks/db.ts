@@ -1,4 +1,3 @@
-import { seedAlerts } from './data/alerts'
 import { seedAppointments } from './data/appointments'
 import { clinicStaff, clinics, seedSlots } from './data/clinics'
 import { seedExamDocuments, seedExamResults, seedExaminations } from './data/examinations'
@@ -6,6 +5,7 @@ import { families, guardianships, invitations, members, sharingGrants } from './
 import { allergies, conditions } from './data/health'
 import { seedDocuments, seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
 import { users } from './data/users'
+import { scanAlerts, type MockAlert } from './alertRules'
 
 /**
  * “Base de dados” em memória do backend simulado.
@@ -13,7 +13,7 @@ import { users } from './data/users'
  */
 function seed(now: Date = new Date()) {
   const medicationPlans = seedMedicationPlans(now)
-  return {
+  const data = {
     ...structuredClone({
       users,
       families,
@@ -34,8 +34,14 @@ function seed(now: Date = new Date()) {
     documents: [...seedDocuments(now), ...seedExamDocuments(now)],
     examinations: seedExaminations(now),
     examResults: seedExamResults(now),
-    alerts: seedAlerts(now),
+    alerts: [] as MockAlert[],
   }
+  // Alertas já disparados pelas regras; os das tomas já tomadas ficam lidos (demo).
+  for (const alert of scanAlerts(data, now)) {
+    const dose = data.doses.find((d) => d.id === alert.sourceId)
+    if (dose?.status === 'TAKEN') alert.readAt = dose.actedAt
+  }
+  return data
 }
 
 export let db = seed()
