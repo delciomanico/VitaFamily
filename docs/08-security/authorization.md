@@ -1,5 +1,7 @@
 # Vita Family — Autorização (Fase 14)
 
+> **Pendente (D17, change control 2026-10-05):** acrescentar ClinicSlot, ClinicStaff, os estados REQUESTED/REJECTED de Appointment e as operações do portal da clínica. Até lá, este documento não cobre a marcação com clínica parceira (ver `00-product/discovery.md` → D17).
+
 > Estado: **v0.1**. Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008.
 
 ## 1. Entradas e saída da decisão

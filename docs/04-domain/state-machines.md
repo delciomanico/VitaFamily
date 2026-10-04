@@ -54,13 +54,17 @@ Fora das janelas: `DOSE_WINDOW_EXPIRED`. Confirmar duas vezes o mesmo estado é 
 
 ## Appointment
 ```text
+REQUESTED → SCHEDULED   [Gestor da clínica confirma]                                ← D17
+REQUESTED → REJECTED    [Gestor da clínica recusa, motivo opcional]                  ← D17
+REQUESTED → CANCELLED   [titular/tutor desiste; sistema: hora do horário sem resposta] ← D17
+SCHEDULED → CANCELLED   [Gestor da clínica, com motivo — só consultas da clínica]     ← D17
 SCHEDULED → COMPLETED   [titular/tutor]
 SCHEDULED → NO_SHOW     [titular/tutor]
 SCHEDULED → CANCELLED   [titular/tutor]
 CANCELLED → SCHEDULED   [titular/tutor, reagendar]
 COMPLETED ↔ NO_SHOW     [titular/tutor, correção]                                   ← ST4
 ```
-Consulta passada SCHEDULED permanece SCHEDULED; o sistema envia `APPOINTMENT_OUTCOME_REQUEST` 24 h após a hora (uma vez) (Q4).
+Consulta de clínica parceira nasce REQUESTED; privada/sem clínica nasce SCHEDULED (D17). Consulta passada SCHEDULED permanece SCHEDULED; o sistema envia `APPOINTMENT_OUTCOME_REQUEST` 24 h após a hora (uma vez) (Q4).
 
 ## Examination
 ```text

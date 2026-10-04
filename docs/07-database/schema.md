@@ -1,5 +1,7 @@
 # Vita Family — Esquema da base de dados (Fase 12)
 
+> **Pendente (D17, change control 2026-10-05):** acrescentar ClinicSlot, ClinicStaff, os estados REQUESTED/REJECTED de Appointment e as operações do portal da clínica. Até lá, este documento não cobre a marcação com clínica parceira (ver `00-product/discovery.md` → D17).
+
 > Estado: **v0.1**. PostgreSQL 16. Nomes em `snake_case`, tabelas no plural. Derivado de `04-domain/entities.md`.
 > Convenções: `id uuid PK default gen_random_uuid()`; `created_at`/`updated_at timestamptz not null default now()` em todas (omitidas abaixo); enums como tipos `ENUM` do Postgres; `NN` = NOT NULL; `FK→t(c)`; `CASCADE` = ON DELETE CASCADE.
 > Isolamento: toda a tabela de dados de família tem `family_id`. Os filhos usam **FK composta** `(family_id, member_id) → family_members(family_id, id)` para impedir, na própria BD, que um registo aponte para um membro de outra família (ADR-008).

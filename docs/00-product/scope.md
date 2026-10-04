@@ -1,7 +1,7 @@
 # Vita Family — Âmbito do MVP (Fase 2)
 
 > Estado: **v0.2 — M1–M6 respondidas; N1–N3 respondidas; 1 ponto em aberto (secção 6)**
-> Base: prompt mestre + decisões D1–D16 de `discovery.md`.
+> Base: prompt mestre + decisões D1–D16 de `discovery.md` (+ D17, change control de 2026-10-05).
 > Legenda: **[IN]** dentro do MVP · **[OUT]** fora · **[NEEDS DECISION]** pendente.
 > Nota: isto define **âmbito**, não requisitos detalhados (Fase 3).
 
@@ -18,7 +18,8 @@ Permitir que uma família em Portugal registe a saúde dos seus membros (incluin
 | **Perfil de saúde** | tipo sanguíneo, alergias, condições, histórico médico (campos simples) | D8 |
 | **Receitas** | registo manual, medicamentos (texto livre), dosagem, frequência, duração, observações, documento anexo, estado simples | D8, D9 |
 | **Medicamentos** | ativos, horários, duração, lembretes, **confirmação de toma** e histórico de adesão | D7 |
-| **Consultas** | criar/editar, data/hora, profissional, clínica (cadastro `Clinic` sem login ou texto), estado simples, lembretes | D3, D9 |
+| **Consultas** | criar/editar, data/hora, profissional, clínica (cadastro `Clinic` ou texto), estados, lembretes; **marcação em horários publicados por clínicas parceiras, com confirmação da clínica** | D3, D9, D17 |
+| **Portal da clínica** | Gestor da clínica parceira: publica horários, confirma/recusa pedidos, vê a agenda da clínica — só dados mínimos da marcação, nunca dados de saúde | D17 |
 | **Exames** | registo, upload de documento, resultados estruturados simples (valor, unidade, intervalo de referência informado pelo utilizador), data, histórico, estado | D8, D9 |
 | **Alertas** | só de agenda: medicação, consulta, exame; cadeia Evento → Regra → Alerta → Notificação | D11 |
 | **Notificações** | push (PWA) + e-mail | D6, D12 |
@@ -29,12 +30,12 @@ Permitir que uma família em Portugal registe a saúde dos seus membros (incluin
 
 ## 3. Fora do MVP [OUT]
 - Tudo o que o prompt exclui: diagnóstico, IA/chatbot médico, previsão de doenças, integração com hospitais, pagamentos, marketplace, telemedicina, farmácias, seguros, IoT, wearables, ML, análise médica avançada.
-- Clínicas com login (Clinic Admin/Manager) e acesso a dados de famílias (D3).
+- Acesso de clínicas a dados de saúde das famílias (D3). O login de Gestor da clínica parceira entrou com D17, limitado às marcações.
 - SMS (D6); exportação PDF e partilha por link (D10).
 - Alertas por resultados de exames (D11).
 - OCR/leitura automática de documentos; interações medicamentosas; catálogos de medicamentos/doenças (D8).
 - App móvel nativa (D12).
-- Fluxos REQUESTED/CONFIRMED de consulta com clínica (D9).
+- ~~Fluxos REQUESTED/CONFIRMED de consulta com clínica (D9).~~ Entrou no MVP por D17 (só clínicas parceiras).
 
 ## 4. Pontos de extensão a preparar (sem implementar)
 Clínica como entidade própria; canal de notificação abstrato (para SMS futuro); regras de alerta separadas dos eventos (para alertas clínicos futuros). Nada mais.

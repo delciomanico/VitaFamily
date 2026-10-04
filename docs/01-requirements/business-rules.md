@@ -98,13 +98,18 @@
 
 | ID | Regra | Estado |
 |---|---|---|
-| BR-APT-01 | Estados: AGENDADA, REALIZADA, CANCELADA, FALTOU. Estados finais: ver Fase 10. | DECIDIDO D9 |
+| BR-APT-01 | Estados: PEDIDA, AGENDADA, RECUSADA, REALIZADA, CANCELADA, FALTOU. PEDIDA/RECUSADA só existem em clínicas parceiras. Estados finais: ver Fase 10. | DECIDIDO D9, D17 |
 | BR-APT-02 | Uma consulta passada sem atualização permanece AGENDADA; o sistema pede confirmação do desfecho e nunca assume. | DECIDIDO Q4 |
 | BR-APT-03 | Lembretes: 24 h e 2 h antes (configurável por utilizador, R9). Editar/cancelar recalcula/remove lembretes futuros. | DECIDIDO R9 |
-| BR-APT-04 | A clínica é uma clínica parceira, uma entrada privada, ou ausente. Sem fluxo de pedido/confirmação com a clínica. | DECIDIDO R8, D3, D9 |
+| BR-APT-04 | A clínica é uma clínica parceira, uma entrada privada, ou ausente. **Parceira:** a consulta só se marca num horário publicado e livre; nasce PEDIDA e só fica AGENDADA quando a clínica confirma. **Privada ou ausente:** registo direto, nasce AGENDADA. | DECIDIDO R8, D3, D17 |
+| BR-APT-06 | Um horário (ClinicSlot) aceita **uma** marcação ativa (PEDIDA ou AGENDADA); fica livre de novo se for recusada ou cancelada. | DECIDIDO D17 |
+| BR-APT-07 | Lembretes de consulta só existem para consultas AGENDADAS (não para pedidos). | DECIDIDO D17 |
+| BR-APT-08 | Um pedido sem resposta até à hora do horário passa a CANCELADA pelo sistema (motivo: sem resposta da clínica). | PROPOSTO D17 |
+| BR-APT-09 | Numa consulta de clínica parceira, mudar a data/hora é cancelar e pedir outro horário; só as observações são editáveis. | PROPOSTO D17 |
 | BR-CLN-01 | Parceiras: criadas pelo Platform Admin, visíveis a todos. Privadas: criadas por membros adultos, visíveis só à família. | DECIDIDO R8 |
 | BR-CLN-02 | Arquivar/apagar uma clínica não destrói consultas: mantêm o nome como texto. | PROPOSTO |
-| BR-CLN-03 | Nenhuma clínica tem login nem acesso a dados de famílias no MVP. | DECIDIDO D3 |
+| BR-CLN-03 | ~~Nenhuma clínica tem login~~ (alterado por D17). Clínicas **privadas** não têm login. O Gestor da clínica **parceira** vê só as marcações na própria clínica com o mínimo necessário (nome do paciente, especialidade, profissional, data/hora, observações do pedido) e **nunca** dados de saúde da família. O utilizador é avisado disso antes de enviar o pedido. | DECIDIDO D3, D17 |
+| BR-CLN-04 | O Gestor da clínica publica horários (especialidade, profissional opcional, início, duração) e só remove horários **livres**. | DECIDIDO D17 |
 
 ## 8. Exames e documentos (BR-EXM / BR-DOC)
 
