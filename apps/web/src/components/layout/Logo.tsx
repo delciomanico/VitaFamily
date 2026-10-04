@@ -9,21 +9,47 @@ interface LogoProps {
 
 interface LogoMarkProps {
   className?: string
-  /** `inverse`: símbolo branco para fundos de cor (splash). */
+  /** `inverse`: símbolo num quadrado branco, para fundos de cor (splash, login). */
   tone?: 'default' | 'inverse'
 }
 
+/**
+ * Símbolo do Vita Family: coração formado por uma folha (vida) e um lóbulo (família),
+ * atravessado por uma linha de batimento. Desenhado para fundo branco; o mesmo desenho
+ * está em public/favicon.svg (origem dos ícones da PWA).
+ */
 export function LogoMark({ className, tone = 'default' }: LogoMarkProps) {
-  const base = tone === 'inverse' ? '#fff' : 'var(--color-primary)'
-  const heart = tone === 'inverse' ? 'var(--color-brand)' : '#fff'
+  const mark = (
+    <>
+      <path
+        d="M246 432C150 384 90 304 100 228C108 160 160 112 214 80C252 150 274 222 268 292C264 350 256 396 246 432Z"
+        fill="var(--color-accent)"
+      />
+      <path
+        d="M268 430C280 384 286 334 286 290C288 236 284 198 276 170C304 140 346 126 382 134C430 146 448 196 438 246C424 318 354 382 268 430Z"
+        fill="var(--color-primary)"
+      />
+      <path d="M60 290H452" stroke="var(--color-brand)" strokeWidth="22" strokeLinecap="round" />
+      {/* Troço branco por dentro do coração. */}
+      <path
+        d="M124 290H178L208 234L242 350L282 202L316 290H424"
+        fill="none"
+        stroke="#fff"
+        strokeWidth="22"
+        strokeLinejoin="round"
+      />
+    </>
+  )
   return (
     <svg viewBox="0 0 512 512" className={className} aria-hidden>
-      <rect width="512" height="512" rx="112" fill={base} />
-      <path
-        d="M256 404s-132-78-132-178c0-48 36-82 80-82 26 0 44 12 52 24 8-12 26-24 52-24 44 0 80 34 80 82 0 100-132 178-132 178z"
-        fill={heart}
-      />
-      <path d="M236 206h40v36h36v40h-36v36h-40v-36h-36v-40h36z" fill={base} />
+      {tone === 'inverse' ? (
+        <>
+          <rect width="512" height="512" rx="112" fill="#fff" />
+          <g transform="translate(51 51) scale(0.8)">{mark}</g>
+        </>
+      ) : (
+        mark
+      )}
     </svg>
   )
 }
