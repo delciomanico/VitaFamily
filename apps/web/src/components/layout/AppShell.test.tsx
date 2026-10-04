@@ -5,10 +5,17 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { resetDb } from '@/mocks/db'
 import { sessionStore } from '@/lib/storage'
 import { AppShell } from './AppShell'
+import { Page } from './Page'
 
 function renderAt(path: string) {
   const router = createMemoryRouter(
-    [{ path: '/app', element: <AppShell />, children: [{ path: '*', element: <p>conteúdo</p> }] }],
+    [
+      {
+        path: '/app',
+        element: <AppShell />,
+        children: [{ path: '*', element: <Page title="Página de teste" backTo="/app">conteúdo</Page> }],
+      },
+    ],
     { initialEntries: [path] },
   )
   render(
@@ -25,25 +32,24 @@ beforeEach(() => {
 })
 
 describe('AppShell', () => {
-  it('renderiza a navegação principal com os 4 destinos', () => {
+  it('tem só a sidebar como navegação principal (sem barra inferior)', () => {
     renderAt('/app/health')
-    const navs = screen.getAllByRole('navigation', { name: 'Navegação principal' })
-    expect(navs).toHaveLength(2) // sidebar (desktop) + bottom nav (mobile)
+    expect(screen.getAllByRole('navigation', { name: 'Navegação principal' })).toHaveLength(1)
     for (const label of ['Início', 'Saúde', 'Agenda', 'Família']) {
-      expect(screen.getAllByRole('link', { name: label })).toHaveLength(2)
+      expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
     }
   })
 
   it('marca como ativa a secção atual e não a Início', () => {
     renderAt('/app/health/prescriptions')
-    const health = screen.getAllByRole('link', { name: 'Saúde' })
-    health.forEach((link) => expect(link).toHaveAttribute('aria-current', 'page'))
-    screen.getAllByRole('link', { name: 'Início' }).forEach((link) => expect(link).not.toHaveAttribute('aria-current'))
+    expect(screen.getByRole('link', { name: 'Saúde' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Início' })).not.toHaveAttribute('aria-current')
   })
 
-  it('mostra o número de alertas por ler no sino', async () => {
-    renderAt('/app')
+  it('a faixa da página tem título, voltar e o sino com os alertas por ler', async () => {
+    renderAt('/app/health')
+    expect(screen.getByRole('heading', { name: 'Página de teste' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Voltar' })).toHaveAttribute('href', '/app')
     expect(await screen.findByRole('link', { name: 'Alertas, 3 por ler' })).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Configurações' }).length).toBeGreaterThan(0)
   })
 })

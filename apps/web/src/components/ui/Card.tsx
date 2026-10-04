@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
-const base = 'rounded-lg border border-border bg-surface shadow-card'
+const base = 'rounded-xl border border-border bg-surface shadow-card'
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return <div className={cn(base, 'p-4', className)} {...props} />

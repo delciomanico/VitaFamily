@@ -13,7 +13,7 @@ interface StyleProps {
 }
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-primary text-primary-foreground hover:bg-primary-hover',
+  primary: 'bg-primary text-primary-foreground shadow-button hover:bg-primary-hover',
   secondary: 'bg-surface text-foreground border border-border hover:bg-surface-muted',
   ghost: 'text-foreground hover:bg-surface-muted',
   danger: 'bg-danger text-white hover:opacity-90',
@@ -22,12 +22,12 @@ const variants: Record<Variant, string> = {
 const sizes: Record<Size, string> = {
   sm: 'h-9 px-3 text-sm gap-1.5',
   md: 'h-11 px-4 text-sm gap-2',
-  lg: 'h-12 px-5 text-base gap-2',
+  lg: 'h-12 px-6 text-base gap-2',
 }
 
 export function buttonClasses({ variant = 'primary', size = 'md', fullWidth }: StyleProps = {}) {
   return cn(
-    'inline-flex shrink-0 items-center justify-center rounded-md font-medium transition-colors',
+    'inline-flex shrink-0 items-center justify-center rounded-full font-medium transition-colors',
     'disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]',
     variants[variant],
     sizes[size],

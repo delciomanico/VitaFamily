@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { History } from 'lucide-react'
 import { HistoryList } from '@/components/domain/HistoryList'
-import { PageHeader } from '@/components/layout/PageHeader'
+import { Page } from '@/components/layout/Page'
 import { Tabs, type TabItem } from '@/components/ui/Tabs'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
@@ -34,8 +34,7 @@ export function MedicalHistoryPage() {
     state.status === 'success' ? state.data.filter((e) => filter === 'ALL' || e.kind === filter) : []
 
   return (
-    <>
-      <PageHeader title="Histórico médico" backTo={paths.health} backLabel="Saúde" />
+    <Page title="Histórico médico" backTo={paths.health} backLabel="Saúde">
       <Tabs label="Filtrar histórico" items={filters} value={filter} onChange={setFilter} />
       {state.status === 'loading' && <LoadingState rows={4} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
@@ -47,6 +46,6 @@ export function MedicalHistoryPage() {
             <HistoryList entries={entries} />
           </div>
         ))}
-    </>
+    </Page>
   )
 }

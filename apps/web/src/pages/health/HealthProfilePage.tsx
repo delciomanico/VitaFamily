@@ -2,7 +2,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Pencil } from 'lucide-react'
 import { HealthProfileForm, profileToFormValues } from '@/components/domain/HealthProfileForm'
 import { HealthProfileView } from '@/components/domain/HealthProfileView'
-import { PageHeader } from '@/components/layout/PageHeader'
+import { Page } from '@/components/layout/Page'
 import { Button } from '@/components/ui/Button'
 import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
@@ -47,13 +47,12 @@ export function HealthProfilePage() {
   )
 
   return (
-    <>
-      <PageHeader
-        title={editing ? 'Editar perfil' : 'Perfil de saúde'}
-        backTo={paths.health}
-        backLabel="Saúde"
-        action={editButton}
-      />
+    <Page
+      title={editing ? 'Editar perfil' : 'Perfil de saúde'}
+      backTo={paths.health}
+      backLabel="Saúde"
+      action={editButton}
+    >
       {state.status === 'loading' && <LoadingState rows={4} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' &&
@@ -71,6 +70,6 @@ export function HealthProfilePage() {
         ) : (
           <HealthProfileView profile={state.data} />
         ))}
-    </>
+    </Page>
   )
 }

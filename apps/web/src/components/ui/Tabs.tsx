@@ -34,7 +34,7 @@ export function Tabs<T extends string>({ items, value, onChange, label, classNam
   }
 
   return (
-    <div role="tablist" aria-label={label} className={cn('flex gap-1 rounded-md bg-surface-muted p-1', className)}>
+    <div role="tablist" aria-label={label} className={cn('flex gap-1 rounded-full bg-surface-muted p-1', className)}>
       {items.map((item, index) => {
         const selected = item.value === value
         return (
@@ -51,7 +51,7 @@ export function Tabs<T extends string>({ items, value, onChange, label, classNam
             onClick={() => onChange(item.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              'h-9 flex-1 rounded-sm px-3 text-sm font-medium transition-colors',
+              'h-9 flex-1 rounded-full px-3 text-sm font-medium transition-colors',
               selected ? 'bg-surface text-foreground shadow-card' : 'text-muted hover:text-foreground',
             )}
           >

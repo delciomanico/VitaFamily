@@ -34,7 +34,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--spacing-bottom-nav)+env(safe-area-inset-bottom)+0.75rem)] z-50 flex flex-col items-center gap-2 px-4 lg:bottom-6"
+        className="pointer-events-none fixed inset-x-0 bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-50 flex flex-col items-center gap-2 px-4"
       >
         {toasts.map((toast) => {
           const Icon = toast.tone === 'success' ? CircleCheck : CircleAlert
@@ -42,7 +42,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={toast.id}
               role="status"
-              className="pointer-events-auto flex w-full max-w-sm items-center gap-2.5 rounded-md bg-foreground px-4 py-3 text-sm text-white shadow-overlay"
+              className="pointer-events-auto flex w-full max-w-sm items-center gap-2.5 rounded-full bg-foreground px-4 py-3 text-sm text-white shadow-overlay"
             >
               <Icon
                 className={cn('size-5 shrink-0', toast.tone === 'success' ? 'text-success-soft' : 'text-danger-soft')}

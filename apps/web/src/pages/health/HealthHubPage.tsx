@@ -1,5 +1,5 @@
 import { ClipboardList, FileText, FlaskConical, History, Pill, UserRound, type LucideIcon } from 'lucide-react'
-import { PageHeader } from '@/components/layout/PageHeader'
+import { Page } from '@/components/layout/Page'
 import { CardLink } from '@/components/ui/Card'
 import { paths } from '@/routes/paths'
 
@@ -21,8 +21,7 @@ const items: HubItem[] = [
 
 export function HealthHubPage() {
   return (
-    <>
-      <PageHeader title="Minha saúde" />
+    <Page title="Minha saúde" backTo={paths.home} backLabel="Início">
       <ul className="grid gap-3 sm:grid-cols-2">
         {items.map(({ to, title, description, icon: Icon }) => (
           <li key={to}>
@@ -40,6 +39,6 @@ export function HealthHubPage() {
           </li>
         ))}
       </ul>
-    </>
+    </Page>
   )
 }

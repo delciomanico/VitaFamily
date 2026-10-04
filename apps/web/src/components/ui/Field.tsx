@@ -38,7 +38,7 @@ export function describedBy(id: string, hint?: string, error?: string) {
 }
 
 export const controlClasses =
-  'w-full rounded-md border bg-surface px-3.5 text-base text-foreground placeholder:text-muted ' +
+  'w-full rounded-xl border bg-surface px-3.5 text-base text-foreground placeholder:text-muted ' +
   'transition-colors focus-visible:outline-2 focus-visible:outline-offset-0 disabled:opacity-60'
 
 export function controlState(error?: string) {

@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const THEME_COLOR = '#0e7c66'
-const BACKGROUND_COLOR = '#f7f8f7'
+const THEME_COLOR = '#177a9a'
+const BACKGROUND_COLOR = '#f4f8fa'
 
 export default defineConfig({
   plugins: [
@@ -37,7 +37,7 @@ export default defineConfig({
         // App shell offline; dados (futura API) nunca são guardados em cache.
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg,webp,woff2}'],
         // Só os subconjuntos latinos da fonte são necessários em pt-PT.
         globIgnores: ['**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2'],
       },
