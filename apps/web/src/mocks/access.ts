@@ -23,6 +23,17 @@ export function visibleMemberIds(familyId: string, userId: string): string[] {
   return [self.id, ...wards]
 }
 
+/**
+ * Membro cujos dados o utilizador pode ver e gerir (o próprio ou um dependente seu, BR-MEM-08).
+ * Sem permissão ou de outra família → NOT_FOUND (sem enumeração, NFR-SEC-09).
+ */
+export function findVisibleMember(familyId: string, userId: string, memberId: string) {
+  if (!visibleMemberIds(familyId, userId).includes(memberId)) throw new AppError('NOT_FOUND')
+  const member = db.members.find((m) => m.id === memberId && m.familyId === familyId)
+  if (!member) throw new AppError('NOT_FOUND')
+  return member
+}
+
 export function memberName(memberId: string): string {
   return db.members.find((m) => m.id === memberId)?.name ?? ''
 }

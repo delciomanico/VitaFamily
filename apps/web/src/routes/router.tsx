@@ -5,8 +5,13 @@ import { HealthHubPage } from '@/pages/health/HealthHubPage'
 import { HealthProfilePage } from '@/pages/health/HealthProfilePage'
 import { MedicalHistoryPage } from '@/pages/health/MedicalHistoryPage'
 import { HomePage } from '@/pages/home/HomePage'
+import { MedicationDetailPage } from '@/pages/medications/MedicationDetailPage'
+import { MedicationsPage } from '@/pages/medications/MedicationsPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { NewPrescriptionPage } from '@/pages/prescriptions/NewPrescriptionPage'
+import { PrescriptionDetailPage } from '@/pages/prescriptions/PrescriptionDetailPage'
+import { PrescriptionsPage } from '@/pages/prescriptions/PrescriptionsPage'
 import { ForgotPasswordPage } from '@/pages/public/ForgotPasswordPage'
 import { LoginPage } from '@/pages/public/LoginPage'
 import { OnboardingPage } from '@/pages/public/OnboardingPage'
@@ -72,11 +77,11 @@ export const routes: RouteObject[] = [
               { path: 'health', element: <HealthHubPage /> },
               { path: 'health/profile', element: <HealthProfilePage /> },
               { path: 'health/history', element: <MedicalHistoryPage /> },
-              placeholder('health/prescriptions', 'Receitas', 6, paths.health),
-              placeholder('health/prescriptions/new', 'Adicionar receita', 6, paths.prescriptions),
-              placeholder('health/prescriptions/:id', 'Receita', 6, paths.prescriptions),
-              placeholder('health/medications', 'Medicamentos', 6, paths.health),
-              placeholder('health/medications/:id', 'Medicamento', 6, paths.medications),
+              { path: 'health/prescriptions', element: <PrescriptionsPage /> },
+              { path: 'health/prescriptions/new', element: <NewPrescriptionPage /> },
+              { path: 'health/prescriptions/:id', element: <PrescriptionDetailPage /> },
+              { path: 'health/medications', element: <MedicationsPage /> },
+              { path: 'health/medications/:id', element: <MedicationDetailPage /> },
               placeholder('health/examinations', 'Exames', 7, paths.health),
               placeholder('health/examinations/new', 'Adicionar exame', 7, paths.examinations),
               placeholder('health/examinations/:id', 'Exame', 7, paths.examinations),

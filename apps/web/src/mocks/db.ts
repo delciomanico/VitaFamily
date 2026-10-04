@@ -4,7 +4,7 @@ import { clinics } from './data/clinics'
 import { seedExamResults, seedExaminations } from './data/examinations'
 import { families, guardianships, invitations, members } from './data/families'
 import { allergies, conditions } from './data/health'
-import { seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
+import { seedDocuments, seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
 import { users } from './data/users'
 
 /**
@@ -19,6 +19,7 @@ function seed(now: Date = new Date()) {
     prescriptions: seedPrescriptions(now),
     medicationPlans,
     doses: seedDoses(medicationPlans, now),
+    documents: seedDocuments(now),
     examinations: seedExaminations(now),
     examResults: seedExamResults(now),
     alerts: seedAlerts(now),

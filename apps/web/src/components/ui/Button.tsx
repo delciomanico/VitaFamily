@@ -3,7 +3,7 @@ import { Link, type LinkProps } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
-type Variant = 'primary' | 'soft' | 'secondary' | 'ghost' | 'danger'
+type Variant = 'primary' | 'soft' | 'secondary' | 'ghost' | 'danger' | 'danger-ghost'
 type Size = 'sm' | 'md' | 'lg'
 
 interface StyleProps {
@@ -18,6 +18,8 @@ const variants: Record<Variant, string> = {
   secondary: 'bg-surface text-foreground border border-border hover:bg-surface-muted',
   ghost: 'text-foreground hover:bg-surface-muted',
   danger: 'bg-danger text-white hover:opacity-90',
+  /** Ação destrutiva secundária (ex.: “Cancelar receita”), que abre uma confirmação. */
+  'danger-ghost': 'text-danger hover:bg-danger-soft',
 }
 
 const sizes: Record<Size, string> = {

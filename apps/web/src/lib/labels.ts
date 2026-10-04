@@ -2,7 +2,8 @@ import type { Tone } from '@/components/ui/Badge'
 import type { SelectOption } from '@/components/ui/Select'
 import type { AlertItem } from '@/types/alert'
 import type { AppointmentStatus } from '@/types/appointment'
-import type { DoseStatus } from '@/types/medication'
+import type { DoseStatus, MedicationPlanStatus } from '@/types/medication'
+import type { PrescriptionStatus } from '@/types/prescription'
 import { RELATIONSHIPS, type FamilyRole, type Relationship } from '@/types/family'
 import { BLOOD_TYPES, SEXES, type BloodType, type Sex } from '@/types/health'
 
@@ -41,6 +42,17 @@ export const appointmentStatus: Record<AppointmentStatus, StatusLabel> = {
   COMPLETED: { label: 'Realizada', tone: 'success' },
   NO_SHOW: { label: 'Não compareceu', tone: 'warning' },
   CANCELLED: { label: 'Cancelada', tone: 'neutral' },
+}
+
+export const prescriptionStatus: Record<PrescriptionStatus, StatusLabel> = {
+  ACTIVE: { label: 'Ativa', tone: 'success' },
+  COMPLETED: { label: 'Concluída', tone: 'neutral' },
+  CANCELLED: { label: 'Cancelada', tone: 'neutral' },
+}
+
+export const medicationStatus: Record<MedicationPlanStatus, StatusLabel> = {
+  ACTIVE: { label: 'Ativo', tone: 'success' },
+  ENDED: { label: 'Terminado', tone: 'neutral' },
 }
 
 /** Estados de uma toma (BR-MED-04). */

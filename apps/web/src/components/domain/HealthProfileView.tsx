@@ -1,30 +1,12 @@
-import type { ReactNode } from 'react'
 import { Avatar } from '@/components/ui/Avatar'
 import { Card } from '@/components/ui/Card'
+import { DetailSection, InfoList, InfoRow } from '@/components/ui/InfoList'
 import { ageOn } from '@/lib/date'
 import { formatAge, formatLongDate } from '@/lib/format'
 import { bloodTypeLabel, sexLabels } from '@/lib/labels'
 import type { HealthProfile } from '@/types/health'
 
 const NOT_SET = 'Não indicado'
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-3">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="text-right font-medium">{value}</dd>
-    </div>
-  )
-}
-
-function ProfileSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-muted">{title}</h2>
-      {children}
-    </section>
-  )
-}
 
 function TagList({ items, empty }: { items: string[]; empty: string }) {
   if (items.length === 0) return <p className="text-sm text-muted">{empty}</p>
@@ -57,27 +39,25 @@ export function HealthProfileView({ profile }: { profile: HealthProfile }) {
         </div>
       </div>
 
-      <ProfileSection title="Informações básicas">
-        <Card className="py-0">
-          <dl className="divide-y divide-border">
-            <InfoRow label="Data de nascimento" value={formatLongDate(member.birthDate)} />
-            <InfoRow label="Sexo" value={member.sex ? sexLabels[member.sex] : NOT_SET} />
-            <InfoRow label="Tipo sanguíneo" value={member.bloodType ? bloodTypeLabel(member.bloodType) : NOT_SET} />
-          </dl>
-        </Card>
-      </ProfileSection>
+      <DetailSection title="Informações básicas">
+        <InfoList>
+          <InfoRow label="Data de nascimento" value={formatLongDate(member.birthDate)} />
+          <InfoRow label="Sexo" value={member.sex ? sexLabels[member.sex] : NOT_SET} />
+          <InfoRow label="Tipo sanguíneo" value={member.bloodType ? bloodTypeLabel(member.bloodType) : NOT_SET} />
+        </InfoList>
+      </DetailSection>
 
-      <ProfileSection title="Alergias">
+      <DetailSection title="Alergias">
         <Card>
           <TagList items={allergies.map((a) => a.name)} empty="Nenhuma alergia registada." />
         </Card>
-      </ProfileSection>
+      </DetailSection>
 
-      <ProfileSection title="Condições">
+      <DetailSection title="Condições">
         <Card>
           <TagList items={conditions.map((c) => c.name)} empty="Nenhuma condição registada." />
         </Card>
-      </ProfileSection>
+      </DetailSection>
     </div>
   )
 }

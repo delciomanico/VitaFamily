@@ -1,6 +1,24 @@
+import type { DocumentInfo } from '@/types/document'
 import type { DoseOccurrence, MedicationPlan } from '@/types/medication'
 import type { Prescription } from '@/types/prescription'
 import { at, day } from '../time'
+
+/** Documento original da receita da Amoxicilina (só metadados: os mocks não guardam ficheiros). */
+export function seedDocuments(now: Date = new Date()): DocumentInfo[] {
+  return [
+    {
+      id: 'doc_rx_amox',
+      familyId: 'fam_monarca',
+      memberId: 'mem_monarca',
+      resourceType: 'PRESCRIPTION',
+      resourceId: 'rx_amox',
+      originalName: 'receita-amoxicilina.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 182_400,
+      createdAt: at(-2, '10:15', now),
+    },
+  ]
+}
 
 /** Depois de 2 h sem ação, uma toma pendente passa a não confirmada (BR-MED-03). */
 export const UNCONFIRMED_AFTER_HOURS = 2

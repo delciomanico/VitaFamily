@@ -46,6 +46,11 @@ export function formatDayMonth(value: string): string {
   return `${date.getDate()} ${shortMonth(date)}`
 }
 
+/** “15 out 2026”. */
+export function formatShortDate(value: string): string {
+  return `${formatDayMonth(value)} ${toDate(value).getFullYear()}`
+}
+
 /** “15 de outubro de 2026”. */
 export function formatLongDate(value: string): string {
   return longDateFormat.format(toDate(value))

@@ -1,8 +1,7 @@
 import { todayISO } from '@/lib/date'
-import { AppError } from '@/lib/errors'
 import type { HistoryEntry } from '@/types/history'
 import type { BloodType, HealthProfile, Sex } from '@/types/health'
-import { visibleMemberIds } from '../access'
+import { findVisibleMember } from '../access'
 import { db, newId } from '../db'
 import { respond } from '../respond'
 
@@ -13,17 +12,6 @@ export interface HealthProfileInput {
   bloodType?: BloodType
   allergies: string[]
   conditions: string[]
-}
-
-/**
- * Membro cujos dados o utilizador pode ver e gerir (o próprio ou um dependente seu, BR-MEM-08).
- * Sem permissão ou de outra família → NOT_FOUND (sem enumeração, NFR-SEC-09).
- */
-function findVisibleMember(familyId: string, userId: string, memberId: string) {
-  if (!visibleMemberIds(familyId, userId).includes(memberId)) throw new AppError('NOT_FOUND')
-  const member = db.members.find((m) => m.id === memberId && m.familyId === familyId)
-  if (!member) throw new AppError('NOT_FOUND')
-  return member
 }
 
 const ofMember = (familyId: string, memberId: string) => (item: { familyId: string; memberId: string }) =>
@@ -84,17 +72,21 @@ export function getMedicalHistory(familyId: string, userId: string, memberId: st
 
     const examinations = db.examinations
       .filter((e) => owned(e) && e.examDate <= today)
-      .map((e): HistoryEntry => ({ id: e.id, kind: 'EXAMINATION', title: e.name, subtitle: e.clinicName, date: e.examDate }))
-
-    const prescriptions = db.prescriptions
-      .filter(owned)
-      .map((p): HistoryEntry => ({
-        id: p.id,
-        kind: 'PRESCRIPTION',
-        title: 'Receita',
-        subtitle: p.doctorName,
-        date: p.issuedOn,
+      .map((e): HistoryEntry => ({
+        id: e.id,
+        kind: 'EXAMINATION',
+        title: e.name,
+        subtitle: e.clinicName,
+        date: e.examDate,
       }))
+
+    const prescriptions = db.prescriptions.filter(owned).map((p): HistoryEntry => ({
+      id: p.id,
+      kind: 'PRESCRIPTION',
+      title: 'Receita',
+      subtitle: p.doctorName,
+      date: p.issuedOn,
+    }))
 
     const history = db.conditions
       .filter((c) => owned(c) && c.kind === 'HISTORY' && c.since)
