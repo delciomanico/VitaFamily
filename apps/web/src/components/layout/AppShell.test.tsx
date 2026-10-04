@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -32,24 +32,31 @@ beforeEach(() => {
 })
 
 describe('AppShell', () => {
-  it('tem só a sidebar como navegação principal (sem barra inferior)', () => {
+  it('tem a sidebar como navegação do desktop, com Alertas e contador', async () => {
     renderAt('/app/health')
-    expect(screen.getAllByRole('navigation', { name: 'Navegação principal' })).toHaveLength(1)
+    const sidebar = screen.getByRole('navigation', { name: 'Navegação principal' })
     for (const label of ['Início', 'Saúde', 'Agenda', 'Família']) {
-      expect(screen.getByRole('link', { name: label })).toBeInTheDocument()
+      expect(within(sidebar).getByRole('link', { name: label })).toBeInTheDocument()
     }
+    expect(await within(sidebar).findByRole('link', { name: 'Alertas, 3 por ler' })).toHaveAttribute('href', '/app/alerts')
   })
 
   it('marca como ativa a secção atual e não a Início', () => {
     renderAt('/app/health/prescriptions')
-    expect(screen.getByRole('link', { name: 'Saúde' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'Início' })).not.toHaveAttribute('aria-current')
+    const sidebar = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(within(sidebar).getByRole('link', { name: 'Saúde' })).toHaveAttribute('aria-current', 'page')
+    expect(within(sidebar).getByRole('link', { name: 'Início' })).not.toHaveAttribute('aria-current')
   })
 
-  it('a faixa da página tem título, voltar e o sino com os alertas por ler', async () => {
+  it('a faixa tem voltar, título e o botão de menu que abre a navegação', async () => {
     renderAt('/app/health')
     expect(screen.getByRole('heading', { name: 'Página de teste' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Voltar' })).toHaveAttribute('href', '/app')
-    expect(await screen.findByRole('link', { name: 'Alertas, 3 por ler' })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir menu, 3 alertas por ler' }))
+    const menu = screen.getByRole('navigation', { name: 'Menu principal', hidden: true })
+    for (const label of ['Início', 'Saúde', 'Agenda', 'Família', 'Configurações']) {
+      expect(within(menu).getByRole('link', { name: label, hidden: true })).toBeInTheDocument()
+    }
   })
 })

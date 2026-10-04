@@ -2,10 +2,10 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { alertService } from '@/services/alert.service'
-import { UnreadAlertsContext } from './Page'
+import { UnreadAlertsContext } from './UnreadAlertsContext'
 import { Sidebar } from './Sidebar'
 
-/** Alertas por ler para o sino da faixa; atualiza a cada navegação. */
+/** Alertas por ler para o menu e a sidebar; atualiza a cada navegação. */
 function useUnreadAlerts(): number {
   const { user, family } = useAuth()
   const { pathname } = useLocation()
@@ -20,7 +20,7 @@ function useUnreadAlerts(): number {
 
 /**
  * Estrutura da área autenticada.
- * Mobile/tablet: cada página com a sua faixa (voltar, alertas, configurações); a Home dá acesso às áreas.
+ * Mobile/tablet: cada página com a sua faixa (voltar, título, menu); a Home dá acesso às áreas.
  * Desktop (≥ lg): Sidebar + conteúdo.
  */
 export function AppShell() {

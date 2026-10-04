@@ -1,4 +1,4 @@
-import { CalendarDays, HeartPulse, House, Settings, Users, type LucideIcon } from 'lucide-react'
+import { Bell, CalendarDays, HeartPulse, House, Settings, Users, type LucideIcon } from 'lucide-react'
 import { paths } from '@/routes/paths'
 
 export interface NavItem {
@@ -9,12 +9,14 @@ export interface NavItem {
   end?: boolean
 }
 
-/** Navegação principal: bottom nav (mobile) e sidebar (desktop). */
+/** Áreas principais: menu (mobile) e sidebar (desktop). */
 export const primaryNav: NavItem[] = [
   { to: paths.home, label: 'Início', icon: House, end: true },
   { to: paths.health, label: 'Saúde', icon: HeartPulse },
   { to: paths.appointments, label: 'Agenda', icon: CalendarDays },
   { to: paths.family, label: 'Família', icon: Users },
 ]
+
+export const alertsNav: NavItem = { to: paths.alerts, label: 'Alertas', icon: Bell }
 
 export const settingsNav: NavItem = { to: paths.settings, label: 'Configurações', icon: Settings }

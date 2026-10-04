@@ -1,9 +1,8 @@
 import { useContext } from 'react'
-import { Link } from 'react-router-dom'
 import { CalendarPlus } from 'lucide-react'
 import { AppointmentCard } from '@/components/domain/AppointmentCard'
-import { Page, UnreadAlertsContext } from '@/components/layout/Page'
-import { Avatar } from '@/components/ui/Avatar'
+import { Page } from '@/components/layout/Page'
+import { UnreadAlertsContext } from '@/components/layout/UnreadAlertsContext'
 import { ButtonLink } from '@/components/ui/Button'
 import { Section } from '@/components/ui/Card'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
@@ -17,19 +16,12 @@ import { HomeBanner } from './HomeBanner'
 import { HomeGrid } from './HomeGrid'
 import { ImportantAlerts } from './ImportantAlerts'
 
+/** Saudação da faixa (como “Name” na referência); o avatar ao lado abre o menu. */
 function Greeting({ name }: { name: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 pt-1">
-      <div className="flex min-w-0 flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Olá, {firstName(name)} <span aria-hidden>👋</span>
-        </h1>
-        <p>Como está sua saúde hoje?</p>
-      </div>
-      <Link to={paths.healthProfile} aria-label="O meu perfil de saúde" className="shrink-0 rounded-full ring-2 ring-white/60">
-        <Avatar name={name} size="lg" className="bg-white" />
-      </Link>
-    </div>
+    <h1 className="truncate text-[1.75rem] leading-tight font-semibold tracking-tight">
+      Olá, {firstName(name)} <span aria-hidden>👋</span>
+    </h1>
   )
 }
 
@@ -43,7 +35,7 @@ export function HomePage() {
   const name = member?.name ?? user?.name ?? ''
 
   return (
-    <Page title="Início" header={<Greeting name={name} />}>
+    <Page title="Início" header={<Greeting name={name} />} menu="avatar" description="Como está sua saúde hoje?">
       <HomeBanner />
 
       {state.status === 'loading' && <LoadingState rows={3} label="A carregar o resumo…" />}
