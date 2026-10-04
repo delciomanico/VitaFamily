@@ -1,6 +1,9 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
+import { HealthHubPage } from '@/pages/health/HealthHubPage'
+import { HealthProfilePage } from '@/pages/health/HealthProfilePage'
+import { MedicalHistoryPage } from '@/pages/health/MedicalHistoryPage'
 import { HomePage } from '@/pages/home/HomePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
@@ -66,9 +69,9 @@ export const routes: RouteObject[] = [
             element: <AppShell />,
             children: [
               { index: true, element: <HomePage /> },
-              placeholder('health', 'Minha saúde', 5),
-              placeholder('health/profile', 'Perfil de saúde', 5, paths.health),
-              placeholder('health/history', 'Histórico médico', 5, paths.health),
+              { path: 'health', element: <HealthHubPage /> },
+              { path: 'health/profile', element: <HealthProfilePage /> },
+              { path: 'health/history', element: <MedicalHistoryPage /> },
               placeholder('health/prescriptions', 'Receitas', 6, paths.health),
               placeholder('health/prescriptions/new', 'Adicionar receita', 6, paths.prescriptions),
               placeholder('health/prescriptions/:id', 'Receita', 6, paths.prescriptions),

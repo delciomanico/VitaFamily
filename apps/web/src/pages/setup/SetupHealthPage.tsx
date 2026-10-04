@@ -13,12 +13,16 @@ import { healthService, type HealthProfileInput } from '@/services/health.servic
 import { SETUP_STEPS } from './steps'
 
 export function SetupHealthPage() {
-  const { family, member, refreshMembership } = useAuth()
+  const { user, family, member, refreshMembership } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
   const familyId = family?.id ?? ''
+  const userId = user?.id ?? ''
   const memberId = member?.id ?? ''
-  const { state, reload } = useAsync(() => healthService.getHealthProfile(familyId, memberId), [familyId, memberId])
+  const { state, reload } = useAsync(
+    () => healthService.getHealthProfile(familyId, userId, memberId),
+    [familyId, userId, memberId],
+  )
 
   // Quem criou a família (Admin) segue para adicionar membros; quem entrou por convite termina aqui.
   const isAdmin = member?.role === 'FAMILY_ADMIN'
@@ -27,7 +31,7 @@ export function SetupHealthPage() {
 
   async function onSubmit(input: HealthProfileInput) {
     try {
-      await healthService.saveHealthProfile(familyId, memberId, input)
+      await healthService.saveHealthProfile(familyId, userId, memberId, input)
       await refreshMembership()
       next()
     } catch (error) {

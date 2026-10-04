@@ -11,4 +11,13 @@ export const conditions: MedicalCondition[] = [
   { id: 'cnd_1', familyId: 'fam_monarca', memberId: 'mem_joao', name: 'Diabetes tipo 2', kind: 'CONDITION' },
   { id: 'cnd_2', familyId: 'fam_monarca', memberId: 'mem_joao', name: 'Hipertensão arterial', kind: 'CONDITION' },
   { id: 'cnd_3', familyId: 'fam_monarca', memberId: 'mem_monarca', name: 'Asma', kind: 'CONDITION' },
+  {
+    id: 'cnd_4',
+    familyId: 'fam_monarca',
+    memberId: 'mem_monarca',
+    name: 'Apendicectomia',
+    kind: 'HISTORY',
+    notes: 'Cirurgia sem complicações.',
+    since: '2012-06-14',
+  },
 ]

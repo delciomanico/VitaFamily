@@ -87,11 +87,37 @@ describe('family', () => {
 
 describe('health', () => {
   it('não expõe perfis de outra família', async () => {
-    expect(await code(health.getHealthProfile('fam_outra', 'mem_maria'))).toBe('NOT_FOUND')
+    expect(await code(health.getHealthProfile('fam_outra', 'usr_monarca', 'mem_maria'))).toBe('NOT_FOUND')
+  })
+
+  it('não expõe perfis de quem não é o próprio nem dependente', async () => {
+    await auth.register(newAccount)
+    const other = await auth.verifyEmail('ana@exemplo.test', DEMO_VERIFICATION_CODE)
+    await family.joinFamily(other.id, DEMO_INVITATION_CODE)
+    expect(await code(health.getHealthProfile('fam_monarca', other.id, 'mem_maria'))).toBe('NOT_FOUND')
+    expect(await code(health.getMedicalHistory('fam_monarca', other.id, 'mem_monarca'))).toBe('NOT_FOUND')
+  })
+
+  it('editar o perfil mantém os antecedentes (HISTORY)', async () => {
+    await health.saveHealthProfile('fam_monarca', 'usr_monarca', 'mem_monarca', {
+      name: 'Monarca Lopes',
+      birthDate: '1985-03-12',
+      allergies: [],
+      conditions: [],
+    })
+    const history = await health.getMedicalHistory('fam_monarca', 'usr_monarca', 'mem_monarca')
+    expect(history.some((h) => h.kind === 'HISTORY' && h.title === 'Apendicectomia')).toBe(true)
+  })
+
+  it('histórico só inclui o passado, mais recente primeiro', async () => {
+    const history = await health.getMedicalHistory('fam_monarca', 'usr_monarca', 'mem_monarca')
+    expect(history.some((h) => h.id === 'apt_cardio')).toBe(false) // consulta de amanhã
+    const dates = history.map((h) => h.date)
+    expect(dates).toEqual([...dates].sort().reverse())
   })
 
   it('guarda o perfil e substitui alergias e condições', async () => {
-    const profile = await health.saveHealthProfile('fam_monarca', 'mem_maria', {
+    const profile = await health.saveHealthProfile('fam_monarca', 'usr_monarca', 'mem_maria', {
       name: 'Maria Lopes',
       birthDate: '1987-05-20',
       bloodType: 'A-',

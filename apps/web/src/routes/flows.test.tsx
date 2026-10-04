@@ -83,6 +83,33 @@ describe('fluxos de autenticação', () => {
     expect(router.state.location.pathname).toBe('/setup/family')
   })
 
+  it('perfil de saúde: ver, editar e guardar', async () => {
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+    renderAt('/app/health/profile')
+    expect(await screen.findByText('Asma')).toBeInTheDocument()
+    expect(screen.getByText('O+')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar perfil' }))
+    fireEvent.change(await screen.findByLabelText('Tipo sanguíneo'), { target: { value: 'AB-' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Remover Asma' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    expect(await screen.findByText('Perfil atualizado.')).toBeInTheDocument()
+    // Espera pela vista (o formulário também contém a opção “AB-”).
+    await screen.findByRole('button', { name: 'Editar perfil' })
+    expect(screen.getByText('AB-')).toBeInTheDocument()
+    expect(screen.getByText('Nenhuma condição registada.')).toBeInTheDocument()
+  })
+
+  it('histórico médico filtra por tipo', async () => {
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+    renderAt('/app/health/history')
+    expect(await screen.findByText('Apendicectomia')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Exames' }))
+    expect(screen.queryByText('Apendicectomia')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Análises clínicas').length).toBeGreaterThan(0)
+  })
+
   it('registo valida idade mínima e confirmação da palavra-passe', async () => {
     renderAt('/register')
     await screen.findByRole('heading', { name: 'Criar conta' })
