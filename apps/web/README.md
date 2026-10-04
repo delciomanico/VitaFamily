@@ -1,3 +1,43 @@
-# apps/web — PWA (futuro)
+# apps/web — Vita Family PWA
 
-Reservado para o cliente web (PWA) servido na raiz de `https://vitafamily.cassfrei.com`. Fora do âmbito do backend atual (docs/00-product/scope.md, D12). O contrato que consome é `docs/05-api/openapi.yaml`.
+Frontend MVP do Vita Family (React + PWA), servido na raiz de `https://vitafamily.cassfrei.com`.
+Nesta fase todos os dados são mock; o contrato futuro é `docs/05-api/openapi.yaml` (API em `/api/v1`).
+
+> README completo (mocks, substituição por API) na fase 13.
+
+## Stack
+
+React 19 · TypeScript (strict) · Vite · React Router · Tailwind CSS 4 · vite-plugin-pwa · Lucide · React Hook Form + Zod · Vitest.
+
+## Comandos
+
+```bash
+npm install
+npm run dev        # desenvolvimento
+npm run build      # typecheck + build de produção (gera o service worker)
+npm run preview    # serve o build (testar PWA/instalação)
+npm test           # testes
+npx pwa-assets-generator   # regenera os ícones a partir de public/favicon.svg
+```
+
+## Estrutura
+
+```
+src/
+├── app/            App e providers
+├── routes/         paths.ts (todas as URLs) e router
+├── components/
+│   ├── ui/         Button, Input, Select, Textarea, Card, Badge, Avatar, Tabs, Modal, ConfirmDialog, Toast, estados
+│   ├── layout/     AppShell, Sidebar, BottomNavigation, Header, PageHeader, PublicLayout, Logo
+│   └── domain/     cartões de domínio (a partir da fase 4)
+├── pages/          telas por área
+├── services/ mocks/ types/ hooks/ contexts/   (a partir da fase 2)
+├── lib/            utilitários
+└── styles/         index.css — design tokens (@theme)
+```
+
+## Design system
+
+Os tokens (cores, tipografia, raios, sombras, espaçamentos de layout) estão em `src/styles/index.css`, no bloco `@theme`.
+Os componentes usam apenas as classes geradas a partir deles (`bg-surface`, `text-muted`, `rounded-lg`, `shadow-card`…).
+Breakpoints: padrões do Tailwind — mobile < 768, `md` tablet, `lg` (≥ 1024) desktop com sidebar.

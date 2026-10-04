@@ -1,0 +1,96 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/*
+ * Design tokens do Vita Family.
+ * Única fonte de cores, tipografia, raios e sombras: os componentes usam
+ * apenas as classes geradas a partir daqui (bg-surface, text-muted, rounded-lg…).
+ * Breakpoints: os padrões do Tailwind (md 768, lg 1024, xl 1280).
+ */
+@theme {
+  /* Cores */
+  --color-primary: #0e7c66;
+  --color-primary-hover: #0b6654;
+  --color-primary-soft: #e7f3ef;
+  --color-primary-foreground: #ffffff;
+
+  --color-background: #f7f8f7;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f0f2f1;
+  --color-foreground: #16201c;
+  --color-muted: #5b6763;
+  --color-border: #e2e7e4;
+  --color-border-strong: #c9d1cd;
+
+  --color-success: #1d7a45;
+  --color-success-soft: #e8f4ec;
+  --color-warning: #9a5b00;
+  --color-warning-soft: #fdf3e2;
+  --color-danger: #b8322a;
+  --color-danger-soft: #fbeceb;
+
+  /* Tipografia */
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.25rem;
+
+  /* Raios */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Sombras (discretas) */
+  --shadow-card: 0 1px 2px rgb(22 32 28 / 0.04);
+  --shadow-overlay: 0 12px 32px rgb(22 32 28 / 0.12);
+
+  /* Layout */
+  --spacing-bottom-nav: 4rem;
+  --spacing-sidebar: 16rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+
+  dialog::backdrop {
+    background: rgb(22 32 28 / 0.4);
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
