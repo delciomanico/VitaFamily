@@ -31,9 +31,9 @@ export function HomePage() {
     <Page title="Início" header={greeting} menu="avatar" fullScreen>
       <HomeBanner next={state.status === 'success' ? state.data.nextAppointment : null} />
       {state.status === 'loading' && (
-        <div role="status" className="grid h-48 shrink-0 grid-cols-4 gap-3" aria-label="A carregar…">
+        <div role="status" className="grid shrink-0 grid-cols-4 gap-x-1 gap-y-9" aria-label="A carregar…">
           {Array.from({ length: 8 }, (_, i) => (
-            <div key={i} className="mx-auto size-14 animate-pulse rounded-2xl bg-surface-muted" aria-hidden />
+            <div key={i} className="mx-auto size-12 animate-pulse rounded-xl bg-surface-muted" aria-hidden />
           ))}
         </div>
       )}

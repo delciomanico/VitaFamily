@@ -60,11 +60,11 @@ function buildPages({ today, family }: HomeSummary, unreadAlerts: number): Optio
       },
     ],
     [
-      { to: paths.healthProfile, label: 'Perfil de saúde', icon: UserRound },
+      { to: paths.healthProfile, label: 'Meu perfil', icon: UserRound },
       { to: paths.appointmentNew, label: 'Marcar consulta', icon: CalendarPlus },
       { to: paths.prescriptionNew, label: 'Adicionar receita', icon: FilePlus2 },
       { to: paths.examinationNew, label: 'Adicionar exame', icon: TestTubeDiagonal },
-      { to: paths.preventiveReport, label: 'Relatório preventivo', icon: ShieldCheck },
+      { to: paths.preventiveReport, label: 'Preventivo', icon: ShieldCheck },
       { to: paths.settings, label: 'Configurações', icon: Settings },
     ],
   ]
@@ -75,15 +75,15 @@ function OptionTile({ to, label, icon: Icon, caption }: Option) {
     <Link
       to={to}
       aria-label={caption ? `${label}, ${caption}` : label}
-      className="group flex flex-col items-center gap-1.5 rounded-xl p-1 text-center"
+      className="group flex flex-col items-center gap-1 rounded-xl p-1 text-center"
     >
-      <span className="flex size-14 items-center justify-center rounded-2xl bg-primary-soft text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-        <Icon className="size-7" strokeWidth={1.6} aria-hidden />
+      <span className="flex size-12 items-center justify-center rounded-xl bg-primary-soft text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+        <Icon className="size-6" strokeWidth={1.7} aria-hidden />
       </span>
       <span className="text-xs leading-tight font-medium text-foreground" aria-hidden>
         {label}
       </span>
-      <span className="h-4 text-xs leading-4 text-primary" aria-hidden>
+      <span className="h-3.5 text-[0.6875rem] leading-3.5 text-primary" aria-hidden>
         {caption}
       </span>
     </Link>
@@ -112,7 +112,7 @@ export function HomeOptions({ summary, unreadAlerts }: HomeOptionsProps) {
   }
 
   return (
-    <nav aria-label="Opções" aria-roledescription="carrossel" className="flex shrink-0 flex-col gap-3">
+    <nav aria-label="Opções" aria-roledescription="carrossel" className="flex shrink-0 flex-col gap-1">
       <div
         ref={track}
         onScroll={onScroll}
@@ -122,7 +122,7 @@ export function HomeOptions({ summary, unreadAlerts }: HomeOptionsProps) {
           <ul
             key={index}
             aria-label={`Página ${index + 1} de ${pages.length}`}
-            className="grid w-full shrink-0 snap-start grid-cols-4 content-start gap-x-2 gap-y-3"
+            className="grid w-full shrink-0 snap-start grid-cols-4 content-start gap-x-1 gap-y-1"
           >
             {options.map((option) => (
               <li key={option.to}>

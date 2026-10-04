@@ -17,7 +17,7 @@ function NextAppointmentOverlay({ next }: { next: NonNullable<HomeSummary['nextA
   return (
     <Link
       to={paths.appointment(appointment.id)}
-      className="absolute inset-x-0 bottom-0 flex items-end gap-3 rounded-b-xl bg-gradient-to-t from-black/75 via-black/45 to-transparent p-4 pt-10 text-white"
+      className="absolute inset-x-0 bottom-0 flex items-end gap-3 rounded-b-xl bg-gradient-to-t from-black/75 via-black/45 to-transparent px-4 pt-8 pb-3 text-white"
     >
       <span className="min-w-0 flex-1">
         <span className="block text-xs font-medium">Próximo compromisso</span>
@@ -33,12 +33,12 @@ interface HomeBannerProps {
   next: HomeSummary['nextAppointment']
 }
 
-/** Banner que ocupa o espaço livre da Home, com o próximo compromisso por cima. */
+/** Banner compacto da Home (até ~1/3 do ecrã), com o próximo compromisso por cima. */
 export function HomeBanner({ next }: HomeBannerProps) {
   const [failed, setFailed] = useState(false)
 
   return (
-    <div className="relative min-h-32 flex-1 overflow-hidden rounded-xl bg-primary-soft">
+    <div className="relative aspect-[16/9] max-h-[34dvh] w-full shrink-0 overflow-hidden rounded-xl bg-primary-soft md:aspect-[21/9]">
       {failed ? (
         <div className="flex h-full items-center justify-center text-accent" aria-hidden>
           <ImageIcon className="size-10" strokeWidth={1.5} />

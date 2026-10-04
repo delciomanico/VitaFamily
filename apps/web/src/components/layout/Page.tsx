@@ -61,7 +61,7 @@ export function Page({
         className={cn(
           'mx-auto flex w-full max-w-3xl flex-col px-4 lg:px-8',
           fullScreen
-            ? 'min-h-0 flex-1 gap-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]'
+            ? 'min-h-0 flex-1 gap-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]'
             : 'gap-6 pt-6 pb-[max(2rem,env(safe-area-inset-bottom))] lg:pb-12',
         )}
       >
