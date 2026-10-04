@@ -26,7 +26,7 @@ export function HomePage() {
 
   const greeting = (
     <h1 className={bandTitleClass}>
-      Olá, {firstName(name)} <span aria-hidden>👋</span>
+      Olá, {firstName(name)}
     </h1>
   )
 

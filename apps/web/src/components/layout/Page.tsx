@@ -20,8 +20,11 @@ interface PageProps {
   children: ReactNode
 }
 
-/** Título da faixa: 24px, tamanho mínimo para texto branco sobre a cor da faixa (contraste AA texto grande). */
-export const bandTitleClass = 'truncate text-2xl leading-tight font-semibold tracking-tight'
+/**
+ * Título da faixa: 19px em negrito — discreto, mas ainda “texto grande” (≥ 18.66px bold),
+ * o mínimo para branco sobre a cor da faixa cumprir o contraste AA.
+ */
+export const bandTitleClass = 'truncate text-[1.1875rem] leading-tight font-bold tracking-tight'
 
 /**
  * Página da área autenticada: faixa ciano compacta numa só linha (voltar, título, menu),
@@ -40,14 +43,14 @@ export function Page({
   return (
     <div className={cn(fullScreen && 'flex h-dvh flex-col overflow-hidden')}>
       <header className="shrink-0 bg-brand pt-safe text-white">
-        <div className="mx-auto flex h-16 max-w-3xl items-center gap-2 px-4 lg:px-8">
+        <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4 lg:px-8">
           {backTo && (
             <Link
               to={backTo}
               aria-label={backLabel}
               className="-ml-2 flex size-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/15"
             >
-              <ChevronLeft className="size-6" aria-hidden />
+              <ChevronLeft className="size-5" aria-hidden />
             </Link>
           )}
           <div className="min-w-0 flex-1">{header ?? <h1 className={bandTitleClass}>{title}</h1>}</div>

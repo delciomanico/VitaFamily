@@ -20,7 +20,7 @@ export function MenuButton() {
         aria-label={label}
         className="relative -mr-2 flex size-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/15 lg:hidden"
       >
-        <EllipsisVertical className="size-6" aria-hidden />
+        <EllipsisVertical className="size-5" aria-hidden />
         {unread > 0 && <span className="absolute top-2 right-2.5 size-2.5 rounded-full bg-danger ring-2 ring-brand" />}
       </button>
       <NavDrawer open={open} onClose={() => setOpen(false)} />

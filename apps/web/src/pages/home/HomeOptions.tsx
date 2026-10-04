@@ -107,7 +107,7 @@ export function HomeOptions({ summary, unreadAlerts }: HomeOptionsProps) {
   }
 
   return (
-    <nav aria-label="Opções" aria-roledescription="carrossel" className="flex shrink-0 flex-col gap-1">
+    <nav aria-label="Opções" aria-roledescription="carrossel" className="flex shrink-0 flex-col gap-1 pt-3">
       <div
         ref={track}
         onScroll={onScroll}
