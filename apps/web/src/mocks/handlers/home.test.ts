@@ -25,6 +25,19 @@ describe('resumo da Home (Monarca, tutor de todos)', () => {
     expect(today).toEqual({ pendingDoses: 3, newResults: 2, members: 4 })
   })
 
+  it('lista as tomas de hoje por hora, com estado', async () => {
+    const { todayDoses } = await getHomeSummary('fam_monarca', 'usr_monarca', NOW)
+    expect(todayDoses.map((d) => [d.medication, d.status])).toEqual([
+      ['Amoxicilina 500 mg', 'TAKEN'],
+      ['Metformina 850 mg', 'UNCONFIRMED'],
+      ['Losartana 50 mg', 'TAKEN'],
+      ['Amoxicilina 500 mg', 'PENDING'],
+      ['Metformina 850 mg', 'PENDING'],
+      ['Amoxicilina 500 mg', 'PENDING'],
+    ])
+    expect(todayDoses[1]).toMatchObject({ memberName: 'João Lopes', isSelf: false })
+  })
+
   it('só João tem acompanhamento pendente (toma não confirmada e consulta passada)', async () => {
     const { family: overview } = await getHomeSummary('fam_monarca', 'usr_monarca', NOW)
     expect(overview).toEqual({ tracked: 4, withPending: 1 })

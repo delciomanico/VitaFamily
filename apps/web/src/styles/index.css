@@ -106,3 +106,19 @@
     display: none;
   }
 }
+
+/*
+ * Área que ocupa o espaço livre de um ecrã fixo (Home). O conteúdo marcado com
+ * `fit-hide` esconde-se quando não cabe, para nunca criar scroll vertical.
+ */
+@layer components {
+  .fit-area {
+    container-type: size;
+  }
+
+  @container (max-height: 8.5rem) {
+    .fit-hide {
+      display: none;
+    }
+  }
+}

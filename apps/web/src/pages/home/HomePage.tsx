@@ -8,10 +8,11 @@ import { firstName } from '@/lib/date'
 import { reportService } from '@/services/report.service'
 import { HomeBanner } from './HomeBanner'
 import { HomeOptions } from './HomeOptions'
+import { TodayDoses } from './TodayDoses'
 
 /**
- * Home num só ecrã, sem scroll vertical: faixa, banner (com o próximo compromisso)
- * e menu de opções deslizante, com o resumo de hoje nas legendas.
+ * Home num só ecrã, sem scroll vertical: faixa, banner (com o próximo compromisso),
+ * menu de opções deslizante (resumo de hoje nas legendas) e, se couberem, as tomas de hoje.
  */
 export function HomePage() {
   const { user, family, member } = useAuth()
@@ -38,7 +39,15 @@ export function HomePage() {
         </div>
       )}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
-      {state.status === 'success' && <HomeOptions summary={state.data} unreadAlerts={unreadAlerts} />}
+      {state.status === 'success' && (
+        <>
+          <HomeOptions summary={state.data} unreadAlerts={unreadAlerts} />
+          {/* Espaço livre restante: as tomas de hoje, só se couberem. */}
+          <div className="fit-area min-h-0 flex-1">
+            <TodayDoses doses={state.data.todayDoses} />
+          </div>
+        </>
+      )}
     </Page>
   )
 }

@@ -2,6 +2,7 @@ import type { Tone } from '@/components/ui/Badge'
 import type { SelectOption } from '@/components/ui/Select'
 import type { AlertItem } from '@/types/alert'
 import type { AppointmentStatus } from '@/types/appointment'
+import type { DoseStatus } from '@/types/medication'
 import { RELATIONSHIPS, type FamilyRole, type Relationship } from '@/types/family'
 import { BLOOD_TYPES, SEXES, type BloodType, type Sex } from '@/types/health'
 
@@ -40,6 +41,14 @@ export const appointmentStatus: Record<AppointmentStatus, StatusLabel> = {
   COMPLETED: { label: 'Realizada', tone: 'success' },
   NO_SHOW: { label: 'Não compareceu', tone: 'warning' },
   CANCELLED: { label: 'Cancelada', tone: 'neutral' },
+}
+
+/** Estados de uma toma (BR-MED-04). */
+export const doseStatus: Record<DoseStatus, StatusLabel> = {
+  PENDING: { label: 'Por tomar', tone: 'neutral' },
+  TAKEN: { label: 'Tomada', tone: 'success' },
+  NOT_TAKEN: { label: 'Não tomada', tone: 'danger' },
+  UNCONFIRMED: { label: 'Não confirmada', tone: 'warning' },
 }
 
 /** Título do alerta a partir do tipo e do resumo da origem. */

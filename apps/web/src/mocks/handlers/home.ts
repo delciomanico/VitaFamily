@@ -1,5 +1,5 @@
 import { todayISO } from '@/lib/date'
-import type { HomeSummary } from '@/types/report'
+import type { HomeSummary, TodayDose } from '@/types/report'
 import { memberName, requireSelf, visibleMemberIds } from '../access'
 import { db } from '../db'
 import { respond } from '../respond'
@@ -26,9 +26,21 @@ export function getHomeSummary(familyId: string, userId: string, now: Date = new
       .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))[0]
 
     const today = todayISO(now)
-    const pendingDoses = db.doses.filter(
-      (d) => inScope(d) && d.status === 'PENDING' && todayISO(new Date(d.scheduledAt)) === today,
-    ).length
+    const dosesToday = db.doses
+      .filter((d) => inScope(d) && todayISO(new Date(d.scheduledAt)) === today)
+      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
+    const pendingDoses = dosesToday.filter((d) => d.status === 'PENDING').length
+    const todayDoses = dosesToday.map((d): TodayDose => {
+      const plan = db.medicationPlans.find((p) => p.id === d.planId)
+      return {
+        id: d.id,
+        scheduledAt: d.scheduledAt,
+        status: d.status,
+        medication: plan ? `${plan.name} ${plan.dosage}` : '',
+        memberName: memberName(d.memberId),
+        isSelf: d.memberId === self.id,
+      }
+    })
 
     const visibleExams = new Set(db.examinations.filter(inScope).map((e) => e.id))
     const newSince = now.getTime() - NEW_RESULT_DAYS * DAY_MS
@@ -48,6 +60,7 @@ export function getHomeSummary(familyId: string, userId: string, now: Date = new
       unreadAlerts: findAlerts(familyId, userId, now)
         .filter((a) => !a.readAt)
         .slice(0, HOME_ALERTS_LIMIT),
+      todayDoses,
     }
   })
 }

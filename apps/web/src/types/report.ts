@@ -1,5 +1,6 @@
 import type { Appointment } from './appointment'
 import type { AlertItem } from './alert'
+import type { DoseStatus } from './medication'
 
 /** Itens pendentes de um membro (UC-RPT-02, proposta dos docs). */
 export type PendingItemKind = 'DOSE_UNCONFIRMED' | 'APPOINTMENT_OVERDUE' | 'EXAM_OVERDUE'
@@ -8,6 +9,17 @@ export interface PendingItem {
   kind: PendingItemKind
   memberId: string
   sourceId: string
+}
+
+/** Toma de hoje, pronta a mostrar na Home. */
+export interface TodayDose {
+  id: string
+  scheduledAt: string
+  status: DoseStatus
+  /** Ex.: “Amoxicilina 500 mg”. */
+  medication: string
+  memberName: string
+  isSelf: boolean
 }
 
 /** Resumo para a Home. */
@@ -27,4 +39,6 @@ export interface HomeSummary {
     withPending: number
   }
   unreadAlerts: AlertItem[]
+  /** Tomas de hoje dos membros visíveis, por hora. */
+  todayDoses: TodayDose[]
 }
