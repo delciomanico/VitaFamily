@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom'
-import { Bell, BellOff, ChevronRight, Pill } from 'lucide-react'
+import { Bell, BellOff, Pill } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
+import { RowLink } from '@/components/ui/RowLink'
 import { cn } from '@/lib/cn'
 import { firstName } from '@/lib/date'
 import { formatRelativeDay, formatTime } from '@/lib/format'
@@ -22,18 +22,16 @@ export function ReminderState({ on, className }: { on: boolean; className?: stri
 interface MedicationListProps {
   items: MedicationSummary[]
   selfMemberId?: string
+  /** Falso = só leitura (perfil de um membro que partilha, sem acesso ao detalhe). */
+  linked?: boolean
 }
 
 /** Medicamentos: nome, dosagem, frequência, próxima dose e estado dos lembretes. */
-export function MedicationList({ items, selfMemberId }: MedicationListProps) {
+export function MedicationList({ items, selfMemberId, linked = true }: MedicationListProps) {
   return (
     <Card className="divide-y divide-border py-1">
       {items.map(({ plan, memberName, nextDoseAt, remindersOn }) => (
-        <Link
-          key={plan.id}
-          to={paths.medication(plan.id)}
-          className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-surface-muted"
-        >
+        <RowLink key={plan.id} to={paths.medication(plan.id)} linked={linked}>
           <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">
             <Pill className="size-5" aria-hidden />
           </span>
@@ -56,8 +54,7 @@ export function MedicationList({ items, selfMemberId }: MedicationListProps) {
               <span className="text-xs text-muted">{formatRelativeDay(nextDoseAt)}</span>
             </span>
           )}
-          <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />
-        </Link>
+        </RowLink>
       ))}
     </Card>
   )

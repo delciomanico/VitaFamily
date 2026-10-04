@@ -36,9 +36,9 @@ function groupByYear(entries: HistoryEntry[]): Array<[string, HistoryEntry[]]> {
   return [...groups]
 }
 
-function Row({ entry }: { entry: HistoryEntry }) {
+function Row({ entry, linked }: { entry: HistoryEntry; linked: boolean }) {
   const Icon = icons[entry.kind]
-  const to = linkTo(entry)
+  const to = linked ? linkTo(entry) : null
   const body: ReactNode = (
     <>
       <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-muted">
@@ -62,8 +62,11 @@ function Row({ entry }: { entry: HistoryEntry }) {
   )
 }
 
-/** Histórico agrupado por ano, do mais recente para o mais antigo. */
-export function HistoryList({ entries }: { entries: HistoryEntry[] }) {
+/**
+ * Histórico agrupado por ano, do mais recente para o mais antigo.
+ * `linked` falso: só leitura (histórico partilhado, sem acesso ao detalhe).
+ */
+export function HistoryList({ entries, linked = true }: { entries: HistoryEntry[]; linked?: boolean }) {
   return (
     <div className="flex flex-col gap-6">
       {groupByYear(entries).map(([year, items]) => (
@@ -71,7 +74,7 @@ export function HistoryList({ entries }: { entries: HistoryEntry[] }) {
           <h2 className="text-sm font-semibold text-muted">{year}</h2>
           <Card className="divide-y divide-border py-1">
             {items.map((entry) => (
-              <Row key={`${entry.kind}-${entry.id}`} entry={entry} />
+              <Row key={`${entry.kind}-${entry.id}`} entry={entry} linked={linked} />
             ))}
           </Card>
         </section>

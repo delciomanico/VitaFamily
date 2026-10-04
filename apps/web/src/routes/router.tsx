@@ -9,6 +9,9 @@ import { ExaminationDetailPage } from '@/pages/examinations/ExaminationDetailPag
 import { ExaminationHistoryPage } from '@/pages/examinations/ExaminationHistoryPage'
 import { ExaminationsPage } from '@/pages/examinations/ExaminationsPage'
 import { NewExaminationPage } from '@/pages/examinations/NewExaminationPage'
+import { FamilyPage } from '@/pages/family/FamilyPage'
+import { MemberHistoryPage } from '@/pages/family/MemberHistoryPage'
+import { MemberProfilePage } from '@/pages/family/MemberProfilePage'
 import { HealthHubPage } from '@/pages/health/HealthHubPage'
 import { HealthProfilePage } from '@/pages/health/HealthProfilePage'
 import { MedicalHistoryPage } from '@/pages/health/MedicalHistoryPage'
@@ -100,9 +103,9 @@ export const routes: RouteObject[] = [
               { path: 'appointments', element: <AppointmentsPage /> },
               { path: 'appointments/new', element: <NewAppointmentPage /> },
               { path: 'appointments/:id', element: <AppointmentDetailPage /> },
-              placeholder('family', 'Minha família', 9),
-              placeholder('family/:id', 'Membro', 9, paths.family),
-              placeholder('family/:id/history', 'Histórico completo', 9, paths.family),
+              { path: 'family', element: <FamilyPage /> },
+              { path: 'family/:id', element: <MemberProfilePage /> },
+              { path: 'family/:id/history', element: <MemberHistoryPage /> },
               placeholder('alerts', 'Alertas', 10),
               placeholder('reports/family', 'Saúde da família', 11),
               placeholder('reports/preventive', 'Relatório preventivo', 11, paths.familyReport),

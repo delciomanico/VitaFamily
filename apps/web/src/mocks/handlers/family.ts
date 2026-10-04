@@ -123,6 +123,8 @@ export function removeMember(familyId: string, actorUserId: string, memberId: st
     const target = db.members[index]
     if (!target) throw new AppError('NOT_FOUND')
     if (target.userId === actorUserId) throw new AppError('FORBIDDEN')
+    // TODO(BR-MEM-16, R4): remover um adulto com conta exige o pacote de dados; por agora só dependentes sem conta.
+    if (target.userId) throw new AppError('CONFLICT')
     db.members.splice(index, 1)
     db.guardianships = db.guardianships.filter((g) => g.dependentId !== memberId && g.guardianId !== memberId)
     return undefined

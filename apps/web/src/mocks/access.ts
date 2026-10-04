@@ -1,10 +1,11 @@
 import { AppError } from '@/lib/errors'
+import { SHARING_CATEGORIES, type SharingCategory } from '@/types/sharing'
 import { db } from './db'
 
 /*
  * Regras de acesso do backend simulado (versão simplificada de access.Policy):
- * cada utilizador vê os seus dados e os dos dependentes de quem é tutor (BR-MEM-08).
- * TODO(fase 9): partilha por categoria (SharingGrant, BR-PRV-01..04).
+ * cada utilizador gere os seus dados e os dos dependentes de quem é tutor (BR-MEM-08);
+ * os restantes membros só se leem nas categorias partilhadas (SharingGrant, BR-PRV-01..04).
  */
 
 /** Perfil do utilizador na família; fora dela → NOT_FOUND (sem enumeração). */
@@ -36,4 +37,31 @@ export function findVisibleMember(familyId: string, userId: string, memberId: st
 
 export function memberName(memberId: string): string {
   return db.members.find((m) => m.id === memberId)?.name ?? ''
+}
+
+/** O que o utilizador pode fazer com os dados de um membro da sua família. */
+export interface MemberAccess {
+  /** Próprio ou dependente seu: vê e edita tudo. */
+  manage: boolean
+  /** Categorias que pode ler (todas, se gere; senão só as partilhadas com ele). */
+  categories: Set<SharingCategory>
+}
+
+/** Acesso a um membro da mesma família; fora dela → NOT_FOUND (sem enumeração). */
+export function memberAccess(familyId: string, userId: string, memberId: string): MemberAccess {
+  const self = requireSelf(familyId, userId)
+  const target = db.members.find((m) => m.id === memberId && m.familyId === familyId && m.status === 'ACTIVE')
+  if (!target) throw new AppError('NOT_FOUND')
+  if (visibleMemberIds(familyId, userId).includes(memberId)) {
+    return { manage: true, categories: new Set(SHARING_CATEGORIES) }
+  }
+  const shared = db.sharingGrants
+    .filter(
+      (g) =>
+        g.familyId === familyId &&
+        g.ownerMemberId === memberId &&
+        (g.granteeMemberId === undefined || g.granteeMemberId === self.id),
+    )
+    .map((g) => g.category)
+  return { manage: false, categories: new Set(shared) }
 }

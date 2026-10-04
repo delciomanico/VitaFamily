@@ -131,7 +131,8 @@ function endPlan(plan: MedicationPlan, now: Date) {
   dropFutureDoses(plan, now)
 }
 
-function summarize(plan: MedicationPlan, now: Date): MedicationSummary {
+/** Vista do medicamento na lista (também usada no perfil do membro). */
+export function summarize(plan: MedicationPlan, now: Date): MedicationSummary {
   const next = nextDoseAt(plan, now)
   return { plan, memberName: memberName(plan.memberId), nextDoseAt: next, remindersOn: next !== null }
 }

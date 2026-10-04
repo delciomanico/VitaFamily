@@ -1,9 +1,11 @@
 import type { Family, FamilyMember } from '@/types/family'
+import type { SharingGrant } from '@/types/sharing'
 
 /*
  * Família demo. Todos os dados são fictícios.
  * Perfis adultos sem conta só existem como dependentes com tutor (BR-MEM-04),
- * por isso Maria e João são dependentes de Monarca.
+ * por isso Maria e João são dependentes de Monarca. Ana é adulta com conta: os dados dela só se
+ * veem nas categorias que partilha (BR-PRV-01).
  */
 export const families: Family[] = [{ id: 'fam_monarca', name: 'Família Monarca', createdBy: 'usr_monarca' }]
 
@@ -52,6 +54,31 @@ export const members: FamilyMember[] = [
     status: 'ACTIVE',
     relationship: 'SON',
     sex: 'MALE',
+  },
+  {
+    id: 'mem_ana',
+    familyId: 'fam_monarca',
+    userId: 'usr_ana',
+    name: 'Ana Lopes',
+    birthDate: '1992-11-08',
+    role: 'FAMILY_MEMBER',
+    isDependent: false,
+    bloodType: 'AB+',
+    status: 'ACTIVE',
+    relationship: 'SIBLING',
+    sex: 'FEMALE',
+  },
+]
+
+/** Ana partilha as consultas com toda a família e as alergias só com Monarca (o resto é privado). */
+export const sharingGrants: SharingGrant[] = [
+  { familyId: 'fam_monarca', ownerMemberId: 'mem_ana', category: 'APPOINTMENTS', grantedBy: 'usr_ana' },
+  {
+    familyId: 'fam_monarca',
+    ownerMemberId: 'mem_ana',
+    granteeMemberId: 'mem_monarca',
+    category: 'ALLERGIES',
+    grantedBy: 'usr_ana',
   },
 ]
 

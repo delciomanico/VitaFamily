@@ -12,7 +12,7 @@ const NOW = new Date(2026, 9, 4, 12, 0)
 
 beforeEach(() => resetDb(NOW))
 
-describe('resumo da Home (Monarca, tutor de todos)', () => {
+describe('resumo da Home (Monarca, tutor de Maria, João e Pedro)', () => {
   it('mostra a próxima consulta agendada', async () => {
     const { nextAppointment } = await getHomeSummary('fam_monarca', 'usr_monarca', NOW)
     expect(nextAppointment?.appointment.id).toBe('apt_cardio')
@@ -22,7 +22,7 @@ describe('resumo da Home (Monarca, tutor de todos)', () => {
   it('conta tomas pendentes de hoje, resultados novos e membros', async () => {
     const { today } = await getHomeSummary('fam_monarca', 'usr_monarca', NOW)
     // Amoxicilina 16:00 e 22:00 + Metformina 20:00 (a das 08:00 ficou não confirmada).
-    expect(today).toEqual({ pendingDoses: 3, newResults: 2, members: 4 })
+    expect(today).toEqual({ pendingDoses: 3, newResults: 2, members: 5 })
   })
 
   it('lista as tomas de hoje por hora, com estado', async () => {
@@ -41,7 +41,9 @@ describe('resumo da Home (Monarca, tutor de todos)', () => {
   it('só João tem acompanhamento pendente (toma não confirmada e consulta passada)', async () => {
     const { family: overview } = await getHomeSummary('fam_monarca', 'usr_monarca', NOW)
     expect(overview).toEqual({ tracked: 4, withPending: 1 })
-    const kinds = pendingItems('fam_monarca', ['mem_joao'], NOW).map((p) => p.kind).sort()
+    const kinds = pendingItems('fam_monarca', ['mem_joao'], NOW)
+      .map((p) => p.kind)
+      .sort()
     expect(kinds).toEqual(['APPOINTMENT_OVERDUE', 'DOSE_UNCONFIRMED'])
   })
 

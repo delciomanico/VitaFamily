@@ -2,7 +2,7 @@ import { seedAlerts } from './data/alerts'
 import { seedAppointments } from './data/appointments'
 import { clinicStaff, clinics, seedSlots } from './data/clinics'
 import { seedExamDocuments, seedExamResults, seedExaminations } from './data/examinations'
-import { families, guardianships, invitations, members } from './data/families'
+import { families, guardianships, invitations, members, sharingGrants } from './data/families'
 import { allergies, conditions } from './data/health'
 import { seedDocuments, seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
 import { users } from './data/users'
@@ -24,6 +24,7 @@ function seed(now: Date = new Date()) {
       conditions,
       clinics,
       clinicStaff,
+      sharingGrants,
     }),
     slots: seedSlots(now),
     appointments: seedAppointments(now),

@@ -46,6 +46,17 @@ export function seedAppointments(now: Date = new Date()): Appointment[] {
       notes: 'Sinal no braço para observar.',
     },
     {
+      // Consulta da Ana: partilhada com a família (categoria Consultas).
+      ...base,
+      id: 'apt_ana',
+      memberId: 'mem_ana',
+      scheduledAt: at(9, '17:00', now),
+      status: 'SCHEDULED',
+      specialty: 'Oftalmologia',
+      clinicId: 'cln_bairro',
+      clinicName: 'Centro de Saúde do Bairro',
+    },
+    {
       // Agendada e já passada: item pendente (UC-RPT-02).
       ...base,
       id: 'apt_endocrino',

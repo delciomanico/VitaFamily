@@ -33,4 +33,14 @@ export const users: MockUserRecord[] = [
     timezone: 'Africa/Luanda',
     status: 'ACTIVE',
   },
+  {
+    // Irmã de Monarca, com conta própria (mostra a partilha por categoria).
+    id: 'usr_ana',
+    email: 'ana@vitafamily.app',
+    password: DEMO_PASSWORD,
+    name: 'Ana Lopes',
+    birthDate: '1992-11-08',
+    timezone: 'Africa/Luanda',
+    status: 'ACTIVE',
+  },
 ]

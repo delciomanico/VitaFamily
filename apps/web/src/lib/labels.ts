@@ -7,6 +7,7 @@ import type { DoseStatus, MedicationPlanStatus } from '@/types/medication'
 import type { PrescriptionStatus } from '@/types/prescription'
 import { RELATIONSHIPS, type FamilyRole, type Relationship } from '@/types/family'
 import { BLOOD_TYPES, SEXES, type BloodType, type Sex } from '@/types/health'
+import type { SharingCategory } from '@/types/sharing'
 
 /** Textos em pt-PT para valores do domínio. */
 
@@ -31,6 +32,15 @@ export const sexLabels: Record<Sex, string> = {
 export const roleLabels: Record<FamilyRole, string> = {
   FAMILY_ADMIN: 'Administrador',
   FAMILY_MEMBER: 'Membro',
+}
+
+/** Categorias de partilha C2–C6 (C1 é sempre visível). */
+export const sharingCategoryLabels: Record<SharingCategory, string> = {
+  ALLERGIES: 'Alergias e tipo sanguíneo',
+  CONDITIONS: 'Condições e histórico',
+  MEDICATION: 'Medicação e receitas',
+  APPOINTMENTS: 'Consultas',
+  EXAMS: 'Exames',
 }
 
 export interface StatusLabel {

@@ -1,7 +1,6 @@
-import { Link } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
+import { RowLink } from '@/components/ui/RowLink'
 import { appointmentStatusLabel } from '@/lib/appointment'
 import { cn } from '@/lib/cn'
 import { firstName } from '@/lib/date'
@@ -13,10 +12,12 @@ interface AppointmentListProps {
   items: AppointmentItem[]
   /** Membro do próprio utilizador: o nome só aparece nas consultas de outros. */
   selfMemberId?: string
+  /** Falso = só leitura (perfil de um membro que partilha, sem acesso ao detalhe). */
+  linked?: boolean
 }
 
 /** Consultas: bloco de data e hora (15 OUT · 09:30), especialidade, clínica e estado. */
-export function AppointmentList({ items, selfMemberId }: AppointmentListProps) {
+export function AppointmentList({ items, selfMemberId, linked = true }: AppointmentListProps) {
   return (
     <Card className="divide-y divide-border py-1">
       {items.map(({ appointment, memberName }) => {
@@ -24,11 +25,7 @@ export function AppointmentList({ items, selfMemberId }: AppointmentListProps) {
         const status = appointmentStatusLabel(appointment)
         const muted = appointment.status === 'CANCELLED'
         return (
-          <Link
-            key={appointment.id}
-            to={paths.appointment(appointment.id)}
-            className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-surface-muted"
-          >
+          <RowLink key={appointment.id} to={paths.appointment(appointment.id)} linked={linked}>
             <span
               className={cn(
                 'flex w-14 shrink-0 flex-col items-center rounded-md py-1.5',
@@ -51,8 +48,7 @@ export function AppointmentList({ items, selfMemberId }: AppointmentListProps) {
                 {status.label}
               </Badge>
             </span>
-            <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />
-          </Link>
+          </RowLink>
         )
       })}
     </Card>

@@ -1,4 +1,5 @@
 import * as api from '@/mocks/handlers/family'
+import * as members from '@/mocks/handlers/members'
 
 export type { NewMemberInput } from '@/mocks/handlers/family'
 
@@ -11,4 +12,7 @@ export const familyService = {
   listManagedMembers: api.listManagedMembers,
   addMember: api.addMember,
   removeMember: api.removeMember,
+  getFamilyOverview: members.getFamilyOverview,
+  getMemberProfile: members.getMemberProfile,
+  getMemberHistory: members.getMemberHistory,
 }

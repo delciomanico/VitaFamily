@@ -1,7 +1,7 @@
-import { Link } from 'react-router-dom'
-import { ChevronRight, FlaskConical } from 'lucide-react'
+import { FlaskConical } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
+import { RowLink } from '@/components/ui/RowLink'
 import { firstName } from '@/lib/date'
 import { formatCount, formatShortDate } from '@/lib/format'
 import { examinationStatus } from '@/lib/labels'
@@ -12,10 +12,12 @@ interface ExaminationListProps {
   items: ExaminationSummary[]
   /** Membro do próprio utilizador: o nome só aparece nos exames de outros. */
   selfMemberId?: string
+  /** Falso = só leitura (perfil de um membro que partilha, sem acesso ao detalhe). */
+  linked?: boolean
 }
 
 /** Exames numa só lista: nome, data, número de resultados e estado. */
-export function ExaminationList({ items, selfMemberId }: ExaminationListProps) {
+export function ExaminationList({ items, selfMemberId, linked = true }: ExaminationListProps) {
   return (
     <Card className="divide-y divide-border py-1">
       {items.map(({ examination, memberName, resultCount }) => {
@@ -27,11 +29,7 @@ export function ExaminationList({ items, selfMemberId }: ExaminationListProps) {
               : 'Sem resultados'
             : null
         return (
-          <Link
-            key={examination.id}
-            to={paths.examination(examination.id)}
-            className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-surface-muted"
-          >
+          <RowLink key={examination.id} to={paths.examination(examination.id)} linked={linked}>
             <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">
               <FlaskConical className="size-5" aria-hidden />
             </span>
@@ -49,8 +47,7 @@ export function ExaminationList({ items, selfMemberId }: ExaminationListProps) {
                 {status.label}
               </Badge>
             </span>
-            <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />
-          </Link>
+          </RowLink>
         )
       })}
     </Card>
