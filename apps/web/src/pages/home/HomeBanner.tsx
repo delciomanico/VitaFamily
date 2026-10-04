@@ -33,12 +33,12 @@ interface HomeBannerProps {
   next: HomeSummary['nextAppointment']
 }
 
-/** Banner compacto da Home (até ~1/3 do ecrã), com o próximo compromisso por cima. */
+/** Banner compacto da Home (até ~1/4 do ecrã), com o próximo compromisso por cima. */
 export function HomeBanner({ next }: HomeBannerProps) {
   const [failed, setFailed] = useState(false)
 
   return (
-    <div className="relative aspect-[16/9] max-h-[34dvh] w-full shrink-0 overflow-hidden rounded-xl bg-primary-soft md:aspect-[21/9]">
+    <div className="relative aspect-[2/1] max-h-[24dvh] w-full shrink-0 overflow-hidden rounded-xl bg-primary-soft md:aspect-[3/1]">
       {failed ? (
         <div className="flex h-full items-center justify-center text-accent" aria-hidden>
           <ImageIcon className="size-10" strokeWidth={1.5} />
