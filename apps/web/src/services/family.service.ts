@@ -8,6 +8,7 @@ export const familyService = {
   createFamily: api.createFamily,
   joinFamily: api.joinFamily,
   listMembers: api.listMembers,
+  listManagedMembers: api.listManagedMembers,
   addMember: api.addMember,
   removeMember: api.removeMember,
 }

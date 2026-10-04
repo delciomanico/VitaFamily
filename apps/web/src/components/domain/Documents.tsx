@@ -3,8 +3,13 @@ import { FileImage, FileText, Paperclip, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { formatLongDate } from '@/lib/format'
-import { DOCUMENT_MAX_BYTES, DOCUMENT_MIME_TYPES, DOCUMENTS_PER_RESOURCE, type DocumentInfo } from '@/types/document'
-import type { DocumentUpload } from '@/services/prescription.service'
+import {
+  DOCUMENT_MAX_BYTES,
+  DOCUMENT_MIME_TYPES,
+  DOCUMENTS_PER_RESOURCE,
+  type DocumentInfo,
+  type DocumentUpload,
+} from '@/types/document'
 
 /** “182 KB”, “1,2 MB”. */
 export function formatFileSize(bytes: number): string {

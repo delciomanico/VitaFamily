@@ -1,3 +1,4 @@
+import type { DocumentInfo } from '@/types/document'
 import type { ExamResult, Examination } from '@/types/examination'
 import { at, day } from '../time'
 
@@ -7,7 +8,14 @@ const DAYS_PER_YEAR = 365
 export function seedExaminations(now: Date = new Date()): Examination[] {
   const lab = { familyId: 'fam_monarca', clinicId: 'cln_vidaplena', clinicName: 'Laboratório Vida Plena' }
   return [
-    { ...lab, id: 'exm_2026', memberId: 'mem_monarca', name: 'Análises clínicas', examDate: day(-5, now), status: 'COMPLETED' },
+    {
+      ...lab,
+      id: 'exm_2026',
+      memberId: 'mem_monarca',
+      name: 'Análises clínicas',
+      examDate: day(-5, now),
+      status: 'COMPLETED',
+    },
     {
       ...lab,
       id: 'exm_2025',
@@ -24,8 +32,22 @@ export function seedExaminations(now: Date = new Date()): Examination[] {
       examDate: day(-2 * DAYS_PER_YEAR, now),
       status: 'COMPLETED',
     },
-    { ...lab, id: 'exm_maria', memberId: 'mem_maria', name: 'Ecografia abdominal', examDate: day(10, now), status: 'SCHEDULED' },
-    { ...lab, id: 'exm_joao', memberId: 'mem_joao', name: 'Hemoglobina glicada', examDate: day(-20, now), status: 'COMPLETED' },
+    {
+      ...lab,
+      id: 'exm_maria',
+      memberId: 'mem_maria',
+      name: 'Ecografia abdominal',
+      examDate: day(10, now),
+      status: 'SCHEDULED',
+    },
+    {
+      ...lab,
+      id: 'exm_joao',
+      memberId: 'mem_joao',
+      name: 'Hemoglobina glicada',
+      examDate: day(-20, now),
+      status: 'COMPLETED',
+    },
   ]
 }
 
@@ -43,8 +65,20 @@ export function seedExamResults(now: Date = new Date()): ExamResult[] {
       createdAt: at(-1, '18:00', now),
     },
     { ...glucose, id: 'res_gl_2026', examinationId: 'exm_2026', valueNumeric: 112, createdAt: at(-1, '18:00', now) },
-    { ...glucose, id: 'res_gl_2025', examinationId: 'exm_2025', valueNumeric: 101, createdAt: at(-DAYS_PER_YEAR, '18:00', now) },
-    { ...glucose, id: 'res_gl_2024', examinationId: 'exm_2024', valueNumeric: 92, createdAt: at(-2 * DAYS_PER_YEAR, '18:00', now) },
+    {
+      ...glucose,
+      id: 'res_gl_2025',
+      examinationId: 'exm_2025',
+      valueNumeric: 101,
+      createdAt: at(-DAYS_PER_YEAR, '18:00', now),
+    },
+    {
+      ...glucose,
+      id: 'res_gl_2024',
+      examinationId: 'exm_2024',
+      valueNumeric: 92,
+      createdAt: at(-2 * DAYS_PER_YEAR, '18:00', now),
+    },
     {
       id: 'res_hba1c',
       examinationId: 'exm_joao',
@@ -53,6 +87,23 @@ export function seedExamResults(now: Date = new Date()): ExamResult[] {
       unit: '%',
       referenceMax: 5.7,
       createdAt: at(-19, '12:00', now),
+    },
+  ]
+}
+
+/** Boletim das análises mais recentes de Monarca (só metadados). */
+export function seedExamDocuments(now: Date = new Date()): DocumentInfo[] {
+  return [
+    {
+      id: 'doc_exm_2026',
+      familyId: 'fam_monarca',
+      memberId: 'mem_monarca',
+      resourceType: 'EXAMINATION',
+      resourceId: 'exm_2026',
+      originalName: 'boletim-analises.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 246_000,
+      createdAt: at(-1, '18:05', now),
     },
   ]
 }

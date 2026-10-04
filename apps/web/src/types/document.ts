@@ -13,6 +13,9 @@ export interface DocumentInfo {
   createdAt: string
 }
 
+/** Metadados de um documento enviado (os mocks não guardam o ficheiro). */
+export type DocumentUpload = Pick<DocumentInfo, 'originalName' | 'mimeType' | 'sizeBytes'>
+
 /** BR-DOC-01: PDF, JPG ou PNG até 10 MB. */
 export const DOCUMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const
 export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024

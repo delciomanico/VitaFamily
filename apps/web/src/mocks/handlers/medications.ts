@@ -1,13 +1,12 @@
 import { AppError } from '@/lib/errors'
 import { dosesOnDay, nextDoseAt } from '@/lib/medication'
 import { todayISO } from '@/lib/date'
-import type { DocumentInfo } from '@/types/document'
-import { DOCUMENT_MAX_BYTES, DOCUMENT_MIME_TYPES, DOCUMENTS_PER_RESOURCE } from '@/types/document'
-import type { FamilyMember } from '@/types/family'
 import type { MedicationDetail, MedicationPlan, MedicationSummary } from '@/types/medication'
+import type { DocumentUpload } from '@/types/document'
 import type { Prescription, PrescriptionDetail, PrescriptionStatus, PrescriptionSummary } from '@/types/prescription'
 import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
+import { attachDocuments, documentsOf, validateUploads } from '../documents'
 import { respond } from '../respond'
 
 /** Horários de um medicamento: horas fixas ou “de X em X horas” a partir da primeira toma (BR-MED-01). */
@@ -26,9 +25,6 @@ interface MedicationBaseInput {
 export type NewMedicationInput = MedicationBaseInput & ScheduleInput & { durationDays?: number }
 
 export type UpdateMedicationInput = MedicationBaseInput & ScheduleInput & { endDate?: string }
-
-/** Metadados do documento (os mocks não guardam o ficheiro). */
-export type DocumentUpload = Pick<DocumentInfo, 'originalName' | 'mimeType' | 'sizeBytes'>
 
 export interface NewPrescriptionInput {
   memberId: string
@@ -140,14 +136,6 @@ function summarize(plan: MedicationPlan, now: Date): MedicationSummary {
   return { plan, memberName: memberName(plan.memberId), nextDoseAt: next, remindersOn: next !== null }
 }
 
-/** Membros para quem o utilizador pode registar receitas: o próprio e os dependentes de quem é tutor. */
-export function listManagedMembers(familyId: string, userId: string) {
-  return respond((): FamilyMember[] => {
-    const ids = visibleMemberIds(familyId, userId)
-    return ids.map((id) => findVisibleMember(familyId, userId, id))
-  })
-}
-
 /** Receitas visíveis, mais recentes primeiro (UC-RX-03). */
 export function listPrescriptions(familyId: string, userId: string) {
   return respond((): PrescriptionSummary[] =>
@@ -169,7 +157,7 @@ export function getPrescription(familyId: string, userId: string, id: string) {
       prescription,
       memberName: memberName(prescription.memberId),
       medications: db.medicationPlans.filter((p) => p.prescriptionId === id),
-      documents: db.documents.filter((d) => d.resourceType === 'PRESCRIPTION' && d.resourceId === id),
+      documents: documentsOf('PRESCRIPTION', id),
     }
   })
 }
@@ -187,11 +175,7 @@ export function createPrescription(
   return respond((): Prescription => {
     findVisibleMember(familyId, userId, input.memberId)
     if (input.issuedOn > todayISO(now) || input.medications.length === 0) throw new AppError('VALIDATION_ERROR')
-    if (input.documents.length > DOCUMENTS_PER_RESOURCE) throw new AppError('VALIDATION_ERROR')
-    for (const doc of input.documents) {
-      const allowed = (DOCUMENT_MIME_TYPES as readonly string[]).includes(doc.mimeType)
-      if (!allowed || doc.sizeBytes > DOCUMENT_MAX_BYTES) throw new AppError('VALIDATION_ERROR')
-    }
+    validateUploads(input.documents)
     input.medications.forEach(validateSchedule)
 
     const prescription: Prescription = {
@@ -228,17 +212,11 @@ export function createPrescription(
       generateTodayDoses(plan, now)
     }
 
-    for (const doc of input.documents) {
-      db.documents.push({
-        ...doc,
-        id: newId('doc'),
-        familyId,
-        memberId: input.memberId,
-        resourceType: 'PRESCRIPTION',
-        resourceId: prescription.id,
-        createdAt: now.toISOString(),
-      })
-    }
+    attachDocuments(
+      input.documents,
+      { familyId, memberId: input.memberId, resourceType: 'PRESCRIPTION', resourceId: prescription.id },
+      now,
+    )
     return prescription
   })
 }

@@ -33,7 +33,9 @@ import { useAsync } from '@/hooks/useAsync'
 import { isValidISODate, todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { paths } from '@/routes/paths'
-import { prescriptionService, type DocumentUpload } from '@/services/prescription.service'
+import { familyService } from '@/services/family.service'
+import { prescriptionService } from '@/services/prescription.service'
+import type { DocumentUpload } from '@/types/document'
 import type { FamilyMember } from '@/types/family'
 
 /** Duração máxima aceite no formulário; acima disso, usar “uso contínuo”. */
@@ -267,7 +269,7 @@ export function NewPrescriptionPage() {
   const { user, family, member } = useAuth()
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
-  const { state, reload } = useAsync(() => prescriptionService.listManagedMembers(familyId, userId), [familyId, userId])
+  const { state, reload } = useAsync(() => familyService.listManagedMembers(familyId, userId), [familyId, userId])
 
   return (
     <Page title="Adicionar receita" backTo={paths.prescriptions} backLabel="Receitas">

@@ -1,6 +1,10 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
+import { ExaminationDetailPage } from '@/pages/examinations/ExaminationDetailPage'
+import { ExaminationHistoryPage } from '@/pages/examinations/ExaminationHistoryPage'
+import { ExaminationsPage } from '@/pages/examinations/ExaminationsPage'
+import { NewExaminationPage } from '@/pages/examinations/NewExaminationPage'
 import { HealthHubPage } from '@/pages/health/HealthHubPage'
 import { HealthProfilePage } from '@/pages/health/HealthProfilePage'
 import { MedicalHistoryPage } from '@/pages/health/MedicalHistoryPage'
@@ -82,10 +86,10 @@ export const routes: RouteObject[] = [
               { path: 'health/prescriptions/:id', element: <PrescriptionDetailPage /> },
               { path: 'health/medications', element: <MedicationsPage /> },
               { path: 'health/medications/:id', element: <MedicationDetailPage /> },
-              placeholder('health/examinations', 'Exames', 7, paths.health),
-              placeholder('health/examinations/new', 'Adicionar exame', 7, paths.examinations),
-              placeholder('health/examinations/:id', 'Exame', 7, paths.examinations),
-              placeholder('health/examinations/:id/history', 'Histórico de resultados', 7, paths.examinations),
+              { path: 'health/examinations', element: <ExaminationsPage /> },
+              { path: 'health/examinations/new', element: <NewExaminationPage /> },
+              { path: 'health/examinations/:id', element: <ExaminationDetailPage /> },
+              { path: 'health/examinations/:id/history', element: <ExaminationHistoryPage /> },
               placeholder('appointments', 'Agenda', 8),
               placeholder('appointments/new', 'Marcar consulta', 8, paths.appointments),
               placeholder('appointments/:id', 'Consulta', 8, paths.appointments),

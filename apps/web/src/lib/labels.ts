@@ -2,6 +2,7 @@ import type { Tone } from '@/components/ui/Badge'
 import type { SelectOption } from '@/components/ui/Select'
 import type { AlertItem } from '@/types/alert'
 import type { AppointmentStatus } from '@/types/appointment'
+import type { ExaminationStatus } from '@/types/examination'
 import type { DoseStatus, MedicationPlanStatus } from '@/types/medication'
 import type { PrescriptionStatus } from '@/types/prescription'
 import { RELATIONSHIPS, type FamilyRole, type Relationship } from '@/types/family'
@@ -42,6 +43,12 @@ export const appointmentStatus: Record<AppointmentStatus, StatusLabel> = {
   COMPLETED: { label: 'Realizada', tone: 'success' },
   NO_SHOW: { label: 'Não compareceu', tone: 'warning' },
   CANCELLED: { label: 'Cancelada', tone: 'neutral' },
+}
+
+export const examinationStatus: Record<ExaminationStatus, StatusLabel> = {
+  SCHEDULED: { label: 'Agendado', tone: 'primary' },
+  COMPLETED: { label: 'Realizado', tone: 'success' },
+  CANCELLED: { label: 'Cancelado', tone: 'neutral' },
 }
 
 export const prescriptionStatus: Record<PrescriptionStatus, StatusLabel> = {

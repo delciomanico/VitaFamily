@@ -1,11 +1,6 @@
 import * as api from '@/mocks/handlers/medications'
 
-export type {
-  DocumentUpload,
-  NewMedicationInput,
-  NewPrescriptionInput,
-  ScheduleInput,
-} from '@/mocks/handlers/medications'
+export type { NewMedicationInput, NewPrescriptionInput, ScheduleInput } from '@/mocks/handlers/medications'
 
 /** Receitas. Hoje mock; depois /api/v1/families/{id}/members/{id}/prescriptions. */
 export const prescriptionService = {
@@ -13,5 +8,4 @@ export const prescriptionService = {
   getPrescription: api.getPrescription,
   createPrescription: api.createPrescription,
   setPrescriptionStatus: api.setPrescriptionStatus,
-  listManagedMembers: api.listManagedMembers,
 }

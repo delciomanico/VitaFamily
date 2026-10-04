@@ -1,3 +1,5 @@
+import type { DocumentInfo } from './document'
+
 /** Exame — categoria C6 (docs/04-domain/entities.md → Examination, ExamResult). */
 export type ExaminationStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'
 
@@ -25,4 +27,32 @@ export interface ExamResult {
   referenceMin?: number
   referenceMax?: number
   createdAt: string
+}
+
+/** Linha da lista de exames. */
+export interface ExaminationSummary {
+  examination: Examination
+  memberName: string
+  resultCount: number
+}
+
+export interface ExaminationDetail {
+  examination: Examination
+  memberName: string
+  results: ExamResult[]
+  documents: DocumentInfo[]
+}
+
+/** Valor de um parâmetro num exame, para o histórico (UC-EXM-04). */
+export interface ParameterPoint {
+  examinationId: string
+  examDate: string
+  result: ExamResult
+}
+
+/** Histórico de um parâmetro do membro ao longo do tempo, do mais antigo ao mais recente. */
+export interface ParameterHistory {
+  parameter: string
+  unit?: string
+  points: ParameterPoint[]
 }

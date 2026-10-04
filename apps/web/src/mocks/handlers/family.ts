@@ -1,5 +1,6 @@
 import { AppError } from '@/lib/errors'
 import type { FamilyMember, Membership, Relationship } from '@/types/family'
+import { findVisibleMember, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
 import { respond } from '../respond'
 
@@ -83,6 +84,16 @@ export function joinFamily(userId: string, code: string) {
 
 export function listMembers(familyId: string) {
   return respond(() => db.members.filter((m) => m.familyId === familyId && m.status === 'ACTIVE'))
+}
+
+/**
+ * Membros cujos dados de saúde o utilizador gere: o próprio e os dependentes de quem é tutor
+ * (escolha de “Para quem” ao registar receitas ou exames).
+ */
+export function listManagedMembers(familyId: string, userId: string) {
+  return respond((): FamilyMember[] =>
+    visibleMemberIds(familyId, userId).map((id) => findVisibleMember(familyId, userId, id)),
+  )
 }
 
 /** Adiciona um perfil sem conta (só Admin). */
