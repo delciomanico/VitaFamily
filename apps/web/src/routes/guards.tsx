@@ -7,10 +7,11 @@ interface FromState {
   from?: string
 }
 
-/** Destino depois de entrar: a página pedida, a Home ou a configuração da família. */
+/** Destino depois de entrar: o portal da clínica, a página pedida, a Home ou a configuração da família. */
 function useSignedInTarget(): string {
-  const { family } = useAuth()
+  const { family, clinic } = useAuth()
   const from = (useLocation().state as FromState | null)?.from
+  if (clinic && !family) return from?.startsWith(paths.clinic) ? from : paths.clinic
   if (!family) return paths.setupFamily
   return from ?? paths.home
 }
@@ -26,8 +27,15 @@ export function RequireAuth() {
 
 /** Área da app: exige pertencer a uma família (os dados são sempre por família). */
 export function RequireFamily() {
-  const { family } = useAuth()
-  if (!family) return <Navigate to={paths.setupFamily} replace />
+  const { family, clinic } = useAuth()
+  if (!family) return <Navigate to={clinic ? paths.clinic : paths.setupFamily} replace />
+  return <Outlet />
+}
+
+/** Portal da clínica: só para Gestores de uma clínica parceira (D17). */
+export function RequireClinic() {
+  const { clinic } = useAuth()
+  if (!clinic) return <Navigate to={paths.home} replace />
   return <Outlet />
 }
 

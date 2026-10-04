@@ -37,4 +37,9 @@ export const paths = {
   familyReport: '/app/reports/family',
   preventiveReport: '/app/reports/preventive',
   settings: '/app/settings',
+
+  // Portal da clínica parceira (D17).
+  clinic: '/clinic',
+  clinicAgenda: '/clinic/agenda',
+  clinicSlots: '/clinic/slots',
 } as const

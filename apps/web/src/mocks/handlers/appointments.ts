@@ -1,7 +1,9 @@
 import { AppError } from '@/lib/errors'
 import type { Appointment, AppointmentItem } from '@/types/appointment'
+import type { AvailableSlot } from '@/types/clinic'
 import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
+import { bookingOf, dropFutureAlerts, expireRequests } from '../bookings'
 import { respond } from '../respond'
 import { visibleClinics } from './clinics'
 
@@ -10,7 +12,7 @@ export interface AppointmentInput {
   scheduledAt: string
   /** TBD: especialidade (só UI e mocks). */
   specialty?: string
-  /** Clínica parceira ou privada da família, ou nenhuma (BR-APT-04). */
+  /** Clínica privada da família, ou nenhuma; as parceiras marcam-se por horário (BR-APT-04). */
   clinicId?: string
   professionalName?: string
   notes?: string
@@ -20,9 +22,17 @@ export interface NewAppointmentInput extends AppointmentInput {
   memberId: string
 }
 
+/** Pedido num horário publicado por uma clínica parceira (UC-APT-07). */
+export interface AppointmentRequestInput {
+  memberId: string
+  slotId: string
+  notes?: string
+}
+
 /*
- * Consultas (C5). Sem pedido nem confirmação pela clínica (BR-APT-04): a consulta nasce AGENDADA.
- * TODO(fase 10): gerar os lembretes 24 h e 2 h antes (BR-APT-03).
+ * Consultas (C5). Clínica parceira: pedido num horário publicado, que a clínica confirma ou recusa
+ * (D17, BR-APT-04). Clínica privada ou sem clínica: registo direto, nasce AGENDADA.
+ * TODO(fase 10): lembretes 24 h e 2 h antes das AGENDADAS (BR-APT-03/07) e aviso da resposta (FR-APT-07).
  */
 
 function inScope(familyId: string, userId: string) {
@@ -47,7 +57,8 @@ function fields(familyId: string, input: AppointmentInput, now: Date) {
     throw new AppError('VALIDATION_ERROR')
   }
   const clinic = input.clinicId ? visibleClinics(familyId).find((c) => c.id === input.clinicId) : undefined
-  if (input.clinicId && !clinic) throw new AppError('VALIDATION_ERROR')
+  // Numa parceira só se marca por horário (BR-APT-04).
+  if (input.clinicId && (!clinic || clinic.type === 'PARTNER')) throw new AppError('VALIDATION_ERROR')
   return {
     scheduledAt: new Date(input.scheduledAt).toISOString(),
     specialty: input.specialty?.trim() || undefined,
@@ -58,28 +69,80 @@ function fields(familyId: string, input: AppointmentInput, now: Date) {
   }
 }
 
-/** Lembretes ainda por disparar deixam de fazer sentido ao reagendar ou cancelar (BR-APT-03). */
-function dropFutureAlerts(appointmentId: string, now: Date) {
-  db.alerts = db.alerts.filter(
-    (a) => a.sourceType !== 'APPOINTMENT' || a.sourceId !== appointmentId || Date.parse(a.triggerAt) <= now.getTime(),
-  )
-}
-
 /** Consultas visíveis por ordem cronológica (UC-APT-05); a UI separa próximas e histórico. */
-export function listAppointments(familyId: string, userId: string) {
-  return respond((): AppointmentItem[] =>
-    db.appointments
+export function listAppointments(familyId: string, userId: string, now: Date = new Date()) {
+  return respond((): AppointmentItem[] => {
+    expireRequests(now)
+    return db.appointments
       .filter(inScope(familyId, userId))
       .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
-      .map(toItem),
-  )
+      .map(toItem)
+  })
 }
 
-export function getAppointment(familyId: string, userId: string, id: string) {
-  return respond(() => toItem(findAppointment(familyId, userId, id)))
+export function getAppointment(familyId: string, userId: string, id: string, now: Date = new Date()) {
+  return respond(() => {
+    expireRequests(now)
+    return toItem(findAppointment(familyId, userId, id))
+  })
 }
 
-/** Marcar consulta (UC-APT-01). */
+/** Horários livres e futuros das clínicas parceiras para uma especialidade, por ordem cronológica. */
+export function listAvailableSlots(familyId: string, specialty: string, now: Date = new Date()) {
+  return respond((): AvailableSlot[] => {
+    expireRequests(now)
+    const wanted = specialty.trim().toLocaleLowerCase('pt-PT')
+    const partners = new Map(
+      visibleClinics(familyId)
+        .filter((c) => c.type === 'PARTNER')
+        .map((c) => [c.id, c.name]),
+    )
+    return db.slots
+      .filter(
+        (slot) =>
+          partners.has(slot.clinicId) &&
+          slot.specialty.toLocaleLowerCase('pt-PT') === wanted &&
+          Date.parse(slot.startsAt) > now.getTime() &&
+          !bookingOf(slot.id),
+      )
+      .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+      .map((slot) => ({ ...slot, clinicName: partners.get(slot.clinicId) ?? '' }))
+  })
+}
+
+/** Pedir consulta num horário livre (UC-APT-07): fica PEDIDA até a clínica responder. */
+export function requestAppointment(
+  familyId: string,
+  userId: string,
+  input: AppointmentRequestInput,
+  now: Date = new Date(),
+) {
+  return respond((): Appointment => {
+    findVisibleMember(familyId, userId, input.memberId)
+    expireRequests(now)
+    const slot = db.slots.find((s) => s.id === input.slotId)
+    const clinic = slot && visibleClinics(familyId).find((c) => c.id === slot.clinicId && c.type === 'PARTNER')
+    if (!slot || !clinic || Date.parse(slot.startsAt) <= now.getTime()) throw new AppError('NOT_FOUND')
+    if (bookingOf(slot.id)) throw new AppError('CONFLICT')
+    const appointment: Appointment = {
+      id: newId('apt'),
+      familyId,
+      memberId: input.memberId,
+      status: 'REQUESTED',
+      scheduledAt: slot.startsAt,
+      slotId: slot.id,
+      specialty: slot.specialty,
+      professionalName: slot.professionalName,
+      clinicId: clinic.id,
+      clinicName: clinic.name,
+      notes: input.notes?.trim() || undefined,
+    }
+    db.appointments.push(appointment)
+    return appointment
+  })
+}
+
+/** Registar consulta diretamente (UC-APT-01): clínica privada ou sem clínica. */
 export function createAppointment(
   familyId: string,
   userId: string,
@@ -110,7 +173,8 @@ export function updateAppointment(
 ) {
   return respond((): Appointment => {
     const appointment = findAppointment(familyId, userId, id)
-    if (appointment.status !== 'SCHEDULED') throw new AppError('VALIDATION_ERROR')
+    // As de clínica parceira mudam-se cancelando e pedindo outro horário (BR-APT-09).
+    if (appointment.status !== 'SCHEDULED' || appointment.slotId) throw new AppError('VALIDATION_ERROR')
     const rescheduled = new Date(input.scheduledAt).toISOString() !== appointment.scheduledAt
     Object.assign(appointment, fields(familyId, input, now))
     if (rescheduled) dropFutureAlerts(id, now)
@@ -119,8 +183,8 @@ export function updateAppointment(
 }
 
 /**
- * Cancelar (UC-APT-03) uma consulta agendada, ou registar o desfecho (UC-APT-04) depois da hora:
- * REALIZADA ou FALTOU. Uma consulta passada sem desfecho fica AGENDADA (BR-APT-02).
+ * Cancelar (UC-APT-03) uma consulta agendada ou desistir de um pedido; ou registar o desfecho
+ * (UC-APT-04) depois da hora: REALIZADA ou FALTOU. Passada sem desfecho fica AGENDADA (BR-APT-02).
  */
 export function setAppointmentStatus(
   familyId: string,
@@ -130,8 +194,11 @@ export function setAppointmentStatus(
   now: Date = new Date(),
 ) {
   return respond((): Appointment => {
+    expireRequests(now)
     const appointment = findAppointment(familyId, userId, id)
-    if (appointment.status !== 'SCHEDULED') throw new AppError('VALIDATION_ERROR')
+    const cancellable = appointment.status === 'SCHEDULED' || appointment.status === 'REQUESTED'
+    if (status === 'CANCELLED' ? !cancellable : appointment.status !== 'SCHEDULED')
+      throw new AppError('VALIDATION_ERROR')
     const past = Date.parse(appointment.scheduledAt) <= now.getTime()
     if (status !== 'CANCELLED' && !past) throw new AppError('VALIDATION_ERROR')
     appointment.status = status

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { CalendarCheck } from 'lucide-react'
-import { ChoiceList, NO_CLINIC, SpecialtyField, clinicOptions } from '@/components/domain/AppointmentFields'
+import { CalendarCheck, Clock } from 'lucide-react'
+import { ChoiceList, NO_CLINIC, SpecialtyField } from '@/components/domain/AppointmentFields'
 import { DateStrip, TimeSlots, nextDays } from '@/components/domain/DatePickers'
 import { Page } from '@/components/layout/Page'
 import { Button, ButtonLink } from '@/components/ui/Button'
@@ -11,27 +11,35 @@ import { Textarea } from '@/components/ui/Textarea'
 import { ErrorState, FormError, LoadingState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
-import { APPOINTMENT_TIMES, combineDateTime } from '@/lib/appointment'
-import { todayISO } from '@/lib/date'
-import { errorMessage } from '@/lib/errors'
-import { formatLongDate, formatTime } from '@/lib/format'
+import { APPOINTMENT_TIMES, combineDateTime, localDay } from '@/lib/appointment'
+import { cn } from '@/lib/cn'
+import { localTime, todayISO } from '@/lib/date'
+import { errorMessage, isAppError } from '@/lib/errors'
+import { formatCount, formatLongDate, formatTime } from '@/lib/format'
 import { paths } from '@/routes/paths'
 import { appointmentService } from '@/services/appointment.service'
 import { clinicService } from '@/services/clinic.service'
 import { familyService } from '@/services/family.service'
 import type { Appointment } from '@/types/appointment'
-import type { Clinic } from '@/types/clinic'
+import type { AvailableSlot, Clinic } from '@/types/clinic'
 import type { FamilyMember } from '@/types/family'
 
-/** Dias que se podem escolher na tira do calendário. */
+/** Dias que se podem escolher na marcação direta (clínica privada ou sem clínica). */
 const BOOKING_DAYS = 60
 
-const STEPS = ['Para quem?', 'Especialidade e clínica', 'Data e hora', 'Confirmar'] as const
+const STEPS = ['Para quem?', 'Especialidade', 'Clínica', 'Profissional, data e hora', 'Confirmar'] as const
+
+/** Profissional “qualquer” nos horários da clínica parceira. */
+const ANY = ''
 
 interface Draft {
   memberId: string | null
   specialty: string
   clinicId: string | null
+  /** Clínica parceira: horário escolhido e filtro de profissional. */
+  slotId: string | null
+  professionalFilter: string
+  /** Clínica privada ou sem clínica: escrito pelo utilizador. */
   professionalName: string
   date: string | null
   time: string | null
@@ -43,37 +51,117 @@ function isPast(date: string | null, time: string, now = new Date()): boolean {
   return date === todayISO(now) && Date.parse(combineDateTime(date, time)) <= now.getTime()
 }
 
-/** Mensagem de erro do passo, ou null se estiver completo. */
-function stepError(step: number, draft: Draft): string | null {
-  if (step === 0 && !draft.memberId) return 'Escolha para quem é a consulta.'
-  if (step === 1 && !draft.specialty.trim()) return 'Indique a especialidade.'
-  if (step === 1 && !draft.clinicId) return 'Escolha a clínica ou “Sem clínica”.'
-  if (step === 2 && (!draft.date || !draft.time)) return 'Escolha o dia e a hora.'
-  if (step === 2 && draft.date && draft.time && isPast(draft.date, draft.time)) return 'Escolha uma hora futura.'
-  return null
+/** Pílula de escolha simples (profissional). */
+function Chip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: string }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={cn(
+        'h-9 rounded-full border px-3.5 text-sm font-medium transition-colors',
+        selected
+          ? 'border-transparent bg-primary text-primary-foreground'
+          : 'border-border bg-surface hover:border-border-strong',
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+interface PartnerScheduleProps {
+  slots: AvailableSlot[]
+  draft: Draft
+  set: (patch: Partial<Draft>) => void
+}
+
+/** Horários publicados pela clínica parceira: profissional, dia (só os com vagas) e hora (D17). */
+function PartnerSchedule({ slots, draft, set }: PartnerScheduleProps) {
+  const professionals = [...new Set(slots.map((s) => s.professionalName).filter((p): p is string => Boolean(p)))]
+  const byProfessional = slots.filter(
+    (s) => !draft.professionalFilter || s.professionalName === draft.professionalFilter,
+  )
+  const days = [...new Set(byProfessional.map((s) => localDay(s.startsAt)))]
+  const day = draft.date && days.includes(draft.date) ? draft.date : null
+  const daySlots = byProfessional.filter((s) => localDay(s.startsAt) === day)
+  // Uma hora por pílula; com vários profissionais à mesma hora, fica o primeiro.
+  const slotByTime = new Map<string, AvailableSlot>()
+  for (const slot of daySlots)
+    if (!slotByTime.has(localTime(slot.startsAt))) slotByTime.set(localTime(slot.startsAt), slot)
+  const selected = slots.find((s) => s.id === draft.slotId)
+
+  return (
+    <>
+      {professionals.length > 1 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Profissional</span>
+          <div className="flex flex-wrap gap-2">
+            <Chip selected={!draft.professionalFilter} onClick={() => set({ professionalFilter: ANY, slotId: null })}>
+              Qualquer
+            </Chip>
+            {professionals.map((name) => (
+              <Chip
+                key={name}
+                selected={draft.professionalFilter === name}
+                onClick={() => set({ professionalFilter: name, slotId: null })}
+              >
+                {name}
+              </Chip>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">Dia ({formatCount(days.length, 'dia com vagas', 'dias com vagas')})</span>
+        <DateStrip days={days} value={day} onChange={(date) => set({ date, slotId: null })} label="Dia da consulta" />
+      </div>
+      {day && (
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium">Hora</span>
+          <TimeSlots
+            times={[...slotByTime.keys()]}
+            value={selected && localDay(selected.startsAt) === day ? localTime(selected.startsAt) : null}
+            onChange={(time) => set({ slotId: slotByTime.get(time)?.id ?? null })}
+            label="Hora da consulta"
+          />
+          {selected?.professionalName && (
+            <p className="text-sm text-muted">
+              Com {selected.professionalName} · {selected.durationMinutes} min
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  )
 }
 
 interface WizardProps {
   members: FamilyMember[]
   clinics: Clinic[]
   selfMemberId: string
-  onBooked: (appointment: Appointment) => void
+  onDone: (appointment: Appointment) => void
 }
 
 /**
- * Marcar consulta por passos (UC-APT-01): membro → especialidade e clínica → profissional,
- * data e hora → confirmar. Sem pedido à clínica (BR-APT-04): a consulta fica agendada.
+ * Marcar consulta por passos: membro → especialidade → clínica → profissional, data e hora → confirmar.
+ * Clínica parceira: só horários publicados, e o pedido aguarda confirmação (D17).
+ * Clínica privada ou sem clínica: registo direto, fica agendada (BR-APT-04).
  */
-function BookingWizard({ members, clinics, selfMemberId, onBooked }: WizardProps) {
+function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) {
   const { user, family } = useAuth()
-  // Sem dependentes, o primeiro passo não tem escolha: começa na especialidade.
-  const [step, setStep] = useState(members.length > 1 ? 0 : 1)
+  const familyId = family?.id ?? ''
+  const firstStep = members.length > 1 ? 0 : 1
+  const [step, setStep] = useState(firstStep)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [slots, setSlots] = useState<AvailableSlot[] | null>(null)
   const [draft, setDraft] = useState<Draft>({
     memberId: members.length > 1 ? null : selfMemberId,
     specialty: '',
     clinicId: null,
+    slotId: null,
+    professionalFilter: ANY,
     professionalName: '',
     date: null,
     time: null,
@@ -84,42 +172,104 @@ function BookingWizard({ members, clinics, selfMemberId, onBooked }: WizardProps
     setError(null)
   }
 
+  const clinic = clinics.find((c) => c.id === draft.clinicId)
+  const partner = clinic?.type === 'PARTNER'
+  const clinicSlots = (slots ?? []).filter((s) => s.clinicId === draft.clinicId)
+  const slot = clinicSlots.find((s) => s.id === draft.slotId)
   const memberName = members.find((m) => m.id === draft.memberId)?.name ?? ''
-  const clinicName = clinics.find((c) => c.id === draft.clinicId)?.name ?? 'Sem clínica'
+  const freeAt = (clinicId: string) => (slots ?? []).filter((s) => s.clinicId === clinicId).length
 
-  function next() {
-    const message = stepError(step, draft)
+  /** Parceiras com vagas na especialidade; privadas (registo direto); sem clínica. */
+  const clinicOptions = [
+    ...clinics
+      .filter((c) => c.type === 'PARTNER' && freeAt(c.id) > 0)
+      .map((c) => ({
+        value: c.id,
+        title: c.name,
+        description: `Marcação com confirmação · ${formatCount(freeAt(c.id), 'horário livre', 'horários livres')}`,
+      })),
+    ...clinics
+      .filter((c) => c.type === 'PRIVATE')
+      .map((c) => ({ value: c.id, title: c.name, description: 'Registo direto, sem confirmação' })),
+    { value: NO_CLINIC, title: 'Sem clínica', description: 'Registo direto, sem indicar local' },
+  ]
+
+  async function loadSlots() {
+    setSlots(await appointmentService.listAvailableSlots(familyId, draft.specialty))
+  }
+
+  function validate(): string | null {
+    if (step === 0 && !draft.memberId) return 'Escolha para quem é a consulta.'
+    if (step === 1 && !draft.specialty.trim()) return 'Indique a especialidade.'
+    if (step === 2 && !draft.clinicId) return 'Escolha a clínica ou “Sem clínica”.'
+    if (step === 3 && partner && !draft.slotId) return 'Escolha um dia e uma hora livres.'
+    if (step === 3 && !partner && (!draft.date || !draft.time)) return 'Escolha o dia e a hora.'
+    if (step === 3 && !partner && draft.date && draft.time && isPast(draft.date, draft.time)) {
+      return 'Escolha uma hora futura.'
+    }
+    return null
+  }
+
+  async function next() {
+    const message = validate()
     if (message) return setError(message)
+    if (step === 1) {
+      setSaving(true)
+      try {
+        await loadSlots()
+        // As clínicas dependem da especialidade: limpa escolhas antigas.
+        set({ clinicId: null, slotId: null, professionalFilter: ANY })
+      } catch (err) {
+        return setError(errorMessage(err))
+      } finally {
+        setSaving(false)
+      }
+    }
     setStep((s) => s + 1)
   }
 
   async function confirm() {
-    if (!draft.memberId || !draft.date || !draft.time) return
+    if (!draft.memberId) return
     setSaving(true)
     try {
-      const appointment = await appointmentService.createAppointment(family?.id ?? '', user?.id ?? '', {
-        memberId: draft.memberId,
-        scheduledAt: combineDateTime(draft.date, draft.time),
-        specialty: draft.specialty,
-        clinicId: draft.clinicId === NO_CLINIC ? undefined : (draft.clinicId ?? undefined),
-        professionalName: draft.professionalName,
-        notes: draft.notes,
-      })
-      onBooked(appointment)
+      const appointment =
+        partner && draft.slotId
+          ? await appointmentService.requestAppointment(familyId, user?.id ?? '', {
+              memberId: draft.memberId,
+              slotId: draft.slotId,
+              notes: draft.notes,
+            })
+          : await appointmentService.createAppointment(familyId, user?.id ?? '', {
+              memberId: draft.memberId,
+              scheduledAt: combineDateTime(draft.date ?? '', draft.time ?? ''),
+              specialty: draft.specialty,
+              clinicId: draft.clinicId === NO_CLINIC ? undefined : (draft.clinicId ?? undefined),
+              professionalName: draft.professionalName,
+              notes: draft.notes,
+            })
+      onDone(appointment)
     } catch (err) {
-      setError(errorMessage(err))
+      if (isAppError(err, 'CONFLICT')) {
+        // Alguém ocupou o horário entretanto: volta à escolha com as vagas atualizadas.
+        await loadSlots()
+        set({ slotId: null })
+        setStep(3)
+        setError('Este horário acabou de ser ocupado. Escolha outro.')
+      } else {
+        setError(errorMessage(err))
+      }
     } finally {
       setSaving(false)
     }
   }
 
-  const firstStep = members.length > 1 ? 0 : 1
-  const total = STEPS.length - firstStep
+  const when = partner ? slot?.startsAt : draft.date && draft.time ? combineDateTime(draft.date, draft.time) : undefined
+  const professional = partner ? slot?.professionalName : draft.professionalName.trim()
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-3">
-        <StepProgress step={step - firstStep + 1} total={total} label="Progresso da marcação" />
+        <StepProgress step={step - firstStep + 1} total={STEPS.length - firstStep} label="Progresso da marcação" />
       </div>
       <h2 className="text-xl font-semibold">{STEPS[step]}</h2>
 
@@ -132,47 +282,52 @@ function BookingWizard({ members, clinics, selfMemberId, onBooked }: WizardProps
         />
       )}
 
-      {step === 1 && (
-        <>
-          <SpecialtyField value={draft.specialty} onChange={(specialty) => set({ specialty })} />
-          <ChoiceList
-            label="Clínica"
-            value={draft.clinicId}
-            onChange={(clinicId) => set({ clinicId })}
-            options={clinicOptions(clinics)}
-          />
-          <Input
-            label="Profissional (opcional)"
-            placeholder="Ex.: Dr.ª Ana Costa"
-            value={draft.professionalName}
-            onChange={(event) => set({ professionalName: event.target.value })}
-          />
-        </>
-      )}
+      {step === 1 && <SpecialtyField value={draft.specialty} onChange={(specialty) => set({ specialty })} />}
 
       {step === 2 && (
+        <ChoiceList
+          label={`Clínicas para ${draft.specialty}`}
+          value={draft.clinicId}
+          onChange={(clinicId) => set({ clinicId, slotId: null, date: null, time: null, professionalFilter: ANY })}
+          options={clinicOptions}
+        />
+      )}
+
+      {step === 3 && (
         <>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">Dia</span>
-            <DateStrip
-              days={nextDays(BOOKING_DAYS)}
-              value={draft.date}
-              onChange={(date) =>
-                set({ date, time: draft.time && date && isPast(date, draft.time) ? null : draft.time })
-              }
-              label="Dia da consulta"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">Hora</span>
-            <TimeSlots
-              times={APPOINTMENT_TIMES}
-              value={draft.time}
-              onChange={(time) => set({ time })}
-              label="Hora da consulta"
-              disabled={(time) => isPast(draft.date, time)}
-            />
-          </div>
+          {partner ? (
+            <PartnerSchedule slots={clinicSlots} draft={draft} set={set} />
+          ) : (
+            <>
+              <Input
+                label="Profissional (opcional)"
+                placeholder="Ex.: Dr.ª Ana Costa"
+                value={draft.professionalName}
+                onChange={(event) => set({ professionalName: event.target.value })}
+              />
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium">Dia</span>
+                <DateStrip
+                  days={nextDays(BOOKING_DAYS)}
+                  value={draft.date}
+                  onChange={(date) =>
+                    set({ date, time: draft.time && date && isPast(date, draft.time) ? null : draft.time })
+                  }
+                  label="Dia da consulta"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-medium">Hora</span>
+                <TimeSlots
+                  times={APPOINTMENT_TIMES}
+                  value={draft.time}
+                  onChange={(time) => set({ time })}
+                  label="Hora da consulta"
+                  disabled={(time) => isPast(draft.date, time)}
+                />
+              </div>
+            </>
+          )}
           <Textarea
             label="Observações (opcional)"
             placeholder="Ex.: levar exames anteriores"
@@ -182,32 +337,48 @@ function BookingWizard({ members, clinics, selfMemberId, onBooked }: WizardProps
         </>
       )}
 
-      {step === 3 && draft.date && draft.time && (
-        <InfoList>
-          <InfoRow label="Para" value={memberName} />
-          <InfoRow label="Especialidade" value={draft.specialty} />
-          <InfoRow label="Clínica" value={clinicName} />
-          {draft.professionalName.trim() && <InfoRow label="Profissional" value={draft.professionalName} />}
-          <InfoRow label="Data" value={formatLongDate(draft.date)} />
-          <InfoRow label="Hora" value={draft.time} />
-          {draft.notes.trim() && <InfoRow label="Observações" value={draft.notes} />}
-        </InfoList>
+      {step === 4 && when && (
+        <>
+          <InfoList>
+            <InfoRow label="Para" value={memberName} />
+            <InfoRow label="Especialidade" value={slot?.specialty ?? draft.specialty} />
+            <InfoRow label="Clínica" value={clinic?.name ?? 'Sem clínica'} />
+            {professional && <InfoRow label="Profissional" value={professional} />}
+            <InfoRow label="Data" value={formatLongDate(when)} />
+            <InfoRow label="Hora" value={formatTime(when)} />
+            {draft.notes.trim() && <InfoRow label="Observações" value={draft.notes} />}
+          </InfoList>
+          {partner && (
+            <p className="text-sm text-muted">
+              A {clinic?.name} recebe o nome de {memberName}, a especialidade, o profissional, a data e hora e as
+              observações, para confirmar a consulta. Nenhum outro dado de saúde é partilhado.
+            </p>
+          )}
+        </>
       )}
 
       <FormError message={error} />
 
       <div className="flex flex-col gap-2 sm:flex-row-reverse">
-        {step < 3 ? (
-          <Button size="lg" onClick={next} className="sm:flex-1">
+        {step < 4 ? (
+          <Button size="lg" onClick={next} loading={saving} className="sm:flex-1">
             Continuar
           </Button>
         ) : (
           <Button size="lg" onClick={confirm} loading={saving} className="sm:flex-1">
-            Confirmar marcação
+            {partner ? 'Enviar pedido' : 'Confirmar marcação'}
           </Button>
         )}
         {step > firstStep ? (
-          <Button variant="ghost" size="lg" onClick={() => setStep((s) => s - 1)} className="sm:flex-1">
+          <Button
+            variant="ghost"
+            size="lg"
+            onClick={() => {
+              setError(null)
+              setStep((s) => s - 1)
+            }}
+            className="sm:flex-1"
+          >
             Voltar
           </Button>
         ) : (
@@ -220,18 +391,30 @@ function BookingWizard({ members, clinics, selfMemberId, onBooked }: WizardProps
   )
 }
 
-/** Confirmação depois de marcar (fluxo 4: … → Marcar consulta → Confirmação). */
-function Booked({ appointment }: { appointment: Appointment }) {
+/** Confirmação (fluxo 4: … → Marcar consulta → Confirmação): pedido enviado ou consulta marcada. */
+function Done({ appointment }: { appointment: Appointment }) {
+  const requested = appointment.status === 'REQUESTED'
+  const Icon = requested ? Clock : CalendarCheck
   return (
     <div className="flex flex-col items-center gap-4 py-6 text-center">
-      <span className="flex size-16 items-center justify-center rounded-full bg-success-soft text-success">
-        <CalendarCheck className="size-8" aria-hidden />
+      <span
+        className={cn(
+          'flex size-16 items-center justify-center rounded-full',
+          requested ? 'bg-warning-soft text-warning' : 'bg-success-soft text-success',
+        )}
+      >
+        <Icon className="size-8" aria-hidden />
       </span>
       <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">Consulta marcada</h2>
+        <h2 className="text-xl font-semibold">{requested ? 'Pedido enviado' : 'Consulta marcada'}</h2>
         <p className="text-muted">
           {appointment.specialty} · {formatLongDate(appointment.scheduledAt)}, {formatTime(appointment.scheduledAt)}
         </p>
+        {requested && (
+          <p className="text-sm text-muted">
+            Aguarda a confirmação da {appointment.clinicName}. Pode acompanhar o estado na Agenda.
+          </p>
+        )}
       </div>
       <div className="flex w-full max-w-sm flex-col gap-2">
         <ButtonLink to={paths.appointment(appointment.id)} size="lg" fullWidth>
@@ -247,7 +430,7 @@ function Booked({ appointment }: { appointment: Appointment }) {
 
 export function NewAppointmentPage() {
   const { user, family, member } = useAuth()
-  const [booked, setBooked] = useState<Appointment | null>(null)
+  const [done, setDone] = useState<Appointment | null>(null)
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
   const { state, reload } = useAsync(
@@ -260,14 +443,14 @@ export function NewAppointmentPage() {
       {state.status === 'loading' && <LoadingState rows={3} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' &&
-        (booked ? (
-          <Booked appointment={booked} />
+        (done ? (
+          <Done appointment={done} />
         ) : (
           <BookingWizard
             members={state.data[0]}
             clinics={state.data[1]}
             selfMemberId={member?.id ?? ''}
-            onBooked={setBooked}
+            onDone={setDone}
           />
         ))}
     </Page>

@@ -10,6 +10,7 @@ export type ErrorCode =
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'VALIDATION_ERROR'
+  | 'CONFLICT'
   | 'UNKNOWN'
 
 export class AppError extends Error {
@@ -33,6 +34,7 @@ const messages: Record<ErrorCode, string> = {
   FORBIDDEN: 'Não tem permissão para esta ação.',
   NOT_FOUND: 'Não encontrámos o que procura.',
   VALIDATION_ERROR: 'Verifique os dados introduzidos.',
+  CONFLICT: 'Os dados mudaram entretanto. Atualize e tente novamente.',
   UNKNOWN: 'Algo correu mal. Tente novamente.',
 }
 

@@ -39,7 +39,9 @@ export interface StatusLabel {
 }
 
 export const appointmentStatus: Record<AppointmentStatus, StatusLabel> = {
+  REQUESTED: { label: 'Aguarda confirmação', tone: 'warning' },
   SCHEDULED: { label: 'Agendada', tone: 'primary' },
+  REJECTED: { label: 'Recusada', tone: 'danger' },
   COMPLETED: { label: 'Realizada', tone: 'success' },
   NO_SHOW: { label: 'Não compareceu', tone: 'warning' },
   CANCELLED: { label: 'Cancelada', tone: 'neutral' },

@@ -2,9 +2,10 @@ import type { Appointment } from '@/types/appointment'
 import { todayISO } from './date'
 import { appointmentStatus, type StatusLabel } from './labels'
 
-/** Agendada e ainda por acontecer. */
+/** Agendada ou pedida à clínica (D17), e ainda por acontecer. */
 export function isUpcoming(appointment: Appointment, now: Date = new Date()): boolean {
-  return appointment.status === 'SCHEDULED' && Date.parse(appointment.scheduledAt) > now.getTime()
+  const active = appointment.status === 'SCHEDULED' || appointment.status === 'REQUESTED'
+  return active && Date.parse(appointment.scheduledAt) > now.getTime()
 }
 
 /** Já passou e continua agendada: falta registar se foi realizada ou se faltou (BR-APT-02). */

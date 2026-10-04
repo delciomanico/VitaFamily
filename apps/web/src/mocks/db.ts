@@ -1,6 +1,6 @@
 import { seedAlerts } from './data/alerts'
 import { seedAppointments } from './data/appointments'
-import { clinics } from './data/clinics'
+import { clinicStaff, clinics, seedSlots } from './data/clinics'
 import { seedExamDocuments, seedExamResults, seedExaminations } from './data/examinations'
 import { families, guardianships, invitations, members } from './data/families'
 import { allergies, conditions } from './data/health'
@@ -14,7 +14,18 @@ import { users } from './data/users'
 function seed(now: Date = new Date()) {
   const medicationPlans = seedMedicationPlans(now)
   return {
-    ...structuredClone({ users, families, members, guardianships, invitations, allergies, conditions, clinics }),
+    ...structuredClone({
+      users,
+      families,
+      members,
+      guardianships,
+      invitations,
+      allergies,
+      conditions,
+      clinics,
+      clinicStaff,
+    }),
+    slots: seedSlots(now),
     appointments: seedAppointments(now),
     prescriptions: seedPrescriptions(now),
     medicationPlans,

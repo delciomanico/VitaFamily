@@ -19,11 +19,11 @@ function useMinimumDelay(ms: number) {
 }
 
 export function SplashPage() {
-  const { status, user, family } = useAuth()
+  const { status, user, family, clinic } = useAuth()
   const delayDone = useMinimumDelay(SPLASH_MIN_MS)
 
   if (delayDone && status === 'ready') {
-    if (user) return <Navigate to={family ? paths.home : paths.setupFamily} replace />
+    if (user) return <Navigate to={family ? paths.home : clinic ? paths.clinic : paths.setupFamily} replace />
     return <Navigate to={preferences.hasSeenOnboarding() ? paths.login : paths.onboarding} replace />
   }
 

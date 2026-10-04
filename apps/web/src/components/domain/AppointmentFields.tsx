@@ -3,7 +3,6 @@ import { Check } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { cn } from '@/lib/cn'
 import { SPECIALTY_SUGGESTIONS } from '@/types/appointment'
-import type { Clinic } from '@/types/clinic'
 
 interface SpecialtyFieldProps {
   value: string
@@ -102,14 +101,3 @@ export function ChoiceList<T extends string>({ label, options, value, onChange }
 
 /** Sem clínica (BR-APT-04 permite consulta sem clínica). */
 export const NO_CLINIC = 'NONE'
-
-export function clinicOptions(clinics: Clinic[]) {
-  return [
-    ...clinics.map((c) => ({
-      value: c.id,
-      title: c.name,
-      description: c.type === 'PARTNER' ? 'Clínica parceira' : 'Clínica da família',
-    })),
-    { value: NO_CLINIC, title: 'Sem clínica', description: 'Não indicar local' },
-  ]
-}

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { Pencil } from 'lucide-react'
+import { Clock, Pencil } from 'lucide-react'
 import { NO_CLINIC, SpecialtyField } from '@/components/domain/AppointmentFields'
 import { Page } from '@/components/layout/Page'
 import { Badge } from '@/components/ui/Badge'
@@ -60,7 +60,11 @@ function AppointmentEditForm({ item: { appointment }, clinics, onSubmit, onCance
     setSaving(false)
   }
 
-  const options = [...clinics.map((c) => ({ value: c.id, label: c.name })), { value: NO_CLINIC, label: 'Sem clínica' }]
+  // Registo direto: só clínicas privadas (as parceiras marcam-se por horário, BR-APT-04).
+  const options = [
+    ...clinics.filter((c) => c.type === 'PRIVATE').map((c) => ({ value: c.id, label: c.name })),
+    { value: NO_CLINIC, label: 'Sem clínica' },
+  ]
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
@@ -114,6 +118,22 @@ function AppointmentView({ item: { appointment, memberName }, selfMemberId, onCa
         {appointment.memberId !== selfMemberId && <p className="text-muted">{memberName}</p>}
       </div>
 
+      {appointment.status === 'REQUESTED' && (
+        <p className="flex items-start gap-2.5 rounded-xl bg-warning-soft px-3.5 py-3 text-sm text-warning">
+          <Clock className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            Pedido enviado à {appointment.clinicName}. A consulta fica marcada quando a clínica confirmar; se ninguém
+            responder até à hora, o pedido é cancelado.
+          </span>
+        </p>
+      )}
+      {appointment.responseNote && (
+        <p className="rounded-xl bg-surface-muted px-3.5 py-3 text-sm">
+          <span className="font-medium">Resposta da clínica: </span>
+          {appointment.responseNote}
+        </p>
+      )}
+
       <InfoList>
         <InfoRow label="Data" value={formatLongDate(appointment.scheduledAt)} />
         <InfoRow label="Hora" value={formatTime(appointment.scheduledAt)} />
@@ -143,9 +163,9 @@ function AppointmentView({ item: { appointment, memberName }, selfMemberId, onCa
         </DetailSection>
       )}
 
-      {appointment.status === 'SCHEDULED' && (
+      {(appointment.status === 'SCHEDULED' || appointment.status === 'REQUESTED') && (
         <Button variant="danger-ghost" size="lg" onClick={onCancel}>
-          Cancelar consulta
+          {appointment.status === 'REQUESTED' ? 'Desistir do pedido' : 'Cancelar consulta'}
         </Button>
       )}
     </>
@@ -167,7 +187,10 @@ export function AppointmentDetailPage() {
     [familyId, userId, id],
   )
 
-  const canEdit = state.status === 'success' && isUpcoming(state.data[0].appointment)
+  // As de clínica parceira mudam-se cancelando e pedindo outro horário (BR-APT-09).
+  const current = state.status === 'success' ? state.data[0].appointment : null
+  const canEdit = current !== null && current.status === 'SCHEDULED' && isUpcoming(current) && !current.slotId
+  const requested = current?.status === 'REQUESTED'
   const editing = params.has('editar') && canEdit
   const setEditing = (on: boolean) => setParams(on ? { editar: '' } : {}, { replace: !on })
 
@@ -246,9 +269,13 @@ export function AppointmentDetailPage() {
 
       <ConfirmDialog
         open={confirming}
-        title="Cancelar consulta?"
-        description="A consulta fica no histórico como cancelada e os lembretes deixam de ser enviados."
-        confirmLabel="Cancelar consulta"
+        title={requested ? 'Desistir do pedido?' : 'Cancelar consulta?'}
+        description={
+          requested
+            ? 'O pedido é cancelado e o horário fica livre para outras pessoas.'
+            : 'A consulta fica no histórico como cancelada e os lembretes deixam de ser enviados.'
+        }
+        confirmLabel={requested ? 'Desistir do pedido' : 'Cancelar consulta'}
         destructive
         loading={saving === 'CANCELLED'}
         onConfirm={() => setStatus('CANCELLED')}

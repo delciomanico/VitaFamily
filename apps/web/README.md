@@ -56,7 +56,8 @@ Os dados vivem em memória (`src/mocks/`) e voltam ao estado inicial ao recarreg
 
 | O quê | Valor |
 | --- | --- |
-| Login | `demo@vitafamily.app` · `password` |
+| Login (família) | `demo@vitafamily.app` · `password` |
+| Login (portal da Clínica Horizonte, D17) | `clinica@vitafamily.app` · `password` |
 | Código de verificação (após registo) | `123456` |
 | Código de convite (entrar numa família) | `MONARCA26` |
 

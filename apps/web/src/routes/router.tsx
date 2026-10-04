@@ -1,5 +1,6 @@
 import { createBrowserRouter, type RouteObject } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
+import { ClinicShell } from '@/components/layout/ClinicShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { AppointmentDetailPage } from '@/pages/appointments/AppointmentDetailPage'
 import { AppointmentsPage } from '@/pages/appointments/AppointmentsPage'
@@ -11,6 +12,9 @@ import { NewExaminationPage } from '@/pages/examinations/NewExaminationPage'
 import { HealthHubPage } from '@/pages/health/HealthHubPage'
 import { HealthProfilePage } from '@/pages/health/HealthProfilePage'
 import { MedicalHistoryPage } from '@/pages/health/MedicalHistoryPage'
+import { ClinicAgendaPage } from '@/pages/clinic/ClinicAgendaPage'
+import { ClinicRequestsPage } from '@/pages/clinic/ClinicRequestsPage'
+import { ClinicSlotsPage } from '@/pages/clinic/ClinicSlotsPage'
 import { HomePage } from '@/pages/home/HomePage'
 import { MedicationDetailPage } from '@/pages/medications/MedicationDetailPage'
 import { MedicationsPage } from '@/pages/medications/MedicationsPage'
@@ -29,7 +33,7 @@ import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { SetupFamilyPage } from '@/pages/setup/SetupFamilyPage'
 import { SetupHealthPage } from '@/pages/setup/SetupHealthPage'
 import { SetupMembersPage } from '@/pages/setup/SetupMembersPage'
-import { GuestOnly, RequireAuth, RequireFamily, RequirePendingVerification } from './guards'
+import { GuestOnly, RequireAuth, RequireClinic, RequireFamily, RequirePendingVerification } from './guards'
 import { paths } from './paths'
 
 /** Rota provisória: substituída pela tela real na fase indicada. */
@@ -103,6 +107,26 @@ export const routes: RouteObject[] = [
               placeholder('reports/family', 'Saúde da família', 11),
               placeholder('reports/preventive', 'Relatório preventivo', 11, paths.familyReport),
               { path: 'settings', element: <SettingsPage /> },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    // Portal da clínica parceira (D17).
+    element: <RequireAuth />,
+    children: [
+      {
+        element: <RequireClinic />,
+        children: [
+          {
+            path: paths.clinic,
+            element: <ClinicShell />,
+            children: [
+              { index: true, element: <ClinicRequestsPage /> },
+              { path: 'agenda', element: <ClinicAgendaPage /> },
+              { path: 'slots', element: <ClinicSlotsPage /> },
             ],
           },
         ],

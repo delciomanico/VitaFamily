@@ -1,5 +1,6 @@
 /** Consulta — categoria C5 (docs/04-domain/entities.md → Appointment). */
-export type AppointmentStatus = 'SCHEDULED' | 'COMPLETED' | 'NO_SHOW' | 'CANCELLED'
+/** REQUESTED/REJECTED só em clínicas parceiras (D17): pedido → confirmada ou recusada pela clínica. */
+export type AppointmentStatus = 'REQUESTED' | 'SCHEDULED' | 'REJECTED' | 'COMPLETED' | 'NO_SHOW' | 'CANCELLED'
 
 export interface Appointment {
   id: string
@@ -19,6 +20,10 @@ export interface Appointment {
   clinicName?: string
   reason?: string
   notes?: string
+  /** Horário da clínica parceira onde foi pedida (D17). */
+  slotId?: string
+  /** Motivo indicado pela clínica ao recusar ou cancelar (D17). */
+  responseNote?: string
 }
 
 /** Consulta pronta a mostrar, com o nome do membro. */
