@@ -62,6 +62,16 @@
 
   /* Layout */
   --spacing-sidebar: 16rem;
+
+  /* Animações */
+  --animate-toast-in: toast-in 220ms ease-out;
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-0.75rem);
+    }
+  }
 }
 
 @layer base {
