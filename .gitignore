@@ -1,0 +1,18 @@
+# Segredos e ambiente local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Build
+bin/
+dist/
+*.test
+*.out
+coverage.*
+
+# Editor / SO
+.idea/
+.vscode/
+.DS_Store

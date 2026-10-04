@@ -1,0 +1,5958 @@
+openapi: 3.0.3
+info:
+  title: Vita Family API
+  version: 0.1.0
+  description: |
+    Contrato REST do backend Vita Family (MVP). Fonte de verdade da API; gerado a partir de docs/05-api (Fase 13).
+    Todas as rotas de negócio usam o prefixo /api/v1. Autorização por papel + relação + partilha (ver docs/02-users/permissions.md).
+    Erros: application/problem+json com campo `code` estável (ver errors.md).
+servers:
+  - url: https://vitafamily.cassfrei.com/api/v1
+    description: Produção (ADR-012)
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Users
+  - name: Families
+  - name: Members
+  - name: Invitations
+  - name: Sharing
+  - name: Health records
+  - name: Prescriptions
+  - name: Medications
+  - name: Appointments
+  - name: Clinics
+  - name: Examinations
+  - name: Documents
+  - name: Alerts
+  - name: Reports
+  - name: Admin
+  - name: Operations
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      summary: "Registar conta (ou aceitar convite de conta de dependente)."
+      description: "Autorização: PUBLIC. BR-ACC-01/02, BR-MEM-12; resposta neutra mesmo que o e-mail já exista (sem enumeração); envia e-mail de verificação; regista termos."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        '404':
+          description: "INVITATION_INVALID"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '410':
+          description: "INVITATION_EXPIRED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "AGE_REQUIREMENT_NOT_MET | DEPENDENT_ACCOUNT_AGE | PASSWORD_WEAK | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      operationId: verifyEmail
+      summary: "Verificar e-mail com token de uso único (24 h)."
+      description: "Autorização: PUBLIC. Passa o utilizador a ACTIVE."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyEmailRequest" }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /auth/resend-verification:
+    post:
+      tags: [Auth]
+      operationId: resendVerification
+      summary: "Reenviar e-mail de verificação."
+      description: "Autorização: PUBLIC. Resposta neutra; invalida token anterior."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResendVerificationRequest" }
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: "Iniciar sessão."
+      description: "Autorização: PUBLIC. Devolve access token e define cookie `refresh_token` (HttpOnly, Secure, SameSite=Strict, caminho `/api/v1/auth`). Audita sucesso e falha."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        '401':
+          description: "AUTH_INVALID_CREDENTIALS"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "ACCOUNT_SUSPENDED | EMAIL_NOT_VERIFIED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      summary: "Rodar refresh token e obter novo access token."
+      description: "Autorização: PUBLIC (cookie). Exige cabeçalho `X-Requested-With: vita`; reutilização de refresh antigo revoga toda a cadeia."
+      security: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "ACCOUNT_SUSPENDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: "Terminar sessão atual."
+      description: "Autorização: AUTH. Revoga o refresh token e limpa o cookie."
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /auth/password/forgot:
+    post:
+      tags: [Auth]
+      operationId: forgotPassword
+      summary: "Pedir recuperação de palavra-passe."
+      description: "Autorização: PUBLIC. Resposta idêntica exista ou não a conta; link de uso único válido 1 h."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForgotPasswordRequest" }
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /auth/password/reset:
+    post:
+      tags: [Auth]
+      operationId: resetPassword
+      summary: "Definir nova palavra-passe com token."
+      description: "Autorização: PUBLIC. Revoga todas as sessões (BR UC-ACC-03)."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "PASSWORD_WEAK | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /auth/password/change:
+    post:
+      tags: [Auth]
+      operationId: changePassword
+      summary: "Alterar palavra-passe (derivado de FR-AUTH)."
+      description: "Autorização: AUTH. Revoga as outras sessões."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "AUTH_INVALID_CREDENTIALS | UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "PASSWORD_WEAK"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /users/me:
+    get:
+      tags: [Users]
+      operationId: getMe
+      summary: "Ver a minha conta."
+      description: "Autorização: AUTH."
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Users]
+      operationId: updateMe
+      summary: "Alterar nome e fuso horário."
+      description: "Autorização: AUTH. Mudar fuso recalcula tomas futuras (BR-MED-08)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Users]
+      operationId: deleteMe
+      summary: "Eliminar a minha conta (hard delete)."
+      description: "Autorização: AUTH. BR-ACC-06/07, D15: confirmação por palavra-passe; apaga dados e documentos; anonimiza auditoria. Disponível mesmo com termos por aceitar."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeleteAccountRequest" }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "AUTH_INVALID_CREDENTIALS | UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "ACCOUNT_DELETION_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /users/me/terms-acceptance:
+    post:
+      tags: [Users]
+      operationId: acceptTerms
+      summary: "Aceitar a versão atual dos termos."
+      description: "Autorização: AUTH. B6."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcceptTermsRequest" }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /users/me/notification-preferences:
+    get:
+      tags: [Users]
+      operationId: getNotificationPreferences
+      summary: "Ver preferências de notificação."
+      description: "Autorização: AUTH."
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    put:
+      tags: [Users]
+      operationId: putNotificationPreferences
+      summary: "Definir canais e tipos de alerta."
+      description: "Autorização: AUTH. R9, Q3: pode desativar alertas de toma."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotificationPreferences" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /users/me/push-subscriptions:
+    post:
+      tags: [Users]
+      operationId: addPushSubscription
+      summary: "Registar subscrição Web Push."
+      description: "Autorização: AUTH. UC-ALR-06; endpoint repetido atualiza a existente."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PushSubscriptionRequest" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushSubscription"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /users/me/push-subscriptions/{subscriptionId}:
+    delete:
+      tags: [Users]
+      operationId: deletePushSubscription
+      summary: "Remover subscrição Web Push."
+      description: "Autorização: AUTH."
+      parameters:
+        - name: subscriptionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /users/me/exports:
+    post:
+      tags: [Users]
+      operationId: requestMyExport
+      summary: "Pedir exportação dos meus dados (JSON + documentos)."
+      description: "Autorização: AUTH. FR-PRIV-05, N7, Q6: gerada em segundo plano; máx. 3 pedidos por dia."
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataExport"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /users/me/exports/{exportId}:
+    get:
+      tags: [Users]
+      operationId: getMyExport
+      summary: "Estado de uma exportação."
+      description: "Autorização: AUTH."
+      parameters:
+        - name: exportId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataExport"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /users/me/exports/{exportId}/download:
+    get:
+      tags: [Users]
+      operationId: downloadMyExport
+      summary: "Descarregar pacote da exportação (zip)."
+      description: "Autorização: AUTH. Válido 7 dias; auditado."
+      parameters:
+        - name: exportId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "EXPORT_NOT_READY"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families:
+    post:
+      tags: [Families]
+      operationId: createFamily
+      summary: "Criar família."
+      description: "Autorização: AUTH. FR-FAM-01: cria o FamilyMember do utilizador como FAMILY_ADMIN; máx. 5 famílias (B4)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateFamilyRequest" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Family"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    get:
+      tags: [Families]
+      operationId: listFamilies
+      summary: "Listar as minhas famílias."
+      description: "Autorização: AUTH."
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Family" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}:
+    get:
+      tags: [Families]
+      operationId: getFamily
+      summary: "Ver família."
+      description: "Autorização: FAM_MEMBER."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Family"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Families]
+      operationId: updateFamily
+      summary: "Alterar nome da família."
+      description: "Autorização: FAM_ADMIN."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateFamilyRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Family"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Families]
+      operationId: deleteFamily
+      summary: "Eliminar família."
+      description: "Autorização: FAM_ADMIN. R2: só com um único membro; apaga tudo (cascata + ficheiros)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "FAMILY_NOT_EMPTY"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/leave:
+    post:
+      tags: [Families]
+      operationId: leaveFamily
+      summary: "Sair da família (adulto), levando ou apagando os dados."
+      description: "Autorização: FAM_MEMBER. R4, Q5, P8: menores/dependentes com conta não saem sozinhos; TAKE gera exportação e só apaga depois de pronta."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LeaveFamilyRequest" }
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveFamilyResult"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "LAST_ADMIN | LAST_GUARDIAN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members:
+    get:
+      tags: [Members]
+      operationId: listMembers
+      summary: "Listar membros."
+      description: "Autorização: FAM_MEMBER. Nome e data de nascimento visíveis a todos (BR-PRV-10); dependente com conta só vê nomes (P5)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Member" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Members]
+      operationId: createMember
+      summary: "Criar perfil de membro sem conta."
+      description: "Autorização: FAM_ADMIN. UC-MEM-01, Q7: adulto sem conta só como dependente; máx. 20 membros."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateMemberRequest" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "DEPENDENT_REQUIRES_GUARDIAN | GUARDIAN_INVALID | MINOR_MUST_BE_DEPENDENT | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}:
+    get:
+      tags: [Members]
+      operationId: getMember
+      summary: "Ver membro."
+      description: "Autorização: FAM_MEMBER."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Members]
+      operationId: updateMember
+      summary: "Alterar nome ou data de nascimento."
+      description: "Autorização: FAM_ADMIN ou titular ou tutor. Alterar data de nascimento revalida regras de menor/tutor."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMemberRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "MINOR_MUST_BE_DEPENDENT | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Members]
+      operationId: removeMember
+      summary: "Remover membro da família."
+      description: "Autorização: FAM_ADMIN. BR-MEM-16: adulto com conta recebe pacote de dados antes de apagar; dependente: dados apagados após remoção por Admin e confirmação."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveFamilyResult"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "LAST_ADMIN | LAST_GUARDIAN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/role:
+    put:
+      tags: [Members]
+      operationId: setMemberRole
+      summary: "Definir papel de família."
+      description: "Autorização: FAM_ADMIN. Só adultos com conta podem ser Admin."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetRoleRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "LAST_ADMIN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/dependent:
+    put:
+      tags: [Members]
+      operationId: setDependent
+      summary: "Marcar/desmarcar como dependente e definir tutores."
+      description: "Autorização: FAM_ADMIN (menor ou adulto sem conta) ou titular (adulto com conta). Q7: adulto com conta só se marca a si próprio (consentimento implícito)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetDependentRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "DEPENDENT_REQUIRES_GUARDIAN | GUARDIAN_INVALID | MINOR_MUST_BE_DEPENDENT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/guardians:
+    get:
+      tags: [Members]
+      operationId: listGuardians
+      summary: "Listar tutores do dependente."
+      description: "Autorização: FAM_MEMBER."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Guardianship" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Members]
+      operationId: addGuardian
+      summary: "Adicionar tutor."
+      description: "Autorização: FAM_ADMIN (ou titular, se adulto com conta)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AddGuardianRequest" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Guardianship"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "GUARDIAN_INVALID"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/guardians/{guardianMemberId}:
+    delete:
+      tags: [Members]
+      operationId: removeGuardian
+      summary: "Remover tutor."
+      description: "Autorização: FAM_ADMIN (ou titular, se adulto com conta). BR-MEM-07, P8."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: guardianMemberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "LAST_GUARDIAN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/guardians/primary:
+    put:
+      tags: [Members]
+      operationId: setPrimaryGuardian
+      summary: "Definir tutor principal."
+      description: "Autorização: FAM_ADMIN (ou titular, se adulto com conta). BR-MEM-06: exatamente um principal."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetPrimaryGuardianRequest" }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "GUARDIAN_INVALID"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/exports:
+    post:
+      tags: [Members]
+      operationId: requestDependentExport
+      summary: "Exportar dados de um dependente."
+      description: "Autorização: Tutor. P2: tutor exporta pelo dependente."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataExport"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/invitations:
+    get:
+      tags: [Invitations]
+      operationId: listInvitations
+      summary: "Listar convites."
+      description: "Autorização: FAM_ADMIN."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Invitation" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Invitations]
+      operationId: createInvitation
+      summary: "Convidar pessoa por e-mail."
+      description: "Autorização: FAM_ADMIN. D14, R3: validade 7 dias; máx. 20 pendentes; `memberId` liga a perfil sem conta existente."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateInvitationRequest" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT | LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/invitations/{invitationId}:
+    delete:
+      tags: [Invitations]
+      operationId: revokeInvitation
+      summary: "Revogar convite pendente."
+      description: "Autorização: FAM_ADMIN (ou tutor, se for de conta de dependente)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: invitationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/account-invitation:
+    post:
+      tags: [Invitations]
+      operationId: createDependentAccountInvitation
+      summary: "Autorizar e convidar conta limitada para um dependente."
+      description: "Autorização: Tutor. P2, B3, N2: ≥13 anos; conta de acesso limitado."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateDependentAccountInvitationRequest" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "DEPENDENT_ACCOUNT_AGE | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /invitations/lookup:
+    post:
+      tags: [Invitations]
+      operationId: lookupInvitation
+      summary: "Ver dados mínimos de um convite."
+      description: "Autorização: PUBLIC. Token no corpo (nunca no URL)."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvitationLookupRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationPreview"
+        '404':
+          description: "INVITATION_INVALID"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '410':
+          description: "INVITATION_EXPIRED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /invitations/accept:
+    post:
+      tags: [Invitations]
+      operationId: acceptInvitation
+      summary: "Aceitar convite."
+      description: "Autorização: AUTH. BR-MEM-12/13/17."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcceptInvitationRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "INVITATION_EMAIL_MISMATCH"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "INVITATION_INVALID"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT | LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '410':
+          description: "INVITATION_EXPIRED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "BIRTHDATE_MISMATCH"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/sharing:
+    get:
+      tags: [Sharing]
+      operationId: getSharing
+      summary: "Ver partilha por categoria."
+      description: "Autorização: Titular ou tutor."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharingSettings"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    put:
+      tags: [Sharing]
+      operationId: putSharing
+      summary: "Definir partilha (substitui as concessões)."
+      description: "Autorização: Titular ou tutor. BR-PRV-01..04: só leitura; efeito imediato; destinatário nulo = toda a família."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SharingSettings" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharingSettings"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/shared-with-me:
+    get:
+      tags: [Sharing]
+      operationId: sharedWithMe
+      summary: "O que foi partilhado comigo."
+      description: "Autorização: FAM_MEMBER. UC-PRV-02."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SharedWithMeItem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/blood-type:
+    get:
+      tags: [Health records]
+      operationId: getBloodType
+      summary: "Ver tipo sanguíneo."
+      description: "Autorização: READ(ALLERGIES)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BloodType"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    put:
+      tags: [Health records]
+      operationId: putBloodType
+      summary: "Definir tipo sanguíneo."
+      description: "Autorização: WRITE(ALLERGIES)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BloodType" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BloodType"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/allergies:
+    get:
+      tags: [Health records]
+      operationId: listAllergies
+      summary: "Listar alergias."
+      description: "Autorização: READ(ALLERGIES)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Allergy" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Health records]
+      operationId: createAllergy
+      summary: "Adicionar alergia."
+      description: "Autorização: WRITE(ALLERGIES)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AllergyInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Allergy"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/allergies/{allergyId}:
+    patch:
+      tags: [Health records]
+      operationId: updateAllergy
+      summary: "Alterar alergia."
+      description: "Autorização: WRITE(ALLERGIES). R6: só estado atual."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: allergyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AllergyPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Allergy"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Health records]
+      operationId: deleteAllergy
+      summary: "Remover alergia."
+      description: "Autorização: WRITE(ALLERGIES)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: allergyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/conditions:
+    get:
+      tags: [Health records]
+      operationId: listConditions
+      summary: "Listar condições e histórico médico."
+      description: "Autorização: READ(CONDITIONS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Condition" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Health records]
+      operationId: createCondition
+      summary: "Adicionar condição ou histórico."
+      description: "Autorização: WRITE(CONDITIONS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConditionInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Condition"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/conditions/{conditionId}:
+    patch:
+      tags: [Health records]
+      operationId: updateCondition
+      summary: "Alterar condição."
+      description: "Autorização: WRITE(CONDITIONS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: conditionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConditionPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Condition"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Health records]
+      operationId: deleteCondition
+      summary: "Remover condição."
+      description: "Autorização: WRITE(CONDITIONS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: conditionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/prescriptions:
+    get:
+      tags: [Prescriptions]
+      operationId: listPrescriptions
+      summary: "Listar receitas."
+      description: "Autorização: READ(MEDICATION). Filtro por estado."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Prescription" }
+                  nextCursor: { type: string, nullable: true }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Prescriptions]
+      operationId: createPrescription
+      summary: "Registar receita com medicamentos (cria os planos de toma)."
+      description: "Autorização: WRITE(MEDICATION). BR-RX-01/02, M2, R7: data de emissão obrigatória e não futura; ≥1 medicamento; gera tomas e alertas."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrescriptionInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prescription"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "INVALID_SCHEDULE | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/prescriptions/{prescriptionId}:
+    get:
+      tags: [Prescriptions]
+      operationId: getPrescription
+      summary: "Ver receita."
+      description: "Autorização: READ(MEDICATION)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: prescriptionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prescription"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Prescriptions]
+      operationId: updatePrescription
+      summary: "Alterar dados da receita."
+      description: "Autorização: WRITE(MEDICATION)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: prescriptionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrescriptionPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prescription"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Prescriptions]
+      operationId: deletePrescription
+      summary: "Eliminar receita, planos, tomas e documentos."
+      description: "Autorização: WRITE(MEDICATION). BR-RX-06; aconselhar CANCELAR; documentos apagados via outbox."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: prescriptionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/prescriptions/{prescriptionId}/status:
+    put:
+      tags: [Prescriptions]
+      operationId: setPrescriptionStatus
+      summary: "Concluir, cancelar ou reabrir receita."
+      description: "Autorização: WRITE(MEDICATION). ST1; terminar a receita termina os planos associados."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: prescriptionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PrescriptionStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prescription"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/prescriptions/{prescriptionId}/medications:
+    post:
+      tags: [Prescriptions]
+      operationId: addPrescriptionMedication
+      summary: "Acrescentar medicamento (plano) à receita."
+      description: "Autorização: WRITE(MEDICATION)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: prescriptionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MedicationPlanInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MedicationPlan"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "INVALID_SCHEDULE | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/medication-plans:
+    get:
+      tags: [Medications]
+      operationId: listMedicationPlans
+      summary: "Listar planos de toma (medicamentos)."
+      description: "Autorização: READ(MEDICATION). Dependente com conta lê (N2)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/MedicationPlan" }
+                  nextCursor: { type: string, nullable: true }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Medications]
+      operationId: createMedicationPlan
+      summary: "Criar plano avulso (sem receita)."
+      description: "Autorização: WRITE(MEDICATION). R7, B5, Q1."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MedicationPlanInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MedicationPlan"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "INVALID_SCHEDULE | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/medication-plans/{planId}:
+    get:
+      tags: [Medications]
+      operationId: getMedicationPlan
+      summary: "Ver plano."
+      description: "Autorização: READ(MEDICATION)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: planId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MedicationPlan"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Medications]
+      operationId: updateMedicationPlan
+      summary: "Alterar plano (efeito só no futuro)."
+      description: "Autorização: WRITE(MEDICATION). BR-RX-05: recalcula tomas PENDING futuras."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: planId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MedicationPlanPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MedicationPlan"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "INVALID_SCHEDULE | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Medications]
+      operationId: deleteMedicationPlan
+      summary: "Eliminar plano e o seu histórico de tomas."
+      description: "Autorização: WRITE(MEDICATION). Aconselhar terminar em vez de eliminar."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: planId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/medication-plans/{planId}/status:
+    put:
+      tags: [Medications]
+      operationId: setMedicationPlanStatus
+      summary: "Terminar ou reativar plano."
+      description: "Autorização: WRITE(MEDICATION). ST1."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: planId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MedicationPlan"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "INVALID_SCHEDULE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/doses:
+    get:
+      tags: [Medications]
+      operationId: listDoses
+      summary: "Listar tomas (agenda e histórico)."
+      description: "Autorização: READ(MEDICATION). FR-MED-05; filtros por período, estado e plano."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: planId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Dose" }
+                  nextCursor: { type: string, nullable: true }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/doses/{doseId}/taken:
+    post:
+      tags: [Medications]
+      operationId: markDoseTaken
+      summary: "Confirmar toma."
+      description: "Autorização: Titular, tutor ou dependente com conta. D7, M4, Q2: idempotente; regista quem e quando."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: doseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DoseActionRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dose"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOSE_IN_FUTURE | DOSE_WINDOW_EXPIRED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/doses/{doseId}/not-taken:
+    post:
+      tags: [Medications]
+      operationId: markDoseNotTaken
+      summary: "Marcar toma como não tomada."
+      description: "Autorização: Titular, tutor ou dependente com conta."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: doseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DoseActionRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dose"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOSE_IN_FUTURE | DOSE_WINDOW_EXPIRED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/doses/{doseId}:
+    put:
+      tags: [Medications]
+      operationId: correctDose
+      summary: "Corrigir estado de toma (até 7 dias)."
+      description: "Autorização: Quem agiu, titular ou tutor. ST2; auditado."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: doseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DoseCorrectionRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dose"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOSE_WINDOW_EXPIRED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/appointments:
+    get:
+      tags: [Appointments]
+      operationId: listAppointments
+      summary: "Listar consultas."
+      description: "Autorização: READ(APPOINTMENTS). Dependente com conta lê (N2)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Appointment" }
+                  nextCursor: { type: string, nullable: true }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Appointments]
+      operationId: createAppointment
+      summary: "Criar consulta."
+      description: "Autorização: WRITE(APPOINTMENTS). FR-APT-01; gera lembretes 24 h e 2 h se futura."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppointmentInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/appointments/{appointmentId}:
+    get:
+      tags: [Appointments]
+      operationId: getAppointment
+      summary: "Ver consulta."
+      description: "Autorização: READ(APPOINTMENTS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Appointments]
+      operationId: updateAppointment
+      summary: "Alterar/reagendar consulta."
+      description: "Autorização: WRITE(APPOINTMENTS). Recalcula lembretes futuros."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppointmentPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Appointments]
+      operationId: deleteAppointment
+      summary: "Eliminar consulta."
+      description: "Autorização: WRITE(APPOINTMENTS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/appointments/{appointmentId}/status:
+    put:
+      tags: [Appointments]
+      operationId: setAppointmentStatus
+      summary: "Marcar realizada, faltou, cancelada ou reagendar."
+      description: "Autorização: WRITE(APPOINTMENTS). ST4."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppointmentStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/clinics:
+    get:
+      tags: [Clinics]
+      operationId: listClinics
+      summary: "Listar clínicas parceiras e privadas da família."
+      description: "Autorização: FAM_MEMBER. R8."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Clinic" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Clinics]
+      operationId: createPrivateClinic
+      summary: "Criar clínica privada."
+      description: "Autorização: FAM_MEMBER (adulto). BR-CLN-01: máx. 10 por família (B4)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Clinic"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/clinics/{clinicId}:
+    patch:
+      tags: [Clinics]
+      operationId: updatePrivateClinic
+      summary: "Alterar clínica privada."
+      description: "Autorização: Criador ou FAM_ADMIN. Parceiras não se alteram aqui."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Clinic"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Clinics]
+      operationId: deletePrivateClinic
+      summary: "Eliminar clínica privada."
+      description: "Autorização: Criador ou FAM_ADMIN. BR-CLN-02: consultas mantêm o nome em texto."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/clinics/{clinicId}/status:
+    put:
+      tags: [Clinics]
+      operationId: setPrivateClinicStatus
+      summary: "Arquivar/reativar clínica privada."
+      description: "Autorização: Criador ou FAM_ADMIN."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Clinic"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/examinations:
+    get:
+      tags: [Examinations]
+      operationId: listExaminations
+      summary: "Listar exames."
+      description: "Autorização: READ(EXAMS). Dependente com conta não vê (N2)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Examination" }
+                  nextCursor: { type: string, nullable: true }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Examinations]
+      operationId: createExamination
+      summary: "Registar exame."
+      description: "Autorização: WRITE(EXAMS). ST5: data passada nasce COMPLETED; futura nasce SCHEDULED com lembrete 24 h."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExaminationInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Examination"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/examinations/{examinationId}:
+    get:
+      tags: [Examinations]
+      operationId: getExamination
+      summary: "Ver exame com resultados."
+      description: "Autorização: READ(EXAMS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: examinationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Examination"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Examinations]
+      operationId: updateExamination
+      summary: "Alterar exame."
+      description: "Autorização: WRITE(EXAMS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: examinationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExaminationPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Examination"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Examinations]
+      operationId: deleteExamination
+      summary: "Eliminar exame, resultados e documentos."
+      description: "Autorização: WRITE(EXAMS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: examinationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/examinations/{examinationId}/status:
+    put:
+      tags: [Examinations]
+      operationId: setExaminationStatus
+      summary: "Marcar realizado, cancelado ou reagendar."
+      description: "Autorização: WRITE(EXAMS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: examinationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExamStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Examination"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/examinations/{examinationId}/results:
+    post:
+      tags: [Examinations]
+      operationId: addExamResult
+      summary: "Adicionar resultado."
+      description: "Autorização: WRITE(EXAMS). D8, Q9, D11: sem interpretação nem alertas; só em exames COMPLETED."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: examinationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExamResultInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamResult"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/examinations/{examinationId}/results/{resultId}:
+    patch:
+      tags: [Examinations]
+      operationId: updateExamResult
+      summary: "Alterar resultado."
+      description: "Autorização: WRITE(EXAMS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: examinationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: resultId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExamResultPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExamResult"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Examinations]
+      operationId: deleteExamResult
+      summary: "Remover resultado."
+      description: "Autorização: WRITE(EXAMS)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: examinationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: resultId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/exam-results:
+    get:
+      tags: [Examinations]
+      operationId: examResultHistory
+      summary: "Histórico de um parâmetro ao longo do tempo."
+      description: "Autorização: READ(EXAMS). UC-EXM-04: devolve valores por data, sem gráficos nem interpretação."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: parameter
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ExamResultHistoryItem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/documents:
+    post:
+      tags: [Documents]
+      operationId: uploadDocument
+      summary: "Carregar documento de uma receita ou exame."
+      description: "Autorização: WRITE(categoria do recurso). M5, N4, Q10: tipo verificado pelo conteúdo; nasce `PENDING` até o antivírus aprovar; 20 uploads/hora."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/UploadDocumentRequest" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOCUMENT_LIMIT_EXCEEDED | STORAGE_QUOTA_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '413':
+          description: "FILE_TOO_LARGE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '415':
+          description: "FILE_TYPE_NOT_ALLOWED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    get:
+      tags: [Documents]
+      operationId: listDocuments
+      summary: "Listar documentos de um recurso."
+      description: "Autorização: READ(categoria do recurso)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: resourceType
+          in: query
+          schema:
+            type: string
+        - name: resourceId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Document" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/documents/{documentId}:
+    get:
+      tags: [Documents]
+      operationId: getDocument
+      summary: "Ver metadados do documento."
+      description: "Autorização: READ(categoria do recurso)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Documents]
+      operationId: deleteDocument
+      summary: "Remover documento."
+      description: "Autorização: WRITE(categoria do recurso). Apaga ficheiro via outbox."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/documents/{documentId}/download:
+    get:
+      tags: [Documents]
+      operationId: downloadDocument
+      summary: "Descarregar documento (stream mediado)."
+      description: "Autorização: READ(categoria do recurso). BR-DOC-04, ADR-006: autoriza, audita e entrega; `Cache-Control: private, no-store`; `Content-Disposition: attachment`."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOCUMENT_NOT_AVAILABLE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /alerts:
+    get:
+      tags: [Alerts]
+      operationId: listAlerts
+      summary: "Listar os meus alertas."
+      description: "Autorização: AUTH. UC-ALR-03: só alertas de que sou destinatário; não lidos primeiro."
+      parameters:
+        - name: unread
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Alert" }
+                  nextCursor: { type: string, nullable: true }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /alerts/{alertId}/read:
+    post:
+      tags: [Alerts]
+      operationId: markAlertRead
+      summary: "Marcar alerta como lido."
+      description: "Autorização: AUTH."
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /alerts/read-all:
+    post:
+      tags: [Alerts]
+      operationId: markAllAlertsRead
+      summary: "Marcar todos como lidos."
+      description: "Autorização: AUTH."
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/report:
+    get:
+      tags: [Reports]
+      operationId: memberReport
+      summary: "Relatório individual."
+      description: "Autorização: READ (por secção). FR-RPT-01, Q11: período por defeito 12 meses (máx. 5 anos); secções sem permissão **omitidas**; audita."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberReport"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/report:
+    get:
+      tags: [Reports]
+      operationId: familyReport
+      summary: "Visão familiar."
+      description: "Autorização: FAM_MEMBER. FR-RPT-02/03: só o que o pedinte pode ver; Admin não vê mais por ser Admin."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyReport"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/medication-adherence:
+    get:
+      tags: [Reports]
+      operationId: medicationAdherence
+      summary: "Resumo de adesão à medicação."
+      description: "Autorização: READ(MEDICATION). UC-RPT-03: só contagens por estado, sem interpretação."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdherenceItem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/users:
+    get:
+      tags: [Admin]
+      operationId: adminListUsers
+      summary: "Listar contas."
+      description: "Autorização: PLATFORM_ADMIN. D4/R10: nunca devolve dados de saúde."
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/AdminUser" }
+                  nextCursor: { type: string, nullable: true }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/users/{userId}/suspend:
+    post:
+      tags: [Admin]
+      operationId: adminSuspendUser
+      summary: "Suspender conta."
+      description: "Autorização: PLATFORM_ADMIN. BR-ACC-05; revoga sessões; auditado."
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SuspendRequest" }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/users/{userId}/reactivate:
+    post:
+      tags: [Admin]
+      operationId: adminReactivateUser
+      summary: "Reativar conta."
+      description: "Autorização: PLATFORM_ADMIN."
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/clinics:
+    get:
+      tags: [Admin]
+      operationId: adminListClinics
+      summary: "Listar clínicas parceiras."
+      description: "Autorização: PLATFORM_ADMIN."
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Clinic" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Admin]
+      operationId: adminCreateClinic
+      summary: "Criar clínica parceira."
+      description: "Autorização: PLATFORM_ADMIN. R8."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Clinic"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/clinics/{clinicId}:
+    patch:
+      tags: [Admin]
+      operationId: adminUpdateClinic
+      summary: "Alterar clínica parceira."
+      description: "Autorização: PLATFORM_ADMIN."
+      parameters:
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Clinic"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/clinics/{clinicId}/status:
+    put:
+      tags: [Admin]
+      operationId: adminSetClinicStatus
+      summary: "Arquivar/reativar clínica parceira."
+      description: "Autorização: PLATFORM_ADMIN. BR: arquivar não apaga consultas existentes."
+      parameters:
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Clinic"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /health:
+    get:
+      tags: [Operations]
+      operationId: healthLive
+      summary: "Liveness."
+      description: "Autorização: PUBLIC."
+      security: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /health/ready:
+    get:
+      tags: [Operations]
+      operationId: healthReady
+      summary: "Readiness (BD, Redis, armazenamento)."
+      description: "Autorização: PUBLIC."
+      security: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Message:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    Problem:
+      type: object
+      required: [type, title, status, code, requestId]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        code:
+          type: string
+        detail:
+          type: string
+          nullable: true
+        requestId:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    RegisterRequest:
+      type: object
+      required: [email, password, name, birthDate, timezone, termsVersion]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        name:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        timezone:
+          type: string
+        termsVersion:
+          type: string
+        invitationToken:
+          type: string
+          nullable: true
+    VerifyEmailRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    ResendVerificationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    TokenResponse:
+      type: object
+      required: [accessToken, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+    User:
+      type: object
+      required: [id, email, name, birthDate, timezone, status, platformRole, termsAcceptedVersion, termsReacceptanceRequired, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        timezone:
+          type: string
+        status:
+          type: string
+          enum: [PENDING_VERIFICATION, ACTIVE, SUSPENDED]
+        platformRole:
+          type: string
+          enum: [NONE, PLATFORM_ADMIN]
+        termsAcceptedVersion:
+          type: string
+        termsReacceptanceRequired:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+          nullable: true
+    DeleteAccountRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+    AcceptTermsRequest:
+      type: object
+      required: [termsVersion]
+      properties:
+        termsVersion:
+          type: string
+    NotificationPreferences:
+      type: object
+      required: [pushEnabled, emailEnabled, medicationDue, appointmentReminder, examReminder]
+      properties:
+        pushEnabled:
+          type: boolean
+        emailEnabled:
+          type: boolean
+        medicationDue:
+          type: boolean
+        appointmentReminder:
+          type: boolean
+        examReminder:
+          type: boolean
+    PushSubscriptionRequest:
+      type: object
+      required: [endpoint, p256dh, auth]
+      properties:
+        endpoint:
+          type: string
+        p256dh:
+          type: string
+        auth:
+          type: string
+        userAgent:
+          type: string
+          nullable: true
+    PushSubscription:
+      type: object
+      required: [id, endpoint, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        endpoint:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    DataExport:
+      type: object
+      required: [id, status, reason, requestedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, READY, EXPIRED, FAILED]
+        reason:
+          type: string
+          enum: [USER_REQUEST, LEAVE_FAMILY, REMOVED_BY_ADMIN]
+        requestedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+    Family:
+      type: object
+      required: [id, name, myRole, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        myRole:
+          type: string
+          enum: [FAMILY_ADMIN, FAMILY_MEMBER]
+        createdAt:
+          type: string
+          format: date-time
+    CreateFamilyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+    UpdateFamilyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+    LeaveFamilyRequest:
+      type: object
+      required: [dataChoice]
+      properties:
+        dataChoice:
+          type: string
+          enum: [TAKE, DELETE]
+    LeaveFamilyResult:
+      type: object
+      properties:
+        dataExportId:
+          type: string
+          format: uuid
+          nullable: true
+    Member:
+      type: object
+      required: [id, familyId, name, birthDate, isMinor, isDependent, hasAccount, status, isSelf, guardianIds]
+      properties:
+        id:
+          type: string
+          format: uuid
+        familyId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        isMinor:
+          type: boolean
+        isDependent:
+          type: boolean
+        hasAccount:
+          type: boolean
+        role:
+          type: string
+          enum: [FAMILY_ADMIN, FAMILY_MEMBER]
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, BLOCKED]
+        isSelf:
+          type: boolean
+        primaryGuardianId:
+          type: string
+          format: uuid
+          nullable: true
+        guardianIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        scheduledDeletionAt:
+          type: string
+          format: date-time
+          nullable: true
+    CreateMemberRequest:
+      type: object
+      required: [name, birthDate, isDependent]
+      properties:
+        name:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        isDependent:
+          type: boolean
+        guardianMemberIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        primaryGuardianMemberId:
+          type: string
+          format: uuid
+          nullable: true
+    UpdateMemberRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+    SetRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [FAMILY_ADMIN, FAMILY_MEMBER]
+    SetDependentRequest:
+      type: object
+      required: [isDependent]
+      properties:
+        isDependent:
+          type: boolean
+        guardianMemberIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        primaryGuardianMemberId:
+          type: string
+          format: uuid
+          nullable: true
+    Guardianship:
+      type: object
+      required: [dependentId, guardianId, isPrimary]
+      properties:
+        dependentId:
+          type: string
+          format: uuid
+        guardianId:
+          type: string
+          format: uuid
+        isPrimary:
+          type: boolean
+    AddGuardianRequest:
+      type: object
+      required: [guardianMemberId]
+      properties:
+        guardianMemberId:
+          type: string
+          format: uuid
+        isPrimary:
+          type: boolean
+          nullable: true
+    SetPrimaryGuardianRequest:
+      type: object
+      required: [guardianMemberId]
+      properties:
+        guardianMemberId:
+          type: string
+          format: uuid
+    Invitation:
+      type: object
+      required: [id, familyId, email, type, status, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        familyId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        type:
+          type: string
+          enum: [MEMBER, DEPENDENT_ACCOUNT]
+        status:
+          type: string
+          enum: [PENDING, ACCEPTED, REVOKED, EXPIRED]
+        expiresAt:
+          type: string
+          format: date-time
+        memberId:
+          type: string
+          format: uuid
+          nullable: true
+    CreateInvitationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        memberId:
+          type: string
+          format: uuid
+          nullable: true
+    CreateDependentAccountInvitationRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    InvitationLookupRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    InvitationPreview:
+      type: object
+      required: [familyName, invitedEmail, type, expiresAt]
+      properties:
+        familyName:
+          type: string
+        invitedEmail:
+          type: string
+          format: email
+        type:
+          type: string
+          enum: [MEMBER, DEPENDENT_ACCOUNT]
+        expiresAt:
+          type: string
+          format: date-time
+    AcceptInvitationRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    SharingGrant:
+      type: object
+      required: [category]
+      properties:
+        category:
+          type: string
+          enum: [ALLERGIES, CONDITIONS, MEDICATION, APPOINTMENTS, EXAMS]
+        granteeMemberId:
+          type: string
+          format: uuid
+          nullable: true
+    SharingSettings:
+      type: object
+      required: [grants]
+      properties:
+        grants:
+          type: array
+          items:
+            $ref: "#/components/schemas/SharingGrant"
+    SharedWithMeItem:
+      type: object
+      required: [memberId, memberName, categories]
+      properties:
+        memberId:
+          type: string
+          format: uuid
+        memberName:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+    BloodType:
+      type: object
+      required: [bloodType]
+      properties:
+        bloodType:
+          type: string
+          enum: [A_POS, A_NEG, B_POS, B_NEG, AB_POS, AB_NEG, O_POS, O_NEG, UNKNOWN]
+    Allergy:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        since:
+          type: string
+          format: date
+          nullable: true
+    AllergyInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        since:
+          type: string
+          format: date
+          nullable: true
+    AllergyPatch:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        since:
+          type: string
+          format: date
+          nullable: true
+    Condition:
+      type: object
+      required: [id, name, kind]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [CONDITION, HISTORY]
+        notes:
+          type: string
+          nullable: true
+        since:
+          type: string
+          format: date
+          nullable: true
+        until:
+          type: string
+          format: date
+          nullable: true
+    ConditionInput:
+      type: object
+      required: [name, kind]
+      properties:
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [CONDITION, HISTORY]
+        notes:
+          type: string
+          nullable: true
+        since:
+          type: string
+          format: date
+          nullable: true
+        until:
+          type: string
+          format: date
+          nullable: true
+    ConditionPatch:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        kind:
+          type: string
+          enum: [CONDITION, HISTORY]
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        since:
+          type: string
+          format: date
+          nullable: true
+        until:
+          type: string
+          format: date
+          nullable: true
+    MedicationPlan:
+      type: object
+      required: [id, memberId, name, dosage, scheduleType, startAt, continuous, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        memberId:
+          type: string
+          format: uuid
+        prescriptionId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        dosage:
+          type: string
+        scheduleType:
+          type: string
+          enum: [FIXED_TIMES, INTERVAL]
+        times:
+          type: array
+          items:
+            type: string
+        daysOfWeek:
+          type: array
+          items:
+            type: integer
+        intervalHours:
+          type: integer
+          nullable: true
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+          nullable: true
+        continuous:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, ENDED]
+    MedicationPlanInput:
+      type: object
+      required: [name, dosage, scheduleType, startAt]
+      properties:
+        name:
+          type: string
+        dosage:
+          type: string
+        scheduleType:
+          type: string
+          enum: [FIXED_TIMES, INTERVAL]
+        times:
+          type: array
+          items:
+            type: string
+        daysOfWeek:
+          type: array
+          items:
+            type: integer
+        intervalHours:
+          type: integer
+          nullable: true
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+          nullable: true
+        continuous:
+          type: boolean
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    MedicationPlanPatch:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        dosage:
+          type: string
+          nullable: true
+        scheduleType:
+          type: string
+          enum: [FIXED_TIMES, INTERVAL]
+          nullable: true
+        times:
+          type: array
+          items:
+            type: string
+        daysOfWeek:
+          type: array
+          items:
+            type: integer
+        intervalHours:
+          type: integer
+          nullable: true
+        endAt:
+          type: string
+          format: date-time
+          nullable: true
+        continuous:
+          type: boolean
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    PlanStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, ENDED]
+        endAt:
+          type: string
+          format: date-time
+          nullable: true
+        continuous:
+          type: boolean
+          nullable: true
+    Prescription:
+      type: object
+      required: [id, memberId, issuedOn, status, medications, documentIds]
+      properties:
+        id:
+          type: string
+          format: uuid
+        memberId:
+          type: string
+          format: uuid
+        issuedOn:
+          type: string
+          format: date
+        doctorName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, COMPLETED, CANCELLED]
+        medications:
+          type: array
+          items:
+            $ref: "#/components/schemas/MedicationPlan"
+        documentIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    PrescriptionInput:
+      type: object
+      required: [issuedOn, medications]
+      properties:
+        issuedOn:
+          type: string
+          format: date
+        doctorName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        medications:
+          type: array
+          items:
+            $ref: "#/components/schemas/MedicationPlanInput"
+    PrescriptionPatch:
+      type: object
+      properties:
+        issuedOn:
+          type: string
+          format: date
+          nullable: true
+        doctorName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    PrescriptionStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, COMPLETED, CANCELLED]
+    Dose:
+      type: object
+      required: [id, planId, medicationName, dosage, scheduledAt, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        planId:
+          type: string
+          format: uuid
+        medicationName:
+          type: string
+        dosage:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [PENDING, TAKEN, NOT_TAKEN, UNCONFIRMED]
+        actedAt:
+          type: string
+          format: date-time
+          nullable: true
+        actedByUserId:
+          type: string
+          format: uuid
+          nullable: true
+        note:
+          type: string
+          nullable: true
+    DoseActionRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          nullable: true
+    DoseCorrectionRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [TAKEN, NOT_TAKEN]
+        note:
+          type: string
+          nullable: true
+    Appointment:
+      type: object
+      required: [id, memberId, scheduledAt, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        memberId:
+          type: string
+          format: uuid
+        scheduledAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [SCHEDULED, COMPLETED, NO_SHOW, CANCELLED]
+        professionalName:
+          type: string
+          nullable: true
+        clinicId:
+          type: string
+          format: uuid
+          nullable: true
+        clinicName:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    AppointmentInput:
+      type: object
+      required: [scheduledAt]
+      properties:
+        scheduledAt:
+          type: string
+          format: date-time
+        professionalName:
+          type: string
+          nullable: true
+        clinicId:
+          type: string
+          format: uuid
+          nullable: true
+        clinicName:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [SCHEDULED, COMPLETED]
+          nullable: true
+    AppointmentPatch:
+      type: object
+      properties:
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        clinicId:
+          type: string
+          format: uuid
+          nullable: true
+        clinicName:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    AppointmentStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [SCHEDULED, COMPLETED, NO_SHOW, CANCELLED]
+    Clinic:
+      type: object
+      required: [id, name, type, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        address:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        type:
+          type: string
+          enum: [PARTNER, PRIVATE]
+        status:
+          type: string
+          enum: [ACTIVE, ARCHIVED]
+    ClinicInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+    ClinicPatch:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+    ClinicStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, ARCHIVED]
+    ExamResult:
+      type: object
+      required: [id, parameter]
+      properties:
+        id:
+          type: string
+          format: uuid
+        parameter:
+          type: string
+        valueNumeric:
+          type: number
+          nullable: true
+        valueText:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        referenceMin:
+          type: number
+          nullable: true
+        referenceMax:
+          type: number
+          nullable: true
+    ExamResultInput:
+      type: object
+      required: [parameter]
+      properties:
+        parameter:
+          type: string
+        valueNumeric:
+          type: number
+          nullable: true
+        valueText:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        referenceMin:
+          type: number
+          nullable: true
+        referenceMax:
+          type: number
+          nullable: true
+    ExamResultPatch:
+      type: object
+      properties:
+        parameter:
+          type: string
+          nullable: true
+        valueNumeric:
+          type: number
+          nullable: true
+        valueText:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        referenceMin:
+          type: number
+          nullable: true
+        referenceMax:
+          type: number
+          nullable: true
+    ExamResultHistoryItem:
+      type: object
+      required: [examinationId, examDate]
+      properties:
+        examinationId:
+          type: string
+          format: uuid
+        examDate:
+          type: string
+          format: date
+        valueNumeric:
+          type: number
+          nullable: true
+        valueText:
+          type: string
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        referenceMin:
+          type: number
+          nullable: true
+        referenceMax:
+          type: number
+          nullable: true
+    Examination:
+      type: object
+      required: [id, memberId, name, examDate, status, results, documentIds]
+      properties:
+        id:
+          type: string
+          format: uuid
+        memberId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        examDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [SCHEDULED, COMPLETED, CANCELLED]
+        clinicId:
+          type: string
+          format: uuid
+          nullable: true
+        clinicName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExamResult"
+        documentIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    ExaminationInput:
+      type: object
+      required: [name, examDate]
+      properties:
+        name:
+          type: string
+        examDate:
+          type: string
+          format: date
+        clinicId:
+          type: string
+          format: uuid
+          nullable: true
+        clinicName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    ExaminationPatch:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        examDate:
+          type: string
+          format: date
+          nullable: true
+        clinicId:
+          type: string
+          format: uuid
+          nullable: true
+        clinicName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+    ExamStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [SCHEDULED, COMPLETED, CANCELLED]
+    UploadDocumentRequest:
+      type: object
+      required: [file, resourceType, resourceId]
+      properties:
+        file:
+          type: string
+          format: binary
+        resourceType:
+          type: string
+          enum: [PRESCRIPTION, EXAMINATION]
+        resourceId:
+          type: string
+          format: uuid
+    Document:
+      type: object
+      required: [id, resourceType, resourceId, originalName, mimeType, sizeBytes, scanStatus, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        resourceType:
+          type: string
+          enum: [PRESCRIPTION, EXAMINATION]
+        resourceId:
+          type: string
+          format: uuid
+        originalName:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        scanStatus:
+          type: string
+          enum: [PENDING, CLEAN, INFECTED]
+        createdAt:
+          type: string
+          format: date-time
+    Alert:
+      type: object
+      required: [id, type, familyId, memberId, memberName, message, sourceType, sourceId, triggerAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST]
+        familyId:
+          type: string
+          format: uuid
+        memberId:
+          type: string
+          format: uuid
+        memberName:
+          type: string
+        message:
+          type: string
+        sourceType:
+          type: string
+          enum: [DOSE, APPOINTMENT, EXAMINATION]
+        sourceId:
+          type: string
+          format: uuid
+        triggerAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+    AdherenceItem:
+      type: object
+      required: [planId, medicationName, taken, notTaken, unconfirmed, pending]
+      properties:
+        planId:
+          type: string
+          format: uuid
+        medicationName:
+          type: string
+        taken:
+          type: integer
+        notTaken:
+          type: integer
+        unconfirmed:
+          type: integer
+        pending:
+          type: integer
+    PendingItem:
+      type: object
+      required: [type, sourceId, date]
+      properties:
+        type:
+          type: string
+          enum: [UNCONFIRMED_DOSE, APPOINTMENT_OUTCOME, EXAM_OUTCOME]
+        sourceId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date-time
+    MemberReport:
+      type: object
+      required: [generatedAt, from, to, member]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        member:
+          $ref: "#/components/schemas/Member"
+        bloodType:
+          type: string
+          nullable: true
+        allergies:
+          type: array
+          items:
+            $ref: "#/components/schemas/Allergy"
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Condition"
+        prescriptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Prescription"
+        medicationPlans:
+          type: array
+          items:
+            $ref: "#/components/schemas/MedicationPlan"
+        adherence:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdherenceItem"
+        appointments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Appointment"
+        examinations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Examination"
+    FamilyReportMember:
+      type: object
+      required: [member]
+      properties:
+        member:
+          $ref: "#/components/schemas/Member"
+        allergies:
+          type: array
+          items:
+            $ref: "#/components/schemas/Allergy"
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Condition"
+        activeMedications:
+          type: array
+          items:
+            $ref: "#/components/schemas/MedicationPlan"
+        upcomingAppointments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Appointment"
+        upcomingExaminations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Examination"
+        pending:
+          type: array
+          items:
+            $ref: "#/components/schemas/PendingItem"
+    FamilyReport:
+      type: object
+      required: [generatedAt, members]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyReportMember"
+    AdminUser:
+      type: object
+      required: [id, email, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+          enum: [PENDING_VERIFICATION, ACTIVE, SUSPENDED]
+        createdAt:
+          type: string
+          format: date-time
+    SuspendRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string

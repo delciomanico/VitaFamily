@@ -1,0 +1,10 @@
+# Gera interfaces/tipos a partir de docs/05-api/openapi.yaml (contrato primeiro). NÃO editar o código gerado.
+package: gen
+output: internal/api/gen/api.gen.go
+generate:
+  chi-server: true
+  strict-server: true
+  models: true
+  embedded-spec: true
+output-options:
+  skip-prune: true

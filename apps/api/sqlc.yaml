@@ -1,0 +1,24 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema: db/migrations      # goose: sqlc ignora a secção Down
+    queries: db/queries
+    gen:
+      go:
+        package: sqlcgen
+        out: internal/db/sqlcgen
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: uuid
+            nullable: true
+            go_type:
+              import: github.com/google/uuid
+              type: NullUUID
+          - db_type: citext
+            go_type: string
+          - db_type: timestamptz
+            go_type: time.Time
