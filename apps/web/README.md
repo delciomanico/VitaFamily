@@ -36,6 +36,19 @@ src/
 └── styles/         index.css — design tokens (@theme)
 ```
 
+## Modo demonstração
+
+Os dados vivem em memória (`src/mocks/`) e voltam ao estado inicial ao recarregar a página.
+
+| O quê | Valor |
+| --- | --- |
+| Login | `demo@vitafamily.app` · `password` |
+| Código de verificação (após registo) | `123456` |
+| Código de convite (entrar numa família) | `MONARCA26` |
+
+Fluxo de dados: `UI → hooks/contexts → services → mocks/handlers (backend simulado) → mocks/db`.
+Só `components/domain/DemoHint.tsx` lê dados mock diretamente (a remover com a API real).
+
 ## Design system
 
 Os tokens (cores, tipografia, raios, sombras, espaçamentos de layout) estão em `src/styles/index.css`, no bloco `@theme`.

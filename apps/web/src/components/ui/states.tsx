@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CircleAlert, type LucideIcon } from 'lucide-react'
+import { CircleAlert, LoaderCircle, type LucideIcon } from 'lucide-react'
 import { Button } from './Button'
 
 interface EmptyStateProps {
@@ -39,6 +39,27 @@ export function LoadingState({ rows = 3, label = 'A carregar…' }: LoadingState
         <div key={index} className="h-20 animate-pulse rounded-lg bg-surface-muted" aria-hidden />
       ))}
     </div>
+  )
+}
+
+/** Carregamento de ecrã inteiro (ex.: enquanto a sessão é restaurada). */
+export function FullScreenLoader({ label = 'A carregar…' }: { label?: string }) {
+  return (
+    <div role="status" className="flex min-h-dvh items-center justify-center">
+      <LoaderCircle className="size-8 animate-spin text-primary" aria-hidden />
+      <span className="sr-only">{label}</span>
+    </div>
+  )
+}
+
+/** Mensagem de erro de um formulário (ex.: credenciais inválidas). */
+export function FormError({ message }: { message: string | null }) {
+  if (!message) return null
+  return (
+    <p role="alert" className="flex items-start gap-2 rounded-md bg-danger-soft px-3.5 py-3 text-sm text-danger">
+      <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+      {message}
+    </p>
   )
 }
 

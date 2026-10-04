@@ -1,0 +1,60 @@
+import { useNavigate } from 'react-router-dom'
+import { HealthProfileForm, profileToFormValues } from '@/components/domain/HealthProfileForm'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { SetupProgress } from '@/components/layout/SetupProgress'
+import { Button } from '@/components/ui/Button'
+import { ErrorState, LoadingState } from '@/components/ui/states'
+import { useToast } from '@/components/ui/Toast'
+import { useAuth } from '@/contexts/AuthContext'
+import { useAsync } from '@/hooks/useAsync'
+import { errorMessage } from '@/lib/errors'
+import { paths } from '@/routes/paths'
+import { healthService, type HealthProfileInput } from '@/services/health.service'
+import { SETUP_STEPS } from './steps'
+
+export function SetupHealthPage() {
+  const { family, member, refreshMembership } = useAuth()
+  const navigate = useNavigate()
+  const toast = useToast()
+  const familyId = family?.id ?? ''
+  const memberId = member?.id ?? ''
+  const { state, reload } = useAsync(() => healthService.getHealthProfile(familyId, memberId), [familyId, memberId])
+
+  // Quem criou a família (Admin) segue para adicionar membros; quem entrou por convite termina aqui.
+  const isAdmin = member?.role === 'FAMILY_ADMIN'
+  const total = isAdmin ? SETUP_STEPS.create : SETUP_STEPS.join
+  const next = () => navigate(isAdmin ? paths.setupMembers : paths.home)
+
+  async function onSubmit(input: HealthProfileInput) {
+    try {
+      await healthService.saveHealthProfile(familyId, memberId, input)
+      await refreshMembership()
+      next()
+    } catch (error) {
+      toast.show(errorMessage(error), 'error')
+    }
+  }
+
+  const skip = (
+    <Button variant="ghost" size="lg" fullWidth onClick={next}>
+      Pular por agora
+    </Button>
+  )
+
+  return (
+    <div className="flex flex-col gap-8">
+      <SetupProgress step={2} total={total} />
+      <PageHeader title="Perfil de saúde" description="Estas informações ajudam a acompanhar a sua saúde." />
+      {state.status === 'loading' && <LoadingState rows={4} />}
+      {state.status === 'error' && <ErrorState onRetry={reload} />}
+      {state.status === 'success' && (
+        <HealthProfileForm
+          defaultValues={profileToFormValues(state.data)}
+          onSubmit={onSubmit}
+          submitLabel="Continuar"
+          secondaryAction={skip}
+        />
+      )}
+    </div>
+  )
+}
