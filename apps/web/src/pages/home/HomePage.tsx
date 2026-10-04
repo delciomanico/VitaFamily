@@ -8,11 +8,13 @@ import { firstName } from '@/lib/date'
 import { reportService } from '@/services/report.service'
 import { HomeBanner } from './HomeBanner'
 import { HomeOptions } from './HomeOptions'
+import { RecentAlerts } from './RecentAlerts'
 import { TodayDoses } from './TodayDoses'
 
 /**
  * Home num só ecrã, sem scroll vertical: faixa, banner (com o próximo compromisso),
- * menu de opções deslizante (resumo de hoje nas legendas) e, se couberem, as tomas de hoje.
+ * menu de opções deslizante (resumo de hoje nas legendas) e, no espaço que sobra,
+ * as tomas de hoje e os alertas recentes (só o que couber).
  */
 export function HomePage() {
   const { user, family, member } = useAuth()
@@ -42,9 +44,15 @@ export function HomePage() {
       {state.status === 'success' && (
         <>
           <HomeOptions summary={state.data} unreadAlerts={unreadAlerts} />
-          {/* Espaço livre restante: as tomas de hoje, só se couberem. */}
-          <div className="fit-area min-h-0 flex-1">
+          {/*
+            Espaço livre restante: tomas de hoje (altura natural) e alertas recentes (o resto).
+            Cada cartão só aparece se couber, para a Home nunca ter scroll.
+          */}
+          <div className="fit-area flex min-h-0 flex-1 flex-col gap-3">
             <TodayDoses doses={state.data.todayDoses} />
+            <div className="fit-area min-h-0 flex-1">
+              <RecentAlerts alerts={state.data.recentAlerts} />
+            </div>
           </div>
         </>
       )}

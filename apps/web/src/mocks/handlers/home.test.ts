@@ -45,16 +45,17 @@ describe('resumo da Home (Monarca, tutor de todos)', () => {
     expect(kinds).toEqual(['APPOINTMENT_OVERDUE', 'DOSE_UNCONFIRMED'])
   })
 
-  it('lista só alertas por ler, mais recentes primeiro', async () => {
-    const { unreadAlerts } = await getHomeSummary('fam_monarca', 'usr_monarca', NOW)
-    // Ao meio-dia: lembrete de consulta (10:00), toma das 08:00, pedido de resultado (ontem).
-    expect(unreadAlerts.map((a) => a.id)).toEqual(['alr_cardio', 'alr_amox', 'alr_endocrino'])
-    expect(unreadAlerts[1]).toMatchObject({
+  it('lista os alertas recentes, lidos e por ler, mais recentes primeiro', async () => {
+    const { recentAlerts } = await getHomeSummary('fam_monarca', 'usr_monarca', NOW)
+    // Ao meio-dia: lembrete de consulta (10:00), toma das 08:00, pedido de resultado (ontem), exame (lido).
+    expect(recentAlerts.map((a) => a.id)).toEqual(['alr_cardio', 'alr_amox', 'alr_endocrino', 'alr_maria'])
+    expect(recentAlerts[3]?.readAt).toBeDefined()
+    expect(recentAlerts[1]).toMatchObject({
       memberName: 'Monarca Lopes',
       sourceLabel: 'Amoxicilina 500 mg',
       sourceId: 'dose_med_amox_0800',
     })
-    expect(unreadAlerts[1]).not.toHaveProperty('recipientUserId')
+    expect(recentAlerts[1]).not.toHaveProperty('recipientUserId')
   })
 })
 
@@ -74,7 +75,7 @@ describe('permissões', () => {
     const summary = await getHomeSummary('fam_monarca', user.id, NOW)
     expect(summary.nextAppointment).toBeNull()
     expect(summary.family).toEqual({ tracked: 1, withPending: 0 })
-    expect(summary.unreadAlerts).toEqual([])
+    expect(summary.recentAlerts).toEqual([])
   })
 
   it('quem não pertence à família não obtém o resumo', async () => {

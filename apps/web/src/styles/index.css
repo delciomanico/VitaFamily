@@ -116,9 +116,17 @@
     container-type: size;
   }
 
+  /* `!important` porque as utilidades (ex.: `flex`) vêm depois na cascata. */
   @container (max-height: 8.5rem) {
     .fit-hide {
-      display: none;
+      display: none !important;
+    }
+  }
+
+  /* Alertas recentes: precisam do título e de pelo menos uma linha completa. */
+  @container (max-height: 7rem) {
+    .fit-hide-alerts {
+      display: none !important;
     }
   }
 }

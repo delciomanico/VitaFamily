@@ -53,7 +53,7 @@ export function TodayDoses({ doses }: { doses: TodayDose[] }) {
   if (doses.length === 0) return null
 
   return (
-    <section aria-labelledby="today-doses" className="fit-hide flex flex-col gap-2.5 rounded-xl border border-border bg-surface p-3.5 shadow-card">
+    <section aria-labelledby="today-doses" className="fit-hide flex shrink-0 flex-col gap-2.5 rounded-xl border border-border bg-surface p-3.5 shadow-card">
       <Link to={paths.medications} className="flex items-center justify-between gap-2">
         <h2 id="today-doses" className="text-sm font-semibold">
           Hoje · Medicamentos

@@ -9,8 +9,8 @@ import { pendingItems } from './reports'
 /** TBD: durante quantos dias um resultado de exame conta como “novo” na Home. */
 export const NEW_RESULT_DAYS = 7
 
-/** Número máximo de alertas por ler mostrados na Home. */
-export const HOME_ALERTS_LIMIT = 3
+/** Número máximo de alertas recentes enviados para a Home (a UI mostra os que couberem). */
+export const HOME_ALERTS_LIMIT = 8
 
 const DAY_MS = 86_400_000
 
@@ -57,9 +57,7 @@ export function getHomeSummary(familyId: string, userId: string, now: Date = new
         : null,
       today: { pendingDoses, newResults, members: familyMembers },
       family: { tracked: visible.size, withPending: pendingMembers.size },
-      unreadAlerts: findAlerts(familyId, userId, now)
-        .filter((a) => !a.readAt)
-        .slice(0, HOME_ALERTS_LIMIT),
+      recentAlerts: findAlerts(familyId, userId, now).slice(0, HOME_ALERTS_LIMIT),
       todayDoses,
     }
   })

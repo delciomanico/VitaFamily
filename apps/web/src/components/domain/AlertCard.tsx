@@ -16,26 +16,29 @@ interface AlertCardProps {
   alert: AlertItem
   /** Ação à direita (ex.: marcar como lido). */
   action?: ReactNode
+  /** Versão de altura reduzida (Home). */
+  compact?: boolean
 }
 
 /** Linha de alerta: ícone do tipo, título, membro e quando. Ponto colorido = por ler. */
-export function AlertCard({ alert, action }: AlertCardProps) {
+export function AlertCard({ alert, action, compact = false }: AlertCardProps) {
   const Icon = icons[alert.type]
   const unread = !alert.readAt
 
   return (
-    <div className="flex items-start gap-3 py-3">
+    <div className={cn('flex items-start gap-3', compact ? 'py-2' : 'py-3')}>
       <span
         className={cn(
-          'flex size-10 shrink-0 items-center justify-center rounded-full',
+          'flex shrink-0 items-center justify-center rounded-full',
+          compact ? 'size-9' : 'size-10',
           unread ? 'bg-primary-soft text-primary' : 'bg-surface-muted text-muted',
         )}
       >
         <Icon className="size-5" aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
-        <p className={cn('text-sm', unread ? 'font-medium' : 'text-muted')}>{alertTitle(alert)}</p>
-        <p className="text-sm text-muted">
+        <p className={cn('text-sm', compact && 'truncate', unread ? 'font-medium' : 'text-muted')}>{alertTitle(alert)}</p>
+        <p className={cn('text-sm text-muted', compact && 'truncate')}>
           {alert.memberName} · {formatWhen(alert.triggerAt)}
         </p>
       </div>

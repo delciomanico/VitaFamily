@@ -38,7 +38,8 @@ export interface HomeSummary {
     /** Membros com pelo menos um item pendente. */
     withPending: number
   }
-  unreadAlerts: AlertItem[]
+  /** Alertas recentes (lidos e por ler), mais recentes primeiro. */
+  recentAlerts: AlertItem[]
   /** Tomas de hoje dos membros visíveis, por hora. */
   todayDoses: TodayDose[]
 }
