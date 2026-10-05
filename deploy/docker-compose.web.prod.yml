@@ -1,6 +1,7 @@
 # Frontend em produção no Dokploy (ADR-014): https://vitafamily.cassfrei.com
-# Sem portas publicadas: no Dokploy, configurar o domínio vitafamily.cassfrei.com, caminho /, porta do
-# contentor 8080 e HTTPS (Let's Encrypt). O Traefik do Dokploy trata do TLS e do encaminhamento.
+# Sem portas publicadas: no Dokploy, configurar o domínio vitafamily.cassfrei.com, serviço web, caminho /,
+# porta do contentor 8080 (não 80) e HTTPS (Let's Encrypt). O Traefik do Dokploy termina o TLS e encaminha
+# para o nginx do contentor, que só serve os ficheiros estáticos da PWA.
 name: vitafamily-web
 
 services:
@@ -8,8 +9,14 @@ services:
     build:
       context: ../apps/web
     expose: ["8080"]
+    # O Traefik do Dokploy só alcança contentores nesta rede; sem ela, o domínio dá 502 Bad Gateway.
+    networks: [dokploy-network]
     read_only: true
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     restart: unless-stopped
+
+networks:
+  dokploy-network:
+    external: true

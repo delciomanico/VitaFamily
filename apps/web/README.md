@@ -67,8 +67,11 @@ No Dokploy, criar um serviço **Compose** a partir deste repositório:
 | --- | --- |
 | Compose path | `deploy/docker-compose.web.prod.yml` |
 | Domínio | `vitafamily.cassfrei.com`, serviço `web`, caminho `/` |
-| Porta do contentor | `8080` |
+| Porta do contentor | `8080` (não o 80 por defeito) |
 | HTTPS | ativo, certificado Let's Encrypt |
+
+O compose liga o serviço à rede externa `dokploy-network`, a única que o Traefik do Dokploy alcança. Sem ela, ou com
+a porta errada no domínio, o Dokploy responde **502 Bad Gateway**.
 
 Em alternativa, um serviço **Application** com build por Dockerfile (`apps/web/Dockerfile`, contexto `apps/web`) e o
 mesmo domínio e porta.
