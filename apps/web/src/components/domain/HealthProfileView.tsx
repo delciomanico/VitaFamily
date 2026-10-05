@@ -8,7 +8,7 @@ import type { HealthProfile } from '@/types/health'
 
 const NOT_SET = 'Não indicado'
 
-function TagList({ items, empty }: { items: string[]; empty: string }) {
+export function TagList({ items, empty }: { items: string[]; empty: string }) {
   if (items.length === 0) return <p className="text-sm text-muted">{empty}</p>
   return (
     <ul className="flex flex-wrap gap-2">

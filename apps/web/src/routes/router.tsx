@@ -4,6 +4,8 @@ import { ClinicShell } from '@/components/layout/ClinicShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { AppointmentDetailPage } from '@/pages/appointments/AppointmentDetailPage'
 import { AlertsPage } from '@/pages/alerts/AlertsPage'
+import { FamilyReportPage } from '@/pages/reports/FamilyReportPage'
+import { PreventiveReportPage } from '@/pages/reports/PreventiveReportPage'
 import { AppointmentsPage } from '@/pages/appointments/AppointmentsPage'
 import { NewAppointmentPage } from '@/pages/appointments/NewAppointmentPage'
 import { ExaminationDetailPage } from '@/pages/examinations/ExaminationDetailPage'
@@ -23,7 +25,6 @@ import { HomePage } from '@/pages/home/HomePage'
 import { MedicationDetailPage } from '@/pages/medications/MedicationDetailPage'
 import { MedicationsPage } from '@/pages/medications/MedicationsPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { NewPrescriptionPage } from '@/pages/prescriptions/NewPrescriptionPage'
 import { PrescriptionDetailPage } from '@/pages/prescriptions/PrescriptionDetailPage'
 import { PrescriptionsPage } from '@/pages/prescriptions/PrescriptionsPage'
@@ -39,11 +40,6 @@ import { SetupHealthPage } from '@/pages/setup/SetupHealthPage'
 import { SetupMembersPage } from '@/pages/setup/SetupMembersPage'
 import { GuestOnly, RequireAuth, RequireClinic, RequireFamily, RequirePendingVerification } from './guards'
 import { paths } from './paths'
-
-/** Rota provisória: substituída pela tela real na fase indicada. */
-function placeholder(path: string, title: string, phase: number, backTo?: string): RouteObject {
-  return { path, element: <PlaceholderPage title={title} phase={phase} backTo={backTo} /> }
-}
 
 export const routes: RouteObject[] = [
   {
@@ -108,8 +104,8 @@ export const routes: RouteObject[] = [
               { path: 'family/:id', element: <MemberProfilePage /> },
               { path: 'family/:id/history', element: <MemberHistoryPage /> },
               { path: 'alerts', element: <AlertsPage /> },
-              placeholder('reports/family', 'Saúde da família', 11),
-              placeholder('reports/preventive', 'Relatório preventivo', 11, paths.familyReport),
+              { path: 'reports/family', element: <FamilyReportPage /> },
+              { path: 'reports/preventive', element: <PreventiveReportPage /> },
               { path: 'settings', element: <SettingsPage /> },
             ],
           },

@@ -1,4 +1,5 @@
 import { AppError } from '@/lib/errors'
+import type { Appointment } from '@/types/appointment'
 import type { FamilyMember, FamilyMemberCard, FamilyOverview, PublicMember } from '@/types/family'
 import type { HistoryEntry } from '@/types/history'
 import type { MemberProfile } from '@/types/member'
@@ -15,7 +16,7 @@ import { pendingItems } from './reports'
 export const PROFILE_ACTIVITY_LIMIT = 3
 
 /** Só C1 e a estrutura familiar (BR-PRV-10): nunca tipo sanguíneo nem outros dados de saúde. */
-function toPublic(member: FamilyMember): PublicMember {
+export function toPublic(member: FamilyMember): PublicMember {
   return {
     id: member.id,
     name: member.name,
@@ -25,6 +26,14 @@ function toPublic(member: FamilyMember): PublicMember {
     isDependent: member.isDependent,
     hasAccount: Boolean(member.userId),
   }
+}
+
+/** Próximas primeiro (por data), depois as passadas (mais recentes primeiro). */
+export const upcomingFirst = (now: Date) => (a: Appointment, b: Appointment) => {
+  const aFuture = Date.parse(a.scheduledAt) > now.getTime()
+  const bFuture = Date.parse(b.scheduledAt) > now.getTime()
+  if (aFuture !== bFuture) return aFuture ? -1 : 1
+  return aFuture ? a.scheduledAt.localeCompare(b.scheduledAt) : b.scheduledAt.localeCompare(a.scheduledAt)
 }
 
 const ofMember = (familyId: string, memberId: string) => (item: { familyId: string; memberId: string }) =>
@@ -82,13 +91,7 @@ export function getMemberProfile(familyId: string, userId: string, memberId: str
 
     const appointments = db.appointments
       .filter((a) => owned(a) && ['REQUESTED', 'SCHEDULED', 'COMPLETED', 'NO_SHOW'].includes(a.status))
-      // Próximas primeiro (por data), depois as passadas (mais recentes primeiro).
-      .sort((a, b) => {
-        const aFuture = Date.parse(a.scheduledAt) > now.getTime()
-        const bFuture = Date.parse(b.scheduledAt) > now.getTime()
-        if (aFuture !== bFuture) return aFuture ? -1 : 1
-        return aFuture ? a.scheduledAt.localeCompare(b.scheduledAt) : b.scheduledAt.localeCompare(a.scheduledAt)
-      })
+      .sort(upcomingFirst(now))
 
     return {
       member: toPublic(member),

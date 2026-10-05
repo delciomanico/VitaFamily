@@ -36,6 +36,7 @@ export const paths = {
   alerts: '/app/alerts',
   familyReport: '/app/reports/family',
   preventiveReport: '/app/reports/preventive',
+  preventiveReportOf: (memberId: string) => `/app/reports/preventive?membro=${memberId}`,
   settings: '/app/settings',
 
   // Portal da clínica parceira (D17).

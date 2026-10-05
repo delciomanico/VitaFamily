@@ -42,9 +42,9 @@ describe('resumo da Home (Monarca, tutor de Maria, João e Pedro)', () => {
     const { family: overview } = await getHomeSummary('fam_monarca', 'usr_monarca', NOW)
     expect(overview).toEqual({ tracked: 4, withPending: 1 })
     const kinds = pendingItems('fam_monarca', ['mem_joao'], NOW)
-      .map((p) => p.kind)
+      .map((p) => p.type)
       .sort()
-    expect(kinds).toEqual(['APPOINTMENT_OVERDUE', 'DOSE_UNCONFIRMED'])
+    expect(kinds).toEqual(['APPOINTMENT_OUTCOME', 'UNCONFIRMED_DOSE'])
   })
 
   it('lista os alertas recentes, lidos e por ler, mais recentes primeiro', async () => {
