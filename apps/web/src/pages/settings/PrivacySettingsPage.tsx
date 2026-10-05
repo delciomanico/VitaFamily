@@ -8,6 +8,7 @@ import { DetailSection } from '@/components/ui/InfoList'
 import { PasswordInput } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
+import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { errorMessage, isAppError } from '@/lib/errors'
@@ -65,6 +66,8 @@ function Exports() {
         Uma cópia, em JSON, dos dados de que é titular: conta, saúde, medicação, consultas, exames e a lista de
         documentos. Fica disponível durante 7 dias.
       </p>
+      {state.status === 'loading' && <LoadingState rows={1} />}
+      {state.status === 'error' && <ErrorState onRetry={reload} />}
       {items.length > 0 && (
         <Card className="divide-y divide-border py-1">
           {items.map((item) => (

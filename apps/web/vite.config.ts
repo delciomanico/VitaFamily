@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const THEME_COLOR = '#177a9a'
+const THEME_COLOR = '#167698'
 const BACKGROUND_COLOR = '#f4f8fa'
 
 export default defineConfig({

@@ -8,8 +8,8 @@
  * Breakpoints: os padrões do Tailwind (md 768, lg 1024, xl 1280).
  */
 @theme {
-  /* Cores — azul-ciano; texto branco sobre primary ≥ 4.5:1 (WCAG AA) */
-  --color-primary: #177a9a;
+  /* Cores — azul-ciano; primary ≥ 4.5:1 com texto branco e sobre primary-soft (WCAG AA) */
+  --color-primary: #167698;
   --color-primary-hover: #126883;
   --color-primary-soft: #eaf6fa;
   --color-primary-soft-hover: #d9eef5;
@@ -102,6 +102,11 @@
 
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-primary;
+  }
+
+  /* Sobre a faixa de cor (cabeçalhos, splash) o contorno primário perde contraste: usa branco. */
+  .bg-brand :focus-visible {
+    @apply outline-white;
   }
 
   dialog::backdrop {

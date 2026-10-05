@@ -20,8 +20,3 @@ export function day(days: number, now: Date = new Date()): string {
   date.setDate(date.getDate() + days)
   return todayISO(date)
 }
-
-/** Instante ISO a `hours` horas de agora (negativo = passado). */
-export function hoursFromNow(hours: number, now: Date = new Date()): string {
-  return new Date(now.getTime() + hours * 3_600_000).toISOString()
-}

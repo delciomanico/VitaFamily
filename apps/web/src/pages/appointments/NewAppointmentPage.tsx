@@ -136,6 +136,80 @@ function PartnerSchedule({ slots, draft, set }: PartnerScheduleProps) {
   )
 }
 
+/** Clínica privada ou sem clínica: profissional escrito e qualquer dia e hora futuros (registo direto). */
+function DirectSchedule({ draft, set }: Omit<PartnerScheduleProps, 'slots'>) {
+  return (
+    <>
+      <Input
+        label="Profissional (opcional)"
+        placeholder="Ex.: Dr.ª Ana Costa"
+        value={draft.professionalName}
+        onChange={(event) => set({ professionalName: event.target.value })}
+      />
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">Dia</span>
+        <DateStrip
+          days={nextDays(BOOKING_DAYS)}
+          value={draft.date}
+          onChange={(date) => set({ date, time: draft.time && date && isPast(date, draft.time) ? null : draft.time })}
+          label="Dia da consulta"
+        />
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">Hora</span>
+        <TimeSlots
+          times={APPOINTMENT_TIMES}
+          value={draft.time}
+          onChange={(time) => set({ time })}
+          label="Hora da consulta"
+          disabled={(time) => isPast(draft.date, time)}
+        />
+      </div>
+    </>
+  )
+}
+
+interface BookingSummaryProps {
+  memberName: string
+  specialty: string
+  clinicName?: string
+  partner: boolean
+  professional?: string
+  when: string
+  notes: string
+}
+
+/** Último passo: o que vai ser marcado e, numa parceira, o que a clínica recebe (dados mínimos, D17). */
+function BookingSummary({
+  memberName,
+  specialty,
+  clinicName,
+  partner,
+  professional,
+  when,
+  notes,
+}: BookingSummaryProps) {
+  return (
+    <>
+      <InfoList>
+        <InfoRow label="Para" value={memberName} />
+        <InfoRow label="Especialidade" value={specialty} />
+        <InfoRow label="Clínica" value={clinicName ?? 'Sem clínica'} />
+        {professional && <InfoRow label="Profissional" value={professional} />}
+        <InfoRow label="Data" value={formatLongDate(when)} />
+        <InfoRow label="Hora" value={formatTime(when)} />
+        {notes.trim() && <InfoRow label="Observações" value={notes} />}
+      </InfoList>
+      {partner && (
+        <p className="text-sm text-muted">
+          A {clinicName} recebe o nome de {memberName}, a especialidade, o profissional, a data e hora e as observações,
+          para confirmar a consulta. Nenhum outro dado de saúde é partilhado.
+        </p>
+      )}
+    </>
+  )
+}
+
 interface WizardProps {
   members: FamilyMember[]
   clinics: Clinic[]
@@ -298,35 +372,7 @@ function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) 
           {partner ? (
             <PartnerSchedule slots={clinicSlots} draft={draft} set={set} />
           ) : (
-            <>
-              <Input
-                label="Profissional (opcional)"
-                placeholder="Ex.: Dr.ª Ana Costa"
-                value={draft.professionalName}
-                onChange={(event) => set({ professionalName: event.target.value })}
-              />
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium">Dia</span>
-                <DateStrip
-                  days={nextDays(BOOKING_DAYS)}
-                  value={draft.date}
-                  onChange={(date) =>
-                    set({ date, time: draft.time && date && isPast(date, draft.time) ? null : draft.time })
-                  }
-                  label="Dia da consulta"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium">Hora</span>
-                <TimeSlots
-                  times={APPOINTMENT_TIMES}
-                  value={draft.time}
-                  onChange={(time) => set({ time })}
-                  label="Hora da consulta"
-                  disabled={(time) => isPast(draft.date, time)}
-                />
-              </div>
-            </>
+            <DirectSchedule draft={draft} set={set} />
           )}
           <Textarea
             label="Observações (opcional)"
@@ -338,23 +384,15 @@ function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) 
       )}
 
       {step === 4 && when && (
-        <>
-          <InfoList>
-            <InfoRow label="Para" value={memberName} />
-            <InfoRow label="Especialidade" value={slot?.specialty ?? draft.specialty} />
-            <InfoRow label="Clínica" value={clinic?.name ?? 'Sem clínica'} />
-            {professional && <InfoRow label="Profissional" value={professional} />}
-            <InfoRow label="Data" value={formatLongDate(when)} />
-            <InfoRow label="Hora" value={formatTime(when)} />
-            {draft.notes.trim() && <InfoRow label="Observações" value={draft.notes} />}
-          </InfoList>
-          {partner && (
-            <p className="text-sm text-muted">
-              A {clinic?.name} recebe o nome de {memberName}, a especialidade, o profissional, a data e hora e as
-              observações, para confirmar a consulta. Nenhum outro dado de saúde é partilhado.
-            </p>
-          )}
-        </>
+        <BookingSummary
+          memberName={memberName}
+          specialty={slot?.specialty ?? draft.specialty}
+          clinicName={clinic?.name}
+          partner={partner}
+          professional={professional}
+          when={when}
+          notes={draft.notes}
+        />
       )}
 
       <FormError message={error} />

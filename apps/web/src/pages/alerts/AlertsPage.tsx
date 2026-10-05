@@ -126,13 +126,13 @@ export function AlertsPage() {
               title={`Por ler (${unread.length})`}
               action={
                 filter === 'ALL' && (
-                <button
-                  type="button"
-                  onClick={() => run(alertService.markAllAlertsRead(familyId, userId))}
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Marcar todos como lidos
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => run(alertService.markAllAlertsRead(familyId, userId))}
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    Marcar todos como lidos
+                  </button>
                 )
               }
             >
