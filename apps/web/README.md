@@ -56,7 +56,30 @@ npm run preview      # serve dist/ em http://localhost:4173, como em produção
 
 Use o preview para testar a PWA: instalação, offline e atualização do service worker.
 
-### Docker (só o frontend)
+### Produção (Dokploy)
+
+O frontend é publicado em **https://vitafamily.cassfrei.com** pelo Dokploy na VPS (ADR-014). O Traefik do Dokploy trata
+do domínio, do certificado TLS e das portas; o repositório não publica nenhuma porta no host.
+
+No Dokploy, criar um serviço **Compose** a partir deste repositório:
+
+| Campo | Valor |
+| --- | --- |
+| Compose path | `deploy/docker-compose.web.prod.yml` |
+| Domínio | `vitafamily.cassfrei.com`, serviço `web`, caminho `/` |
+| Porta do contentor | `8080` |
+| HTTPS | ativo, certificado Let's Encrypt |
+
+Em alternativa, um serviço **Application** com build por Dockerfile (`apps/web/Dockerfile`, contexto `apps/web`) e o
+mesmo domínio e porta.
+
+O build corre os testes e o typecheck: se falharem, o deploy não avança. O nginx envia HSTS e os restantes cabeçalhos de
+segurança (`security-headers.conf`). Quando a API existir, terá o seu próprio serviço no mesmo domínio, no caminho
+`/api`.
+
+A PWA publicada usa ainda os dados de demonstração (sem backend).
+
+### Docker local (só o frontend)
 
 Na raiz do repositório:
 

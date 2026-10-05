@@ -1,5 +1,5 @@
 # Só o frontend (PWA com dados mock); não precisa dos serviços do backend nem de .env.
-# Uso: make web-up  →  http://localhost:8088
+# Uso local: make web-up  →  http://localhost:8088. Produção (Dokploy): docker-compose.web.prod.yml.
 name: vitafamily-web
 
 services:

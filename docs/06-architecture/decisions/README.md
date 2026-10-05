@@ -15,3 +15,4 @@
 
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).
 - ADR-013 — Monorepo e módulos em camadas (pedido do proprietário)
+- ADR-014 — Deploy com Dokploy: proxy (Traefik), domínio e TLS (decisão do proprietário; substitui o Caddy de ADR-012)

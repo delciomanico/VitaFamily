@@ -27,6 +27,8 @@ release (tag) → aprovação manual → deploy em produção
 Disponibilidade-alvo 99,5 %/mês permite janelas curtas de manutenção; deploys normais não devem exigir indisponibilidade (API stateless; worker reinicia sem perder trabalho porque o estado está na BD).
 
 ## 4. TLS e rede
+> **ADR-014:** o deploy é feito com **Dokploy**; o proxy é o Traefik do Dokploy, que trata do domínio `vitafamily.cassfrei.com`, dos certificados e das portas. Frontend: `deploy/docker-compose.web.prod.yml` (ver `apps/web/README.md`).
+
 Proxy reverso termina TLS (certificados automáticos), HSTS, redirecionamento HTTP→HTTPS, limite de corpo (≤ 11 MB no caminho de upload; 1 MB nos restantes). Postgres, Redis, storage e ClamAV em rede interna sem portas públicas.
 
 ## 5. Backups e restauro (N10)

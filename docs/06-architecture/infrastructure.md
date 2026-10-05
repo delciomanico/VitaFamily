@@ -14,7 +14,7 @@
 | `redis` | Redis 7 | BullMQ, rate limit | persistência AOF opcional; perda tolerável |
 | `object-storage` | MinIO (dev) / S3-compatível na UE (prod) | Documentos e exportações | persistente, versionado, SSE |
 | `clamav` | clamd | Antivírus | atualização diária de assinaturas |
-| `proxy` | Caddy/Nginx/Traefik | TLS, compressão, limites de corpo | |
+| `proxy` | Traefik do Dokploy (ADR-014) | TLS, domínio, encaminhamento `/` → web e `/api` → api | |
 | `mail` | MailHog (dev) / SMTP UE (prod) | E-mail | |
 
 ## 2. Requisitos de localização e segurança (N5, NFR-PRV-02)

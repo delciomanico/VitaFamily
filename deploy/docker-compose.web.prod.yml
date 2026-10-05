@@ -1,0 +1,15 @@
+# Frontend em produção no Dokploy (ADR-014): https://vitafamily.cassfrei.com
+# Sem portas publicadas: no Dokploy, configurar o domínio vitafamily.cassfrei.com, caminho /, porta do
+# contentor 8080 e HTTPS (Let's Encrypt). O Traefik do Dokploy trata do TLS e do encaminhamento.
+name: vitafamily-web
+
+services:
+  web:
+    build:
+      context: ../apps/web
+    expose: ["8080"]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
