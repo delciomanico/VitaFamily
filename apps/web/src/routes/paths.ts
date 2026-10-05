@@ -38,6 +38,15 @@ export const paths = {
   preventiveReport: '/app/reports/preventive',
   preventiveReportOf: (memberId: string) => `/app/reports/preventive?membro=${memberId}`,
   settings: '/app/settings',
+  settingsAccount: '/app/settings/account',
+  settingsSecurity: '/app/settings/security',
+  settingsFamily: '/app/settings/family',
+  settingsSharing: '/app/settings/sharing',
+  settingsNotifications: '/app/settings/notifications',
+  settingsPrivacy: '/app/settings/privacy',
+  settingsHelp: '/app/settings/help',
+  settingsTerms: '/app/settings/terms',
+  settingsPrivacyPolicy: '/app/settings/privacy-policy',
 
   // Portal da clínica parceira (D17).
   clinic: '/clinic',

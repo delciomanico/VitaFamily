@@ -11,6 +11,8 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'VALIDATION_ERROR'
   | 'CONFLICT'
+  | 'ACCOUNT_DELETION_BLOCKED'
+  | 'RATE_LIMITED'
   | 'UNKNOWN'
 
 export class AppError extends Error {
@@ -35,6 +37,9 @@ const messages: Record<ErrorCode, string> = {
   NOT_FOUND: 'Não encontrámos o que procura.',
   VALIDATION_ERROR: 'Verifique os dados introduzidos.',
   CONFLICT: 'Os dados mudaram entretanto. Atualize e tente novamente.',
+  ACCOUNT_DELETION_BLOCKED:
+    'Ainda não pode eliminar a conta: é o único tutor de um dependente ou o único Admin de uma família com outros membros.',
+  RATE_LIMITED: 'Fez demasiados pedidos. Tente mais tarde.',
   UNKNOWN: 'Algo correu mal. Tente novamente.',
 }
 

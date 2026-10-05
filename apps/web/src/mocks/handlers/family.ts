@@ -116,6 +116,18 @@ export function addMember(familyId: string, actorUserId: string, input: NewMembe
   })
 }
 
+/** Alterar o nome da família (UC-FAM-03, só Admin). */
+export function updateFamily(familyId: string, actorUserId: string, name: string) {
+  return respond(() => {
+    requireAdmin(familyId, actorUserId)
+    const family = db.families.find((f) => f.id === familyId)
+    if (!family) throw new AppError('NOT_FOUND')
+    if (name.trim().length < 2) throw new AppError('VALIDATION_ERROR')
+    family.name = name.trim()
+    return family
+  })
+}
+
 export function removeMember(familyId: string, actorUserId: string, memberId: string) {
   return respond(() => {
     requireAdmin(familyId, actorUserId)

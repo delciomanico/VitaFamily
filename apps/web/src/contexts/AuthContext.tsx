@@ -34,6 +34,8 @@ interface AuthContextValue {
   createFamily: (name: string) => Promise<void>
   joinFamily: (code: string) => Promise<void>
   refreshMembership: () => Promise<void>
+  /** Atualiza a conta em sessão depois de a alterar (nome, fuso). */
+  setUser: (user: User) => void
   logout: () => void
 }
 
@@ -122,6 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (state.user) setMembership(await familyService.getMembership(state.user.id))
   }, [state.user])
 
+  const setUser = useCallback((user: User) => setState((s) => ({ ...s, user })), [])
+
   const logout = useCallback(() => {
     sessionStore.setUserId(null)
     setState({ status: 'ready', user: null, membership: null, clinic: null, pendingEmail: null })
@@ -142,9 +146,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       createFamily,
       joinFamily,
       refreshMembership,
+      setUser,
       logout,
     }),
-    [state, login, register, verify, resendCode, createFamily, joinFamily, refreshMembership, logout],
+    [state, login, register, verify, resendCode, createFamily, joinFamily, refreshMembership, setUser, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

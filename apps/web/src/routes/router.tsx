@@ -34,7 +34,14 @@ import { OnboardingPage } from '@/pages/public/OnboardingPage'
 import { RegisterPage } from '@/pages/public/RegisterPage'
 import { SplashPage } from '@/pages/public/SplashPage'
 import { VerifyPage } from '@/pages/public/VerifyPage'
+import { AccountSettingsPage } from '@/pages/settings/AccountSettingsPage'
+import { FamilySettingsPage } from '@/pages/settings/FamilySettingsPage'
+import { HelpPage, PrivacyPolicyPage, TermsPage } from '@/pages/settings/InfoSettingsPages'
+import { NotificationSettingsPage } from '@/pages/settings/NotificationSettingsPage'
+import { PrivacySettingsPage } from '@/pages/settings/PrivacySettingsPage'
+import { SecuritySettingsPage } from '@/pages/settings/SecuritySettingsPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
+import { SharingSettingsPage } from '@/pages/settings/SharingSettingsPage'
 import { SetupFamilyPage } from '@/pages/setup/SetupFamilyPage'
 import { SetupHealthPage } from '@/pages/setup/SetupHealthPage'
 import { SetupMembersPage } from '@/pages/setup/SetupMembersPage'
@@ -107,6 +114,15 @@ export const routes: RouteObject[] = [
               { path: 'reports/family', element: <FamilyReportPage /> },
               { path: 'reports/preventive', element: <PreventiveReportPage /> },
               { path: 'settings', element: <SettingsPage /> },
+              { path: 'settings/account', element: <AccountSettingsPage /> },
+              { path: 'settings/security', element: <SecuritySettingsPage /> },
+              { path: 'settings/family', element: <FamilySettingsPage /> },
+              { path: 'settings/sharing', element: <SharingSettingsPage /> },
+              { path: 'settings/notifications', element: <NotificationSettingsPage /> },
+              { path: 'settings/privacy', element: <PrivacySettingsPage /> },
+              { path: 'settings/help', element: <HelpPage /> },
+              { path: 'settings/terms', element: <TermsPage /> },
+              { path: 'settings/privacy-policy', element: <PrivacyPolicyPage /> },
             ],
           },
         ],

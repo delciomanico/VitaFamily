@@ -3,6 +3,7 @@ import type { Appointment } from '@/types/appointment'
 import type { Examination } from '@/types/examination'
 import type { FamilyMember } from '@/types/family'
 import type { DoseOccurrence, MedicationPlan } from '@/types/medication'
+import type { NotificationPreferences } from '@/types/settings'
 import type { MockGuardianship } from './data/families'
 
 /*
@@ -34,6 +35,23 @@ export interface AlertSources {
   appointments: Appointment[]
   examinations: Examination[]
   alerts: MockAlert[]
+  notificationPreferences: (NotificationPreferences & { userId: string })[]
+  /** Chaves de alertas não criados por o destinatário ter o tipo desativado (não voltam ao reativar). */
+  skippedAlertKeys: string[]
+}
+
+/** Tipos que o utilizador pode desativar (UC-ALR-05, Q3); os restantes chegam sempre. */
+const OPTIONAL_TYPES: Partial<Record<AlertType, keyof NotificationPreferences>> = {
+  MEDICATION_DUE: 'medicationDue',
+  APPOINTMENT_REMINDER: 'appointmentReminder',
+  EXAM_REMINDER: 'examReminder',
+}
+
+/** O destinatário desativou este tipo de alerta? (aplica-se a ele, não ao membro). */
+function optedOut(data: AlertSources, userId: string, type: AlertType): boolean {
+  const key = OPTIONAL_TYPES[type]
+  const preferences = data.notificationPreferences.find((p) => p.userId === userId)
+  return Boolean(key && preferences && !preferences[key])
 }
 
 /** Facto que pode gerar alertas: um por destinatário. */
@@ -138,13 +156,17 @@ export function dueEvents(data: AlertSources, now: Date): AlertEvent[] {
 
 /** Cria os alertas em falta: no máximo um por evento, regra e destinatário (BR-ALR-02). */
 export function raiseAlerts(data: AlertSources, events: AlertEvent[]): MockAlert[] {
-  const known = new Set(data.alerts.map((a) => a.dedupeKey))
+  const known = new Set([...data.alerts.map((a) => a.dedupeKey), ...data.skippedAlertKeys])
   const created: MockAlert[] = []
   for (const { occurrence, ...event } of events) {
     for (const recipientUserId of recipientsOf(data, event.memberId)) {
       const dedupeKey = `${event.ruleKey}:${event.sourceId}:${occurrence}:${recipientUserId}`
       if (known.has(dedupeKey)) continue
       known.add(dedupeKey)
+      if (optedOut(data, recipientUserId, event.type)) {
+        data.skippedAlertKeys.push(dedupeKey)
+        continue
+      }
       created.push({ ...event, id: `alr_${created.length + data.alerts.length + 1}`, recipientUserId, dedupeKey })
     }
   }

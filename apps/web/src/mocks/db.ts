@@ -5,7 +5,16 @@ import { families, guardianships, invitations, members, sharingGrants } from './
 import { allergies, conditions } from './data/health'
 import { seedDocuments, seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
 import { users } from './data/users'
+import type { DataExport, NotificationPreferences } from '@/types/settings'
 import { scanAlerts, type MockAlert } from './alertRules'
+
+export interface MockNotificationPreferences extends NotificationPreferences {
+  userId: string
+}
+
+export interface MockExport extends DataExport {
+  userId: string
+}
 
 /**
  * “Base de dados” em memória do backend simulado.
@@ -35,6 +44,10 @@ function seed(now: Date = new Date()) {
     examinations: seedExaminations(now),
     examResults: seedExamResults(now),
     alerts: [] as MockAlert[],
+    /** Só quem alterou as preferências; os restantes usam DEFAULT_NOTIFICATION_PREFERENCES. */
+    notificationPreferences: [] as MockNotificationPreferences[],
+    exports: [] as MockExport[],
+    skippedAlertKeys: [] as string[],
   }
   // Alertas já disparados pelas regras; os das tomas já tomadas ficam lidos (demo).
   for (const alert of scanAlerts(data, now)) {

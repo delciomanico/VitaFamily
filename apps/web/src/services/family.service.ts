@@ -12,6 +12,7 @@ export const familyService = {
   listManagedMembers: api.listManagedMembers,
   addMember: api.addMember,
   removeMember: api.removeMember,
+  updateFamily: api.updateFamily,
   getFamilyOverview: members.getFamilyOverview,
   getMemberProfile: members.getMemberProfile,
   getMemberHistory: members.getMemberHistory,
