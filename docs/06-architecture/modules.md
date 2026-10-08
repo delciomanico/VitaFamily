@@ -1,6 +1,6 @@
 # Vita Family — Módulos (Fase 11)
 
-> **ATUALIZAÇÃO 2026-10-04 (ADR-012, decisão do proprietário):** a implementação é em **Go** (pgx+sqlc+goose, river, chi+oapi-codegen), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente Go de ADR-012; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture: `domain/application/infrastructure/interface`), Kysely+`pg`+runner próprio de migrações, pg-boss, **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015; a arquitetura lógica (responsabilidades e dependências por módulo) mantém-se.
 
 > Estado: **v0.1**. Um módulo = uma responsabilidade coerente (não uma tabela). Dependências só "para baixo"; nenhum ciclo.
 
@@ -23,9 +23,9 @@ Dois pontos de entrada no mesmo binário: `vita api` e `vita worker` (ver `cmd/v
 | **common** | Infraestrutura técnica partilhada. Sem regras de negócio. | — | Clock, Id, ProblemException, Pagination, Config |
 | **audit** | Escrever e anonimizar logs de auditoria; purga a 24 meses. | common | `AuditService.record()` |
 | **users** | Conta, perfil, fuso, preferências de termos, eliminação. | common, audit | `UsersService` |
-| **auth** | Registo, login, sessões, tokens, recuperação, verificação, rate limiting de autenticação. | users, notifications (e-mail), audit | `AuthGuard`, `CurrentUser` |
+| **auth** | Registo, login, sessões, tokens, recuperação, verificação, rate limiting de autenticação. | users, notifications (e-mail), audit, **families** (só para consumir convite de conta de dependente no registo — UC-MEM-05/BR-MEM-12/13/17) | `AuthGuard`, `CurrentUser` |
 | **families** | Family, FamilyMember, Guardianship, Invitation e as suas invariantes. | users, audit, notifications | `MembershipService`, `GuardianshipService` |
-| **access** | **Única** fonte de autorização (`AccessPolicy`) e gestão de `SharingGrant`. | families | `AccessPolicy.can()`, `SharingService` |
+| **access** | **Única** fonte de autorização (`AccessPolicy`) e gestão de `SharingGrant`. | families, audit | `AccessPolicy.can()`, `SharingService` |
 | **health-records** | Allergy, MedicalCondition, tipo sanguíneo. | access, audit | — |
 | **prescriptions** | Prescription e orquestração com planos. | access, medications, documents, audit | — |
 | **medications** | MedicationPlan, geração de DoseOccurrence, ações sobre tomas, adesão. | access, audit | `DoseGenerator`, `AdherenceQuery` |
@@ -47,6 +47,8 @@ Dois pontos de entrada no mesmo binário: `vita api` e `vita worker` (ver `cmd/v
 4. `admin` **não importa** nenhum módulo de registos de saúde (garante D4 por construção, NFR-SEC-10).
 5. Só os repositórios de cada módulo acedem às suas tabelas.
 6. Ciclos proibidos (ex.: `medications` ↔ `prescriptions`: a orquestração fica em `prescriptions`, que chama `medications`).
+7. `auth` → `families` é intencional e **unidirecional** (`families` nunca importa `auth`): o registo de conta de dependente (UC-MEM-05) só valida/consome o convite através da API pública de `families`, na mesma transação da criação do `User`. Descoberto durante a implementação de M2; documentado aqui em vez de alterado silenciosamente (CLAUDE.md, change control).
+8. `access` → `audit`: a linha original desta tabela só listava `families`, mas `audit.md` §3 já previa a ação `SHARING_UPDATE` (partilha) — sem `audit` como dependência declarada, `access` não teria forma de a registar na mesma transação (conventions.md §2, mesmo critério de `users`/`families`/todos os módulos que escrevem dados sensíveis). Descoberto durante a implementação de M3; acrescentado aqui em vez de alterado silenciosamente (CLAUDE.md, change control) — mesmo critério da nota 7.
 
 ## 4. Processos (API vs worker)
 

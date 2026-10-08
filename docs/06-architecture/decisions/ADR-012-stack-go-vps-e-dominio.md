@@ -1,6 +1,6 @@
 # ADR-012 — Stack em Go, alojamento em VPS própria e domínio
 
-**Estado:** Aceite — decisão **do proprietário** (2026-10-04). Substitui ADR-003 e parte de ADR-002 e ADR-004.
+**Estado:** **Substituída por ADR-014** (2026-10-08) na linguagem/runtime, acesso a dados, filas e testes — decisão revertida pelo proprietário. As linhas de alojamento (VPS, Caddy), domínio e armazenamento (MinIO/antivírus) mantêm-se válidas e são reafirmadas em ADR-014; não eram específicas de Go.
 
 ## Contexto
 O proprietário decidiu implementar em **Go**, com estrutura simples e reutilizável, alojar na **sua VPS**, no domínio **vitafamily.cassfrei.com**; a entidade responsável pelo tratamento é **Cassfrei**. Quer minimizar consumo de recursos (tokens) e dividir o trabalho por agentes especializados.

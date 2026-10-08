@@ -1,6 +1,6 @@
 # Vita Family — Estratégia de testes (Fase 15)
 
-> **ATUALIZAÇÃO 2026-10-04 (ADR-012, decisão do proprietário):** a implementação é em **Go** (pgx+sqlc+goose, river, chi+oapi-codegen), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente Go de ADR-012; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), com **Vitest** (unitários/domínio), **testcontainers** (integração: PostgreSQL e MinIO reais) e **Supertest** (API), Kysely+`pg`, pg-boss, **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015; a estratégia mantém-se.
 
 > Estado: **v0.1 — adotada com a recomendação do assistente.** Requisitos: NFR-QA-01..04.
 
@@ -14,10 +14,10 @@
 
 | Nível | Âmbito | Ferramentas propostas | Execução |
 |---|---|---|---|
-| **Unitários** | Regras de domínio puras: idade/maioridade, janela de tomas, geração de ocorrências (DST), transições de estado, regras de alerta, política de palavra-passe, validadores, `AccessPolicy` (sem BD) | Jest | cada commit (segundos) |
-| **Integração** | Módulo + PostgreSQL + Redis + MinIO reais: repositórios, constraints (FKs compostas, índices parciais), transações, filas, scanner, outbox de ficheiros, auditoria | Jest + Testcontainers | cada PR |
-| **API/contrato (E2E de API)** | Pedidos HTTP reais contra a aplicação completa (Supertest): fluxos, erros `problem+json`, conformidade com `openapi.yaml` | Jest + Supertest + validador OpenAPI | cada PR |
-| **E2E de cenário** | Jornadas completas multi-ator (família com tutor e dependente, ciclo de lembrete) com relógio controlado | Jest/Supertest com `Clock` injetável | cada PR (subconjunto) / noturno (completo) |
+| **Unitários** | Regras de domínio puras: idade/maioridade, janela de tomas, geração de ocorrências (DST), transições de estado, regras de alerta, política de palavra-passe, validadores, `AccessPolicy` (sem BD) | Vitest | cada commit (segundos) |
+| **Integração** | Módulo + PostgreSQL + MinIO reais: repositórios, constraints (FKs compostas, índices parciais), transações, filas (pg-boss), scanner, outbox de ficheiros, auditoria | Vitest + testcontainers | cada PR |
+| **API/contrato (E2E de API)** | Pedidos HTTP reais contra a aplicação completa (Supertest): fluxos, erros `problem+json`, conformidade com `openapi.yaml` | Vitest + Supertest + validador OpenAPI | cada PR |
+| **E2E de cenário** | Jornadas completas multi-ator (família com tutor e dependente, ciclo de lembrete) com relógio controlado | Vitest/Supertest com `Clock` injetável | cada PR (subconjunto) / noturno (completo) |
 | **Segurança** | IDOR/isolamento, matriz de permissões, enumeração, rate limit, upload malicioso, tokens, logs sem dados de saúde | Suites dedicadas + SAST/SCA | cada PR (críticos) / noturno |
 | **Carga** | Escala N9 (1 000 famílias / 5 000 users), scanner de alertas, picos de lembretes às horas redondas | k6 | antes da release (M10) |
 | **Recuperação** | Restauro de backup, apagamento definitivo | scripts + checklist | trimestral / pré-release |
@@ -49,7 +49,7 @@ Fábricas (*builders*) de cenários: `familia com Admin`, `familia com tutor+men
 | Contrato | OpenAPI do código = repositório |
 | Segurança | SCA sem vulnerabilidades altas/críticas conhecidas e sem *secrets* |
 | Arquitetura | testes de dependência entre módulos (`modules.md` §3) |
-| Migrações | BD das migrações = `schema.prisma` + SQL manual (sem *drift*) |
+| Migrações | BD das migrações = SQL aplicado pelo runner próprio (`db/migrations/*.sql`, sem *drift*) |
 | Release | + E2E de cenário completo + suite de segurança + checklist `10-operations` |
 
 ## 6. Responsabilidades

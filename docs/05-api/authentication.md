@@ -1,6 +1,6 @@
 # Vita Family — Autenticação (Fase 13/14)
 
-> **ATUALIZAÇÃO 2026-10-04 (ADR-012, decisão do proprietário):** a implementação é em **Go** (pgx+sqlc+goose, river, chi+oapi-codegen), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente Go de ADR-012; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture); JWT com **`jose`** e *hashing* de palavra-passe com **`argon2`** (mesmos parâmetros de ADR-007), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015; os parâmetros de segurança (TTLs, argon2id) não mudam.
 
 > Estado: **v0.1 — decisões adotadas com a recomendação do assistente.** Racional em ADR-007.
 
@@ -34,7 +34,7 @@
 | Uploads | 20 / hora por utilizador. |
 | Exportações | 3 / dia por utilizador. |
 
-Contadores em Redis; falha do Redis ⇒ falha **fechada** nos endpoints de autenticação (recusa) e aberta com limite local nos restantes `[PROPOSTO]`.
+Contadores em memória (processo único da API, ADR-014); falha/reinício ⇒ falha **fechada** nos endpoints de autenticação (recusa) e aberta com limite local nos restantes `[PROPOSTO]`.
 
 ## 4. O que a autenticação **não** inclui no MVP
 Autenticação multifator (MFA) · login social · SSO · passkeys. `[NEEDS DECISION futura]` — **recomendação:** MFA opcional por TOTP é a primeira evolução de segurança (dados de saúde); não entra no MVP por não estar no âmbito aprovado.

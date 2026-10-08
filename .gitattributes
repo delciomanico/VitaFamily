@@ -1,0 +1,21 @@
+# Normaliza finais de linha para LF independentemente do core.autocrlf do cliente
+# (evita falsos positivos do eslint/prettier/tsc em checkouts Windows).
+* text=auto eol=lf
+
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.cjs text eol=lf
+*.mjs text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+
+pnpm-lock.yaml -diff
+
+*.png binary
+*.jpg binary
+*.ico binary

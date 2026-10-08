@@ -1,6 +1,6 @@
 # Vita Family — Plano de implementação (Fase 16)
 
-> **ATUALIZAÇÃO 2026-10-04 (ADR-012, decisão do proprietário):** a implementação é em **Go** (pgx+sqlc+goose, river, chi+oapi-codegen), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente Go de ADR-012; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture: `domain/application/infrastructure/interface`), Kysely+`pg`, pg-boss, **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. M0 e M1, implementados anteriormente em Go (ADR-012), foram descartados e são reescritos em Node.js/TypeScript seguindo o mesmo plano de milestones abaixo. Onde este documento diz NestJS, Prisma, Redis, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015.
 
 > Estado: **v0.1 — a pasta `11-implementation/` é uma adição à estrutura do prompt** (o prompt previa a Fase 16 mas não um local para o plano). Sem datas: capacidade e prazos são **TBD** (proprietário).
 > **A Fase 17 (código) só começa com a tua aprovação explícita.**
@@ -23,13 +23,13 @@
 - Revisão e demonstração ao proprietário.
 
 ## 3. Estrutura do repositório
-Monorepo `apps/api` (Go) · `apps/web` (futuro) · `deploy/` · `docs/` · `Makefile` — detalhe e camadas em `docs/06-architecture/decisions/ADR-013-monorepo-e-modulos-em-camadas.md` e `conventions.md` §1.
+Monorepo `apps/api` (Node.js/TypeScript) · `apps/web` (futuro) · `deploy/` · `docs/` · `Makefile` — detalhe e camadas em `docs/06-architecture/decisions/ADR-015-monorepo-clean-architecture-por-modulo.md` e `conventions.md` §1.
 
 ## 4. Milestones
 
 | M | Nome | Conteúdo | Requisitos principais | Depende de |
 |---|---|---|---|---|
-| **M0** | **Fundações** | Repositório Go, Docker Compose (pg/minio/clamav/mailhog, sem Redis), CI com gates, `common` (config, Clock, erros problem+json, validação, paginação, logging com redação), health, teste de arquitetura, pipeline de contrato OpenAPI | NFR-OPS, NFR-QA, NFR-API | — |
+| **M0** | **Fundações** | Repositório Node.js/TypeScript (pnpm workspaces), Docker Compose (pg/minio/clamav/mailhog, sem Redis), CI com gates, `platform` (config, Clock, erros problem+json, validação, paginação, logging com redação), health, teste de arquitetura (Clean Architecture), pipeline de contrato OpenAPI | NFR-OPS, NFR-QA, NFR-API | — |
 | **M1** | **Auditoria + Identidade** | `audit`, `users`, `auth` (registo, verificação, login, refresh rotativo, recuperação, mudança de palavra-passe, termos B6, rate limiting, suspensão), e-mail (mailer) | FR-AUTH, BR-ACC, FR-AUD | M0 |
 | **M2** | **Famílias e membros** | `families`: família, membros, dependentes, tutela, convites, limites; papéis | FR-FAM, FR-MEM, BR-FAM/MEM | M1 |
 | **M3** | **Acesso e partilha** | `access`: `AccessPolicy` + matriz, partilha por categoria, testes gerados, "partilhado comigo"; guard de verificação; isolamento por FKs compostas | FR-PRIV, BR-PRV, NFR-SEC-04 | M2 |
@@ -74,6 +74,6 @@ Monorepo `apps/api` (Go) · `apps/web` (futuro) · `deploy/` · `docs/` · `Make
 | Conformidade legal | AIPD, textos legais e eventual DPO **antes** do lançamento (M10). |
 
 ## 7. O que preciso de ti para arrancar a Fase 17
-1. **Aprovação** para iniciar a implementação (M0).
+1. **Aprovação** para iniciar a implementação (M0) — dada; stack confirmada em ADR-014/ADR-015 (Node.js/TypeScript + pnpm, Clean Architecture).
 2. **Decisões operacionais** (não alteram a especificação): fornecedor de alojamento UE; fornecedor SMTP UE; nome/domínio da API; entidade legal responsável pelo tratamento.
-3. Confirmar o **nome do repositório/projeto** e o gestor de pacotes (propostos: Node LTS + pnpm).
+3. ~~Confirmar o nome do repositório/projeto e o gestor de pacotes~~ — confirmado: Node LTS + pnpm (ADR-014).

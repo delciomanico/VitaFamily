@@ -1,0 +1,9 @@
+{
+  "name": "vitafamily",
+  "private": true,
+  "description": "Vita Family — monorepo (apps/api, apps/web).",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.18.0"
+}

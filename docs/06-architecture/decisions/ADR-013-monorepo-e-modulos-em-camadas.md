@@ -1,6 +1,6 @@
 # ADR-013 — Monorepo e módulos em camadas
 
-**Estado:** Aceite — pedido do proprietário (2026-10-04). Complementa ADR-002 e ADR-012.
+**Estado:** **Substituída por ADR-015** (2026-10-08): a estrutura de pastas é específica de Go (`internal/`, `cmd/vita`, camadas `domain/service/repo/handler`); ADR-015 define o equivalente em Node.js/TypeScript com Clean Architecture (`domain/application/infrastructure/interface`). O princípio de módulo único com fronteiras verificadas por teste de arquitetura mantém-se.
 
 ## Contexto
 O repositório é um monorepo (API agora; PWA, infraestrutura e documentação no mesmo repositório). A API deve ser modular **e** em camadas, sem fugas de fronteiras.

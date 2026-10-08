@@ -1,6 +1,6 @@
 # Vita Family — Migrações (Fase 12)
 
-> **ATUALIZAÇÃO 2026-10-04 (ADR-012, decisão do proprietário):** a implementação é em **Go** (pgx+sqlc+goose, river, chi+oapi-codegen), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente Go de ADR-012; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), com Kysely+`pg` e um **runner de migrações próprio** (SQL simples e numerado, tabela de controlo + transação — sem Prisma), pg-boss, **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz Prisma, `prisma migrate deploy`, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015: o runner próprio aplica as migrações SQL antes de arrancar a nova versão.
 
 > Estado: **v0.1**.
 

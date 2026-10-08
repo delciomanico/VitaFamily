@@ -11,6 +11,14 @@ dist/
 *.test
 *.out
 coverage.*
+coverage/
+
+# Gerado a partir de docs/05-api/openapi.yaml (pnpm gen) — nunca editar à mão.
+apps/api/src/generated/
+
+# Node
+node_modules/
+.pnpm-store/
 
 # Editor / SO
 .idea/

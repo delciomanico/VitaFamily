@@ -1,9 +1,9 @@
 # Vita Family — Documentação (fonte única da verdade)
 
-> Estado em 2026-10-04: **Fases 1–16 concluídas (rascunho aprovado por delegação)**. **Fase 17 (implementação) iniciada por decisão do proprietário (ADR-012: Go).**
+> Estado em 2026-10-08: **Fases 1–16 concluídas (rascunho aprovado por delegação)**. **Fase 17 (implementação) em curso por decisão do proprietário (ADR-014/ADR-015: Node.js/TypeScript, Clean Architecture; ADR-012 substituída na linguagem/dados/filas).**
 > Regra: se o código e a documentação divergirem ⇒ parar, decidir, atualizar a documentação, corrigir o código. Alterações por change control.
 
-> **Stack e alojamento (ADR-012, decisão do proprietário):** Go, sem Redis, VPS própria, `https://vitafamily.cassfrei.com` (PWA na raiz, API em `/api/v1`), responsável pelo tratamento: **Cassfrei**. Convenções de código em `11-implementation/conventions.md`; agentes em `.claude/agents/`.
+> **Stack e alojamento (ADR-014/ADR-015, decisão do proprietário):** Node.js 24 LTS + TypeScript (Clean Architecture por módulo), sem Redis (pg-boss sobre PostgreSQL), VPS própria, `https://vitafamily.cassfrei.com` (PWA na raiz, API em `/api/v1`), responsável pelo tratamento: **Cassfrei**. Convenções de código em `11-implementation/conventions.md`; agentes em `.claude/agents/`.
 
 ## Índice
 | Pasta | Conteúdo |
@@ -14,7 +14,7 @@
 | `03-use-cases/` | Casos de uso por área; decisões Q1–Q11 em `alerts.md` |
 | `04-domain/` | `domain-model.md` (DM1–DM8), `entities.md`, `relationships.md`, `state-machines.md` (ST1–ST6) |
 | `05-api/` | `api-overview.md`, `authentication.md`, `endpoints.md`, `errors.md`, `openapi.yaml` (115 operações, validado) |
-| `06-architecture/` | `architecture.md`, `modules.md`, `infrastructure.md`, `decisions/` (ADR-001..013) |
+| `06-architecture/` | `architecture.md`, `modules.md`, `infrastructure.md`, `decisions/` (ADR-001..015) |
 | `07-database/` | `schema.md`, `indexes.md`, `migrations.md` |
 | `08-security/` | `security.md`, `authorization.md`, `privacy.md`, `audit.md` |
 | `09-testing/` | `strategy.md`, `test-cases.md`, `acceptance-criteria.md` |

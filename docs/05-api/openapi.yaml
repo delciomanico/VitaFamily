@@ -4554,7 +4554,7 @@ paths:
     get:
       tags: [Operations]
       operationId: healthReady
-      summary: "Readiness (BD, Redis, armazenamento)."
+      summary: "Readiness (BD, armazenamento)."
       description: "Autorização: PUBLIC."
       security: []
       responses:

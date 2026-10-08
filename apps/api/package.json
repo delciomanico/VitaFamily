@@ -1,0 +1,55 @@
+{
+  "name": "@vitafamily/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vita Family — backend (ADR-014/ADR-015: Node.js/TypeScript, Clean Architecture).",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "gen": "openapi-typescript ../../docs/05-api/openapi.yaml -o src/generated/openapi.d.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "fmt": "prettier --write .",
+    "build": "tsc -p tsconfig.build.json",
+    "migrate": "tsx src/main/migrate.ts",
+    "dev": "tsx watch src/main/api.ts",
+    "start:api": "tsx src/main/api.ts",
+    "start:worker": "tsx src/main/worker.ts",
+    "create-platform-admin": "tsx src/main/create-platform-admin.ts"
+  },
+  "dependencies": {
+    "argon2": "^0.41.1",
+    "express": "^4.21.2",
+    "express-openapi-validator": "^5.3.9",
+    "jose": "^5.9.6",
+    "kysely": "^0.27.4",
+    "nodemailer": "^6.9.16",
+    "pg": "^8.13.1",
+    "pg-boss": "^10.1.5",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.1",
+    "@types/nodemailer": "^6.4.17",
+    "@types/pg": "^8.11.10",
+    "@types/supertest": "^6.0.2",
+    "@eslint/js": "^9.15.0",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "openapi-typescript": "^7.4.4",
+    "prettier": "^3.3.3",
+    "supertest": "^7.0.0",
+    "testcontainers": "^10.16.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.15.0",
+    "vitest": "^2.1.5"
+  }
+}

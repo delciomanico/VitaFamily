@@ -11,7 +11,10 @@
 - ADR-009 — Pipeline de alertas por scanner idempotente
 - ADR-010 — Datas em UTC, fuso por utilizador, relógio injetável
 - ADR-011 — Hard delete com outbox de ficheiros e anonimização da auditoria
-- ADR-012 — Stack em Go, alojamento em VPS própria e domínio (decisão do proprietário; substitui ADR-003 e parte de ADR-002/004)
+- ADR-012 — Stack em Go, alojamento em VPS própria e domínio (substituída por ADR-014 na linguagem/dados/filas; alojamento/domínio/storage mantêm-se)
+- ADR-013 — Monorepo e módulos em camadas (substituída por ADR-015)
+- ADR-014 — Stack em Node.js/TypeScript com Clean Architecture (decisão do proprietário; substitui ADR-012 e ADR-003; restaura o monólito modular de ADR-002 sem NestJS)
+- ADR-015 — Monorepo e módulos em Clean Architecture por módulo (substitui ADR-013)
+- ADR-016 — Limites práticos da Clean Architecture por módulo: quando criar porta, quando não (esclarece ADR-014/ADR-015, não as substitui)
 
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).
-- ADR-013 — Monorepo e módulos em camadas (pedido do proprietário)

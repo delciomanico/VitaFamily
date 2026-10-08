@@ -1,6 +1,6 @@
 # Vita Family — Segurança (Fase 14)
 
-> **ATUALIZAÇÃO 2026-10-04 (ADR-012, decisão do proprietário):** a implementação é em **Go** (pgx+sqlc+goose, river, chi+oapi-codegen), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente Go de ADR-012; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), Kysely+`pg`, pg-boss, **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015.
 
 > Estado: **v0.1 — decisões adotadas com a recomendação do assistente.** Autenticação em `05-api/authentication.md`; autorização em `authorization.md`; privacidade em `privacy.md`; auditoria em `audit.md`.
 > Princípio: a segurança existe **no backend**; nunca assumir que "se o frontend não mostra, o utilizador não acede" (prompt §16).
@@ -37,7 +37,7 @@
 | **Dependências** | `npm audit`/SCA em CI; atualizações regulares; imagens base mínimas e fixadas por *digest*. |
 | **Logs** | Sem palavras-passe, tokens, texto livre de saúde nem corpos de pedidos; redação automática de campos sensíveis. |
 | **Validação** | Todas as entradas validadas no backend (NFR-API-04): tipos, tamanhos, enums, datas plausíveis (nascimento ≤ hoje e ≥ 120 anos). |
-| **SQL injection / XSS** | Consultas parametrizadas (Prisma; SQL manual só com parâmetros); a API não renderiza HTML; texto livre é dado, escapado pelo cliente. |
+| **SQL injection / XSS** | Consultas parametrizadas (Kysely/`pg`; SQL manual só com parâmetros); a API não renderiza HTML; texto livre é dado, escapado pelo cliente. |
 | **SSRF** | O backend não faz pedidos a URLs fornecidas por utilizadores (Web Push endpoints validados contra lista de domínios dos serviços push conhecidos). |
 | **Enumeração** | Respostas neutras em registo/recuperação/reenvio; 404 para recursos de outras famílias. |
 | **Enforcement por estado** | Conta suspensa e termos por aceitar verificados em todos os pedidos. |

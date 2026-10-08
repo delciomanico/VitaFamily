@@ -1,6 +1,6 @@
 # Vita Family — Monitorização (Fase 16)
 
-> **ATUALIZAÇÃO 2026-10-04 (ADR-012, decisão do proprietário):** a implementação é em **Go** (pgx+sqlc+goose, river, chi+oapi-codegen), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente Go de ADR-012; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), Kysely+`pg`, pg-boss (fila sobre PostgreSQL), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015.
 
 > Estado: **v0.1**. Requisitos: NFR-OPS-01..03, NFR-AVL-01 (99,5 %).
 
@@ -18,7 +18,7 @@
 | **Lembretes (negócio)** | **atraso entre `trigger_at` e envio** (p95 ≤ 60 s), notificações `FAILED`/`SKIPPED`, taxa de entrega por canal |
 | Tomas | ocorrências geradas vs. esperadas por dia (deteção de job de geração parado) |
 | Documentos | uploads, `INFECTED`, tempo de verificação, fila de antivírus, `file_deletions` pendentes |
-| Infraestrutura | CPU, memória, disco, conexões PG, memória Redis, espaço de objetos, expiração de certificados |
+| Infraestrutura | CPU, memória, disco, conexões PG, espaço de objetos, expiração de certificados |
 | Backups | idade do último backup bem-sucedido; último restauro ensaiado |
 
 ## 3. Alertas operacionais
@@ -44,5 +44,5 @@
 Ferramenta de captura de exceções (autohospedada ou na UE) **com redação de dados** e sem corpos de pedido; desativada se não garantir a ausência de dados de saúde.
 
 ## 6. Procedimentos
-- **Runbooks** curtos: fila parada, ClamAV em baixo, Redis perdido (reconstruir filas a partir da BD), falha de SMTP/Push, restauro de backup, rotação de segredos, violação de dados (`security.md` §4).
+- **Runbooks** curtos: fila parada (reiniciar `worker`/pg-boss; jobs idempotentes repõem-se a partir da BD), ClamAV em baixo, falha de SMTP/Push, restauro de backup, rotação de segredos, violação de dados (`security.md` §4).
 - **Pós-incidente:** análise sem culpa, registo e, se alterar decisões, novo ADR.
