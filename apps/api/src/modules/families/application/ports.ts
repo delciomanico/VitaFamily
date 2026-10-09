@@ -6,7 +6,7 @@ import type { Clock } from "../../../platform/clock/index.js";
 import type { Family } from "../domain/family.js";
 import type { Guardianship } from "../domain/guardianship.js";
 import type { Invitation, InvitationStatus, InvitationType } from "../domain/invitation.js";
-import type { FamilyMember, FamilyRole } from "../domain/member.js";
+import type { BloodType, FamilyMember, FamilyRole } from "../domain/member.js";
 import type { InMemoryRateLimiter } from "../domain/rate-limiter.js";
 
 export interface NewFamilyRecord {
@@ -81,6 +81,10 @@ export interface MembersRepository<Trx> {
   countActiveAdmins(trx: Trx, familyId: string): Promise<number>;
   update(trx: Trx, familyId: string, memberId: string, changes: MemberChanges): Promise<FamilyMember>;
   delete(trx: Trx, familyId: string, memberId: string): Promise<void>;
+  /** FR-HP-01 (modules.md §3 nota 9): `health-records` consome estas duas pela raiz; a autorização
+   * (categoria ALLERGIES) já foi decidida por `access.policy.can()` antes de chegar aqui. */
+  getBloodType(trx: Trx, familyId: string, memberId: string): Promise<BloodType | null>;
+  setBloodType(trx: Trx, familyId: string, memberId: string, bloodType: BloodType): Promise<BloodType>;
 }
 
 /** `guardianships` (schema.md §2: FK composta + único parcial `is_primary`). */

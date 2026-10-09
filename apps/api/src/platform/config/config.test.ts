@@ -33,6 +33,7 @@ describe("loadConfig", () => {
     expect(config.PORT).toBe(8080);
     expect(config.LOG_LEVEL).toBe("info");
     expect(config.S3_REGION).toBe("eu-west-1");
+    expect(config.S3_USE_SSL).toBe(false);
     expect(config.UPLOAD_MAX_BYTES).toBe(10_485_760);
     expect(config.FAMILY_STORAGE_QUOTA_BYTES).toBe(104_857_600);
     expect(config.METRICS_ENABLED).toBe(false);

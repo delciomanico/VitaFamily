@@ -16,7 +16,7 @@ import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { UsersModule } from "../users/index.js";
-import type { FamilyMember } from "./domain/member.js";
+import type { BloodType, FamilyMember } from "./domain/member.js";
 import { createAcceptInvitationUseCase } from "./application/accept-invitation.js";
 import { createAddGuardianUseCase } from "./application/add-guardian.js";
 import { createCreateDependentAccountInvitationUseCase } from "./application/create-dependent-account-invitation.js";
@@ -62,7 +62,7 @@ import { createFamiliesRouter, type FamiliesController } from "./interface/route
 export type { Family } from "./domain/family.js";
 export type { Guardianship } from "./domain/guardianship.js";
 export type { Invitation, InvitationStatus, InvitationType } from "./domain/invitation.js";
-export type { FamilyMember, FamilyRole, MemberStatus } from "./domain/member.js";
+export type { BloodType, FamilyMember, FamilyRole, MemberStatus } from "./domain/member.js";
 export type { Mailer, SentEmail } from "./application/ports.js";
 export type { ResolvedDependentAccountInvitation } from "./application/resolve-dependent-account-invitation.js";
 export type { FinalizeDependentAccountInvitationInput } from "./application/finalize-dependent-account-invitation.js";
@@ -99,6 +99,11 @@ export interface FamiliesModule {
   findMemberByUserId: (trx: Kysely<Database>, familyId: string, userId: string) => Promise<FamilyMember | null>;
   findMemberById: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<FamilyMember | null>;
   isGuardianOf: (trx: Kysely<Database>, familyId: string, dependentId: string, guardianId: string) => Promise<boolean>;
+  // Operações cruas para o módulo `health-records` consumir pela raiz (modules.md §3 nota 9,
+  // M4): `blood_type` vive em `family_members`, mas a decisão de autorização (categoria
+  // ALLERGIES) é de `access.policy.can()`, não desta função — aqui só se lê/escreve a coluna.
+  getBloodType: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<BloodType | null>;
+  setBloodType: (trx: Kysely<Database>, familyId: string, memberId: string, bloodType: BloodType) => Promise<BloodType>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -164,5 +169,7 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
     findMemberById: (trx, familyId, memberId) => membersRepo.findById(trx, familyId, memberId),
     isGuardianOf: async (trx, familyId, dependentId, guardianId) =>
       (await guardianshipsRepo.find(trx, familyId, dependentId, guardianId)) !== null,
+    getBloodType: (trx, familyId, memberId) => membersRepo.getBloodType(trx, familyId, memberId),
+    setBloodType: (trx, familyId, memberId, bloodType) => membersRepo.setBloodType(trx, familyId, memberId, bloodType),
   };
 }

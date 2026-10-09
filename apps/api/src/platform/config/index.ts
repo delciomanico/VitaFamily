@@ -16,8 +16,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL é obrigatória"),
   DATABASE_MAINTENANCE_URL: z.string().optional(),
 
-  // Armazenamento (MinIO/S3)
+  // Armazenamento (MinIO/S3) — `S3_USE_SSL` já existia em `deploy/.env.example` mas faltava aqui
+  // (M5/`platform/storage`: `MinioStorage` precisa de o saber para montar o cliente do SDK).
   S3_ENDPOINT: z.string().min(1, "S3_ENDPOINT é obrigatória"),
+  S3_USE_SSL: z.coerce.boolean().default(false),
   S3_REGION: z.string().default("eu-west-1"),
   S3_BUCKET_DOCUMENTS: z.string().default("vita-documents"),
   S3_BUCKET_EXPORTS: z.string().default("vita-exports"),

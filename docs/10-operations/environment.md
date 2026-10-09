@@ -21,7 +21,7 @@ Regra: **dados reais só em produção** (NFR-OPS-04). Ferramentas de suporte/de
 |---|---|
 | Aplicação | `NODE_ENV`, `PORT`, `APP_BASE_URL`, `PWA_ORIGIN` (CORS), `LOG_LEVEL`, `TERMS_VERSION` |
 | Base de dados | `DATABASE_URL` (papel da app), `DATABASE_MAINTENANCE_URL` (papel de manutenção: anonimização/purga de auditoria) |
-| Armazenamento | `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET_DOCUMENTS`, `S3_BUCKET_EXPORTS`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` |
+| Armazenamento | `S3_ENDPOINT`, `S3_USE_SSL` (M5: já existia em `deploy/.env.example`, em falta aqui), `S3_REGION`, `S3_BUCKET_DOCUMENTS`, `S3_BUCKET_EXPORTS`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` |
 | Antivírus | `CLAMAV_HOST`, `CLAMAV_PORT` |
 | Autenticação | `JWT_SIGNING_KEYS` (lista com `kid`), `JWT_ACCESS_TTL=15m`, `REFRESH_TTL=30d`, `COOKIE_DOMAIN` |
 | E-mail | `SMTP_URL`, `MAIL_FROM` |

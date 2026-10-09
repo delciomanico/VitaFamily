@@ -40,7 +40,10 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   families: ["users", "audit", "notifications"],
   // access -> audit é intencional (modules.md §3.8): regista SHARING_UPDATE na mesma transação.
   access: ["families", "audit"],
-  "health-records": ["access", "audit"],
+  // health-records -> families (modules.md §3 nota 9): blood_type vive em family_members
+  // (schema.md §2); health-records só pode lê-lo/escrevê-lo pela API pública de families
+  // (getBloodType/setBloodType), nunca pela tabela diretamente (conventions.md §3.5).
+  "health-records": ["access", "audit", "families"],
   prescriptions: ["access", "medications", "documents", "audit"],
   medications: ["access", "audit"],
   appointments: ["access", "clinics", "audit"],

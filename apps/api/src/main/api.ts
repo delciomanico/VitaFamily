@@ -4,10 +4,12 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Router } from "express";
+import PgBoss from "pg-boss";
 import { loadConfig } from "../platform/config/index.js";
 import { createLogger } from "../platform/logger/index.js";
 import { createDb, createPool, checkConnection } from "../platform/db/index.js";
 import { SystemClock } from "../platform/clock/index.js";
+import { MinioStorage } from "../platform/storage/index.js";
 import { createApp } from "../platform/http/index.js";
 import { asyncHandler } from "../platform/http/async-handler.js";
 import { ServiceUnavailableError } from "../platform/errors/index.js";
@@ -16,6 +18,8 @@ import { createUsersModule } from "../modules/users/index.js";
 import { createAuthModule, parseSigningKeys, SmtpMailer } from "../modules/auth/index.js";
 import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modules/families/index.js";
 import { createAccessModule } from "../modules/access/index.js";
+import { createHealthRecordsModule } from "../modules/health-records/index.js";
+import { ClamAvScanner, createDocumentsModule } from "../modules/documents/index.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
@@ -71,6 +75,39 @@ export function main(): void {
     currentTermsVersion: config.TERMS_VERSION,
   });
   const access = createAccessModule({ db, audit, families, clock });
+  const healthRecords = createHealthRecordsModule({ db, audit, access, families, clock });
+
+  // `documents` (M5): `boss` aqui só envia (`enqueueScan`); quem consome (`documents.scan`) é o
+  // processo "worker" (main/worker.ts, modules.md §4) — não bloqueia o arranque do servidor HTTP.
+  const boss = new PgBoss(config.DATABASE_URL);
+  boss.on("error", (err: Error) => {
+    logger.error({ err }, "pg_boss_error");
+  });
+  boss.start().catch((err: unknown) => {
+    logger.error({ err }, "pg_boss_start_failed");
+  });
+  const storage = new MinioStorage({
+    endpoint: config.S3_ENDPOINT,
+    useSSL: config.S3_USE_SSL,
+    accessKey: config.S3_ACCESS_KEY,
+    secretKey: config.S3_SECRET_KEY,
+    region: config.S3_REGION,
+    bucket: config.S3_BUCKET_DOCUMENTS,
+  });
+  storage.ensureBucket().catch((err: unknown) => {
+    logger.error({ err }, "storage_ensure_bucket_failed");
+  });
+  const documents = createDocumentsModule({
+    db,
+    audit,
+    access,
+    clock,
+    storage,
+    virusScanner: new ClamAvScanner({ host: config.CLAMAV_HOST, port: config.CLAMAV_PORT }),
+    boss,
+    maxFileSizeBytes: config.UPLOAD_MAX_BYTES,
+    maxFamilyStorageBytes: config.FAMILY_STORAGE_QUOTA_BYTES,
+  });
 
   function registerHealthRoutes(router: Router): void {
     router.get("/health", (_req, res) => {
@@ -100,6 +137,8 @@ export function main(): void {
       router.use(auth.router);
       router.use(families.router);
       router.use(access.router);
+      router.use(healthRecords.router);
+      router.use(documents.router);
     },
   });
 
@@ -110,12 +149,19 @@ export function main(): void {
   function shutdown(signal: string): void {
     logger.info({ signal }, "api_shutting_down");
     server.close(() => {
-      pool
-        .end()
+      boss
+        .stop()
         .catch((err: unknown) => {
-          logger.error({ err }, "pool_close_failed");
+          logger.error({ err }, "pg_boss_stop_failed");
         })
-        .finally(() => process.exit(0));
+        .finally(() => {
+          pool
+            .end()
+            .catch((err: unknown) => {
+              logger.error({ err }, "pool_close_failed");
+            })
+            .finally(() => process.exit(0));
+        });
     });
   }
 

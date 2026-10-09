@@ -14,6 +14,9 @@ export const MIN_DEPENDENT_ACCOUNT_AGE = 13;
 
 export type FamilyRole = "FAMILY_ADMIN" | "FAMILY_MEMBER";
 export type MemberStatus = "ACTIVE" | "BLOCKED";
+/** `family_members.blood_type` (schema.md §2) — FR-HP-01; exposto a `health-records` (modules.md
+ * §3 nota 9) sem passar pelo objeto `FamilyMember` completo (getBloodType/setBloodType). */
+export type BloodType = "A_POS" | "A_NEG" | "B_POS" | "B_NEG" | "AB_POS" | "AB_NEG" | "O_POS" | "O_NEG" | "UNKNOWN";
 
 export interface FamilyMember {
   id: string;

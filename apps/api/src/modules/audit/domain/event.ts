@@ -35,7 +35,23 @@ export type AuditAction =
   | "INVITATION_ACCEPT"
   | "DEPENDENT_ACCOUNT_INVITATION_CREATE"
   // `access` (M3 — authorization.md/UC-PRV, audit.md §3 "Partilha"):
-  | "SHARING_UPDATE";
+  | "SHARING_UPDATE"
+  // `health-records` (M4 — FR-HP, audit.md §3 "Dados de saúde"; `HEALTH_VIEW` cobre leitura por
+  // quem não é o titular — tutor ou partilha, audit.md regra "não se audita a leitura do titular"):
+  | "HEALTH_VIEW"
+  | "ALLERGY_CREATE"
+  | "ALLERGY_UPDATE"
+  | "ALLERGY_DELETE"
+  | "CONDITION_CREATE"
+  | "CONDITION_UPDATE"
+  | "CONDITION_DELETE"
+  | "BLOODTYPE_UPDATE"
+  // `documents` (M5 — FR-DOC/BR-DOC, audit.md §3; ADR-006/ADR-011):
+  | "DOCUMENT_UPLOAD"
+  | "DOCUMENT_SCAN_CLEAN"
+  | "DOCUMENT_SCAN_INFECTED"
+  | "DOCUMENT_DOWNLOAD"
+  | "DOCUMENT_DELETE";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN";
 

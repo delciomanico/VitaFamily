@@ -5,7 +5,7 @@ import type { Database } from "../../../platform/db/index.js";
 import type { Family } from "../domain/family.js";
 import type { Guardianship } from "../domain/guardianship.js";
 import type { Invitation, InvitationStatus } from "../domain/invitation.js";
-import type { FamilyMember, FamilyRole } from "../domain/member.js";
+import type { BloodType, FamilyMember, FamilyRole } from "../domain/member.js";
 import type {
   FamiliesRepository,
   GuardianshipsRepository,
@@ -301,6 +301,27 @@ export class KyselyMembersRepository implements MembersRepository<Kysely<Databas
 
   async delete(trx: Kysely<Database>, familyId: string, memberId: string): Promise<void> {
     await trx.deleteFrom("family_members").where("family_id", "=", familyId).where("id", "=", memberId).execute();
+  }
+
+  async getBloodType(trx: Kysely<Database>, familyId: string, memberId: string): Promise<BloodType | null> {
+    const row = await trx
+      .selectFrom("family_members")
+      .select("blood_type")
+      .where("family_id", "=", familyId)
+      .where("id", "=", memberId)
+      .executeTakeFirst();
+    return (row?.blood_type as BloodType | null) ?? null;
+  }
+
+  async setBloodType(trx: Kysely<Database>, familyId: string, memberId: string, bloodType: BloodType): Promise<BloodType> {
+    const row = await trx
+      .updateTable("family_members")
+      .set({ blood_type: bloodType, updated_at: sql`now()` })
+      .where("family_id", "=", familyId)
+      .where("id", "=", memberId)
+      .returning("blood_type")
+      .executeTakeFirstOrThrow();
+    return row.blood_type as BloodType;
   }
 }
 

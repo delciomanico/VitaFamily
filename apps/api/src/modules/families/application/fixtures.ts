@@ -5,7 +5,7 @@ import type { AuditEvent } from "../../audit/index.js";
 import type { Family } from "../domain/family.js";
 import type { Guardianship } from "../domain/guardianship.js";
 import type { Invitation, InvitationStatus } from "../domain/invitation.js";
-import type { FamilyMember, FamilyRole } from "../domain/member.js";
+import type { BloodType, FamilyMember, FamilyRole } from "../domain/member.js";
 import { InMemoryRateLimiter } from "../domain/rate-limiter.js";
 import type {
   AuditPort,
@@ -69,6 +69,9 @@ export class FakeFamiliesRepository implements FamiliesRepository<FakeTrx> {
 
 export class FakeMembersRepository implements MembersRepository<FakeTrx> {
   readonly byId = new Map<string, FamilyMember>();
+  /** `blood_type` não faz parte do objeto `FamilyMember` em memória (mesmo critério do repositório
+   * Kysely real: coluna própria, só exposta por `getBloodType`/`setBloodType`). */
+  readonly bloodTypes = new Map<string, BloodType>();
 
   async insert(_trx: FakeTrx, record: NewMemberRecord): Promise<FamilyMember> {
     const member: FamilyMember = {
@@ -144,6 +147,19 @@ export class FakeMembersRepository implements MembersRepository<FakeTrx> {
       this.byId.delete(memberId);
     }
     return Promise.resolve();
+  }
+
+  async getBloodType(_trx: FakeTrx, familyId: string, memberId: string): Promise<BloodType | null> {
+    const member = this.byId.get(memberId);
+    if (member?.familyId !== familyId) return Promise.resolve(null);
+    return Promise.resolve(this.bloodTypes.get(memberId) ?? null);
+  }
+
+  async setBloodType(_trx: FakeTrx, familyId: string, memberId: string, bloodType: BloodType): Promise<BloodType> {
+    const member = this.byId.get(memberId);
+    if (member?.familyId !== familyId) throw new Error("membro inexistente no fake");
+    this.bloodTypes.set(memberId, bloodType);
+    return Promise.resolve(bloodType);
   }
 
   seed(member: FamilyMember): void {
