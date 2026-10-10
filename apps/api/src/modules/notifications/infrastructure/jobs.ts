@@ -8,6 +8,9 @@ export const SEND_QUEUE = "notifications.send";
 const SEND_CRON = "* * * * *";
 
 export async function registerSendWorker(boss: PgBoss, handler: () => Promise<unknown>): Promise<string> {
+  // `schedule` exige a queue já criada (FK pgboss.schedule -> pgboss.queue) — `work` cria-a, mas só
+  // depois de agendar seria tarde demais.
+  await boss.createQueue(SEND_QUEUE);
   await boss.schedule(SEND_QUEUE, SEND_CRON, {});
   return boss.work(SEND_QUEUE, async () => {
     await handler();

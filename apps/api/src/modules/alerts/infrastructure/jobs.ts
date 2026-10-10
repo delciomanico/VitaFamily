@@ -8,6 +8,9 @@ export const SCAN_QUEUE = "alerts.scan";
 const SCAN_CRON = "* * * * *";
 
 export async function registerScanWorker(boss: PgBoss, handler: () => Promise<unknown>): Promise<string> {
+  // `schedule` exige a queue já criada (FK pgboss.schedule -> pgboss.queue) — `work` cria-a, mas só
+  // depois de agendar seria tarde demais.
+  await boss.createQueue(SCAN_QUEUE);
   await boss.schedule(SCAN_QUEUE, SCAN_CRON, {});
   return boss.work(SCAN_QUEUE, async () => {
     await handler();

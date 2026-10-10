@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+**/dist
+**/coverage
+.git
+deploy/.env
+deploy/.env.*
+!deploy/.env.*.example
+*.log

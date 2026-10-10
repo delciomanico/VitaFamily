@@ -1,0 +1,77 @@
+# Backend em produção no Dokploy (ADR-014/ADR-017): https://vitafamily.cassfrei.com/api/v1
+# Sem portas publicadas: no Dokploy, configurar o domínio vitafamily.cassfrei.com, serviço api,
+# caminho /api (ADR-017), porta do contentor 8080. Postgres/MinIO/ClamAV ficam só na rede interna
+# (ADR-017: "sem domínio nem portas públicas"), alcançáveis pelo nome do serviço.
+# Variáveis de ambiente: copiar deploy/.env.example para deploy/.env e preencher com segredos de
+# produção (nunca os de dev) — nunca commitar deploy/.env.
+name: vitafamily-api
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "apps/api/dist/src/main/api.js"]
+    env_file: .env
+    expose: ["8080"]
+    networks: [dokploy-network]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "apps/api/dist/src/main/worker.js"]
+    env_file: .env
+    networks: [dokploy-network]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER em .env}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB em .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em .env}
+    networks: [dokploy-network]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?defina MINIO_ROOT_USER em .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD em .env}
+    networks: [dokploy-network]
+    volumes: [miniodata:/data]
+    restart: unless-stopped
+
+  clamav:
+    image: clamav/clamav:stable
+    networks: [dokploy-network]
+    volumes: [clamdata:/var/lib/clamav]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:
+  clamdata:
+
+networks:
+  dokploy-network:
+    external: true

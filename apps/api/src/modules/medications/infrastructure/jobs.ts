@@ -13,6 +13,9 @@ const GENERATE_DOSES_CRON = "0 3 * * *";
 const MARK_UNCONFIRMED_CRON = "*/5 * * * *";
 
 export async function registerGenerateDosesWorker(boss: PgBoss, handler: () => Promise<unknown>): Promise<string> {
+  // `schedule` exige a queue já criada (FK pgboss.schedule -> pgboss.queue) — `work` cria-a, mas só
+  // depois de agendar seria tarde demais.
+  await boss.createQueue(GENERATE_DOSES_QUEUE);
   await boss.schedule(GENERATE_DOSES_QUEUE, GENERATE_DOSES_CRON, {});
   return boss.work(GENERATE_DOSES_QUEUE, async () => {
     await handler();
@@ -20,6 +23,7 @@ export async function registerGenerateDosesWorker(boss: PgBoss, handler: () => P
 }
 
 export async function registerMarkUnconfirmedWorker(boss: PgBoss, handler: () => Promise<unknown>): Promise<string> {
+  await boss.createQueue(MARK_UNCONFIRMED_QUEUE);
   await boss.schedule(MARK_UNCONFIRMED_QUEUE, MARK_UNCONFIRMED_CRON, {});
   return boss.work(MARK_UNCONFIRMED_QUEUE, async () => {
     await handler();

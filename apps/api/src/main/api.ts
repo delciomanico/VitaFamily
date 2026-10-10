@@ -2,6 +2,7 @@
 // operações (/health, /health/ready) e arranca o servidor HTTP. Ligar um módulo novo = 1 import
 // aqui + 1 registo de rotas em `registerRoutes` (ainda nenhum em M0).
 import { dirname, join } from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Router } from "express";
 import PgBoss from "pg-boss";
@@ -28,8 +29,29 @@ import { createExaminationsModule } from "../modules/examinations/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsModule } from "../modules/alerts/index.js";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
-const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
+/**
+ * Sobe a partir deste ficheiro até encontrar `relativePath`. Não usa um número fixo de "..": em
+ * dev corre via `tsx` a partir de `src/main`, em produção a partir de `dist/src/main` (uma pasta
+ * mais profunda) — um número fixo acerta só num dos dois. A imagem de produção (apps/api/Dockerfile)
+ * não leva o monorepo completo, só `docs/05-api/openapi.yaml`; por isso procura-se este ficheiro
+ * em concreto, não um marcador separado da raiz do workspace.
+ */
+function findUpwards(startDir: string, relativePath: string): string {
+  let dir = startDir;
+  for (;;) {
+    const candidate = join(dir, relativePath);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) {
+      throw new Error(`Não encontrei "${relativePath}" a partir de "${startDir}".`);
+    }
+    dir = parent;
+  }
+}
+
+const OPENAPI_SPEC_PATH = findUpwards(dirname(fileURLToPath(import.meta.url)), "docs/05-api/openapi.yaml");
 
 /** `JWT_ACCESS_TTL`/`REFRESH_TTL` (environment.md §2) — só se suportam sufixos `s`/`m`/`h`/`d`. */
 function parseDurationMs(value: string): number {
