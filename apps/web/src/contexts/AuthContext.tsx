@@ -16,6 +16,12 @@ interface AuthState {
   clinic: Clinic | null
   /** E-mail à espera do código de verificação (após registo ou login não verificado). */
   pendingEmail: string | null
+  /**
+   * Password já introduzida no registo, só em memória: a API real não devolve sessão em
+   * `/auth/verify-email` (204), por isso `verify()` autentica-se a seguir com esta password
+   * para manter o comportamento de "sessão iniciada após verificar" (ADR-018).
+   */
+  pendingPassword: string | null
 }
 
 interface AuthContextValue {
@@ -41,7 +47,14 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const initialState: AuthState = { status: 'loading', user: null, membership: null, clinic: null, pendingEmail: null }
+const initialState: AuthState = {
+  status: 'loading',
+  user: null,
+  membership: null,
+  clinic: null,
+  pendingEmail: null,
+  pendingPassword: null,
+}
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase()
 
@@ -54,18 +67,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clinicPortalService.getClinicMembership(user.id),
     ])
     sessionStore.setUserId(user.id)
-    setState({ status: 'ready', user, membership, clinic, pendingEmail: null })
+    setState({ status: 'ready', user, membership, clinic, pendingEmail: null, pendingPassword: null })
   }, [])
 
-  // Restaura a sessão mock do separador atual (só o id do utilizador é guardado).
+  // Restaura a sessão ao abrir a app: no mock, por `userId` (sessionStore); na API real,
+  // `authService.getUser` ignora o argumento e tenta antes um refresh pelo cookie (ADR-007).
   useEffect(() => {
-    const userId = sessionStore.getUserId()
-    if (!userId) {
-      setState((s) => ({ ...s, status: 'ready' }))
-      return
-    }
     authService
-      .getUser(userId)
+      .getUser(sessionStore.getUserId() ?? '')
       .then((user) => (user ? signIn(user) : Promise.reject(new Error('sessão inválida'))))
       .catch(() => {
         sessionStore.setUserId(null)
@@ -89,15 +98,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (input: RegisterInput) => {
     await authService.register(input)
-    setState((s) => ({ ...s, pendingEmail: normalizeEmail(input.email) }))
+    setState((s) => ({ ...s, pendingEmail: normalizeEmail(input.email), pendingPassword: input.password }))
   }, [])
 
   const verify = useCallback(
     async (code: string) => {
-      if (!state.pendingEmail) return
-      await signIn(await authService.verifyEmail(state.pendingEmail, code))
+      if (!state.pendingEmail || !state.pendingPassword) return
+      await signIn(await authService.verifyEmail(state.pendingEmail, code, state.pendingPassword))
     },
-    [signIn, state.pendingEmail],
+    [signIn, state.pendingEmail, state.pendingPassword],
   )
 
   const resendCode = useCallback(async () => {
@@ -127,8 +136,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setUser = useCallback((user: User) => setState((s) => ({ ...s, user })), [])
 
   const logout = useCallback(() => {
+    void authService.logout().catch(() => undefined)
     sessionStore.setUserId(null)
-    setState({ status: 'ready', user: null, membership: null, clinic: null, pendingEmail: null })
+    setState({ status: 'ready', user: null, membership: null, clinic: null, pendingEmail: null, pendingPassword: null })
   }, [])
 
   const value = useMemo<AuthContextValue>(

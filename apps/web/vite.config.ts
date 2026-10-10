@@ -46,6 +46,11 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  server: {
+    // Mesma origem que em produção (infrastructure.md: Traefik encaminha /api -> api):
+    // evita CORS em dev sem abrir a API a outras origens.
+    proxy: { '/api': { target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8081', changeOrigin: true } },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

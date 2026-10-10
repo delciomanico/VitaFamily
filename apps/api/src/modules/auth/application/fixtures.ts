@@ -124,6 +124,27 @@ export class FakeAuthTokenRepository implements AuthTokenRepository<FakeTrx> {
     return Promise.resolve(null);
   }
 
+  async findValidForUser(
+    _trx: FakeTrx,
+    userId: string,
+    type: AuthTokenType,
+    tokenHash: string,
+    now: Date,
+  ): Promise<AuthToken | null> {
+    for (const token of this.tokens.values()) {
+      if (
+        token.userId === userId &&
+        token.type === type &&
+        token.tokenHash === tokenHash &&
+        !token.usedAt &&
+        token.expiresAt.getTime() > now.getTime()
+      ) {
+        return Promise.resolve(token);
+      }
+    }
+    return Promise.resolve(null);
+  }
+
   async markUsed(_trx: FakeTrx, id: string, usedAt: Date): Promise<void> {
     const token = this.tokens.get(id);
     if (token) {

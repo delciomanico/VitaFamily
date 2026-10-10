@@ -12,7 +12,7 @@ import {
   assertValidBirthDate,
   assertValidTimezone,
 } from "../domain/registration-rules.js";
-import { generateOpaqueToken, hashOpaqueToken } from "../domain/token.js";
+import { generateVerificationCode, hashOpaqueToken } from "../domain/token.js";
 import type { AuthDeps, RequestContext } from "./ports.js";
 
 export interface RegisterInput {
@@ -87,12 +87,12 @@ export function createRegisterUseCase<Trx>(deps: AuthDeps<Trx>) {
         createdAt: now,
       });
 
-      const rawToken = generateOpaqueToken();
+      const code = generateVerificationCode();
       await deps.authTokenRepo.insert(trx, {
         id: newId(),
         userId,
         type: "EMAIL_VERIFICATION",
-        tokenHash: hashOpaqueToken(rawToken),
+        tokenHash: hashOpaqueToken(code),
         expiresAt: new Date(now.getTime() + EMAIL_VERIFICATION_TTL_MS),
         createdAt: now,
       });
@@ -100,7 +100,7 @@ export function createRegisterUseCase<Trx>(deps: AuthDeps<Trx>) {
       await deps.mailer.send({
         to: email,
         subject: "Verifique a sua conta Vita Family",
-        text: `Bem-vindo à Vita Family. Para confirmar o seu e-mail, use este código: ${rawToken} (válido 24 horas).`,
+        text: `Bem-vindo à Vita Family. Para confirmar o seu e-mail, use este código: ${code} (válido 24 horas).`,
       });
     });
   };

@@ -14,8 +14,8 @@
 
 ### UC-ACC-01 Registar conta
 - **Ator:** Visitante · **FR:** AUTH-01, AUTH-06, PRV-03
-- **Fluxo:** fornece e-mail, palavra-passe, nome, data de nascimento, fuso horário e aceita termos/política → sistema cria conta não verificada e envia e-mail de verificação → utilizador abre o link → conta verificada.
-- **Alternativos:** e-mail já registado (resposta neutra, sem revelar a existência); link expirado → reenvio; aceitar termos é obrigatório.
+- **Fluxo:** fornece e-mail, palavra-passe, nome, data de nascimento, fuso horário e aceita termos/política → sistema cria conta não verificada e envia e-mail com **código de 6 dígitos** (ADR-018, substitui o link de uso único aqui descrito originalmente) → utilizador introduz o código → conta verificada.
+- **Alternativos:** e-mail já registado (resposta neutra, sem revelar a existência); código expirado (24 h) ou errado → reenvio; aceitar termos é obrigatório.
 - **Pós-condição:** User verificado, consentimento registado (versão + data).
 - **Regra:** utilizador com <18 anos não se regista sozinho; só via tutor (UC-MEM-05, P2). `[PROPOSTO]`: se a data de nascimento indicar <18, o registo é recusado com mensagem a explicar.
 

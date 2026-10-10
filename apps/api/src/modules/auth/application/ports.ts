@@ -43,6 +43,18 @@ export interface NewSessionRecord {
 export interface AuthTokenRepository<Trx> {
   insert(trx: Trx, token: NewAuthToken): Promise<AuthToken>;
   findValidByHash(trx: Trx, type: AuthTokenType, tokenHash: string, now: Date): Promise<AuthToken | null>;
+  /**
+   * Como `findValidByHash`, mas restrito a `userId` (EMAIL_VERIFICATION usa um código de 6
+   * dígitos, `domain/token.ts#generateVerificationCode`: sem esta restrição, duas contas podiam
+   * calhar no mesmo código e uma verificar-se com o código da outra).
+   */
+  findValidForUser(
+    trx: Trx,
+    userId: string,
+    type: AuthTokenType,
+    tokenHash: string,
+    now: Date,
+  ): Promise<AuthToken | null>;
   markUsed(trx: Trx, id: string, usedAt: Date): Promise<void>;
   /** Invalida (marca como usados) todos os tokens não usados de `type` para `userId`. */
   invalidateAllForUser(trx: Trx, userId: string, type: AuthTokenType, now: Date): Promise<void>;

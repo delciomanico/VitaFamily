@@ -2,7 +2,7 @@
 // invalida o token anterior.
 import { DomainError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
-import { generateOpaqueToken, hashOpaqueToken } from "../domain/token.js";
+import { generateVerificationCode, hashOpaqueToken } from "../domain/token.js";
 import type { AuthDeps, RequestContext } from "./ports.js";
 
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -30,12 +30,12 @@ export function createResendVerificationUseCase<Trx>(deps: AuthDeps<Trx>) {
       }
 
       await deps.authTokenRepo.invalidateAllForUser(trx, user.id, "EMAIL_VERIFICATION", now);
-      const rawToken = generateOpaqueToken();
+      const code = generateVerificationCode();
       await deps.authTokenRepo.insert(trx, {
         id: newId(),
         userId: user.id,
         type: "EMAIL_VERIFICATION",
-        tokenHash: hashOpaqueToken(rawToken),
+        tokenHash: hashOpaqueToken(code),
         expiresAt: new Date(now.getTime() + EMAIL_VERIFICATION_TTL_MS),
         createdAt: now,
       });
@@ -43,7 +43,7 @@ export function createResendVerificationUseCase<Trx>(deps: AuthDeps<Trx>) {
       await deps.mailer.send({
         to: normalizedEmail,
         subject: "Verifique a sua conta Vita Family",
-        text: `Para confirmar o seu e-mail, use este código: ${rawToken} (válido 24 horas).`,
+        text: `Para confirmar o seu e-mail, use este código: ${code} (válido 24 horas).`,
       });
     });
   };

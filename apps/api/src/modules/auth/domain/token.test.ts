@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateOpaqueToken, hashOpaqueToken } from "./token.js";
+import { generateOpaqueToken, generateVerificationCode, hashOpaqueToken } from "./token.js";
 
 describe("generateOpaqueToken", () => {
   it("gera 256 bits (32 bytes) codificados em base64url, sem repetir", () => {
@@ -7,6 +7,15 @@ describe("generateOpaqueToken", () => {
     const b = generateOpaqueToken();
     expect(a).not.toBe(b);
     expect(Buffer.from(a, "base64url")).toHaveLength(32);
+  });
+});
+
+describe("generateVerificationCode", () => {
+  it("gera sempre 6 dígitos (com zeros à esquerda quando necessário)", () => {
+    for (let i = 0; i < 50; i++) {
+      const code = generateVerificationCode();
+      expect(code).toMatch(/^[0-9]{6}$/);
+    }
   });
 });
 

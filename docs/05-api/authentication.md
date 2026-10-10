@@ -1,6 +1,6 @@
 # Vita Family — Autenticação (Fase 13/14)
 
-> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture); JWT com **`jose`** e *hashing* de palavra-passe com **`argon2`** (mesmos parâmetros de ADR-007), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015; os parâmetros de segurança (TTLs, argon2id) não mudam.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture); JWT com **`jose`** e *hashing* de palavra-passe com **`argon2`** (mesmos parâmetros de ADR-007), **sem Redis**, em **VPS própria** com Dokploy/Traefik (ADR-017), domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015; os parâmetros de segurança (TTLs, argon2id) não mudam.
 
 > Estado: **v0.1 — decisões adotadas com a recomendação do assistente.** Racional em ADR-007.
 
@@ -16,7 +16,7 @@
 | Logout | Revoga a sessão e limpa o cookie. "Terminar todas as sessões" por mudança/recuperação de palavra-passe. |
 
 ## 2. Fluxos
-- **Registo:** `POST /auth/register` ⇒ conta `PENDING_VERIFICATION` + e-mail de verificação (token de uso único, 24 h) ⇒ `POST /auth/verify-email` ⇒ `ACTIVE`. Resposta sempre neutra (sem revelar se o e-mail existe).
+- **Registo:** `POST /auth/register` ⇒ conta `PENDING_VERIFICATION` + e-mail de verificação com **código de 6 dígitos** de uso único, 24 h (ADR-018; procurado sempre em conjunto com o `email`, nunca globalmente, porque 10^6 valores não chegam para unicidade entre contas) ⇒ `POST /auth/verify-email` (`email` + `token`) ⇒ `ACTIVE`. Resposta sempre neutra (sem revelar se o e-mail existe).
 - **Login:** só `ACTIVE`. Mensagem de erro genérica para credenciais inválidas. Conta `SUSPENDED` ⇒ recusado.
 - **Recuperação:** `forgot` (neutro) ⇒ e-mail com token de uso único, **1 h** ⇒ `reset` ⇒ todas as sessões revogadas.
 - **Termos (B6):** se `termsAcceptedVersion` ≠ versão atual ⇒ API devolve `TERMS_REACCEPTANCE_REQUIRED` exceto `POST /users/me/terms-acceptance`, exportação e eliminação da conta.

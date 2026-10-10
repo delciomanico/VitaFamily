@@ -72,6 +72,25 @@ export class KyselyAuthTokenRepository implements AuthTokenRepository<Kysely<Dat
     return row ? tokenToDomain(row) : null;
   }
 
+  async findValidForUser(
+    trx: Kysely<Database>,
+    userId: string,
+    type: AuthTokenType,
+    tokenHash: string,
+    now: Date,
+  ): Promise<AuthToken | null> {
+    const row = await trx
+      .selectFrom("auth_tokens")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .where("type", "=", type)
+      .where("token_hash", "=", tokenHash)
+      .where("used_at", "is", null)
+      .where("expires_at", ">", now)
+      .executeTakeFirst();
+    return row ? tokenToDomain(row) : null;
+  }
+
   async markUsed(trx: Kysely<Database>, id: string, usedAt: Date): Promise<void> {
     await trx
       .updateTable("auth_tokens")

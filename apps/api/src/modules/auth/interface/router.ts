@@ -13,7 +13,7 @@ import { clearRefreshCookie, setRefreshCookie } from "./cookies.js";
 
 export interface AuthController {
   register: (input: RegisterInput, ctx: RequestContext) => Promise<void>;
-  verifyEmail: (token: string, ctx: RequestContext) => Promise<void>;
+  verifyEmail: (email: string, code: string, ctx: RequestContext) => Promise<void>;
   resendVerification: (email: string, ctx: RequestContext) => Promise<void>;
   login: (input: LoginInput, ctx: RequestContext) => Promise<LoginResult>;
   refresh: (input: RefreshInput, ctx: RequestContext) => Promise<LoginResult>;
@@ -51,8 +51,8 @@ export function createAuthRouter(controller: AuthController, cookieDomain: strin
   router.post(
     "/auth/verify-email",
     asyncHandler(async (req, res) => {
-      const body = req.body as { token: string };
-      await controller.verifyEmail(body.token, buildRequestContext(req));
+      const body = req.body as { email: string; token: string };
+      await controller.verifyEmail(body.email, body.token, buildRequestContext(req));
       res.status(204).end();
     }),
   );

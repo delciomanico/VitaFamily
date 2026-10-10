@@ -73,8 +73,8 @@ paths:
     post:
       tags: [Auth]
       operationId: verifyEmail
-      summary: "Verificar e-mail com token de uso único (24 h)."
-      description: "Autorização: PUBLIC. Passa o utilizador a ACTIVE."
+      summary: "Verificar e-mail com código de 6 dígitos de uso único (24 h)."
+      description: "Autorização: PUBLIC. Passa o utilizador a ACTIVE. Decisão do proprietário (ADR-018): código numérico por e-mail em vez do link de UC-ACC-01; a verificação é sempre feita em conjunto com `email` (o código tem só 10^6 valores, não é globalmente único)."
       security: []
       requestBody:
         required: true
@@ -4629,10 +4629,14 @@ components:
           nullable: true
     VerifyEmailRequest:
       type: object
-      required: [token]
+      required: [email, token]
       properties:
+        email:
+          type: string
+          format: email
         token:
           type: string
+          description: "Código de 6 dígitos enviado por e-mail (ADR-018)."
     ResendVerificationRequest:
       type: object
       required: [email]
