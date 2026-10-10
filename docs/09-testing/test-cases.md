@@ -18,6 +18,8 @@
 | TC-AUTH-11 | Eliminação de conta bloqueada (único tutor / único Admin) e permitida depois | A | AC-ACC-05 |
 | TC-AUTH-12 | Mudança de fuso recalcula tomas futuras | I | AC-MED-05 |
 
+> **Nota M6 (change control, ver `apps/api/src/modules/medications/README.md`):** TC-AUTH-12 pressupõe um gatilho *imediato* de `users.updateMe` para `medications`, que exigiria `users` → `medications` e fecharia um ciclo (`medications` → `access` → `families` → `users`). Implementado em vez disso: o job diário `medications.generate-doses` relê o fuso efetivo a cada corrida (latência ≤24h). O caso unitário equivalente (`generateDosesJob` recalcula sem duplicar/perder) está em `medications/application/generate-doses-job.test.ts`; a versão *imediata* de TC-AUTH-12 fica pendente de decisão do proprietário.
+
 ## 2. Autorização e isolamento (TC-AZ) — **gerados da matriz**
 | ID | Caso | Nível |
 |---|---|---|

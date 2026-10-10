@@ -20,6 +20,8 @@ import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modul
 import { createAccessModule } from "../modules/access/index.js";
 import { createHealthRecordsModule } from "../modules/health-records/index.js";
 import { ClamAvScanner, createDocumentsModule } from "../modules/documents/index.js";
+import { createMedicationsModule } from "../modules/medications/index.js";
+import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
@@ -109,6 +111,11 @@ export function main(): void {
     maxFamilyStorageBytes: config.FAMILY_STORAGE_QUOTA_BYTES,
   });
 
+  // M6 (plan.md §4): `medications` antes de `prescriptions` — `prescriptions` depende de
+  // `medications` pela raiz (modules.md §3.6), nunca o inverso.
+  const medications = createMedicationsModule({ db, audit, access, clock });
+  const prescriptions = createPrescriptionsModule({ db, audit, access, medications, documents, clock });
+
   function registerHealthRoutes(router: Router): void {
     router.get("/health", (_req, res) => {
       res.json({ status: "ok" });
@@ -139,6 +146,8 @@ export function main(): void {
       router.use(access.router);
       router.use(healthRecords.router);
       router.use(documents.router);
+      router.use(medications.router);
+      router.use(prescriptions.router);
     },
   });
 

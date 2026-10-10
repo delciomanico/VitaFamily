@@ -41,6 +41,15 @@ export interface AccessModule {
    * quem chama só passa identificadores (`userId`, `familyId`, `subjectMemberId`, `category`).
    */
   policy: AccessPolicy<Kysely<Database>>;
+  /**
+   * Passagem direta para `families.getEffectiveTimezone` (modules.md §2 nota 10, M6): `medications`
+   * depende só de `access`/`audit` (modules.md §2) — nunca de `families` diretamente — por isso usa
+   * esta função (já disponível porque `access` depende de `families`) para calcular o fuso efetivo
+   * do sujeito (Q8/DM6/BR-MED-08) ao gerar/recalcular ocorrências de toma. Não é uma decisão de
+   * `AccessPolicy` (não há ação/categoria a autorizar aqui — quem chama já autorizou a operação de
+   * negócio antes); por isso não passa por `policy.can()`.
+   */
+  getEffectiveTimezone: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<string>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -73,5 +82,6 @@ export function createAccessModule(deps: AccessModuleDeps): AccessModule {
   return {
     router: createAccessRouter(controller),
     policy,
+    getEffectiveTimezone: (trx, familyId, memberId) => deps.families.getEffectiveTimezone(trx, familyId, memberId),
   };
 }

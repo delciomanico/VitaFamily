@@ -1,7 +1,7 @@
 // Composition root do processo "worker": arranca a infraestrutura de filas (pg-boss) sobre o
-// PostgreSQL (sem Redis, ADR-004/ADR-014) e regista os jobs de cada módulo (modules.md §4: só
-// `documents` precisa de correr aqui em M5 — "antivírus"; cada módulo seguinte acrescenta 1 import
-// + 1 registo, mesmo padrão).
+// PostgreSQL (sem Redis, ADR-004/ADR-014) e regista os jobs de cada módulo (modules.md §4/§5:
+// `documents` — antivírus (M5); `medications` — `generate-doses`/`mark-unconfirmed` (M6); cada
+// módulo seguinte acrescenta 1 import + 1 registo, mesmo padrão).
 import PgBoss from "pg-boss";
 import { loadConfig } from "../platform/config/index.js";
 import { createLogger } from "../platform/logger/index.js";
@@ -9,7 +9,11 @@ import { createDb, createPool } from "../platform/db/index.js";
 import { SystemClock } from "../platform/clock/index.js";
 import { MinioStorage } from "../platform/storage/index.js";
 import { createAuditModule } from "../modules/audit/index.js";
+import { createUsersModule } from "../modules/users/index.js";
+import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modules/families/index.js";
+import { createAccessModule } from "../modules/access/index.js";
 import { ClamAvScanner, createDocumentsWorkerModule } from "../modules/documents/index.js";
+import { createMedicationsWorkerModule } from "../modules/medications/index.js";
 
 export function main(): void {
   const config = loadConfig();
@@ -19,6 +23,21 @@ export function main(): void {
   const db = createDb(pool);
   const clock = new SystemClock();
   const audit = createAuditModule({ db });
+  // `medications.generate-doses`/`mark-unconfirmed` (modules.md §5) precisam de
+  // `access.getEffectiveTimezone` (nota 10) para resolver o fuso efetivo do sujeito — por isso este
+  // processo monta a cadeia `users -> families -> access` só para esse fim (nunca para autorizar
+  // pedidos HTTP, que não existem aqui); `documents.scan` continua sem precisar de nenhum dos dois
+  // (nunca autoriza nada).
+  const users = createUsersModule({ db, audit, clock, currentTermsVersion: config.TERMS_VERSION });
+  const families = createFamiliesModule({
+    db,
+    audit,
+    users,
+    clock,
+    mailer: new FamiliesSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
+    appBaseUrl: config.APP_BASE_URL,
+  });
+  const access = createAccessModule({ db, audit, families, clock });
   const storage = new MinioStorage({
     endpoint: config.S3_ENDPOINT,
     useSSL: config.S3_USE_SSL,
@@ -36,11 +55,13 @@ export function main(): void {
   });
 
   const documentsWorker = createDocumentsWorkerModule({ db, audit, clock, storage, virusScanner, boss });
+  const medicationsWorker = createMedicationsWorkerModule({ db, audit, access, clock, boss });
 
   boss
     .start()
     .then(async () => {
       await documentsWorker.registerWorker();
+      await medicationsWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

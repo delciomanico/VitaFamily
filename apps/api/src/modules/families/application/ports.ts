@@ -119,6 +119,10 @@ export interface UserLookup {
   email: string;
   name: string;
   birthDate: string;
+  /** IANA (BR-ACC-04) — exposto para `getEffectiveTimezone` (Q8/DM6/BR-MED-08, M6); já existe em
+   * `users.byId` (sobreconjunto estrutural), só não estava declarado aqui por nenhum consumidor
+   * anterior precisar. */
+  timezone: string;
 }
 
 /** Subconjunto de `users` que `families` chama pela raiz (modules.md: `families` depende de `users`). */

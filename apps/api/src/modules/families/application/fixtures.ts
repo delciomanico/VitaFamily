@@ -21,6 +21,7 @@ import type {
   NewInvitationRecord,
   NewMemberRecord,
   SentEmail,
+  UserLookup,
   UsersPort,
 } from "./ports.js";
 
@@ -276,21 +277,23 @@ export class FakeInvitationsRepository implements InvitationsRepository<FakeTrx>
 }
 
 export class FakeUsersPort implements UsersPort<FakeTrx> {
-  readonly byIdMap = new Map<string, { id: string; email: string; name: string; birthDate: string }>();
+  readonly byIdMap = new Map<string, UserLookup>();
 
-  async byId(_trx: FakeTrx, id: string) {
+  async byId(_trx: FakeTrx, id: string): Promise<UserLookup | null> {
     return Promise.resolve(this.byIdMap.get(id) ?? null);
   }
 
-  async byEmail(_trx: FakeTrx, email: string) {
+  async byEmail(_trx: FakeTrx, email: string): Promise<UserLookup | null> {
     for (const user of this.byIdMap.values()) {
       if (user.email === email) return Promise.resolve(user);
     }
     return Promise.resolve(null);
   }
 
-  seed(user: { id: string; email: string; name: string; birthDate: string }): void {
-    this.byIdMap.set(user.id, user);
+  /** `timezone` por defeito (M6, `getEffectiveTimezone`) — testes de `families` anteriores a M6
+   * não precisam de o indicar explicitamente. */
+  seed(user: { id: string; email: string; name: string; birthDate: string; timezone?: string }): void {
+    this.byIdMap.set(user.id, { timezone: "Europe/Lisbon", ...user });
   }
 }
 

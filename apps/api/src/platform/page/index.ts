@@ -37,3 +37,40 @@ export function parsePageParams(limit?: string, cursor?: string): PageParams {
   }
   return params;
 }
+
+/**
+ * Cursor opaco de paginação por conjunto de chaves ("keyset", `createdAt`+`id` — ordem estável
+ * mesmo com `createdAt` repetido). Primeiro módulo a implementar paginação real de listas (M6,
+ * `prescriptions`/`medications`); os módulos anteriores (M2-M5) ainda devolvem listas simples.
+ * Base64url de JSON — opaco para o cliente (não é um id previsível), sem dependências novas.
+ */
+export interface KeysetCursor {
+  createdAt: string;
+  id: string;
+}
+
+export function encodeCursor(value: KeysetCursor): string {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+export function decodeCursor(cursor: string): KeysetCursor {
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "createdAt" in parsed &&
+      "id" in parsed &&
+      typeof (parsed as Record<string, unknown>).createdAt === "string" &&
+      typeof (parsed as Record<string, unknown>).id === "string"
+    ) {
+      return parsed as KeysetCursor;
+    }
+    throw new Error("forma inválida");
+  } catch (cause) {
+    throw new ValidationError([{ field: "cursor", message: "inválido" }], {
+      detail: "Cursor de paginação inválido.",
+      cause,
+    });
+  }
+}

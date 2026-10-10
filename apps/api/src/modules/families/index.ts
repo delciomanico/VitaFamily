@@ -28,6 +28,7 @@ import {
   createFinalizeDependentAccountInvitationUseCase,
   type FinalizeDependentAccountInvitationInput,
 } from "./application/finalize-dependent-account-invitation.js";
+import { createGetEffectiveTimezoneUseCase } from "./application/get-effective-timezone.js";
 import { createGetFamilyUseCase } from "./application/get-family.js";
 import { createGetMemberUseCase } from "./application/get-member.js";
 import { createLeaveFamilyUseCase } from "./application/leave-family.js";
@@ -104,6 +105,11 @@ export interface FamiliesModule {
   // ALLERGIES) é de `access.policy.can()`, não desta função — aqui só se lê/escreve a coluna.
   getBloodType: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<BloodType | null>;
   setBloodType: (trx: Kysely<Database>, familyId: string, memberId: string, bloodType: BloodType) => Promise<BloodType>;
+  // Operação crua para `access` consumir pela raiz (modules.md §2: `access` depende de `families`),
+  // que por sua vez a expõe a `medications` (M6, nota 10 — ver `modules.md`): fuso efetivo do
+  // sujeito (Q8/DM6/BR-MED-08) para gerar/recalcular ocorrências de toma sem `medications` precisar
+  // de depender diretamente de `families`.
+  getEffectiveTimezone: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<string>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -171,5 +177,6 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
       (await guardianshipsRepo.find(trx, familyId, dependentId, guardianId)) !== null,
     getBloodType: (trx, familyId, memberId) => membersRepo.getBloodType(trx, familyId, memberId),
     setBloodType: (trx, familyId, memberId, bloodType) => membersRepo.setBloodType(trx, familyId, memberId, bloodType),
+    getEffectiveTimezone: createGetEffectiveTimezoneUseCase(familiesDeps),
   };
 }
