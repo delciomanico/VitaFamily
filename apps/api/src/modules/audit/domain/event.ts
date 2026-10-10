@@ -64,7 +64,29 @@ export type AuditAction =
   | "PLAN_STATUS"
   | "DOSE_TAKEN"
   | "DOSE_NOT_TAKEN"
-  | "DOSE_CORRECTED";
+  | "DOSE_CORRECTED"
+  // `appointments`/`examinations`/`clinics` (M7 — FR-APT/FR-EXM/FR-CLN, audit.md §3:
+  // "APPOINTMENT_*", "EXAM_*", "EXAM_RESULT_*"; `CLINIC_*`/`ADMIN_CLINIC_*` acrescentados por
+  // extensão do mesmo critério — clínicas não são "dados de saúde" por categoria, mas toda
+  // escrita é auditada, conventions.md §2):
+  | "APPOINTMENT_CREATE"
+  | "APPOINTMENT_UPDATE"
+  | "APPOINTMENT_DELETE"
+  | "APPOINTMENT_STATUS"
+  | "EXAM_CREATE"
+  | "EXAM_UPDATE"
+  | "EXAM_DELETE"
+  | "EXAM_STATUS"
+  | "EXAM_RESULT_CREATE"
+  | "EXAM_RESULT_UPDATE"
+  | "EXAM_RESULT_DELETE"
+  | "CLINIC_CREATE"
+  | "CLINIC_UPDATE"
+  | "CLINIC_STATUS"
+  | "CLINIC_DELETE"
+  | "ADMIN_CLINIC_CREATE"
+  | "ADMIN_CLINIC_UPDATE"
+  | "ADMIN_CLINIC_STATUS";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN";
 

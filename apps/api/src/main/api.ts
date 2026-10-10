@@ -22,6 +22,9 @@ import { createHealthRecordsModule } from "../modules/health-records/index.js";
 import { ClamAvScanner, createDocumentsModule } from "../modules/documents/index.js";
 import { createMedicationsModule } from "../modules/medications/index.js";
 import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
+import { createClinicsModule } from "../modules/clinics/index.js";
+import { createAppointmentsModule } from "../modules/appointments/index.js";
+import { createExaminationsModule } from "../modules/examinations/index.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
@@ -116,6 +119,12 @@ export function main(): void {
   const medications = createMedicationsModule({ db, audit, access, clock });
   const prescriptions = createPrescriptionsModule({ db, audit, access, medications, documents, clock });
 
+  // M7 (plan.md §4): `clinics` antes de `appointments`/`examinations` — ambos dependem de
+  // `clinics.getBookableClinic` (ClinicLookup, modules.md §2), nunca o inverso.
+  const clinics = createClinicsModule({ db, audit, access, clock });
+  const appointments = createAppointmentsModule({ db, audit, access, clinics, clock });
+  const examinations = createExaminationsModule({ db, audit, access, clinics, documents, clock });
+
   function registerHealthRoutes(router: Router): void {
     router.get("/health", (_req, res) => {
       res.json({ status: "ok" });
@@ -148,6 +157,10 @@ export function main(): void {
       router.use(documents.router);
       router.use(medications.router);
       router.use(prescriptions.router);
+      router.use(clinics.router);
+      router.use(clinics.adminRouter);
+      router.use(appointments.router);
+      router.use(examinations.router);
     },
   });
 

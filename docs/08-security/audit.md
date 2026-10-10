@@ -26,8 +26,9 @@ Exemplo: `User 123 · VIEW · Examination · 456 · 2026-10-04 10:32 · SUCCESS`
 | Partilha | `SHARING_UPDATE` |
 | Dados de saúde (leitura de **outro titular** e todas as escritas) | `HEALTH_VIEW`, `ALLERGY_*`, `CONDITION_*`, `BLOODTYPE_UPDATE`, `PRESCRIPTION_*`, `PLAN_*`, `DOSE_TAKEN`, `DOSE_NOT_TAKEN`, `DOSE_CORRECTED`, `APPOINTMENT_*`, `EXAM_*`, `EXAM_RESULT_*` (`*` = CREATE/UPDATE/DELETE/STATUS) |
 | Documentos | `DOCUMENT_UPLOAD`, `DOCUMENT_SCAN_CLEAN`, `DOCUMENT_SCAN_INFECTED`, `DOCUMENT_DOWNLOAD`, `DOCUMENT_DELETE` |
+| Clínicas (M7, extensão do catálogo mínimo — não são "dados de saúde" por categoria, mas toda escrita é auditada, `conventions.md` §2) | `CLINIC_CREATE/UPDATE/STATUS/DELETE` (privadas) |
 | Relatórios | `REPORT_VIEW` (quando inclui outro titular) |
-| Plataforma | `ADMIN_USER_SUSPEND`, `ADMIN_USER_REACTIVATE`, `ADMIN_CLINIC_CREATE/UPDATE/STATUS` |
+| Plataforma | `ADMIN_USER_SUSPEND`, `ADMIN_USER_REACTIVATE`, `ADMIN_CLINIC_CREATE/UPDATE/STATUS` (M7: implementadas em `clinics`, sem módulo `admin` próprio ainda — ver `modules.md` §3 nota 12) |
 | Acesso negado | `ACCESS_DENIED` (com ação tentada em `metadata.action`) |
 
 **Não** se audita a leitura do titular sobre os seus próprios dados (volume e ruído), mas **sim** qualquer leitura por quem não é o titular, e **todo** download de documento.

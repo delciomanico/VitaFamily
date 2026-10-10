@@ -47,7 +47,10 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   prescriptions: ["access", "medications", "documents", "audit"],
   medications: ["access", "audit"],
   appointments: ["access", "clinics", "audit"],
-  clinics: ["access"],
+  // clinics -> audit (modules.md §3 nota 13): esta linha só listava "access"; toda escrita
+  // (CLINIC_*/ADMIN_CLINIC_*) precisa de auditoria na mesma transação (conventions.md §2), mesmo
+  // critério já usado em "access -> audit" (nota 8).
+  clinics: ["access", "audit"],
   examinations: ["access", "clinics", "documents", "audit"],
   documents: ["access", "audit"],
   alerts: ["medications", "appointments", "examinations", "families"],

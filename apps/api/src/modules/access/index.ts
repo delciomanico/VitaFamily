@@ -12,6 +12,7 @@ import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { FamiliesModule } from "../families/index.js";
+import { isAdultAt } from "./domain/age.js";
 import { createGetSharingUseCase } from "./application/get-sharing.js";
 import type { AccessDeps } from "./application/ports.js";
 import { createAccessPolicy, type AccessPolicy } from "./application/policy.js";
@@ -25,6 +26,23 @@ export type { Relation } from "./domain/relation.js";
 export type { Action, AccessContext, CanInput } from "./application/policy.js";
 export type { ActorIdentity } from "./application/get-sharing.js";
 export type { SharedWithMeItemView, SharingSettingsView } from "./application/sharing-view.js";
+
+/**
+ * Factos estruturais de pertença (modules.md §3 nota 11, M7): `clinics` depende só de `access`
+ * (modules.md §2 — não de `families`, para não abrir uma aresta nova no grafo além da já
+ * existente `access` → `families`) mas precisa de `role` (FAMILY_ADMIN) e `isAdult` para as
+ * regras estruturais de `authorization.md` §4 ("Clínicas privadas: criar — adulto da família;
+ * editar/arquivar/eliminar — criador ou FAMILY_ADMIN"), que não são decisões de
+ * `AccessPolicy.can()` (não há categoria de dados de saúde envolvida). Mesmo critério de
+ * `getEffectiveTimezone`/`getBloodType`: passagem/computação direta pela raiz, sem passar pela
+ * política.
+ */
+export interface MembershipFacts {
+  memberId: string;
+  role?: "FAMILY_ADMIN" | "FAMILY_MEMBER";
+  isAdult: boolean;
+  status: "ACTIVE" | "BLOCKED";
+}
 
 export interface AccessModuleDeps {
   db: Kysely<Database>;
@@ -50,6 +68,12 @@ export interface AccessModule {
    * negócio antes); por isso não passa por `policy.can()`.
    */
   getEffectiveTimezone: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<string>;
+  /**
+   * Factos de pertença do actor (modules.md §3 nota 11, M7) — `clinics` chama isto em vez de
+   * `families.findMemberByUserId` diretamente (dependência não declarada). Devolve `null` se o
+   * actor não é membro da família (chamador decide NOT_FOUND, mesmo critério de `policy.can()`).
+   */
+  getMembershipFacts: (trx: Kysely<Database>, familyId: string, userId: string) => Promise<MembershipFacts | null>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -83,5 +107,17 @@ export function createAccessModule(deps: AccessModuleDeps): AccessModule {
     router: createAccessRouter(controller),
     policy,
     getEffectiveTimezone: (trx, familyId, memberId) => deps.families.getEffectiveTimezone(trx, familyId, memberId),
+    getMembershipFacts: async (trx, familyId, userId) => {
+      const member = await deps.families.findMemberByUserId(trx, familyId, userId);
+      if (!member) {
+        return null;
+      }
+      return {
+        memberId: member.id,
+        ...(member.role ? { role: member.role } : {}),
+        isAdult: isAdultAt(member.birthDate, deps.clock.now()),
+        status: member.status,
+      };
+    },
   };
 }
