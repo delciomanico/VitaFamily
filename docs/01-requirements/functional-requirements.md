@@ -94,9 +94,11 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 |---|---|---|
 | FR-APT-01 | O sistema deve permitir criar, editar e cancelar uma consulta de um membro, com data, hora, profissional (texto), clínica e observações. | scope §2 |
 | FR-APT-02 | A clínica pode ser escolhida entre as parceiras, ou ser uma entrada privada criada pelo utilizador (R8). | D3 |
-| FR-APT-03 | Estados simples: AGENDADA, REALIZADA, CANCELADA, FALTOU (a confirmar na Fase 10). | D9 |
+| FR-APT-03 | Estados: PEDIDA (aguarda confirmação), AGENDADA, RECUSADA, REALIZADA, CANCELADA, FALTOU. PEDIDA e RECUSADA só em clínicas parceiras. | D9, D17 |
 | FR-APT-04 | O sistema deve gerar lembretes de consulta antes da hora (antecedência: ver FR-ALR-04). | scope §2 |
-| FR-APT-05 | Não existe fluxo de pedido/confirmação com a clínica no MVP. | D3, D9 |
+| FR-APT-05 | ~~Não existe fluxo de pedido/confirmação com a clínica no MVP.~~ **Substituído por D17:** numa clínica parceira, a consulta é marcada num horário publicado pela clínica e fica a aguardar confirmação; noutras clínicas ou sem clínica, é registada diretamente. | D17 |
+| FR-APT-06 | O Gestor da clínica parceira publica e remove horários livres, confirma ou recusa pedidos (com motivo opcional) e pode cancelar consultas confirmadas com motivo. | D17 |
+| FR-APT-07 | O titular/tutor é informado quando a clínica confirma, recusa ou cancela (alerta `APPOINTMENT_CONFIRMED`/`REJECTED`/`CANCELLED`, ver UC-ALR-01). | D17 |
 
 ## 9. Exames (EXM)
 
@@ -148,7 +150,7 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-AUD-02 | São auditadas pelo menos: login, visualização/download de documentos e exames, receitas, alterações de permissões/membros, eliminações. Lista final: Fase 14. | prompt §20 |
 | FR-AUD-03 | Ao eliminar dados de um User, os logs são anonimizados. | D15 |
 | FR-ADM-01 | O Platform Admin pode listar, suspender e reativar contas, e gerir o cadastro de clínicas parceiras (R8), sem acesso a dados de saúde. | D4 |
-| FR-CLN-01 | Existe um cadastro `Clinic` sem utilizadores nem acesso a dados de famílias. Clínicas parceiras são criadas pelo Platform Admin; os utilizadores criam entradas privadas para clínicas não parceiras (R8). | D3 |
+| FR-CLN-01 | Existe um cadastro `Clinic`. Clínicas parceiras são criadas pelo Platform Admin; os utilizadores criam entradas privadas para clínicas não parceiras (R8). **D17:** clínicas parceiras têm contas de Gestor da clínica (criadas pelo Platform Admin) com acesso apenas às marcações na própria clínica; nenhuma clínica acede a dados de saúde. | D3, D17 |
 
 ---
 

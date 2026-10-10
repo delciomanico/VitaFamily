@@ -19,8 +19,9 @@
 | **Medication** | Medicamento em texto livre (D8). |
 | **Medication Schedule** | Plano de toma (horários, duração). |
 | **Dose Log** | Registo de toma confirmada/não confirmada (D7). Nome provisório. |
-| **Appointment** | Consulta, com estados simples (D9). |
-| **Clinic** | Entidade de cadastro sem login no MVP (D3). |
+| **Appointment** | Consulta. Em clínica parceira: pedida → confirmada/recusada (D17); noutras, registada diretamente (D9). |
+| **ClinicSlot** | Horário livre publicado por uma clínica parceira, onde o utilizador pode pedir consulta (D17). |
+| **Clinic** | Cadastro de clínicas (D3). As parceiras têm Gestor da clínica com portal próprio (D17). |
 | **Examination / Exam Result** | Exame e resultado estruturado simples (D8). |
 | **Reference Range** | Intervalo de referência **informado pelo utilizador**, nunca determinado pelo sistema. |
 | **Document** | Ficheiro anexo guardado fora da base de dados. |

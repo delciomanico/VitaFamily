@@ -16,5 +16,6 @@
 - ADR-014 — Stack em Node.js/TypeScript com Clean Architecture (decisão do proprietário; substitui ADR-012 e ADR-003; restaura o monólito modular de ADR-002 sem NestJS)
 - ADR-015 — Monorepo e módulos em Clean Architecture por módulo (substitui ADR-013)
 - ADR-016 — Limites práticos da Clean Architecture por módulo: quando criar porta, quando não (esclarece ADR-014/ADR-015, não as substitui)
+- ADR-017 — Deploy com Dokploy: proxy (Traefik), domínio e TLS (decisão do proprietário; substitui o Caddy de ADR-012)
 
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).

@@ -15,7 +15,7 @@
   │                        ├── 0..N MedicalCondition
   │                        ├── 0..N Prescription ── 1..N MedicationPlan ── 0..N DoseOccurrence
   │                        ├── 0..N MedicationPlan (avulso, sem Prescription)
-  │                        ├── 0..N Appointment ── 0..1 Clinic
+  │                        ├── 0..N Appointment ── 0..1 Clinic ; ── 0..1 ClinicSlot (D17)
   │                        ├── 0..N Examination ── 0..N ExamResult ; ── 0..1 Clinic
   │                        └── 0..N Document (→ Prescription | Examination)
   │
@@ -24,6 +24,7 @@
   └── 0..N DataExport
 
  Family 1 ── 0..N Invitation ;  Family 1 ── 0..N Clinic(PRIVATE) ;  Clinic(PARTNER) é global
+ Clinic(PARTNER) 1 ── 0..N ClinicSlot ;  Clinic(PARTNER) 1 ── 0..N ClinicStaff ── 1 User   (D17)
 ```
 
 ## 2. Relações e razão de negócio

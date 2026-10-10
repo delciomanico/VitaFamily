@@ -28,6 +28,8 @@ NOTIFICAÇÃO         entrega por canal (push/e-mail) conforme preferências
 | Toma de medicamento no horário | no horário | titular; para dependente: tutores + o próprio se tiver conta (FR-ALR-08) |
 | Consulta AGENDADA | 24 h e 2 h antes | idem |
 | Exame AGENDADO | 24 h antes | idem |
+| Consulta AGENDADA já passada sem desfecho | à hora da consulta (Q4) | idem |
+| Resposta da clínica parceira a um pedido (D17): confirmada, recusada, cancelada (inclui pedido sem resposta até à hora, BR-APT-08) | no momento da resposta | idem |
 
 - **Regras:** cada ocorrência gera **no máximo um** alerta por regra (idempotência, NFR-AVL-02); cancelar/editar o recurso cancela ou recalcula alertas futuros.
 - **Pós-condição:** alerta criado; notificações pedidas para os canais ativos do destinatário.

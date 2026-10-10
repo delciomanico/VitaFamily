@@ -35,7 +35,8 @@ Um User pode ter papéis diferentes em famílias diferentes (D2).
 
 | Papel | Âmbito |
 |---|---|
-| **PLATFORM_ADMIN** | Listar, suspender e reativar contas; gerir clínicas parceiras (R8, R10). Nenhum endpoint de saúde (NFR-SEC-10). |
+| **PLATFORM_ADMIN** | Listar, suspender e reativar contas; gerir clínicas parceiras e criar contas de Gestor da clínica (R8, R10, D17). Nenhum endpoint de saúde (NFR-SEC-10). |
+| **CLINIC_MANAGER** | Por clínica parceira (D17): gerir horários, confirmar/recusar pedidos, cancelar consultas da clínica com motivo, ver a agenda da clínica com dados mínimos (BR-CLN-03). Nenhum endpoint de família ou de saúde. |
 
 ## 5. Regras estruturais
 

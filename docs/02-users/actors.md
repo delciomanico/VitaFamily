@@ -13,6 +13,7 @@
 | **Dependente com conta (acesso limitado)** | FamilyMember sob tutela com conta própria. Vê os seus medicamentos e consultas e confirma tomas (N2). | Sim | Sim |
 | **Tutor / Responsável** | FamilyMember adulto responsável por um ou mais dependentes (relação por dependente, N1). Não é um papel da família. | Sim | Sim |
 | **Platform Admin** | Staff Vita. Gere contas e clínicas parceiras; **sem acesso a dados de saúde** (D4, R10). | Sim (conta de plataforma) | Sim |
+| **Gestor da clínica (Clinic Manager)** | Conta de uma clínica **parceira** (D17). Publica horários, confirma/recusa pedidos de consulta e vê a agenda da clínica — só dados mínimos da marcação, **nunca dados de saúde**. | Sim | Sim |
 
 ## 2. Atores do sistema
 
@@ -24,7 +25,7 @@
 
 | Ator | Estado |
 |---|---|
-| **Clinic Admin / Clinic Manager** | Previstos pelo prompt (§9) mas **fora do MVP** (D3): `Clinic` é só cadastro, sem login nem acesso a dados de famílias. Nenhuma permissão é definida para eles agora. |
+| **Clinic Admin** | Previsto pelo prompt (§9); fora do MVP. O **Clinic Manager** entrou com D17 (ver acima). |
 | **Profissional de saúde** | Aparece só como texto numa consulta ou receita; não tem conta. |
 
 ## 4. Observação

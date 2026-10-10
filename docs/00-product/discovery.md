@@ -327,13 +327,13 @@ Cada decisão segue o formato: contexto → opções → recomendação → impa
 |---|---|---|---|
 | D1 | Membros sem conta | **B** — membro com ou sem conta | `User` separado de `FamilyMember`; membro sem conta é gerido por um Admin e pode ser ligado a uma conta depois. |
 | D2 | Várias famílias | **B** — um User em várias famílias | Relação User↔Family N:M; a API precisa de contexto de família em cada pedido. |
-| D3 | Clínica no MVP | **B** — entidade `Clinic` sem login | Sem Clinic Admin/Manager com acesso no MVP; sem acesso de clínicas a dados de famílias. Arquitetura preparada. |
+| D3 | Clínica no MVP | **B** — entidade `Clinic` sem login | Sem Clinic Admin/Manager com acesso no MVP; sem acesso de clínicas a dados de famílias. Arquitetura preparada. **Alterada por D17:** clínicas parceiras têm Gestor da clínica com acesso só às marcações na própria clínica. |
 | D4 | Admin da plataforma | **B** — existe, sem acesso a dados de saúde | Gere contas/suporte; nunca vê dados clínicos. |
 | D5 | Mercado | **Portugal / UE (RGPD)** | Idioma pt-PT; RGPD aplicável; hosting na UE (a confirmar na Fase 11). |
 | D6 | Notificações | **B** — push + e-mail | Sem SMS no MVP. |
 | D7 | Tomas | **B** — confirmar toma | Nova entidade de registo de toma; histórico de adesão. |
 | D8 | Dados clínicos | **B** — campos estruturados simples | Valor, unidade, intervalo de referência informado pelo utilizador; medicamentos em texto livre; sem catálogos. |
-| D9 | Estados | **Simples** | Sem REQUESTED/CONFIRMED por agora; detalhe na Fase 10. |
+| D9 | Estados | **Simples** | Sem REQUESTED/CONFIRMED por agora; detalhe na Fase 10. **Alterada por D17:** consultas em clínicas parceiras passam por REQUESTED → AGENDADA/RECUSADA. |
 | D10 | Relatórios | **A** — vista via API | Sem PDF nem partilha por link no MVP. |
 | D11 | Alertas por resultados | **A** — fora do MVP | Só alertas de agenda (medicação, consulta, exame). |
 | D12 | Cliente | **Web app (PWA)** | Push via PWA; autenticação a decidir na Fase 14 tendo isto em conta. |
@@ -341,6 +341,25 @@ Cada decisão segue o formato: contexto → opções → recomendação → impa
 | D14 | Admissão | **C** — convite e criação direta | Fluxo de convite com expiração; ligação de perfil a conta existente. |
 | D15 | Eliminação | **Hard delete a pedido** | Remoção real de dados e documentos; logs de auditoria anonimizados; prazo de retenção dos logs **TBD (Fase 14)**. |
 | D16 | Validação com utilizadores | **Não validar** | Risco R9 (adoção) **aceite pelo proprietário**; P1–P5 mantêm-se como hipóteses não validadas. |
+
+### Alterações por change control
+
+#### D17 — Marcação de consultas com a clínica (proprietário, 2026-10-05)
+
+**Altera D3, D9, R8 e FR-APT-05.** Pedido do proprietário: *"a clínica deve disponibilizar horários e o paciente marca a consulta neste horário, e aguarda a clínica confirmar"*.
+
+| Pergunta | Escolha do proprietário |
+|---|---|
+| Quem, do lado da clínica, publica horários e confirma? | **Portal da clínica:** as clínicas **parceiras** passam a ter contas de **Gestor da clínica** (Clinic Manager), com área própria. |
+| Clínicas privadas ou consulta sem clínica? | **Registo direto**, como antes: a consulta nasce AGENDADA (ninguém do outro lado para confirmar). |
+
+**Consequências registadas** (detalhe em `business-rules.md` §7, `entities.md`, `state-machines.md`, `03-use-cases/appointments.md`):
+- Nova entidade **ClinicSlot** (horário disponível publicado por uma clínica parceira): especialidade, profissional (opcional), início, duração.
+- `Appointment` ganha `slotId?`, os estados **REQUESTED** (aguarda confirmação) e **REJECTED** (recusada), e `responseNote?` (motivo da recusa/cancelamento pela clínica).
+- Fluxo com clínica parceira: o titular/tutor escolhe um horário livre → pedido **REQUESTED** → a clínica **confirma** (AGENDADA) ou **recusa**. Lembretes só depois de confirmada.
+- **Privacidade (altera BR-CLN-03):** a clínica vê **apenas** as marcações feitas na própria clínica, com o mínimo necessário — nome do paciente, especialidade, profissional, data/hora e as observações escritas no pedido. **Nunca** dados de saúde da família. O utilizador é informado disto antes de enviar o pedido.
+- Contas de Gestor da clínica criadas pelo Platform Admin (o MVP do frontend usa uma conta demo). Clínicas privadas continuam sem login.
+- **Pendente antes de implementar no backend:** `05-api/openapi.yaml`, `endpoints.md`, `07-database/schema.md` e `08-security/authorization.md` (contrato e tabelas de ClinicSlot, ClinicStaff e novos estados).
 
 ### Pontos que ficam em aberto (derivados das decisões)
 

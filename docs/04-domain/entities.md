@@ -68,7 +68,7 @@ Tem 1+ MedicationPlan e 0..5 Documents.
 Único (`planId`, `scheduledAt`).
 
 ### Appointment — categoria C5
-`scheduledAt` (UTC) · `status` (SCHEDULED | COMPLETED | NO_SHOW | CANCELLED) · `professionalName?` · `clinicId?` · `clinicName?` (texto de reserva, BR-CLN-02) · `reason?` · `notes?` · `outcomeRequestedAt?`
+`scheduledAt` (UTC) · `status` (REQUESTED | SCHEDULED | REJECTED | COMPLETED | NO_SHOW | CANCELLED) · `professionalName?` · `clinicId?` · `clinicName?` (texto de reserva, BR-CLN-02) · `slotId?` (horário da clínica parceira, D17) · `responseNote?` (motivo da clínica ao recusar/cancelar, D17) · `reason?` · `notes?` · `outcomeRequestedAt?`
 
 ### Examination — categoria C6
 `name` · `examDate` (date) · `status` (SCHEDULED | COMPLETED | CANCELLED) · `clinicId?` · `clinicName?` · `notes?`
@@ -83,10 +83,18 @@ Máx. 5 por recurso e 100 MB por família (Q10).
 ### Clinic
 `type` (PARTNER | PRIVATE) · `familyId?` (obrigatório se PRIVATE, nulo se PARTNER) · `name` · `address?` · `phone?` · `email?` · `status` (ACTIVE | ARCHIVED) · `createdBy`
 
+### ClinicSlot — horário publicado por uma clínica parceira (D17)
+`clinicId` (PARTNER) · `specialty` · `professionalName?` · `startsAt` (UTC) · `durationMinutes`
+**Regras:** BR-APT-06, BR-CLN-04. Livre = sem consulta PEDIDA ou AGENDADA associada.
+
+### ClinicStaff — Gestor da clínica (D17)
+`clinicId` (PARTNER) · `userId` · `role` (CLINIC_MANAGER) · `createdBy` (Platform Admin)
+Sem relação com Family: o Gestor não é membro de nenhuma família por esta via.
+
 ## Alertas
 
 ### Alert
-`recipientUserId` · `familyId` · `memberId` (sujeito) · `type` (MEDICATION_DUE | APPOINTMENT_REMINDER | EXAM_REMINDER | APPOINTMENT_OUTCOME_REQUEST) · `sourceType` (DOSE | APPOINTMENT | EXAMINATION) · `sourceId` · `ruleKey` (ex.: `dose.due`, `dose.repeat`, `appointment.24h`, `appointment.2h`, `exam.24h`, `appointment.outcome`) · `dedupeKey` (único) · `triggerAt` · `readAt?`
+`recipientUserId` · `familyId` · `memberId` (sujeito) · `type` (MEDICATION_DUE | APPOINTMENT_REMINDER | EXAM_REMINDER | APPOINTMENT_OUTCOME_REQUEST | APPOINTMENT_CONFIRMED | APPOINTMENT_REJECTED | APPOINTMENT_CANCELLED) · `sourceType` (DOSE | APPOINTMENT | EXAMINATION) · `sourceId` · `ruleKey` (ex.: `dose.due`, `dose.repeat`, `appointment.24h`, `appointment.2h`, `exam.24h`, `appointment.outcome`, `appointment.confirmed`, `appointment.rejected`, `appointment.cancelled` — respostas da clínica parceira, D17/FR-APT-07) · `dedupeKey` (único) · `triggerAt` · `readAt?`
 
 ### Notification
 Entrega de um Alert num canal. `alertId` · `channel` (PUSH | EMAIL) · `status` (PENDING | SENT | FAILED | SKIPPED) · `attempts` · `nextAttemptAt?` · `lastErrorCode?` · `sentAt?`

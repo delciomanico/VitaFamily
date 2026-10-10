@@ -1,6 +1,6 @@
 # Vita Family — Infraestrutura (Fase 11)
 
-> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), Kysely+`pg`, pg-boss (fila sobre PostgreSQL), **sem Redis** (linha `redis` da tabela de serviços abaixo foi removida; filas e rate limit passam pela BD/em memória), em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), Kysely+`pg`, pg-boss (fila sobre PostgreSQL), **sem Redis** (linha `redis` da tabela de serviços abaixo foi removida; filas e rate limit passam pela BD/em memória), em **VPS própria** com Dokploy/Traefik (ADR-017), domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015; a arquitetura lógica mantém-se.
 
 > Estado: **v0.1**. Decisões de hospedagem concretas (fornecedor) ficam como **escolha operacional** na Fase 16/M0; aqui só requisitos.
 
@@ -13,7 +13,7 @@
 | `postgres` | PostgreSQL 16 | Dados + filas (pg-boss) | persistente, backups |
 | `object-storage` | MinIO (dev) / S3-compatível na UE (prod) | Documentos e exportações | persistente, versionado, SSE |
 | `clamav` | clamd | Antivírus | atualização diária de assinaturas |
-| `proxy` | Caddy/Nginx/Traefik | TLS, compressão, limites de corpo | |
+| `proxy` | Traefik do Dokploy (ADR-017) | TLS, domínio, encaminhamento `/` → web e `/api` → api | |
 | `mail` | MailHog (dev) / SMTP UE (prod) | E-mail | |
 
 ## 2. Requisitos de localização e segurança (N5, NFR-PRV-02)

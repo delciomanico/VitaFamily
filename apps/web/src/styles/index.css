@@ -1,0 +1,164 @@
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/*
+ * Design tokens do Vita Family.
+ * Única fonte de cores, tipografia, raios e sombras: os componentes usam
+ * apenas as classes geradas a partir daqui (bg-surface, text-muted, rounded-lg…).
+ * Breakpoints: os padrões do Tailwind (md 768, lg 1024, xl 1280).
+ */
+@theme {
+  /* Cores — azul-ciano; primary ≥ 4.5:1 com texto branco e sobre primary-soft (WCAG AA) */
+  --color-primary: #167698;
+  --color-primary-hover: #126883;
+  --color-primary-soft: #eaf6fa;
+  --color-primary-soft-hover: #d9eef5;
+  --color-primary-foreground: #ffffff;
+  /* Ciano claro só decorativo (ilustrações, fundos); nunca para texto. */
+  --color-accent: #4aafd0;
+  /* Faixa do topo: só texto grande (≥ 24px) e ícones em branco (contraste 3.2:1, AA texto grande). */
+  --color-brand: #2a9cc0;
+
+  --color-background: #f4f8fa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #edf3f6;
+  --color-foreground: #17242c;
+  --color-muted: #56656f;
+  --color-border: #dfe8ec;
+  --color-border-strong: #c5d3d9;
+
+  --color-success: #1d7a45;
+  --color-success-soft: #e8f4ec;
+  --color-warning: #9a5b00;
+  --color-warning-soft: #fdf3e2;
+  --color-danger: #b8322a;
+  --color-danger-soft: #fbeceb;
+
+  /* Tipografia */
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.25rem;
+
+  /* Raios */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+
+  /* Sombras (discretas) */
+  --shadow-card: 0 2px 8px rgb(23 36 44 / 0.05);
+  --shadow-button: 0 6px 16px rgb(23 122 154 / 0.25);
+  --shadow-overlay: 0 12px 32px rgb(23 36 44 / 0.14);
+
+  /* Layout */
+  --spacing-sidebar: 16rem;
+
+  /* Animações */
+  --animate-toast-in: toast-in 220ms ease-out;
+  /* Foto do login: fade de entrada (1,6s) e zoom lento contínuo; fica no estado final. */
+  --animate-login-slide: login-slide 8s linear forwards;
+
+  @keyframes login-slide {
+    0% {
+      opacity: 0;
+      transform: scale(1.1);
+    }
+    20% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1.22);
+    }
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-0.75rem);
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+
+  /* Sobre a faixa de cor (cabeçalhos, splash) o contorno primário perde contraste: usa branco. */
+  .bg-brand :focus-visible {
+    @apply outline-white;
+  }
+
+  dialog::backdrop {
+    background: rgb(23 36 44 / 0.4);
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Carrosséis com gesto de deslizar: sem barra de scroll visível. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/*
+ * Área que ocupa o espaço livre de um ecrã fixo (Home). O conteúdo marcado com
+ * `fit-hide` esconde-se quando não cabe, para nunca criar scroll vertical.
+ */
+@layer components {
+  .fit-area {
+    container-type: size;
+  }
+
+  /* `!important` porque as utilidades (ex.: `flex`) vêm depois na cascata. */
+  @container (max-height: 8.5rem) {
+    .fit-hide {
+      display: none !important;
+    }
+  }
+
+  /* Alertas recentes: precisam do título e de pelo menos uma linha completa. */
+  @container (max-height: 7rem) {
+    .fit-hide-alerts {
+      display: none !important;
+    }
+  }
+}

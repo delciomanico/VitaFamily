@@ -1,6 +1,6 @@
 # Vita Family — Deploy (Fase 16)
 
-> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), com Kysely+`pg` e runner de migrações próprio (sem Prisma), pg-boss, **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), com Kysely+`pg` e runner de migrações próprio (sem Prisma), pg-boss, **sem Redis**, em **VPS própria** com Dokploy/Traefik (ADR-017), domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015.
 
 > Estado: **v0.1**.
 
@@ -27,6 +27,8 @@ release (tag) → aprovação manual → deploy em produção
 Disponibilidade-alvo 99,5 %/mês permite janelas curtas de manutenção; deploys normais não devem exigir indisponibilidade (API stateless; worker reinicia sem perder trabalho porque o estado está na BD).
 
 ## 4. TLS e rede
+> **ADR-017:** o deploy é feito com **Dokploy**; o proxy é o Traefik do Dokploy, que trata do domínio `vitafamily.cassfrei.com`, dos certificados e das portas. Frontend: `deploy/docker-compose.web.prod.yml` (ver `apps/web/README.md`).
+
 Proxy reverso termina TLS (certificados automáticos), HSTS, redirecionamento HTTP→HTTPS, limite de corpo (≤ 11 MB no caminho de upload; 1 MB nos restantes). Postgres, Redis, storage e ClamAV em rede interna sem portas públicas.
 
 ## 5. Backups e restauro (N10)
