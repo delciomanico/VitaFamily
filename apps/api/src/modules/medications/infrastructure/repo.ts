@@ -382,6 +382,21 @@ export class KyselyDoseOccurrencesRepository implements DoseOccurrencesRepositor
     return rows.map(toDose);
   }
 
+  async listReminderCandidates(trx: Kysely<Database>, now: Date, limit: number): Promise<DoseOccurrence[]> {
+    const rows = await trx
+      .selectFrom("dose_occurrences")
+      .innerJoin("medication_plans", "medication_plans.id", "dose_occurrences.plan_id")
+      .select(DOSE_SELECT)
+      // indexes.md: `(status, scheduled_at) WHERE status IN ('PENDING','UNCONFIRMED')` — mesmo
+      // índice do `mark-unconfirmed`, reaproveitado pelo scanner de alertas (M8).
+      .where("dose_occurrences.status", "in", ["PENDING", "UNCONFIRMED"])
+      .where("dose_occurrences.scheduled_at", "<=", now)
+      .orderBy("dose_occurrences.scheduled_at", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map(toDose);
+  }
+
   async adherenceByMember(trx: Kysely<Database>, familyId: string, memberId: string, from: Date, to: Date): Promise<AdherenceItem[]> {
     const rows = await trx
       .selectFrom("dose_occurrences")

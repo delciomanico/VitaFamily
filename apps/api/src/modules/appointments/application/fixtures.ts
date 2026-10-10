@@ -157,6 +157,29 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     return Promise.resolve();
   }
 
+  readonly outcomeRequestedAt = new Map<string, Date>();
+
+  async listReminderCandidates(_trx: FakeTrx, now: Date, outcomeWindowMs: number, limit: number): Promise<Appointment[]> {
+    const lookahead = now.getTime() + outcomeWindowMs;
+    const outcomeThreshold = now.getTime() - outcomeWindowMs;
+    return Promise.resolve(
+      [...this.byId.values()]
+        .filter((appointment) => {
+          if (appointment.status !== "SCHEDULED") return false;
+          const future = appointment.scheduledAt.getTime() > now.getTime() && appointment.scheduledAt.getTime() <= lookahead;
+          const overdue = appointment.scheduledAt.getTime() <= outcomeThreshold && !this.outcomeRequestedAt.has(appointment.id);
+          return future || overdue;
+        })
+        .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
+        .slice(0, limit),
+    );
+  }
+
+  async setOutcomeRequested(_trx: FakeTrx, appointmentId: string, requestedAt: Date): Promise<void> {
+    this.outcomeRequestedAt.set(appointmentId, requestedAt);
+    return Promise.resolve();
+  }
+
   private requireOwned(familyId: string, memberId: string, appointmentId: string): Appointment {
     const appointment = this.byId.get(appointmentId);
     if (!appointment) {

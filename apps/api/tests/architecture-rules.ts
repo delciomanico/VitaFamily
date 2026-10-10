@@ -53,7 +53,10 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   clinics: ["access", "audit"],
   examinations: ["access", "clinics", "documents", "audit"],
   documents: ["access", "audit"],
-  alerts: ["medications", "appointments", "examinations", "families"],
+  // alerts -> notifications (modules.md §3 nota 15): a orquestração do pipeline
+  // Evento→Regra→Alerta→Notificação fica em `alerts`, que chama `notifications` pela raiz para
+  // criar/cancelar notificações — mesmo critério de `medications` ↔ `prescriptions` (nota 6).
+  alerts: ["medications", "appointments", "examinations", "families", "notifications"],
   notifications: ["users"],
   reports: [
     "access",

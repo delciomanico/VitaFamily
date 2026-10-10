@@ -10,9 +10,9 @@ M7 (`plan.md` §4): `Examination` e `ExamResult` (FR-EXM). Depende de `access` (
 
 `deriveInitialExaminationStatus` (`domain/examination.ts`) decide o estado à criação por comparação de datas (`examDate <= hoje` nasce `COMPLETED`, senão `SCHEDULED`) — mesmo critério de `BR-RX-01`/`assertValidIssuedOn`, mas sem a restrição "não futura" (um exame pode ser agendado). `addExamResult` recusa com `INVALID_STATE_TRANSITION` se o exame não estiver `COMPLETED` (endpoints.md `addExamResult`, ST5).
 
-## Âmbito deixado para M8 (`alerts`)
+## Âmbito concluído em M8 (`alerts`)
 
-`BR-EXM-03`/`TC-ALR-07` (lembrete 24h antes de um exame futuro) é responsabilidade do scanner de `alerts` (M8) — mesmo critério documentado em `appointments/README.md`.
+`BR-EXM-03`/`TC-ALR-07` (lembrete 24h antes de um exame futuro) é responsabilidade do scanner de `alerts` (M8), implementado — mesmo critério documentado em `appointments/README.md`. Este módulo expõe só `createExaminationsReminderQueries#listReminderCandidates` (raiz mínima, sem `access`/`clinics`/`documents`); o instante exato do lembrete (fuso efetivo do sujeito) é calculado em `alerts/domain/timezone.ts`, não aqui.
 
 ## Mapa de um pedido típico
 ```

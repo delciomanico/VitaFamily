@@ -14,6 +14,10 @@ import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modul
 import { createAccessModule } from "../modules/access/index.js";
 import { ClamAvScanner, createDocumentsWorkerModule } from "../modules/documents/index.js";
 import { createMedicationsWorkerModule } from "../modules/medications/index.js";
+import { createAppointmentsReminderQueries } from "../modules/appointments/index.js";
+import { createExaminationsReminderQueries } from "../modules/examinations/index.js";
+import { createNotificationsWorkerModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
+import { createAlertsWorkerModule } from "../modules/alerts/index.js";
 
 export function main(): void {
   const config = loadConfig();
@@ -57,11 +61,38 @@ export function main(): void {
   const documentsWorker = createDocumentsWorkerModule({ db, audit, clock, storage, virusScanner, boss });
   const medicationsWorker = createMedicationsWorkerModule({ db, audit, access, clock, boss });
 
+  // M8 (plan.md §4): `alerts.scan` só precisa de ler consultas/exames (`listReminderCandidates`)
+  // e escrever `outcome_requested_at` — nunca `clinics`/`documents`/`access` (processo de
+  // sistema, sem ator a autorizar nem nome de clínica a resolver), por isso usa as raízes de
+  // composição mínimas destes módulos em vez de `createAppointmentsModule`/`createExaminationsModule`.
+  const appointmentsQueries = createAppointmentsReminderQueries({ db });
+  const examinationsQueries = createExaminationsReminderQueries({ db });
+  const notificationsWorker = createNotificationsWorkerModule({
+    db,
+    users,
+    clock,
+    mailer: new NotificationsSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
+    pushSender: new WebPushSender({ publicKey: config.VAPID_PUBLIC_KEY, privateKey: config.VAPID_PRIVATE_KEY, subject: config.VAPID_SUBJECT }),
+    boss,
+  });
+  const alertsWorker = createAlertsWorkerModule({
+    db,
+    families,
+    medications: medicationsWorker,
+    appointments: appointmentsQueries,
+    examinations: examinationsQueries,
+    notifications: notificationsWorker,
+    clock,
+    boss,
+  });
+
   boss
     .start()
     .then(async () => {
       await documentsWorker.registerWorker();
       await medicationsWorker.registerWorkers();
+      await notificationsWorker.registerWorkers();
+      await alertsWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

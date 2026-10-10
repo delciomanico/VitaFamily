@@ -74,7 +74,7 @@ CHECK `(type='PRIVATE') = (family_id IS NOT NULL)`.
 `recipient_user_id FK→users CASCADE NN` · `family_id FK→families CASCADE NN` · `member_id NN` (FK composta) · `type alert_type NN` · `source_type alert_source NN` · `source_id uuid NN` · `rule_key text NN` · `dedupe_key text NN UNIQUE` · `trigger_at timestamptz NN` · `read_at`
 
 **notifications**
-`alert_id FK→alerts CASCADE NN` · `channel channel NN` · `status notification_status NN default 'PENDING'` · `attempts int NN default 0` · `next_attempt_at timestamptz` · `last_error_code text` · `sent_at` · UNIQUE `(alert_id, channel)`
+`alert_id FK→alerts CASCADE NN` · `recipient_user_id FK→users CASCADE NN` (desnormalizado de `alerts.recipient_user_id`; M8/`modules.md` §3 nota 15 — `notifications` nunca lê `alerts`, por isso precisa do destinatário na própria linha para decidir `SKIPPED` por conta suspensa/canal desativado no envio) · `channel channel NN` · `status notification_status NN default 'PENDING'` · `attempts int NN default 0` · `next_attempt_at timestamptz` · `last_error_code text` · `sent_at` · UNIQUE `(alert_id, channel)`
 
 ## 5. Transversal
 

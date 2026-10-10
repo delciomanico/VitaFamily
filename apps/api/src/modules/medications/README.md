@@ -39,6 +39,10 @@ medications.generate-doses (job diário, modules.md §5)
 - `infrastructure/` — `KyselyMedicationPlansRepository`/`KyselyDoseOccurrencesRepository` (paginação por cursor keyset `created_at,id` — primeiro módulo a implementar `{items,nextCursor}` a sério, `platform/page` ganhou `encodeCursor`/`decodeCursor` nesta tarefa); `jobs.ts` (registo pg-boss dos 2 jobs agendados).
 - `interface/` — as 11 rotas de "Medications" em `endpoints.md`.
 
+## Exposto a `alerts` em M8
+
+`MedicationsWorkerModule.listReminderCandidates` (`index.ts`): tomas `PENDING`/`UNCONFIRMED` com `scheduledAt <= now` (mesmo índice do `mark-unconfirmed`, `dose_occurrences_pending_unconfirmed_idx`) — interface de consulta (`modules.md` §3 nota 3) para o scanner `alerts.scan` decidir `dose.due`/`dose.repeat` sem aceder a `dose_occurrences` diretamente.
+
 ## Decisão de change control: `access` expõe `getEffectiveTimezone` (modules.md §2 nota 10)
 `modules.md` §2 listava `medications: access, audit` — correto, mas **não bastava**: FR-MED-03/Q8/DM6 exigem conhecer o **fuso efetivo do sujeito** (o do titular com conta; para dependente sem conta, o do tutor principal) para gerar/recalcular qualquer ocorrência. Três hipóteses:
 1. `medications` passar a depender de `families`/`users` diretamente — rejeitada: nenhuma das edges criaria um ciclo por si só, mas tornaria `medications` mais acoplado do que o necessário quando já existe um caminho mais curto (ver 2).

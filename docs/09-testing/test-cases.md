@@ -71,7 +71,9 @@
 | TC-EXM-02 | Valor fora do intervalo informado não gera alerta nem marca | A |
 | TC-EXM-03 | Histórico de um parâmetro ordenado por data | A |
 
-> **Nota M7 (change control, mesmo padrão da nota M6 em TC-AUTH-12):** TC-APT-01 (metade "lembretes 24h/2h recalculados") e TC-APT-02 (metade "pedido de desfecho 24h depois") descrevem o scanner de `alerts`, que só existe em M8 (`modules.md` §2: `alerts` depende de `appointments`, nunca o inverso — `plan.md` §4 confirma `FR-ALR` em M8). Implementado em M7: os dados de que `alerts` vai precisar (`scheduledAt`, `status`, `outcomeRequestedAt`) ficam corretos, e nenhum processo deste módulo muda o estado por si só — caso coberto em `appointments/application/appointments.test.ts` ("AC-APT-02: nunca muda de estado por si só"). As metades de TC-APT-01/02 sobre geração de lembretes/alertas ficam pendentes de M8. TC-APT-03 (ST4), TC-CLN-01 e TC-EXM-01/02/03 estão cobertos nos testes de `appointments`/`clinics`/`examinations` (`application/*.test.ts`).
+> **Nota M7 (change control, mesmo padrão da nota M6 em TC-AUTH-12):** TC-APT-01 (metade "lembretes 24h/2h recalculados") e TC-APT-02 (metade "pedido de desfecho 24h depois") descrevem o scanner de `alerts`, que só existia em M8 (`modules.md` §2: `alerts` depende de `appointments`, nunca o inverso — `plan.md` §4 confirma `FR-ALR` em M8). Implementado em M7: os dados de que `alerts` vai precisar (`scheduledAt`, `status`, `outcomeRequestedAt`) ficam corretos, e nenhum processo deste módulo muda o estado por si só — caso coberto em `appointments/application/appointments.test.ts` ("AC-APT-02: nunca muda de estado por si só"). TC-APT-03 (ST4), TC-CLN-01 e TC-EXM-01/02/03 estão cobertos nos testes de `appointments`/`clinics`/`examinations` (`application/*.test.ts`).
+>
+> **Nota M8 (concluído):** as metades pendentes de TC-APT-01/02 (geração de lembretes 24h/2h e pedido de desfecho) e TC-ALR-01..08 (abaixo) estão cobertas em `alerts/application/scan-job.test.ts`, `alerts/application/alerts.test.ts`, `alerts/domain/*.test.ts`, `notifications/application/*.test.ts` e `notifications/domain/*.test.ts`.
 
 ## 5. Documentos (TC-DOC)
 | ID | Caso | Nível |

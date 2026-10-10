@@ -145,6 +145,20 @@ export class KyselyExaminationsRepository implements ExaminationsRepository<Kyse
   async delete(trx: Kysely<Database>, familyId: string, memberId: string, examinationId: string): Promise<void> {
     await trx.deleteFrom("examinations").where("family_id", "=", familyId).where("member_id", "=", memberId).where("id", "=", examinationId).execute();
   }
+
+  async listReminderCandidates(trx: Kysely<Database>, from: string, to: string, limit: number): Promise<Examination[]> {
+    // indexes.md: `(status, exam_date) WHERE status='SCHEDULED'` — reaproveitado pelo scanner (M8).
+    const rows = await trx
+      .selectFrom("examinations")
+      .select(EXAMINATION_COLUMNS)
+      .where("status", "=", "SCHEDULED")
+      .where("exam_date", ">=", from)
+      .where("exam_date", "<=", to)
+      .orderBy("exam_date", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map(toExamination);
+  }
 }
 
 interface ExamResultRow {

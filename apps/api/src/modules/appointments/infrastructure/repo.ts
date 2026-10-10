@@ -136,4 +136,31 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
   async delete(trx: Kysely<Database>, familyId: string, memberId: string, appointmentId: string): Promise<void> {
     await trx.deleteFrom("appointments").where("family_id", "=", familyId).where("member_id", "=", memberId).where("id", "=", appointmentId).execute();
   }
+
+  async listReminderCandidates(trx: Kysely<Database>, now: Date, outcomeWindowMs: number, limit: number): Promise<Appointment[]> {
+    // `outcomeWindowMs` serve as duas janelas (ambas 24h, `alerts/domain/rule.ts`): limite futuro
+    // (nenhum lembrete fixo olha mais longe do que isto, BR-APT-05) e limiar passado (BR-APT-02).
+    const lookahead = new Date(now.getTime() + outcomeWindowMs);
+    const outcomeThreshold = new Date(now.getTime() - outcomeWindowMs);
+    // indexes.md: `(status, scheduled_at) WHERE status='SCHEDULED'` — mesmo índice para as duas
+    // janelas (futura, lembretes; passada, pedido de desfecho), reaproveitado pelo scanner (M8).
+    const rows = await trx
+      .selectFrom("appointments")
+      .select(APPOINTMENT_COLUMNS)
+      .where("status", "=", "SCHEDULED")
+      .where((eb) =>
+        eb.or([
+          eb.and([eb("scheduled_at", ">", now), eb("scheduled_at", "<=", lookahead)]),
+          eb.and([eb("scheduled_at", "<=", outcomeThreshold), eb("outcome_requested_at", "is", null)]),
+        ]),
+      )
+      .orderBy("scheduled_at", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map(toAppointment);
+  }
+
+  async setOutcomeRequested(trx: Kysely<Database>, appointmentId: string, requestedAt: Date): Promise<void> {
+    await trx.updateTable("appointments").set({ outcome_requested_at: requestedAt, updated_at: sql`now()` }).where("id", "=", appointmentId).execute();
+  }
 }

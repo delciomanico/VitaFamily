@@ -33,7 +33,7 @@ Dois pontos de entrada no mesmo binário: `vita api` e `vita worker` (ver `cmd/v
 | **clinics** | Clinic PARTNER/PRIVATE (inclui a gestão de parceiras, exposta pelo `admin` através da API de `clinics`). | access, audit (nota 13) | `ClinicLookup`, `ClinicAdmin` |
 | **examinations** | Examination e ExamResult. | access, clinics, documents, audit | — |
 | **documents** | Armazenamento, validação, antivírus, download mediado, quotas. | access, audit | `DocumentService` |
-| **alerts** | Regras puras, destinatários, scanner e geração idempotente de alertas, listagem/leitura. | medications, appointments, examinations, families | — |
+| **alerts** | Regras puras, destinatários, scanner e geração idempotente de alertas, listagem/leitura. | medications, appointments, examinations, families, notifications (nota 15) | — |
 | **notifications** | Canais e entrega (push/e-mail), preferências, subscrições, retry. | users | `NotificationChannel`, `Mailer` |
 | **reports** | Vistas calculadas respeitando `AccessPolicy`. | access + módulos de leitura | — |
 | **lifecycle** | Exportações, saída/remoção de membros, maioridade, bloqueio e apagamento a 90 dias, limpeza de ficheiros. | families, documents, notifications, audit | — |
@@ -54,6 +54,37 @@ Dois pontos de entrada no mesmo binário: `vita api` e `vita worker` (ver `cmd/v
 11. `access` expõe `getMembershipFacts` (mesmo critério das notas 7-10): a linha desta tabela já declarava `clinics: ["access"]` (sem `families`), mas `authorization.md` §4 ("Clínicas privadas: criar — adulto da família; editar/arquivar/eliminar — criador ou FAMILY_ADMIN") exige `role`/`isAdult` do actor, que não são decisão de `AccessPolicy.can()` (`clinics` nem está em `HEALTH_MODULES` — não há categoria de dados de saúde envolvida). Como `access` já depende de `families`, `getMembershipFacts(trx, familyId, userId)` (chama `families.findMemberByUserId` e computa `isAdult` com um pequeno cálculo de idade duplicado em `access/domain/age.ts`, pelo mesmo critério de duplicação já usado entre `auth`/`users`/`families`) dá a `clinics` o que precisa sem nenhuma aresta nova no grafo de módulos. Descoberto durante a implementação de M7; acrescentado aqui em vez de alterado silenciosamente (CLAUDE.md, change control) — mesmo critério das notas 7-10. Ver `access/README.md`/`clinics/README.md`.
 13. `clinics` → `audit`: a linha original desta tabela só listava `access` — mas toda escrita de `clinics` (`CLINIC_CREATE/UPDATE/STATUS/DELETE`, `ADMIN_CLINIC_CREATE/UPDATE/STATUS`) tem de ser auditada na mesma transação (`conventions.md` §2: "auditoria nas escritas"), mesmo critério já aplicado em `access → audit` (nota 8) e em todos os outros módulos de registos de saúde (`health-records`, `prescriptions`, `medications`, `documents`). Como `audit` não depende de nada (primeira linha desta tabela), acrescentar esta aresta não fecha nenhum ciclo. Descoberto durante a implementação de M7 (o teste de arquitetura falhou com a declaração original); acrescentado aqui em vez de alterado silenciosamente (CLAUDE.md, change control) — mesmo critério das notas 7-12.
 14. `clinics` expõe as rotas `/admin/clinics...` (`adminRouter`, UC-ADM-03) diretamente, sem passar por um módulo `admin`: este só existe a partir de M9 (`plan.md` §4, "FR-ADM-01 (contas)"), mas FR-ADM-01 (clínicas) é M7. A tabela desta secção já previa isto ("clinics… inclui a gestão de parceiras, exposta pelo admin através da API de `clinics`"); nesta implementação, até `admin` existir, `main/api.ts` monta `clinics.router` e `clinics.adminRouter` lado a lado (nenhuma aresta nova — `admin` continua a não ser importado por `clinics`). Quando M9 criar `admin`, a expectativa é que monte/delegue `clinics.adminRouter` em vez de duplicar as rotas. Descoberto durante a implementação de M7; acrescentado aqui pelo mesmo critério das notas 7-11.
+15. `alerts` → `notifications` (M8): a linha original desta tabela só listava `medications,
+    appointments, examinations, families` para `alerts` e `users` para `notifications` — nenhuma
+    aresta entre os dois. Mas o pipeline obrigatório Evento→Regra→Alerta→Notificação
+    (`architecture.md` §5) exige que, ao criar um `Alert`, alguém crie também as linhas
+    `notifications` por canal ativo (entities.md: `notifications.alert_id FK→alerts`) e que, ao
+    marcar um alerta como lido antes do envio, alguém cancele (`SKIPPED`) as notificações ainda
+    pendentes (state-machines.md "Notification"). Como `notifications` só depende de `users` (não
+    pode ler `alerts` sem fechar um ciclo com a aresta inversa) e `conventions.md` §3.5 proíbe
+    `alerts` de escrever na tabela `notifications` diretamente, a orquestração fica em `alerts`
+    (que já orquestra o resto do pipeline), chamando `notifications.enqueueForAlert`/
+    `isTypeEnabled`/`skipPendingForAlert` pela raiz — mesmo critério de `medications` ↔
+    `prescriptions` (nota 6: a orquestração fica no módulo de nível mais alto do pipeline, nunca o
+    inverso). Para que `notifications` nunca precise de ler `alerts` (SKIPPED por "conta
+    suspensa"/"canal desativado" no envio), a tabela `notifications` ganhou uma coluna
+    `recipient_user_id` desnormalizada (escrita uma única vez em `enqueueForAlert`), fora do
+    desenho original de `schema.md` §4 — documentado também aí e em `notifications/README.md`.
+    Na mesma implementação: `notification_preferences` já existia desde M1
+    (`0002_identity.sql`, criada em antecipação a este módulo), mas `users/infrastructure/`
+    chegou a declarar o seu tipo Kysely e a inserir uma linha por omissão no registo — duas
+    violações de `conventions.md` §3.5 (só o repositório do módulo dono acede à tabela) agora
+    corrigidas: a declaração/escrita saiu de `users`, que passa a não tocar nesta tabela; ver
+    NOTA em `users/infrastructure/schema.ts`.
+    Descoberto durante a implementação de M8; acrescentado aqui em vez de alterado silenciosamente
+    (CLAUDE.md, change control) — mesmo critério das notas 7-14.
+16. `families` expõe `listGuardianUserIds` (M8, mesmo critério das notas 7-11/anteriores): `alerts`
+    precisa dos tutores com conta de um dependente (FR-ALR-08/BR-PRV-06) para calcular
+    destinatários, mas `conventions.md` §3.5 proíbe-o de aceder a `guardianships`/`family_members`
+    diretamente. `listGuardianUserIds(trx, familyId, dependentId)` (nova operação crua de
+    `families`, mesmo critério de `findMemberById`/`isGuardianOf` já expostos a `access`) devolve
+    só os `userId` dos tutores (nunca o `FamilyMember` completo). Descoberto durante a
+    implementação de M8; acrescentado aqui pelo mesmo critério das notas 7-15.
 
 ## 4. Processos (API vs worker)
 

@@ -20,6 +20,7 @@ import { createSetAppointmentStatusUseCase } from "./application/set-appointment
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
 import { KyselyAppointmentsRepository } from "./infrastructure/repo.js";
 import { createAppointmentsRouter, type AppointmentsController } from "./interface/router.js";
+import type { Appointment } from "./domain/appointment.js";
 
 export type { Appointment, AppointmentStatus } from "./domain/appointment.js";
 
@@ -59,4 +60,22 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
   };
 
   return { router: createAppointmentsRouter(controller) };
+}
+
+export interface AppointmentsReminderQueries {
+  listReminderCandidates: (trx: Kysely<Database>, now: Date, outcomeWindowMs: number, limit: number) => Promise<Appointment[]>;
+  setOutcomeRequested: (trx: Kysely<Database>, appointmentId: string, requestedAt: Date) => Promise<void>;
+}
+
+/**
+ * Raiz de composição mínima para o processo "worker" (M8, `alerts.scan`): só o necessário para o
+ * scanner (nunca `access`/`clinics` — processo de sistema, sem ator a autorizar nem nome de
+ * clínica a resolver; mesmo critério de `medications` `MedicationsWorkerDeps`).
+ */
+export function createAppointmentsReminderQueries(_deps: { db: Kysely<Database> }): AppointmentsReminderQueries {
+  const appointmentsRepo = new KyselyAppointmentsRepository();
+  return {
+    listReminderCandidates: (trx, now, outcomeWindowMs, limit) => appointmentsRepo.listReminderCandidates(trx, now, outcomeWindowMs, limit),
+    setOutcomeRequested: (trx, appointmentId, requestedAt) => appointmentsRepo.setOutcomeRequested(trx, appointmentId, requestedAt),
+  };
 }

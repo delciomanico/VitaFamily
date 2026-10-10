@@ -82,6 +82,11 @@ export interface ExaminationsRepository<Trx> {
   update(trx: Trx, familyId: string, memberId: string, examinationId: string, changes: ExaminationChanges): Promise<Examination>;
   updateStatus(trx: Trx, familyId: string, memberId: string, examinationId: string, status: ExaminationStatus): Promise<Examination>;
   delete(trx: Trx, familyId: string, memberId: string, examinationId: string): Promise<void>;
+  /** `alerts.scan` (M8, modules.md §3 nota 3): candidatas a `exam.24h` — `SCHEDULED` com
+   * `exam_date` dentro de `[from, to]` (datas, sem hora; `alerts` resolve o fuso efetivo do
+   * sujeito e decide por regra pura se o instante exato já foi atingido). `alerts` nunca acede a
+   * `examinations` diretamente (conventions.md §3.5). */
+  listReminderCandidates(trx: Trx, from: string, to: string, limit: number): Promise<Examination[]>;
 }
 
 export interface NewExamResultRecord {

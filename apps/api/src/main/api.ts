@@ -25,6 +25,8 @@ import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
 import { createClinicsModule } from "../modules/clinics/index.js";
 import { createAppointmentsModule } from "../modules/appointments/index.js";
 import { createExaminationsModule } from "../modules/examinations/index.js";
+import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
+import { createAlertsModule } from "../modules/alerts/index.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
@@ -125,6 +127,17 @@ export function main(): void {
   const appointments = createAppointmentsModule({ db, audit, access, clinics, clock });
   const examinations = createExaminationsModule({ db, audit, access, clinics, documents, clock });
 
+  // M8 (plan.md §4): `notifications` antes de `alerts` — `alerts` depende de `notifications`
+  // pela raiz (modules.md §3 nota 15), nunca o inverso.
+  const notifications = createNotificationsModule({
+    db,
+    users,
+    clock,
+    mailer: new NotificationsSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
+    pushSender: new WebPushSender({ publicKey: config.VAPID_PUBLIC_KEY, privateKey: config.VAPID_PRIVATE_KEY, subject: config.VAPID_SUBJECT }),
+  });
+  const alerts = createAlertsModule({ db, families, notifications, clock });
+
   function registerHealthRoutes(router: Router): void {
     router.get("/health", (_req, res) => {
       res.json({ status: "ok" });
@@ -161,6 +174,8 @@ export function main(): void {
       router.use(clinics.adminRouter);
       router.use(appointments.router);
       router.use(examinations.router);
+      router.use(notifications.router);
+      router.use(alerts.router);
     },
   });
 

@@ -149,6 +149,11 @@ export interface DoseOccurrencesRepository<Trx> {
   ): Promise<DoseOccurrence>;
   /** `medications.mark-unconfirmed` (job, a cada 5 min): PENDING com `scheduled_at <= threshold`. */
   listPendingBefore(trx: Trx, threshold: Date, limit: number): Promise<DoseOccurrence[]>;
+  /** `alerts.scan` (M8, modules.md §3 nota 3: "interfaces de consulta" — `alerts` nunca acede a
+   * `dose_occurrences` diretamente): candidatas a `dose.due`/`dose.repeat` — ainda não confirmadas
+   * (`PENDING`/`UNCONFIRMED`, indexes.md) com `scheduled_at <= now` (o próprio `alerts` decide, por
+   * regra pura, se o instante de cada alerta já foi atingido). */
+  listReminderCandidates(trx: Trx, now: Date, limit: number): Promise<DoseOccurrence[]>;
   adherenceByMember(trx: Trx, familyId: string, memberId: string, from: Date, to: Date): Promise<AdherenceItem[]>;
 }
 

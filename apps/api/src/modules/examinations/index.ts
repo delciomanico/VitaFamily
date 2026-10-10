@@ -25,6 +25,8 @@ import { createUpdateExamResultUseCase } from "./application/update-exam-result.
 import { KyselyExamResultsRepository, KyselyExaminationsRepository } from "./infrastructure/repo.js";
 import { createExaminationsRouter, type ExaminationsController } from "./interface/router.js";
 
+import type { Examination } from "./domain/examination.js";
+
 export type { Examination, ExaminationStatus } from "./domain/examination.js";
 export type { ExamResult } from "./domain/exam-result.js";
 
@@ -75,4 +77,20 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
   };
 
   return { router: createExaminationsRouter(controller) };
+}
+
+export interface ExaminationsReminderQueries {
+  listReminderCandidates: (trx: Kysely<Database>, from: string, to: string, limit: number) => Promise<Examination[]>;
+}
+
+/**
+ * Raiz de composição mínima para o processo "worker" (M8, `alerts.scan`): mesmo critério de
+ * `appointments` `createAppointmentsReminderQueries` — nunca `access`/`clinics`/`documents`
+ * (processo de sistema, sem ator a autorizar).
+ */
+export function createExaminationsReminderQueries(_deps: { db: Kysely<Database> }): ExaminationsReminderQueries {
+  const examinationsRepo = new KyselyExaminationsRepository();
+  return {
+    listReminderCandidates: (trx, from, to, limit) => examinationsRepo.listReminderCandidates(trx, from, to, limit),
+  };
 }

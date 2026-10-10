@@ -18,6 +18,7 @@ import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
+import type { DoseOccurrence } from "./domain/dose-occurrence.js";
 import { createCorrectDoseUseCase } from "./application/correct-dose.js";
 import { createCreatePlanUseCase, createPlanWithTrx } from "./application/create-plan.js";
 import { createDeletePlanUseCase } from "./application/delete-plan.js";
@@ -106,6 +107,9 @@ export interface MedicationsWorkerModuleDeps {
 export interface MedicationsWorkerModule {
   /** Regista `medications.generate-doses` (diário, DM5) e `medications.mark-unconfirmed` (5 min, Q2). */
   registerWorkers: () => Promise<string[]>;
+  /** API pública para `alerts.scan` consumir pela raiz (modules.md §3 nota 3, M8): candidatas a
+   * `dose.due`/`dose.repeat` — `alerts` nunca acede a `dose_occurrences` diretamente. */
+  listReminderCandidates: (trx: Kysely<Database>, now: Date, limit: number) => Promise<DoseOccurrence[]>;
 }
 
 /** Composition root do processo "worker" (main/worker.ts). */
@@ -119,5 +123,6 @@ export function createMedicationsWorkerModule(deps: MedicationsWorkerModuleDeps)
       await registerGenerateDosesWorker(deps.boss, generateDosesJob),
       await registerMarkUnconfirmedWorker(deps.boss, markUnconfirmedJob),
     ],
+    listReminderCandidates: (trx, now, limit) => medicationsDeps.dosesRepo.listReminderCandidates(trx, now, limit),
   };
 }

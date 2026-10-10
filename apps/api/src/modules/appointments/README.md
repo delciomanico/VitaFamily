@@ -2,9 +2,9 @@
 
 M7 (`plan.md` §4): `Appointment` e o seu ciclo de vida (FR-APT). Depende de `access` (categoria `APPOINTMENTS`), `clinics` (`ClinicLookup`) e `audit` (modules.md §2).
 
-## Âmbito deixado para M8 (`alerts`)
+## Âmbito concluído em M8 (`alerts`)
 
-`BR-APT-03`/`AC-APT-01` (lembretes 24h/2h, recalculados ao editar/cancelar) e `BR-APT-02`/`AC-APT-02` (pedido de desfecho 24h depois de uma consulta `SCHEDULED` passada) descrevem comportamento do **scanner de alertas**, que só existe em M8 (`modules.md` §2: `alerts` depende de `appointments`, nunca o inverso — não se cria aqui nenhum job/fila). Este módulo garante só que os dados de que `alerts` vai precisar (`scheduledAt`, `status`, `outcomeRequestedAt`) ficam corretos: criar/editar grava `scheduledAt`; nenhum job interno deste módulo muda `status` sozinho (testado em `application/appointments.test.ts`, "nunca muda de estado por si só"). `outcomeRequestedAt` existe na tabela (`schema.md`) mas não é exposto pela API (fora do contrato `Appointment` em `openapi.yaml`) — campo de escrita exclusiva de `alerts`.
+`BR-APT-03`/`AC-APT-01` (lembretes 24h/2h, recalculados ao editar/cancelar) e `BR-APT-02`/`AC-APT-02` (pedido de desfecho 24h depois de uma consulta `SCHEDULED` passada) descreviam comportamento do **scanner de alertas**, implementado em M8 (`modules.md` §2: `alerts` depende de `appointments`, nunca o inverso — nenhum job/fila criado aqui). Este módulo expõe só o necessário (`createAppointmentsReminderQueries`, raiz mínima sem `access`/`clinics` — processo de sistema, ver `alerts/README.md`): `listReminderCandidates` (leitura) e `setOutcomeRequested` (escrita exclusiva de `alerts`). Nenhum job interno deste módulo muda `status`/`outcomeRequestedAt` sozinho (testado em `application/appointments.test.ts`, "nunca muda de estado por si só"). `outcomeRequestedAt` existe na tabela (`schema.md`) mas não é exposto pela API (fora do contrato `Appointment` em `openapi.yaml`).
 
 ## Clínica selecionada (BR-APT-04/BR-CLN-02)
 

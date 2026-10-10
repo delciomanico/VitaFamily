@@ -77,6 +77,14 @@ export interface AppointmentsRepository<Trx> {
   update(trx: Trx, familyId: string, memberId: string, appointmentId: string, changes: AppointmentChanges): Promise<Appointment>;
   updateStatus(trx: Trx, familyId: string, memberId: string, appointmentId: string, status: AppointmentStatus): Promise<Appointment>;
   delete(trx: Trx, familyId: string, memberId: string, appointmentId: string): Promise<void>;
+  /** `alerts.scan` (M8, modules.md §3 nota 3): candidatas a `appointment.24h`/`appointment.2h`
+   * (`SCHEDULED`, ainda no futuro — `alerts` decide por regra pura se o instante já foi atingido)
+   * ou a `appointment.outcome` (`SCHEDULED`, já passada há `outcomeWindowMs`, sem pedido ainda —
+   * BR-APT-02/Q4). `alerts` nunca acede a `appointments` diretamente (conventions.md §3.5). */
+  listReminderCandidates(trx: Trx, now: Date, outcomeWindowMs: number, limit: number): Promise<Appointment[]>;
+  /** `alerts.scan` (M8): regista que o pedido de confirmação do desfecho já foi enviado para esta
+   * consulta — único escritor de `outcome_requested_at` (`appointments/README.md`). */
+  setOutcomeRequested(trx: Trx, appointmentId: string, requestedAt: Date): Promise<void>;
 }
 
 export interface AppointmentsDeps<Trx> {

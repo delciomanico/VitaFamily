@@ -82,10 +82,9 @@ export class KyselyUsersRepository implements UsersRepository<Kysely<Database>> 
       })
       .returning(SELECT_COLUMNS)
       .executeTakeFirstOrThrow();
-    await trx
-      .insertInto("notification_preferences")
-      .values({ user_id: record.id })
-      .execute();
+    // NOTA (M8, change control, ver infrastructure/schema.ts): já não insere aqui a linha de
+    // `notification_preferences` por omissão — essa tabela passou a ser propriedade exclusiva de
+    // `notifications` (conventions.md §3.5), que trata a ausência de linha como os defaults (R9).
     return toDomain(row);
   }
 

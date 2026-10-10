@@ -171,6 +171,15 @@ export class FakeExaminationsRepository implements ExaminationsRepository<FakeTr
     return Promise.resolve(updated);
   }
 
+  async listReminderCandidates(_trx: FakeTrx, from: string, to: string, limit: number): Promise<Examination[]> {
+    return Promise.resolve(
+      [...this.byId.values()]
+        .filter((examination) => examination.status === "SCHEDULED" && examination.examDate >= from && examination.examDate <= to)
+        .sort((a, b) => a.examDate.localeCompare(b.examDate))
+        .slice(0, limit),
+    );
+  }
+
   async delete(_trx: FakeTrx, familyId: string, memberId: string, examinationId: string): Promise<void> {
     const examination = this.byId.get(examinationId);
     if (examination?.familyId === familyId && examination.memberId === memberId) {

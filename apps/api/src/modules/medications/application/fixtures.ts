@@ -299,6 +299,15 @@ export class FakeDoseOccurrencesRepository implements DoseOccurrencesRepository<
     );
   }
 
+  async listReminderCandidates(_trx: FakeTrx, now: Date, limit: number): Promise<DoseOccurrence[]> {
+    return Promise.resolve(
+      [...this.byId.values()]
+        .filter((d) => (d.status === "PENDING" || d.status === "UNCONFIRMED") && d.scheduledAt.getTime() <= now.getTime())
+        .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
+        .slice(0, limit),
+    );
+  }
+
   async adherenceByMember(_trx: FakeTrx, familyId: string, memberId: string, from: Date, to: Date): Promise<AdherenceItem[]> {
     const byPlan = new Map<string, AdherenceItem>();
     for (const dose of this.byId.values()) {

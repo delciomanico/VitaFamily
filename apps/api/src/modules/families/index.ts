@@ -110,6 +110,11 @@ export interface FamiliesModule {
   // sujeito (Q8/DM6/BR-MED-08) para gerar/recalcular ocorrências de toma sem `medications` precisar
   // de depender diretamente de `families`.
   getEffectiveTimezone: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<string>;
+  // Operação crua para `alerts` consumir pela raiz (modules.md §2, M8): destinatários de um
+  // dependente (FR-ALR-08/BR-PRV-06) são os tutores com conta — `alerts` nunca acede a
+  // `guardianships`/`family_members` diretamente (conventions.md §3.5). Só devolve tutores com
+  // `userId` (todos, por `isEligibleGuardian`, mas a verificação fica aqui, não em `alerts`).
+  listGuardianUserIds: (trx: Kysely<Database>, familyId: string, dependentId: string) => Promise<string[]>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -178,5 +183,16 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
     getBloodType: (trx, familyId, memberId) => membersRepo.getBloodType(trx, familyId, memberId),
     setBloodType: (trx, familyId, memberId, bloodType) => membersRepo.setBloodType(trx, familyId, memberId, bloodType),
     getEffectiveTimezone: createGetEffectiveTimezoneUseCase(familiesDeps),
+    listGuardianUserIds: async (trx, familyId, dependentId) => {
+      const guardianships = await guardianshipsRepo.listByDependent(trx, familyId, dependentId);
+      const userIds: string[] = [];
+      for (const guardianship of guardianships) {
+        const guardian = await membersRepo.findById(trx, familyId, guardianship.guardianId);
+        if (guardian?.userId) {
+          userIds.push(guardian.userId);
+        }
+      }
+      return userIds;
+    },
   };
 }
