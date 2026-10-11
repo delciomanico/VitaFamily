@@ -87,4 +87,4 @@ export const authService = {
 }
 
 /** TBD: versão dos termos/política em vigor (BR-ACC-03). */
-export const TERMS_VERSION = '2026-01-01'
+export const TERMS_VERSION = '1.0.0'
