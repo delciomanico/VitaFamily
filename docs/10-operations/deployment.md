@@ -8,13 +8,21 @@
 - **Imagem Docker única** (api e worker partilham-na; muda o comando): multi-stage, utilizador não-root, imagem base mínima fixada por *digest*, sem *devDependencies*, sem segredos.
 - **Compose** em desenvolvimento e staging; em produção, orquestração simples (Compose em host ou serviço de contentores gerido na UE) `[escolha operacional TBD]`.
 
-## 2. Pipeline CI/CD (proposta)
+## 2. Pipeline CI/CD
 ```text
 PR → lint + tipos → unitários → integração (Testcontainers) → API/contrato →
      segurança (SCA, secrets, suite de isolamento) → verificação de arquitetura e drift de migrações → build da imagem
 merge em main → publicar imagem (tag = commit) → deploy automático em staging → E2E de cenário
 release (tag) → aprovação manual → deploy em produção
 ```
+**Implementado** (`.github/workflows/ci.yml`, GitHub Actions): `pnpm gen` → lint (`eslint`) → testes
+(unitários + integração com testcontainers, mesmo comando do `make test`) → build (`tsc`), para
+`api` e `web`; e um build de verificação das duas imagens Docker de produção (sem publicar). O
+deploy em si continua a ser o Dokploy a construir a partir do repositório (§3) — esta pipeline só
+é um portão de qualidade antes do merge. **Pendente** (fora deste change): SCA/scan de segredos,
+suite de isolamento/autorização dedicada em CI, verificação de arquitetura/drift de migrações como
+passo isolado, publicação de imagem versionada e deploy automático em staging/produção a partir da
+pipeline.
 
 ## 3. Passos de deploy em produção
 1. Verificar backup recente e restauro testado (§ `monitoring.md`).
@@ -32,6 +40,13 @@ Disponibilidade-alvo 99,5 %/mês permite janelas curtas de manutenção; deploys
 Proxy reverso termina TLS (certificados automáticos), HSTS, redirecionamento HTTP→HTTPS, limite de corpo (≤ 11 MB no caminho de upload; 1 MB nos restantes). Postgres, Redis, storage e ClamAV em rede interna sem portas públicas.
 
 ## 5. Backups e restauro (N10)
+Scripts na VPS (cron, fora dos contentores): `deploy/scripts/backup-postgres.sh` (dump diário
+`pg_dump --format=custom`, encriptado com `openssl`/`BACKUP_ENCRYPTION_PASSPHRASE`, retenção
+`BACKUP_RETENTION_DAYS` aplicada no próprio script) e `deploy/scripts/restore-postgres.sh` (para
+o ensaio trimestral/pré-release e para uma recuperação real). Cobrem só o PostgreSQL; a cópia para
+segundo *bucket* de objetos (linha "Objetos" abaixo) é configuração do fornecedor S3/MinIO
+`[procedimento operacional, ainda por escrever]`, não um script deste repositório.
+
 | Item | Política |
 |---|---|
 | PostgreSQL | Backup completo diário + arquivo de WAL (restauro a ponto no tempo opcional); retenção **30 dias**; **RPO ≤ 24 h** (melhorável com WAL). Encriptado, na UE. |
