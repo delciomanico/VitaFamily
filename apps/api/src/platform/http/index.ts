@@ -39,6 +39,13 @@ export interface CreateAppOptions {
   registerHealthRoutes: (router: Router) => void;
   /** Regista as rotas de negócio dos módulos, já sob `API_BASE_PATH` e com o validador aplicado. */
   registerRoutes?: (router: Router) => void;
+  /**
+   * Métricas Prometheus (`platform/metrics`, monitoring.md §2): `middleware` mede todos os
+   * pedidos (montado antes de qualquer rota); `handler` serve `GET /metrics`, na raiz, tal como
+   * `/health` — sem validação OpenAPI e sem passar pelo nginx do `web` (ADR-019). Opcional só
+   * para não obrigar os testes de `http.test.ts` a configurá-las.
+   */
+  metrics?: { middleware: RequestHandler; handler: RequestHandler };
 }
 
 /** Monta a app Express completa (composition root chama isto uma vez). */
@@ -47,6 +54,10 @@ export function createApp(options: CreateAppOptions): Express {
   app.disable("x-powered-by");
 
   app.use(requestIdMiddleware);
+  if (options.metrics) {
+    app.use(options.metrics.middleware);
+    app.get("/metrics", options.metrics.handler);
+  }
   app.use(express.json({ limit: options.jsonBodyLimit ?? "1mb" }));
 
   // /health e /health/ready são servidos na raiz (sondas do Caddy/uptime, monitoring.md) e também

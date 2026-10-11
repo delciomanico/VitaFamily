@@ -12,6 +12,7 @@ import { createDb, createPool, checkConnection } from "../platform/db/index.js";
 import { SystemClock } from "../platform/clock/index.js";
 import { MinioStorage } from "../platform/storage/index.js";
 import { createApp } from "../platform/http/index.js";
+import { createMetrics } from "../platform/metrics/index.js";
 import { asyncHandler } from "../platform/http/async-handler.js";
 import { ServiceUnavailableError } from "../platform/errors/index.js";
 import { createAuditModule } from "../modules/audit/index.js";
@@ -177,11 +178,14 @@ export function main(): void {
     );
   }
 
+  const metrics = createMetrics();
+
   const app = createApp({
     openApiSpecPath: OPENAPI_SPEC_PATH,
     logger,
     securityHandlers: auth.securityHandlers,
     actorContextMiddleware: auth.actorContextMiddleware,
+    metrics: { middleware: metrics.httpMiddleware, handler: metrics.handler },
     registerHealthRoutes,
     registerRoutes: (router) => {
       router.use(users.router);
