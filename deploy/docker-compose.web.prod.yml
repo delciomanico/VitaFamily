@@ -1,7 +1,8 @@
-# Frontend em produção no Dokploy (ADR-014): https://vitafamily.cassfrei.com
+# Frontend em produção no Dokploy (ADR-014/ADR-019): https://vitafamily.cassfrei.com
 # Sem portas publicadas: no Dokploy, configurar o domínio vitafamily.cassfrei.com, serviço web, caminho /,
 # porta do contentor 8080 (não 80) e HTTPS (Let's Encrypt). O Traefik do Dokploy termina o TLS e encaminha
-# para o nginx do contentor, que só serve os ficheiros estáticos da PWA.
+# para o nginx do contentor — o único serviço com domínio no Dokploy. O nginx serve a PWA e reencaminha
+# /api/ internamente para o contentor "api" (ADR-019); o backend nunca fica exposto diretamente.
 name: vitafamily-web
 
 services:
@@ -10,6 +11,7 @@ services:
       context: ../apps/web
     expose: ["8080"]
     # O Traefik do Dokploy só alcança contentores nesta rede; sem ela, o domínio dá 502 Bad Gateway.
+    # É também por aqui (dokploy-network) que este contentor alcança "api" para o proxy de /api/.
     networks: [dokploy-network]
     read_only: true
     tmpfs: [/tmp]

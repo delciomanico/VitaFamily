@@ -13,7 +13,7 @@
 | `postgres` | PostgreSQL 16 | Dados + filas (pg-boss) | persistente, backups |
 | `object-storage` | MinIO (dev) / S3-compatível na UE (prod) | Documentos e exportações | persistente, versionado, SSE |
 | `clamav` | clamd | Antivírus | atualização diária de assinaturas |
-| `proxy` | Traefik do Dokploy (ADR-017) | TLS, domínio, encaminhamento `/` → web e `/api` → api | |
+| `proxy` | Traefik do Dokploy (ADR-017) | TLS, domínio, encaminhamento `/` → web (único serviço com domínio); o nginx do `web` reencaminha `/api` internamente para `api`, sem domínio próprio (ADR-019) | |
 | `mail` | MailHog (dev) / SMTP UE (prod) | E-mail | |
 
 ## 2. Requisitos de localização e segurança (N5, NFR-PRV-02)

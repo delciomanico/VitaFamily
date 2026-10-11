@@ -11,7 +11,7 @@ inclui proxy (Traefik), certificados Let's Encrypt, domínios e atribuição de 
 |---|---|
 | Plataforma de deploy | **Dokploy** na VPS do proprietário (build a partir do repositório). |
 | Proxy reverso e TLS | O **Traefik do Dokploy**: termina TLS (Let's Encrypt), redireciona HTTP→HTTPS. Sem Caddy. |
-| Domínio | `vitafamily.cassfrei.com`, configurado no Dokploy. PWA (`apps/web`) no caminho `/`; API (`apps/api`) em `/api` quando existir (mesma origem, ADR-012 mantém-se). |
+| Domínio | `vitafamily.cassfrei.com`, configurado no Dokploy **só na app `web`**, caminho `/` (mesma origem, ADR-012 mantém-se). A API (`apps/api`) não tem domínio próprio no Dokploy: `/api` é um proxy interno do nginx do `web` para o contentor `api` — ver **ADR-019**. |
 | Portas | **Nenhuma porta publicada no host** pelos ficheiros do repositório. Os contentores só declaram a porta interna (web: `8080`); o Dokploy liga o domínio a essa porta. |
 | Ficheiros | `deploy/docker-compose.web.prod.yml` (frontend em produção). `deploy/docker-compose.web.yml` fica só para uso local (`make web-up`). |
 

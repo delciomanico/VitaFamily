@@ -1,7 +1,8 @@
-# Backend em produção no Dokploy (ADR-014/ADR-017): https://vitafamily.cassfrei.com/api/v1
-# Sem portas publicadas: no Dokploy, configurar o domínio vitafamily.cassfrei.com, serviço api,
-# caminho /api (ADR-017), porta do contentor 8080. Postgres/MinIO/ClamAV ficam só na rede interna
-# (ADR-017: "sem domínio nem portas públicas"), alcançáveis pelo nome do serviço.
+# Backend em produção no Dokploy (ADR-014/ADR-017/ADR-019): sem domínio nem porta pública.
+# Não configurar nenhuma app/domínio para este serviço no Dokploy — só é alcançado dentro da
+# dokploy-network, pelo contentor "web" (deploy/docker-compose.web.prod.yml), que reencaminha
+# /api/ do seu nginx para http://api:8080/api/ (ADR-019). Postgres/MinIO/ClamAV continuam só na
+# rede interna, alcançáveis pelo nome do serviço.
 # Variáveis de ambiente: copiar deploy/.env.example para deploy/.env e preencher com segredos de
 # produção (nunca os de dev) — nunca commitar deploy/.env.
 name: vitafamily-api
@@ -12,6 +13,7 @@ services:
       context: ..
       dockerfile: apps/api/Dockerfile
     command: ["node", "apps/api/dist/src/main/api.js"]
+    container_name: api # nome estável na dokploy-network: é assim que o nginx do "web" o encontra.
     env_file: .env
     expose: ["8080"]
     networks: [dokploy-network]

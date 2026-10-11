@@ -18,5 +18,6 @@
 - ADR-016 — Limites práticos da Clean Architecture por módulo: quando criar porta, quando não (esclarece ADR-014/ADR-015, não as substitui)
 - ADR-017 — Deploy com Dokploy: proxy (Traefik), domínio e TLS (decisão do proprietário; substitui o Caddy de ADR-012)
 - ADR-018 — Código de verificação de e-mail de 6 dígitos (substitui, só nessa rota, o token/link de UC-ACC-01)
+- ADR-019 — API sem domínio próprio no Dokploy; `/api` é um proxy interno feito pelo `web` (decisão do proprietário; refina a linha "Domínio" de ADR-017)
 
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).
