@@ -52,6 +52,11 @@ export interface CreateAppOptions {
 export function createApp(options: CreateAppOptions): Express {
   const app = express();
   app.disable("x-powered-by");
+  // Único hop confiável entre o cliente e esta app: o nginx do contentor "web" (ADR-019), que
+  // já define X-Forwarded-For. Sem isto, `req.ip` seria sempre o IP do "web", e os limites de
+  // taxa por IP (register, forgot-password, resend-verification) ficariam partilhados por todos
+  // os utilizadores em vez de isolados por cliente real.
+  app.set("trust proxy", 1);
 
   app.use(requestIdMiddleware);
   if (options.metrics) {
