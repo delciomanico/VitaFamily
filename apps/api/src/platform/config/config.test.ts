@@ -65,4 +65,16 @@ describe("loadConfig", () => {
     const config = loadConfig(validEnv({ PORT: "3000" }));
     expect(config.PORT).toBe(3000);
   });
+
+  it("trata a string 'false' como false (regressão: z.coerce.boolean trataria como true)", () => {
+    const config = loadConfig(validEnv({ S3_USE_SSL: "false", METRICS_ENABLED: "false" }));
+    expect(config.S3_USE_SSL).toBe(false);
+    expect(config.METRICS_ENABLED).toBe(false);
+  });
+
+  it("trata a string 'true' como true", () => {
+    const config = loadConfig(validEnv({ S3_USE_SSL: "true", METRICS_ENABLED: "true" }));
+    expect(config.S3_USE_SSL).toBe(true);
+    expect(config.METRICS_ENABLED).toBe(true);
+  });
 });

@@ -3,6 +3,14 @@
 // nunca são registados em logs (ver platform/logger, campos sensíveis redigidos).
 import { z } from "zod";
 
+// `z.coerce.boolean()` faz `Boolean(valor)`: qualquer string não vazia (incluindo a string
+// "false") dá `true`. Variáveis de ambiente são sempre strings, por isso comparamos o texto.
+const booleanEnv = (defaultValue: boolean) =>
+  z
+    .string()
+    .default(String(defaultValue))
+    .transform((value) => value === "true");
+
 const envSchema = z.object({
   // Aplicação
   NODE_ENV: z.enum(["local", "test", "staging", "production"]).default("local"),
@@ -19,7 +27,7 @@ const envSchema = z.object({
   // Armazenamento (MinIO/S3) — `S3_USE_SSL` já existia em `deploy/.env.example` mas faltava aqui
   // (M5/`platform/storage`: `MinioStorage` precisa de o saber para montar o cliente do SDK).
   S3_ENDPOINT: z.string().min(1, "S3_ENDPOINT é obrigatória"),
-  S3_USE_SSL: z.coerce.boolean().default(false),
+  S3_USE_SSL: booleanEnv(false),
   S3_REGION: z.string().default("eu-west-1"),
   S3_BUCKET_DOCUMENTS: z.string().default("vita-documents"),
   S3_BUCKET_EXPORTS: z.string().default("vita-exports"),
@@ -50,7 +58,7 @@ const envSchema = z.object({
   FAMILY_STORAGE_QUOTA_BYTES: z.coerce.number().int().positive().default(104_857_600),
 
   // Observabilidade
-  METRICS_ENABLED: z.coerce.boolean().default(false),
+  METRICS_ENABLED: booleanEnv(false),
   SENTRY_DSN: z.string().optional(),
 });
 
