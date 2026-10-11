@@ -12,7 +12,11 @@ services:
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
-    command: ["node", "apps/api/dist/src/main/api.js"]
+    # Aplica as migrações pendentes antes de arrancar a API (runner próprio, idempotente —
+    # db/migrate-runner.ts — não reaplica o que já está em schema_migrations). Sem isto, um
+    # deploy cuja imagem trouxe migrações novas arranca contra tabelas em falta (ex.: "relation
+    # users does not exist"), porque nada corria `migrate` automaticamente antes do `api.js`.
+    command: ["sh", "-c", "node apps/api/dist/src/main/migrate.js && node apps/api/dist/src/main/api.js"]
     container_name: api # nome estável na dokploy-network: é assim que o nginx do "web" o encontra.
     env_file: .env
     expose: ["8080"]
@@ -33,6 +37,12 @@ services:
     networks: [dokploy-network]
     depends_on:
       postgres:
+        condition: service_healthy
+      # O runner de migrações não usa lock consultivo (db/migrate-runner.ts): se o worker
+      # arrancasse em paralelo com o "api", os dois tentariam aplicar a mesma migração ao mesmo
+      # tempo. Esperar pelo healthcheck do "api" (só fica healthy depois de `migrate` + `api.js`
+      # arrancarem, ver apps/api/Dockerfile) garante que o schema já está atualizado.
+      api:
         condition: service_healthy
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
