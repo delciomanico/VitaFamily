@@ -26,7 +26,7 @@
 | Endpoint | Limite |
 |---|---|
 | `POST /auth/login` | 5 falhas / 15 min por (e-mail + IP), com atraso crescente; 20 / 15 min por IP. |
-| `POST /auth/register` | 5 / hora por IP. |
+| `POST /auth/register` | 5 / 5 min por IP. |
 | `POST /auth/password/forgot` e `/resend-verification` | 3 / hora por e-mail; 10 / hora por IP. |
 | `POST /auth/refresh` | 30 / hora por sessão. |
 | `POST /invitations/lookup` e `/accept` | 20 / hora por IP. |

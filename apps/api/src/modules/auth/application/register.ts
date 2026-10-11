@@ -26,7 +26,7 @@ export interface RegisterInput {
 }
 
 const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
-const REGISTER_RATE_LIMIT = { max: 5, windowMs: 60 * 60 * 1000 };
+const REGISTER_RATE_LIMIT = { max: 5, windowMs: 5 * 60 * 1000 };
 
 export function createRegisterUseCase<Trx>(deps: AuthDeps<Trx>) {
   return async function register(input: RegisterInput, context: RequestContext): Promise<void> {

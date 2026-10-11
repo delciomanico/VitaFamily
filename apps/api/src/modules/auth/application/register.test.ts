@@ -172,7 +172,7 @@ describe("register (AC-ACC-01/02/03)", () => {
     });
   });
 
-  it("aplica o limite de 5/hora por IP", async () => {
+  it("aplica o limite de 5/5min por IP", async () => {
     const clock = new FixedClock(NOW);
     const fixtures = createAuthFixtures(clock);
     const register = createRegisterUseCase(fixtures.deps);
