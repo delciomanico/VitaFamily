@@ -54,7 +54,9 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:latest
+    # quay.io, não Docker Hub: a imagem minio/minio no Docker Hub passou a exigir login em
+    # algumas tags; quay.io/minio/minio é a mesma imagem, publicada pela própria MinIO.
+    image: quay.io/minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?defina MINIO_ROOT_USER em .env}
