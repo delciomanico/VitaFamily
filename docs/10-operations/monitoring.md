@@ -10,6 +10,13 @@
 - Retenção de logs técnicos: **30 dias** `[PROPOSTO]`.
 
 ## 2. Métricas (Prometheus + dashboards)
+`GET /metrics` no contentor `api` (porta 8080, `platform/metrics`), formato de exposição do
+Prometheus: métricas padrão do processo Node + `http_request_duration_seconds` (por `method`,
+`route`, `status`). Só acessível na rede interna (ADR-019) — nem o nginx do `web` nem o Dokploy
+encaminham para lá; o scraper do Prometheus corre na própria VPS. Os restantes grupos da tabela
+(filas, lembretes, documentos, infraestrutura, backups) ainda não têm métricas instrumentadas —
+pendente de implementação por módulo.
+
 | Grupo | Métricas |
 |---|---|
 | API | pedidos por rota/estado, latência p50/p95/p99, erros 5xx, 401/403/404/429 |
