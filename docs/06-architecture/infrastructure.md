@@ -26,7 +26,7 @@
 Um host com 2–4 vCPU e 8 GB RAM é suficiente para api+worker+postgres+clamav; ClamAV usa ~1–2 GB RAM. Separar BD e storage geridos quando o orçamento permitir. Estimativa, **a validar com teste de carga** (M10).
 
 ## 4. Notificações externas
-- **E-mail:** fornecedor SMTP com tratamento de dados na UE e DPA (acordo de subcontratação) assinado.
+- **E-mail:** fornecedor SMTP com tratamento de dados na UE e DPA (acordo de subcontratação) assinado. Escolha operacional (decisão do proprietário, 2026-10-11): **Brevo** (UE por omissão, DPA incluído nos termos, plano gratuito até 300 e-mails/dia — suficiente para o volume do Vita Family). Configuração em `deploy/.env.production.example` (`SMTP_URL`/`MAIL_FROM`).
 - **Push:** Web Push (VAPID). Os pedidos passam por serviços dos fabricantes de browsers (Google/Apple/Mozilla), fora do nosso controlo e possivelmente fora da UE: por isso o *payload* é **genérico, sem dados de saúde** (N8). Risco registado em `privacy.md`.
 
 ## 5. Ambientes (detalhe em `10-operations`)

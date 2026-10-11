@@ -26,4 +26,6 @@
 - Fases 5 (P1–P8) a 16: **delegadas ao assistente** ("adota a recomendação", "faz todas as fases restantes com a sua recomendação"). Estão marcadas como tal em cada documento e podem ser revistas por change control.
 
 ## Pendências conhecidas (não bloqueiam M0)
-Textos legais (termos, privacidade) · dados legais da Cassfrei · confirmar que a VPS e os backups estão na UE · fornecedor SMTP UE · AIPD antes do lançamento · DPO (avaliação jurídica) · responsável por incidentes · MFA (evolução recomendada) · tamanho/escala real (sem dados de utilizadores).
+Textos legais (termos, privacidade) · dados legais da Cassfrei · confirmar que a VPS e os backups estão na UE · AIPD antes do lançamento · DPO (avaliação jurídica) · responsável por incidentes · MFA (evolução recomendada) · tamanho/escala real (sem dados de utilizadores).
+
+Resolvidas: fornecedor SMTP UE → **Brevo** (`infrastructure.md` §4, `deploy/.env.production.example`).
