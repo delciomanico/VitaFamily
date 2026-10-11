@@ -2,9 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ChevronRight, House, Ticket, type LucideIcon } from 'lucide-react'
+import { ChevronRight, House, Mail, type LucideIcon } from 'lucide-react'
 import { z } from 'zod'
-import { DemoHint, demoInvitationCode } from '@/components/domain/DemoHint'
 import { AuthFooter, AuthScreen } from '@/components/layout/AuthScreen'
 import { LogoMark } from '@/components/layout/Logo'
 import { Button } from '@/components/ui/Button'
@@ -25,7 +24,9 @@ export function SetupFamilyPage() {
   const [params] = useSearchParams()
   const mode = parseMode(params.get('mode'))
   if (mode === 'create') return <CreateFamily />
-  if (mode === 'join') return <JoinFamily />
+  // "Entrar numa família": não existe um código a introduzir aqui (openapi.yaml não tem esse
+  // fluxo) — só o link de convite por e-mail (`/invite/accept?token=...`), ver JoinByInviteInfo.
+  if (mode === 'join') return <JoinByInviteInfo />
   return <ChooseStart />
 }
 
@@ -46,9 +47,9 @@ function ChooseStart() {
         />
         <StartOption
           to="?mode=join"
-          icon={Ticket}
+          icon={Mail}
           title="Entrar numa família"
-          description="Use o código de convite que recebeu."
+          description="Abra o link de convite que recebeu por e-mail."
         />
       </div>
       <AuthFooter>
@@ -139,61 +140,26 @@ function CreateFamily() {
   )
 }
 
-const joinSchema = z.object({
-  code: z.string().trim().min(1, 'Introduza o código do convite.'),
-})
-
-function JoinFamily() {
-  const { joinFamily } = useAuth()
-  const navigate = useNavigate()
-  const [formError, setFormError] = useState<string | null>(null)
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors, isSubmitting },
-  } = useForm<z.infer<typeof joinSchema>>({
-    resolver: zodResolver(joinSchema),
-  })
-
-  async function onSubmit({ code }: z.infer<typeof joinSchema>) {
-    setFormError(null)
-    try {
-      await joinFamily(code)
-      navigate(paths.setupHealth)
-    } catch (error) {
-      setFormError(errorMessage(error))
-    }
-  }
-
+/**
+ * Convites são sempre por e-mail com um link (`/invite/accept?token=...`), nunca um código a
+ * introduzir à mão (openapi.yaml `/invitations/lookup` e `/invitations/accept` — ver
+ * `pages/public/InviteAcceptPage.tsx`). Esta tela só explica isso; quem convida é tratado noutra
+ * tarefa (ecrã de administração, fora de âmbito aqui).
+ */
+function JoinByInviteInfo() {
   return (
     <AuthScreen
       title="Entrar numa família"
-      description="Introduza o código do convite que recebeu."
+      description="Os convites chegam por e-mail, com um link para aceitar."
       backTo={paths.setupFamily}
       progress={{ step: 1, total: SETUP_STEPS.join }}
     >
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-1 flex-col">
-        <div className="flex flex-col gap-4">
-          <Input
-            label="Código do convite"
-            icon={Ticket}
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-            className="uppercase tracking-widest"
-            error={errors.code?.message}
-            {...register('code')}
-          />
-          <FormError message={formError} />
-          <DemoHint kind="invitation" onFill={() => setValue('code', demoInvitationCode, { shouldValidate: true })} />
-        </div>
-        <AuthFooter>
-          <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
-            Entrar na família
-          </Button>
-        </AuthFooter>
-      </form>
+      <div className="flex flex-1 flex-col gap-4">
+        <p className="text-sm text-muted">
+          Peça a um Admin da família para o(a) convidar. Vai receber um e-mail com um link — basta abri-lo para ver os
+          dados do convite e entrar na família.
+        </p>
+      </div>
     </AuthScreen>
   )
 }

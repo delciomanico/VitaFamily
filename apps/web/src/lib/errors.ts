@@ -7,6 +7,10 @@ export type ErrorCode =
   | 'PASSWORD_WEAK'
   | 'INVALID_CODE'
   | 'INVITATION_INVALID'
+  | 'INVITATION_EXPIRED'
+  | 'INVITATION_EMAIL_MISMATCH'
+  | 'BIRTHDATE_MISMATCH'
+  | 'LIMIT_EXCEEDED'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'VALIDATION_ERROR'
@@ -32,7 +36,11 @@ const messages: Record<ErrorCode, string> = {
   AGE_REQUIREMENT_NOT_MET: 'É necessário ter 18 anos ou mais para criar conta.',
   PASSWORD_WEAK: 'A palavra-passe deve ter pelo menos 12 caracteres.',
   INVALID_CODE: 'Código inválido ou expirado.',
-  INVITATION_INVALID: 'Código de convite inválido ou expirado.',
+  INVITATION_INVALID: 'Este convite é inválido, já foi usado ou foi revogado.',
+  INVITATION_EXPIRED: 'Este convite expirou. Peça um novo convite a quem o enviou.',
+  INVITATION_EMAIL_MISMATCH: 'Este convite foi enviado para outro e-mail.',
+  BIRTHDATE_MISMATCH: 'A data de nascimento não coincide com o perfil convidado.',
+  LIMIT_EXCEEDED: 'Foi atingido o limite permitido. Não é possível continuar.',
   FORBIDDEN: 'Não tem permissão para esta ação.',
   NOT_FOUND: 'Não encontrámos o que procura.',
   VALIDATION_ERROR: 'Verifique os dados introduzidos.',

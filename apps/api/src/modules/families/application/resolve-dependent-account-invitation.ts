@@ -6,9 +6,9 @@
 // fica em `finalize-dependent-account-invitation.ts`, chamada depois do `User` existir (FK
 // `family_members.user_id → users`).
 import { DomainError } from "../../../platform/errors/index.js";
-import { isExpired } from "../domain/invitation.js";
 import { hasAccount } from "../domain/member.js";
 import { hashOpaqueToken } from "../domain/token.js";
+import { assertInvitationPending } from "./invitation-validation.js";
 import type { FamiliesDeps } from "./ports.js";
 
 export interface ResolvedDependentAccountInvitation {
@@ -31,16 +31,7 @@ export function createResolveDependentAccountInvitationUseCase<Trx>(deps: Famili
     }
 
     const now = deps.clock.now();
-    if (invitation.status === "PENDING" && isExpired(invitation, now)) {
-      await deps.invitationsRepo.updateStatus(trx, invitation.id, "EXPIRED");
-      throw new DomainError("INVITATION_EXPIRED", { detail: "Convite expirado." });
-    }
-    if (invitation.status !== "PENDING") {
-      throw new DomainError(
-        invitation.status === "EXPIRED" ? "INVITATION_EXPIRED" : "INVITATION_INVALID",
-        { detail: invitation.status === "EXPIRED" ? "Convite expirado." : "Convite inválido." },
-      );
-    }
+    await assertInvitationPending(deps, trx, invitation, now);
 
     if (email.toLowerCase() !== invitation.email.toLowerCase()) {
       throw new DomainError("INVITATION_EMAIL_MISMATCH", { detail: "O e-mail não coincide com o convite." });

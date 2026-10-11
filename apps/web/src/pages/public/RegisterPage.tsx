@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Mail, UserRound } from 'lucide-react'
@@ -19,6 +19,10 @@ import { registerSchema, type RegisterFormValues } from './register.schema'
 export function RegisterPage() {
   const { register: createAccount } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  // Vem de `/invite/accept` (sem conta ainda): regista e aceita o convite na mesma chamada
+  // (openapi.yaml RegisterRequest.invitationToken, MEMBER ou DEPENDENT_ACCOUNT).
+  const invitationToken = params.get('invitationToken')
   const [formError, setFormError] = useState<string | null>(null)
   const {
     register,
@@ -39,6 +43,7 @@ export function RegisterPage() {
         password,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         termsVersion: TERMS_VERSION,
+        ...(invitationToken ? { invitationToken } : {}),
       })
       navigate(paths.verify)
     } catch (error) {

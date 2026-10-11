@@ -2,6 +2,7 @@
 // `infrastructure` ou injetadas pela raiz. Genéricas em `Trx` (nunca "kysely" em application).
 import type { AuditEvent } from "../../audit/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
+import type { Logger } from "../../../platform/logger/index.js";
 import type { NewUserRecord, User } from "../../users/index.js";
 import type { SigningKey } from "../domain/jwt.js";
 import type { InMemoryRateLimiter } from "../domain/rate-limiter.js";
@@ -99,11 +100,32 @@ export interface FinalizeDependentAccountInvitationInput {
   userId: string;
 }
 
+export interface ResolvedMemberInvitation {
+  invitationId: string;
+  familyId: string;
+  /** Presente quando o convite já estava ligado a um perfil sem conta (BR-MEM-13). */
+  memberId?: string;
+}
+
+export interface FinalizeMemberInvitationInput {
+  invitationId: string;
+  familyId: string;
+  memberId?: string;
+  userId: string;
+  userName: string;
+  userBirthDate: string;
+}
+
 /**
  * Subconjunto de `families` que `auth` chama pela raiz, na MESMA transação de `register`
- * (modules.md §3.7, UC-MEM-05/BR-MEM-12/13/17) — mesmo critério de `UsersPort`.
+ * (modules.md §3.7, UC-MEM-05/BR-MEM-12/13/17 e UC-MEM-03 — change control, docs/03-use-cases/
+ * member.md) — mesmo critério de `UsersPort`.
  */
 export interface FamiliesPort<Trx> {
+  /** Leitura crua (sem validar estado) só para `register.ts` decidir qual par resolve/finalize
+   * chamar; token desconhecido ⇒ `null`, delegado ao par `DEPENDENT_ACCOUNT` (mantém
+   * `INVITATION_INVALID`, comportamento já existente para tokens inválidos). */
+  resolveInvitationType(trx: Trx, token: string): Promise<"MEMBER" | "DEPENDENT_ACCOUNT" | null>;
   resolveDependentAccountInvitation(
     trx: Trx,
     token: string,
@@ -114,6 +136,10 @@ export interface FamiliesPort<Trx> {
     input: FinalizeDependentAccountInvitationInput,
     context: RequestContext,
   ): Promise<void>;
+  /** UC-MEM-03 (change control): convite `MEMBER` resolvido/validado no registo — a conta nasce E
+   * o convite é aceite automaticamente no mesmo pedido, sem login + accept-invitation manual. */
+  resolveMemberInvitation(trx: Trx, token: string, email: string): Promise<ResolvedMemberInvitation>;
+  finalizeMemberInvitation(trx: Trx, input: FinalizeMemberInvitationInput, context: RequestContext): Promise<void>;
 }
 
 export type WithTransaction<Trx> = <T>(fn: (trx: Trx) => Promise<T>) => Promise<T>;
@@ -140,6 +166,8 @@ export interface AuthDeps<Trx> {
   db: Trx;
   clock: Clock;
   mailer: Mailer;
+  /** Para `trySendMail` (application/send-mail.ts) registar falhas de entrega sem derrubar o pedido. */
+  logger: Logger;
   rateLimiter: InMemoryRateLimiter;
   signingKeys: SigningKey[];
   accessTtlSeconds: number;

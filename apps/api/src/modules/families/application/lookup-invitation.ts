@@ -3,8 +3,8 @@
 // se o `expiresAt` já passou, marca `EXPIRED` aqui mesmo (o job `families.expire-invitations`,
 // modules.md §5, cobre o resto, incluindo convites nunca consultados).
 import { DomainError } from "../../../platform/errors/index.js";
-import { isExpired } from "../domain/invitation.js";
 import { hashOpaqueToken } from "../domain/token.js";
+import { assertInvitationPending } from "./invitation-validation.js";
 import type { FamiliesDeps, RequestContext } from "./ports.js";
 
 export interface InvitationPreview {
@@ -28,16 +28,7 @@ export function createLookupInvitationUseCase<Trx>(deps: FamiliesDeps<Trx>) {
       if (!invitation) {
         throw new DomainError("INVITATION_INVALID", { detail: "Convite inválido." });
       }
-      if (invitation.status === "PENDING" && isExpired(invitation, deps.clock.now())) {
-        await deps.invitationsRepo.updateStatus(trx, invitation.id, "EXPIRED");
-        throw new DomainError("INVITATION_EXPIRED", { detail: "Convite expirado." });
-      }
-      if (invitation.status === "EXPIRED") {
-        throw new DomainError("INVITATION_EXPIRED", { detail: "Convite expirado." });
-      }
-      if (invitation.status !== "PENDING") {
-        throw new DomainError("INVITATION_INVALID", { detail: "Convite inválido." });
-      }
+      await assertInvitationPending(deps, trx, invitation, deps.clock.now());
 
       const family = await deps.familiesRepo.findById(trx, invitation.familyId);
       if (!family) {

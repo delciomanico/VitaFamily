@@ -28,6 +28,10 @@ import {
   createFinalizeDependentAccountInvitationUseCase,
   type FinalizeDependentAccountInvitationInput,
 } from "./application/finalize-dependent-account-invitation.js";
+import {
+  createFinalizeMemberInvitationUseCase,
+  type FinalizeMemberInvitationInput,
+} from "./application/finalize-member-invitation.js";
 import { createGetEffectiveTimezoneUseCase } from "./application/get-effective-timezone.js";
 import { createGetFamilyUseCase } from "./application/get-family.js";
 import { createGetMemberUseCase } from "./application/get-member.js";
@@ -41,6 +45,11 @@ import {
   createResolveDependentAccountInvitationUseCase,
   type ResolvedDependentAccountInvitation,
 } from "./application/resolve-dependent-account-invitation.js";
+import {
+  createResolveMemberInvitationUseCase,
+  type ResolvedMemberInvitation,
+} from "./application/resolve-member-invitation.js";
+import { hashOpaqueToken } from "./domain/token.js";
 import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
 import type { FamiliesDeps, Mailer, RequestContext } from "./application/ports.js";
 import { createRemoveGuardianUseCase } from "./application/remove-guardian.js";
@@ -67,6 +76,8 @@ export type { BloodType, FamilyMember, FamilyRole, MemberStatus } from "./domain
 export type { Mailer, SentEmail } from "./application/ports.js";
 export type { ResolvedDependentAccountInvitation } from "./application/resolve-dependent-account-invitation.js";
 export type { FinalizeDependentAccountInvitationInput } from "./application/finalize-dependent-account-invitation.js";
+export type { ResolvedMemberInvitation } from "./application/resolve-member-invitation.js";
+export type { FinalizeMemberInvitationInput } from "./application/finalize-member-invitation.js";
 export { SmtpMailer } from "./infrastructure/mailer-smtp.js";
 
 export interface FamiliesModuleDeps {
@@ -93,6 +104,19 @@ export interface FamiliesModule {
     input: FinalizeDependentAccountInvitationInput,
     context: RequestContext,
   ) => Promise<void>;
+  // UC-MEM-03 (change control): par resolve/finalize análogo ao de cima, mas para convites tipo
+  // `MEMBER` — permite a `auth/register.ts` criar a conta E aceitar o convite no mesmo pedido
+  // (ver resolve-member-invitation.ts).
+  resolveMemberInvitation: (trx: Kysely<Database>, token: string, email: string) => Promise<ResolvedMemberInvitation>;
+  finalizeMemberInvitation: (
+    trx: Kysely<Database>,
+    input: FinalizeMemberInvitationInput,
+    context: RequestContext,
+  ) => Promise<void>;
+  /** Leitura crua, sem validar estado — só para `auth/register.ts` decidir qual par resolve/
+   * finalize chamar antes de abrir a transação de registo (token desconhecido ⇒ `null`, delegado
+   * ao par `DEPENDENT_ACCOUNT` para manter `INVITATION_INVALID`). */
+  resolveInvitationType: (trx: Kysely<Database>, token: string) => Promise<"MEMBER" | "DEPENDENT_ACCOUNT" | null>;
   // Operações cruas para o módulo `access` consumir pela raiz (modules.md §2: `access` depende de
   // `families`) — mesmo critério de `UsersModule.byId`/`byEmail`. `AccessPolicy.can()` (M3)
   // resolve pertença (authorization.md §2 passo 3) e a relação `TUTOR_OF` (passo 5) só por aqui;
@@ -176,6 +200,12 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
     router: createFamiliesRouter(controller),
     resolveDependentAccountInvitation: createResolveDependentAccountInvitationUseCase(familiesDeps),
     finalizeDependentAccountInvitation: createFinalizeDependentAccountInvitationUseCase(familiesDeps),
+    resolveMemberInvitation: createResolveMemberInvitationUseCase(familiesDeps),
+    finalizeMemberInvitation: createFinalizeMemberInvitationUseCase(familiesDeps),
+    resolveInvitationType: async (trx, token) => {
+      const invitation = await invitationsRepo.findByTokenHash(trx, hashOpaqueToken(token));
+      return invitation?.type ?? null;
+    },
     findMemberByUserId: (trx, familyId, userId) => membersRepo.findByUserId(trx, familyId, userId),
     findMemberById: (trx, familyId, memberId) => membersRepo.findById(trx, familyId, memberId),
     isGuardianOf: async (trx, familyId, dependentId, guardianId) =>

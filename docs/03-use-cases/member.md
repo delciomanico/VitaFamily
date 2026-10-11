@@ -22,6 +22,7 @@
 - **Fluxo:** abre o link → entra ou regista-se com o e-mail convidado → confirma → fica ligado a um FamilyMember (novo, ou o perfil indicado no convite) com papel FAMILY_MEMBER.
 - **Alternativos:** convite expirado/revogado/já usado → recusado; e-mail da conta diferente do convidado → recusado `[PROPOSTO]`.
 - **Regra:** ao ligar a um perfil existente, os dados antigos desse perfil passam a ser do novo titular; os tutores mantêm a tutela se for dependente.
+- **Decisão (change control):** quem ainda não tem conta regista-se diretamente em `POST /auth/register` indicando `invitationToken` (e o e-mail convidado) — a conta é criada E o convite é aceite automaticamente nesse mesmo pedido (mesma transação), sem exigir um segundo passo de login + `POST /invitations/accept`. A idade mínima de autorregisto (18 anos, BR-ACC-02) aplica-se normalmente (a conta criada é de acesso normal, não de acesso limitado como UC-MEM-05).
 
 ### UC-MEM-04 Revogar convite pendente
 - **Ator:** Family Admin.

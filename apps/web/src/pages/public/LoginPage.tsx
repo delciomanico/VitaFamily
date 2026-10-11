@@ -6,7 +6,6 @@ import { ArrowLeft, Mail } from 'lucide-react'
 import { z } from 'zod'
 import { AuthSwitch } from '@/components/layout/AuthScreen'
 import { LogoMark } from '@/components/layout/Logo'
-import { DemoHint, demoClinicCredentials, demoCredentials } from '@/components/domain/DemoHint'
 import { Button } from '@/components/ui/Button'
 import { Input, PasswordInput } from '@/components/ui/Input'
 import { FormError } from '@/components/ui/states'
@@ -33,7 +32,6 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
@@ -46,11 +44,6 @@ export function LoginPage() {
       if (isAppError(error, 'EMAIL_NOT_VERIFIED')) navigate(paths.verify)
       else setFormError(errorMessage(error))
     }
-  }
-
-  function fillDemo({ email, password }: { email: string; password: string }) {
-    setValue('email', email, { shouldValidate: true })
-    setValue('password', password, { shouldValidate: true })
   }
 
   return (
@@ -97,13 +90,6 @@ export function LoginPage() {
             Esqueceu a palavra-passe?
           </Link>
           <FormError message={formError} />
-          <DemoHint
-            kind="login"
-            fillOptions={[
-              { label: 'Família', onFill: () => fillDemo(demoCredentials) },
-              { label: 'Clínica', onFill: () => fillDemo(demoClinicCredentials) },
-            ]}
-          />
           <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
             Entrar
           </Button>

@@ -4,9 +4,9 @@
 import { newId } from "../../../platform/ids/index.js";
 import { DomainError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
-import { isExpired } from "../domain/invitation.js";
 import { hasAccount, MAX_MEMBERS_PER_FAMILY } from "../domain/member.js";
 import { hashOpaqueToken } from "../domain/token.js";
+import { assertInvitationPending } from "./invitation-validation.js";
 import type { FamiliesDeps, RequestContext } from "./ports.js";
 import { toMemberView, type MemberView } from "./member-view.js";
 
@@ -18,16 +18,7 @@ export function createAcceptInvitationUseCase<Trx>(deps: FamiliesDeps<Trx>) {
         throw new DomainError("INVITATION_INVALID", { detail: "Convite inválido." });
       }
       const now = deps.clock.now();
-      if (invitation.status === "PENDING" && isExpired(invitation, now)) {
-        await deps.invitationsRepo.updateStatus(trx, invitation.id, "EXPIRED");
-        throw new DomainError("INVITATION_EXPIRED", { detail: "Convite expirado." });
-      }
-      if (invitation.status !== "PENDING") {
-        throw new DomainError(
-          invitation.status === "EXPIRED" ? "INVITATION_EXPIRED" : "INVITATION_INVALID",
-          { detail: invitation.status === "EXPIRED" ? "Convite expirado." : "Convite inválido." },
-        );
-      }
+      await assertInvitationPending(deps, trx, invitation, now);
 
       const user = await deps.usersPort.byId(trx, userId);
       if (!user) {

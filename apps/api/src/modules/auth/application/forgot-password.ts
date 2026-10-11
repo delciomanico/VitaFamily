@@ -4,6 +4,7 @@ import { DomainError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { generateOpaqueToken, hashOpaqueToken } from "../domain/token.js";
 import type { AuthDeps, RequestContext } from "./ports.js";
+import { trySendMail } from "./send-mail.js";
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 const PER_EMAIL_RULE = { max: 3, windowMs: 60 * 60 * 1000 };
@@ -39,7 +40,7 @@ export function createForgotPasswordUseCase<Trx>(deps: AuthDeps<Trx>) {
         createdAt: now,
       });
 
-      await deps.mailer.send({
+      await trySendMail(deps.mailer, deps.logger, {
         to: normalizedEmail,
         subject: "Recuperação de palavra-passe — Vita Family",
         text: `Para definir uma nova palavra-passe, use este código: ${rawToken} (válido 1 hora). Se não pediu esta recuperação, ignore este e-mail.`,

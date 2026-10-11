@@ -1,4 +1,5 @@
 import type { Family, FamilyMember } from '@/types/family'
+import { DEMO_EMAIL } from './users'
 import type { SharingGrant } from '@/types/sharing'
 
 /*
@@ -101,11 +102,14 @@ export interface MockInvitation {
   code: string
   familyId: string
   status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED'
+  /** `InvitationPreview.invitedEmail` (openapi.yaml): só quem tem este e-mail pode aceitar. */
+  invitedEmail: string
+  type: 'MEMBER' | 'DEPENDENT_ACCOUNT'
 }
 
-/** Convite de demonstração para “Entrar numa família”. */
+/** Convite de demonstração: o token no link de "Entrar numa família" (`/invite/accept?token=...`). */
 export const DEMO_INVITATION_CODE = 'MONARCA26'
 
 export const invitations: MockInvitation[] = [
-  { code: DEMO_INVITATION_CODE, familyId: 'fam_monarca', status: 'PENDING' },
+  { code: DEMO_INVITATION_CODE, familyId: 'fam_monarca', status: 'PENDING', invitedEmail: DEMO_EMAIL, type: 'MEMBER' },
 ]

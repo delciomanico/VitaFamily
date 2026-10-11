@@ -39,6 +39,8 @@ interface AuthContextValue {
   resendCode: () => Promise<void>
   createFamily: (name: string) => Promise<void>
   joinFamily: (code: string) => Promise<void>
+  /** Aceita um convite (`/invite/accept?token=...`) para o utilizador já autenticado. */
+  acceptInvitation: (token: string) => Promise<void>
   refreshMembership: () => Promise<void>
   /** Atualiza a conta em sessão depois de a alterar (nome, fuso). */
   setUser: (user: User) => void
@@ -129,6 +131,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [state.user],
   )
 
+  const acceptInvitation = useCallback(
+    async (token: string) => {
+      if (!state.user) return
+      await familyService.acceptInvitation(state.user.id, token)
+      setMembership(await familyService.getMembership(state.user.id))
+    },
+    [state.user],
+  )
+
   const refreshMembership = useCallback(async () => {
     if (state.user) setMembership(await familyService.getMembership(state.user.id))
   }, [state.user])
@@ -155,11 +166,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resendCode,
       createFamily,
       joinFamily,
+      acceptInvitation,
       refreshMembership,
       setUser,
       logout,
     }),
-    [state, login, register, verify, resendCode, createFamily, joinFamily, refreshMembership, setUser, logout],
+    [
+      state,
+      login,
+      register,
+      verify,
+      resendCode,
+      createFamily,
+      joinFamily,
+      acceptInvitation,
+      refreshMembership,
+      setUser,
+      logout,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

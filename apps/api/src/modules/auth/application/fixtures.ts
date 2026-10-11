@@ -4,6 +4,7 @@
 // biblioteca de I/O entra aqui).
 import type { Clock } from "../../../platform/clock/index.js";
 import { DomainError } from "../../../platform/errors/index.js";
+import type { Logger } from "../../../platform/logger/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { NewUserRecord, User } from "../../users/index.js";
 import type {
@@ -14,11 +15,13 @@ import type {
   AuthTokenType,
   FamiliesPort,
   FinalizeDependentAccountInvitationInput,
+  FinalizeMemberInvitationInput,
   Mailer,
   NewAuthToken,
   NewSessionRecord,
   RequestContext,
   ResolvedDependentAccountInvitation,
+  ResolvedMemberInvitation,
   SentEmail,
   SessionRepository,
   UsersPort,
@@ -242,6 +245,17 @@ export interface FakeDependentInvitation {
   status: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
 }
 
+/** Convite `MEMBER` fabricado para os testes de `register.ts` (UC-MEM-03, change control). */
+export interface FakeMemberInvitation {
+  token: string;
+  invitationId: string;
+  familyId: string;
+  /** Presente quando o convite já estava ligado a um perfil sem conta (BR-MEM-13). */
+  memberId?: string;
+  email: string;
+  status: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
+}
+
 /**
  * Fake de `families` (modules.md §3.7): não reimplementa as regras de `families` (já testadas em
  * `families/application/*.test.ts`) — só devolve/regista o que `register.ts` precisa, por token
@@ -249,7 +263,19 @@ export interface FakeDependentInvitation {
  */
 export class FakeFamiliesPort implements FamiliesPort<FakeTrx> {
   readonly invitationsByToken = new Map<string, FakeDependentInvitation>();
+  readonly memberInvitationsByToken = new Map<string, FakeMemberInvitation>();
   readonly finalized: FinalizeDependentAccountInvitationInput[] = [];
+  readonly finalizedMembers: FinalizeMemberInvitationInput[] = [];
+
+  async resolveInvitationType(_trx: FakeTrx, token: string): Promise<"MEMBER" | "DEPENDENT_ACCOUNT" | null> {
+    if (this.memberInvitationsByToken.has(token)) {
+      return Promise.resolve("MEMBER");
+    }
+    if (this.invitationsByToken.has(token)) {
+      return Promise.resolve("DEPENDENT_ACCOUNT");
+    }
+    return Promise.resolve(null);
+  }
 
   async resolveDependentAccountInvitation(
     _trx: FakeTrx,
@@ -287,8 +313,43 @@ export class FakeFamiliesPort implements FamiliesPort<FakeTrx> {
     return Promise.resolve();
   }
 
+  async resolveMemberInvitation(_trx: FakeTrx, token: string, email: string): Promise<ResolvedMemberInvitation> {
+    const invitation = this.memberInvitationsByToken.get(token);
+    if (invitation?.status !== "PENDING") {
+      throw new DomainError(invitation?.status === "EXPIRED" ? "INVITATION_EXPIRED" : "INVITATION_INVALID", {
+        detail: "Convite inválido.",
+      });
+    }
+    if (invitation.email.toLowerCase() !== email.toLowerCase()) {
+      throw new DomainError("INVITATION_EMAIL_MISMATCH", { detail: "O e-mail não coincide com o convite." });
+    }
+    return Promise.resolve({
+      invitationId: invitation.invitationId,
+      familyId: invitation.familyId,
+      ...(invitation.memberId !== undefined ? { memberId: invitation.memberId } : {}),
+    });
+  }
+
+  async finalizeMemberInvitation(
+    _trx: FakeTrx,
+    input: FinalizeMemberInvitationInput,
+    _context: RequestContext,
+  ): Promise<void> {
+    this.finalizedMembers.push(input);
+    for (const invitation of this.memberInvitationsByToken.values()) {
+      if (invitation.invitationId === input.invitationId) {
+        invitation.status = "ACCEPTED";
+      }
+    }
+    return Promise.resolve();
+  }
+
   seed(invitation: FakeDependentInvitation): void {
     this.invitationsByToken.set(invitation.token, invitation);
+  }
+
+  seedMember(invitation: FakeMemberInvitation): void {
+    this.memberInvitationsByToken.set(invitation.token, invitation);
   }
 }
 
@@ -303,10 +364,24 @@ export class FakeAuditPort implements AuditPort<FakeTrx> {
 
 export class FakeMailer implements Mailer {
   readonly sent: SentEmail[] = [];
+  /** Preparar um cenário de SMTP indisponível (register.test.ts/send-mail.test.ts). */
+  failWith: Error | null = null;
 
   async send(email: SentEmail): Promise<void> {
+    if (this.failWith) {
+      throw this.failWith;
+    }
     this.sent.push(email);
     return Promise.resolve();
+  }
+}
+
+/** Só a parte do `pino.Logger` usada por `send-mail.ts` — sem I/O, regista para o teste inspecionar. */
+export class FakeLogger {
+  readonly warnings: Array<{ obj: unknown; msg: string }> = [];
+
+  warn(obj: unknown, msg: string): void {
+    this.warnings.push({ obj, msg });
   }
 }
 
@@ -318,6 +393,7 @@ export interface AuthFixtures {
   sessionRepo: FakeSessionRepository;
   audit: FakeAuditPort;
   mailer: FakeMailer;
+  logger: FakeLogger;
 }
 
 export function createAuthFixtures(clock: Clock): AuthFixtures {
@@ -327,6 +403,7 @@ export function createAuthFixtures(clock: Clock): AuthFixtures {
   const sessionRepo = new FakeSessionRepository();
   const audit = new FakeAuditPort();
   const mailer = new FakeMailer();
+  const logger = new FakeLogger();
 
   const deps: AuthDeps<FakeTrx> = {
     usersPort,
@@ -338,6 +415,7 @@ export function createAuthFixtures(clock: Clock): AuthFixtures {
     db: FAKE_TRX,
     clock,
     mailer,
+    logger: logger as unknown as Logger,
     rateLimiter: new InMemoryRateLimiter(clock),
     signingKeys: [{ kid: "test", secret: new TextEncoder().encode("a".repeat(32)) }],
     accessTtlSeconds: 900,
@@ -346,5 +424,5 @@ export function createAuthFixtures(clock: Clock): AuthFixtures {
     currentTermsVersion: "1.0.0",
   };
 
-  return { deps, usersPort, families, authTokenRepo, sessionRepo, audit, mailer };
+  return { deps, usersPort, families, authTokenRepo, sessionRepo, audit, mailer, logger };
 }

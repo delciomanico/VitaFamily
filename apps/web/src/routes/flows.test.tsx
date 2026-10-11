@@ -3,8 +3,9 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ToastProvider } from '@/components/ui/Toast'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { DEMO_INVITATION_CODE } from '@/mocks/data/families'
 import { DEMO_EMAIL, DEMO_PASSWORD, DEMO_VERIFICATION_CODE } from '@/mocks/data/users'
-import { resetDb } from '@/mocks/db'
+import { db, resetDb } from '@/mocks/db'
 import { routes } from './router'
 
 function renderAt(path: string) {
@@ -109,6 +110,71 @@ describe('fluxos de autenticação', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Exames' }))
     expect(screen.queryByText('Apendicectomia')).not.toBeInTheDocument()
     expect(screen.getAllByText('Análises clínicas').length).toBeGreaterThan(0)
+  })
+
+  it('convite inválido mostra mensagem clara (sem sessão)', async () => {
+    renderAt('/invite/accept?token=NAO-EXISTE')
+    expect(await screen.findByRole('heading', { name: 'Convite inválido' })).toBeInTheDocument()
+    expect(screen.getByText('Este convite é inválido, já foi usado ou foi revogado.')).toBeInTheDocument()
+  })
+
+  it('convite válido sem sessão oferece entrar ou criar conta', async () => {
+    const router = renderAt(`/invite/accept?token=${DEMO_INVITATION_CODE}`)
+    expect(await screen.findByRole('heading', { name: 'Convite para família' })).toBeInTheDocument()
+    expect(screen.getByText('Família Monarca')).toBeInTheDocument()
+    expect(screen.getByText(DEMO_EMAIL)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Já tenho conta: entrar' }))
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/login')
+  })
+
+  it('autenticado com o e-mail convidado aceita o convite e entra na família', async () => {
+    // Novo utilizador sem família, com um convite MEMBER dedicado (evita o conflito de aceitar
+    // um convite para a própria família de que o utilizador demo já é Admin).
+    const token = 'CONVITE-ANA'
+    db.invitations.push({
+      code: token,
+      familyId: 'fam_monarca',
+      status: 'PENDING',
+      invitedEmail: 'ana@exemplo.test',
+      type: 'MEMBER',
+    })
+
+    const router = renderAt('/register')
+    await screen.findByRole('heading', { name: 'Criar conta' })
+    type('Nome', 'Ana Teste')
+    type('E-mail', 'ana@exemplo.test')
+    type('Data de nascimento', '1990-01-01')
+    type(/^Palavra-passe/, 'uma-frase-longa')
+    type('Confirmar palavra-passe', 'uma-frase-longa')
+    fireEvent.click(screen.getByLabelText(/Li e aceito/))
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+    expect(await screen.findByRole('heading', { name: 'Digite o código enviado' })).toBeInTheDocument()
+    fireEvent.input(screen.getByLabelText('Dígito 1 de 6'), { target: { value: DEMO_VERIFICATION_CODE } })
+    await screen.findByRole('heading', { name: 'Bem-vindo ao Vita Family' })
+
+    router.navigate(`/invite/accept?token=${token}`)
+    fireEvent.click(await screen.findByRole('button', { name: 'Aceitar convite' }))
+
+    expect(await screen.findByRole('heading', { name: /Olá, Ana/ })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/app')
+  })
+
+  it('autenticado com outro e-mail mostra incompatibilidade e permite sair', async () => {
+    const token = 'CONVITE-OUTRO-EMAIL'
+    db.invitations.push({
+      code: token,
+      familyId: 'fam_monarca',
+      status: 'PENDING',
+      invitedEmail: 'outra@exemplo.test',
+      type: 'MEMBER',
+    })
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+
+    renderAt(`/invite/accept?token=${token}`)
+    expect(await screen.findByRole('button', { name: 'Sair da sessão atual' })).toBeInTheDocument()
+    expect(screen.getAllByText(/outra@exemplo\.test/).length).toBeGreaterThan(0)
   })
 
   it('registo valida idade mínima e confirmação da palavra-passe', async () => {

@@ -1,7 +1,16 @@
 // UC-ACC-01: registo de conta. Resposta sempre neutra (sem revelar se o e-mail já existe,
-// AC-ACC-03); regista o e-mail de verificação (24 h). `invitationToken` (convite de conta de
-// dependente, UC-MEM-05/BR-MEM-12/13/17) é resolvido através de `families` (modules.md §3.7):
-// `auth` → `families`, unidirecional, na MESMA transação da criação do `User`.
+// AC-ACC-03); regista o e-mail de verificação (24 h). `invitationToken` é resolvido através de
+// `families` (modules.md §3.7): `auth` → `families`, unidirecional, na MESMA transação da criação
+// do `User`. Dois ramos possíveis (`families.resolveInvitationType` decide qual, por uma leitura
+// não transacional antes de abrir a transação de registo):
+// - convite `DEPENDENT_ACCOUNT` (UC-MEM-05/BR-MEM-12/13/17): conta de acesso limitado do
+//   dependente, data de nascimento vem do perfil.
+// - convite `MEMBER` (UC-MEM-03, change control — docs/03-use-cases/member.md): decisão do
+//   proprietário — o registo cria a conta E aceita automaticamente o convite no mesmo pedido,
+//   ligando-a ao `FamilyMember` do convite, sem exigir login + `POST /invitations/accept`
+//   manuais em separado.
+// Token desconhecido/inválido cai no ramo `DEPENDENT_ACCOUNT`, que mantém `INVITATION_INVALID`
+// (comportamento já existente, preservado para não alterar a resposta de um token inexistente).
 import { newId } from "../../../platform/ids/index.js";
 import { DomainError, ValidationError } from "../../../platform/errors/index.js";
 import { assertPasswordPolicy } from "../domain/password.js";
@@ -14,6 +23,7 @@ import {
 } from "../domain/registration-rules.js";
 import { generateVerificationCode, hashOpaqueToken } from "../domain/token.js";
 import type { AuthDeps, RequestContext } from "./ports.js";
+import { trySendMail } from "./send-mail.js";
 
 export interface RegisterInput {
   email: string;
@@ -47,10 +57,20 @@ export function createRegisterUseCase<Trx>(deps: AuthDeps<Trx>) {
     const email = input.email.trim().toLowerCase();
 
     if (input.invitationToken !== undefined) {
-      // UC-MEM-05/BR-MEM-17: ramo de "conta de dependente" — `MIN_SELF_REGISTRATION_AGE` (≥18) não
-      // se aplica aqui; a idade mínima de dependente (B3, 13 anos) já foi verificada quando o
-      // tutor criou o convite (families/create-dependent-account-invitation.ts). `input.birthDate`
-      // é ignorado: a data de nascimento do `User` é a do perfil (BR-MEM-17), devolvida por
+      const invitationType = await deps.families.resolveInvitationType(deps.db, input.invitationToken);
+      if (invitationType === "MEMBER") {
+        // UC-MEM-03 (change control): ramo de "membro" — ao contrário do dependente, esta é uma
+        // conta de adulto autónomo (FAMILY_MEMBER, acesso normal); BR-ACC-02 (≥18) continua a
+        // aplicar-se, por isso não se salta `assertValidBirthDate`/a verificação de idade abaixo.
+        await registerMemberInvitation(deps, input, input.invitationToken, email, now, context);
+        return;
+      }
+      // UC-MEM-05/BR-MEM-17: ramo de "conta de dependente" (inclui token desconhecido/inválido,
+      // que `resolveDependentAccountInvitation` recusa com `INVITATION_INVALID`, preservando o
+      // comportamento já existente) — `MIN_SELF_REGISTRATION_AGE` (≥18) não se aplica aqui; a
+      // idade mínima de dependente (B3, 13 anos) já foi verificada quando o tutor criou o convite
+      // (families/create-dependent-account-invitation.ts). `input.birthDate` é ignorado: a data
+      // de nascimento do `User` é a do perfil (BR-MEM-17), devolvida por
       // `resolveDependentAccountInvitation`. `input.name` continua a ser o nome da própria conta
       // (campo independente do nome do perfil, que fica como o tutor o definiu — BR-MEM-13; mesmo
       // padrão de `families/accept-invitation.ts` ao ligar um perfil existente).
@@ -97,7 +117,9 @@ export function createRegisterUseCase<Trx>(deps: AuthDeps<Trx>) {
         createdAt: now,
       });
 
-      await deps.mailer.send({
+      // Best effort (send-mail.ts): a conta e o código já estão gravados; uma falha do SMTP não
+      // pode transformar um registo válido num 500 genérico — recuperável via resend-verification.
+      await trySendMail(deps.mailer, deps.logger, {
         to: email,
         subject: "Verifique a sua conta Vita Family",
         text: `Bem-vindo à Vita Family. Para confirmar o seu e-mail, use este código: ${code} (válido 24 horas).`,
@@ -156,6 +178,73 @@ export function createRegisterUseCase<Trx>(deps: AuthDeps<Trx>) {
           familyId: resolved.familyId,
           memberId: resolved.memberId,
           userId,
+        },
+        requestContext,
+      );
+
+      await authDeps.usersPort.setEmailVerified(trx, userId, requestNow);
+    });
+  }
+
+  /**
+   * UC-MEM-03 (change control, decisão do proprietário — docs/03-use-cases/member.md): cria a
+   * conta de adulto e aceita automaticamente o convite `MEMBER`, ligando-a ao `FamilyMember` do
+   * convite (perfil existente, BR-MEM-13, ou um novo), tudo na MESMA transação (modules.md §3.7).
+   * Ao contrário do ramo `DEPENDENT_ACCOUNT`, esta conta não tem acesso limitado — por isso
+   * `assertValidBirthDate`/BR-ACC-02 (≥18) aplicam-se normalmente a `registerInput.birthDate`
+   * (a data de nascimento do próprio registo, não a de um perfil). Decisão (mesma analogia de
+   * `registerDependentAccount` acima, por BR-ACC-01): a conta fica `ACTIVE` de imediato, sem
+   * e-mail de `EMAIL_VERIFICATION` — o `invitationToken` já prova a posse do e-mail convidado com
+   * a mesma garantia.
+   */
+  async function registerMemberInvitation(
+    authDeps: AuthDeps<Trx>,
+    registerInput: RegisterInput,
+    invitationToken: string,
+    normalizedEmail: string,
+    requestNow: Date,
+    requestContext: RequestContext,
+  ): Promise<void> {
+    assertValidBirthDate(registerInput.birthDate, requestNow);
+    const age = ageInYears(registerInput.birthDate, requestNow);
+    if (age < MIN_SELF_REGISTRATION_AGE) {
+      throw new DomainError("AGE_REQUIREMENT_NOT_MET", {
+        detail: "O autorregisto exige 18 anos ou mais.",
+      });
+    }
+
+    await authDeps.withTransaction(async (trx) => {
+      const existing = await authDeps.usersPort.byEmail(trx, normalizedEmail);
+      if (existing) {
+        // AC-ACC-03: resposta neutra.
+        return;
+      }
+
+      const resolved = await authDeps.families.resolveMemberInvitation(trx, invitationToken, normalizedEmail);
+
+      const passwordHash = await hashPassword(registerInput.password);
+      const userId = newId();
+      await authDeps.usersPort.createAccount(trx, {
+        id: userId,
+        email: normalizedEmail,
+        passwordHash,
+        name: registerInput.name,
+        birthDate: registerInput.birthDate,
+        timezone: registerInput.timezone,
+        termsAcceptedVersion: registerInput.termsVersion,
+        termsAcceptedAt: requestNow,
+        createdAt: requestNow,
+      });
+
+      await authDeps.families.finalizeMemberInvitation(
+        trx,
+        {
+          invitationId: resolved.invitationId,
+          familyId: resolved.familyId,
+          ...(resolved.memberId !== undefined ? { memberId: resolved.memberId } : {}),
+          userId,
+          userName: registerInput.name,
+          userBirthDate: registerInput.birthDate,
         },
         requestContext,
       );

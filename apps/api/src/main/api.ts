@@ -97,6 +97,7 @@ export function main(): void {
     families,
     clock,
     mailer: new SmtpMailer(config.SMTP_URL, config.MAIL_FROM),
+    logger,
     signingKeys: parseSigningKeys(config.JWT_SIGNING_KEYS),
     accessTtlSeconds: Math.round(parseDurationMs(config.JWT_ACCESS_TTL) / 1000),
     refreshTtlMs: parseDurationMs(config.REFRESH_TTL),

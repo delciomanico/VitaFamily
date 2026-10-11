@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { DemoHint } from '@/components/domain/DemoHint'
 import { AuthFooter, AuthScreen } from '@/components/layout/AuthScreen'
 import { Button } from '@/components/ui/Button'
 import { OtpInput } from '@/components/ui/OtpInput'
@@ -103,7 +102,6 @@ export function VerifyPage() {
               Reenviar código
             </button>
           </div>
-          <DemoHint kind="verification" />
         </div>
 
         <AuthFooter>

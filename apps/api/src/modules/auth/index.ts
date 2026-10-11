@@ -7,6 +7,7 @@ import type { Kysely } from "kysely";
 import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
+import type { Logger } from "../../platform/logger/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { FamiliesModule } from "../families/index.js";
 import type { UsersModule } from "../users/index.js";
@@ -47,6 +48,7 @@ export interface AuthModuleDeps {
   families: FamiliesModule;
   clock: Clock;
   mailer: Mailer;
+  logger: Logger;
   signingKeys: SigningKey[];
   accessTtlSeconds: number;
   refreshTtlMs: number;
@@ -85,8 +87,11 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
       setPasswordHash: deps.users.setPasswordHash,
     },
     families: {
+      resolveInvitationType: deps.families.resolveInvitationType,
       resolveDependentAccountInvitation: deps.families.resolveDependentAccountInvitation,
       finalizeDependentAccountInvitation: deps.families.finalizeDependentAccountInvitation,
+      resolveMemberInvitation: deps.families.resolveMemberInvitation,
+      finalizeMemberInvitation: deps.families.finalizeMemberInvitation,
     },
     authTokenRepo,
     sessionRepo,
@@ -95,6 +100,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
     mailer: deps.mailer,
+    logger: deps.logger,
     rateLimiter,
     signingKeys: deps.signingKeys,
     accessTtlSeconds: deps.accessTtlSeconds,

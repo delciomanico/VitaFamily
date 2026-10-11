@@ -6,6 +6,7 @@ export const paths = {
   register: '/register',
   forgotPassword: '/forgot-password',
   verify: '/verify',
+  inviteAccept: '/invite/accept',
 
   setupFamily: '/setup/family',
   setupHealth: '/setup/health',

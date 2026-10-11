@@ -5,6 +5,7 @@ import { ClinicShell } from '@/components/layout/ClinicShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { HomePage } from '@/pages/home/HomePage'
 import { ForgotPasswordPage } from '@/pages/public/ForgotPasswordPage'
+import { InviteAcceptPage } from '@/pages/public/InviteAcceptPage'
 import { LoginPage } from '@/pages/public/LoginPage'
 import { OnboardingPage } from '@/pages/public/OnboardingPage'
 import { RegisterPage } from '@/pages/public/RegisterPage'
@@ -32,6 +33,7 @@ export const routes: RouteObject[] = [
     children: [
       { path: paths.splash, element: <SplashPage /> },
       { path: paths.onboarding, element: <OnboardingPage /> },
+      { path: paths.inviteAccept, element: <InviteAcceptPage /> },
       {
         element: <GuestOnly />,
         children: [

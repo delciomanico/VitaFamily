@@ -18,6 +18,12 @@ export interface RegisterInput {
   password: string
   timezone: string
   termsVersion: string
+  /**
+   * Token de `/invite/accept?token=...` (openapi.yaml `RegisterRequest.invitationToken`): registo
+   * e aceitação do convite (MEMBER ou DEPENDENT_ACCOUNT) na mesma chamada. TBD no mock — o backend
+   * simulado não liga convites ao registo, só a API real (auth, em curso noutro módulo).
+   */
+  invitationToken?: string
 }
 
 function toUser({ id, email, name, birthDate, timezone, status }: MockUserRecord): User {

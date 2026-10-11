@@ -4627,6 +4627,16 @@ components:
         invitationToken:
           type: string
           nullable: true
+          description: >-
+            Token de um convite pendente (UC-MEM-03/UC-MEM-05). Se resolver para um convite tipo
+            `DEPENDENT_ACCOUNT`, a data de nascimento vem do perfil (BR-MEM-17) e a idade mínima de
+            autorregisto não se aplica. Se resolver para um convite tipo `MEMBER` (change control,
+            docs/03-use-cases/member.md), a conta é criada E o convite é aceite automaticamente no
+            mesmo pedido — liga à conta o `FamilyMember` do convite (perfil existente ou um novo)
+            com papel FAMILY_MEMBER, sem exigir login + `POST /invitations/accept` manuais em
+            separado; a idade mínima de autorregisto (18 anos, BR-ACC-02) aplica-se normalmente a
+            `birthDate`. Em ambos os casos, `email` tem de coincidir com o do convite
+            (`INVITATION_EMAIL_MISMATCH` caso contrário).
     VerifyEmailRequest:
       type: object
       required: [email, token]

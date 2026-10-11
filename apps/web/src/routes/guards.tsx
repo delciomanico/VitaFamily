@@ -11,6 +11,9 @@ interface FromState {
 function useSignedInTarget(): string {
   const { family, clinic } = useAuth()
   const from = (useLocation().state as FromState | null)?.from
+  // Login a meio de "Entrar numa família" por convite: volta para lá para concluir o accept,
+  // mesmo sem família ainda (é precisamente o que esta tela vai estabelecer).
+  if (from?.startsWith(paths.inviteAccept)) return from
   if (clinic && !family) return from?.startsWith(paths.clinic) ? from : paths.clinic
   if (!family) return paths.setupFamily
   return from ?? paths.home

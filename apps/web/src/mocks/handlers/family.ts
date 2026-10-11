@@ -4,6 +4,14 @@ import { findVisibleMember, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
 import { respond } from '../respond'
 
+/** `InvitationPreview` (openapi.yaml): dados mínimos mostrados antes de aceitar. */
+export interface InvitationPreviewResult {
+  familyName: string
+  invitedEmail: string
+  type: 'MEMBER' | 'DEPENDENT_ACCOUNT'
+  expiresAt: string
+}
+
 export interface NewMemberInput {
   name: string
   birthDate: string
@@ -64,6 +72,61 @@ export function joinFamily(userId: string, code: string) {
     const invitation = db.invitations.find((i) => i.code === code.trim().toUpperCase() && i.status === 'PENDING')
     const family = invitation && db.families.find((f) => f.id === invitation.familyId)
     if (!invitation || !family) throw new AppError('INVITATION_INVALID')
+
+    const member: FamilyMember = {
+      id: newId('mem'),
+      familyId: family.id,
+      userId,
+      name: user.name,
+      birthDate: user.birthDate,
+      role: 'FAMILY_MEMBER',
+      isDependent: false,
+      status: 'ACTIVE',
+      relationship: 'SELF',
+    }
+    invitation.status = 'ACCEPTED'
+    db.members.push(member)
+    return { family, member }
+  })
+}
+
+function findInvitationByToken(token: string) {
+  return db.invitations.find((i) => i.code === token.trim().toUpperCase())
+}
+
+/** `POST /invitations/lookup` (PUBLIC) — usado pela tela `/invite/accept` antes de aceitar. */
+export function lookupInvitationByToken(token: string) {
+  return respond((): InvitationPreviewResult => {
+    const invitation = findInvitationByToken(token)
+    const family = invitation && db.families.find((f) => f.id === invitation.familyId)
+    if (!invitation || !family) throw new AppError('INVITATION_INVALID')
+    if (invitation.status === 'EXPIRED') throw new AppError('INVITATION_EXPIRED')
+    if (invitation.status !== 'PENDING') throw new AppError('INVITATION_INVALID')
+    return {
+      familyName: family.name,
+      invitedEmail: invitation.invitedEmail,
+      type: invitation.type,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    }
+  })
+}
+
+/**
+ * `POST /invitations/accept` (AUTH) — exige que o e-mail da conta coincida com o convidado
+ * (BR-MEM-12/13/17), ao contrário de `joinFamily` (código de uso livre, mantido só para os
+ * testes existentes que o chamam diretamente).
+ */
+export function acceptInvitationByToken(userId: string, token: string) {
+  return respond((): Membership => {
+    const user = requireUser(userId)
+    const invitation = findInvitationByToken(token)
+    const family = invitation && db.families.find((f) => f.id === invitation.familyId)
+    if (!invitation || !family) throw new AppError('INVITATION_INVALID')
+    if (invitation.status === 'EXPIRED') throw new AppError('INVITATION_EXPIRED')
+    if (invitation.status !== 'PENDING') throw new AppError('INVITATION_INVALID')
+    if (user.email.trim().toLowerCase() !== invitation.invitedEmail.trim().toLowerCase()) {
+      throw new AppError('INVITATION_EMAIL_MISMATCH')
+    }
 
     const member: FamilyMember = {
       id: newId('mem'),

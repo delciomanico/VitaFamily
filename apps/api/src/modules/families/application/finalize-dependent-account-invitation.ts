@@ -6,8 +6,8 @@
 // passos — ambos correm na mesma transação de `register`, mas sem lock explícito entre eles.
 import { DomainError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
-import { isExpired } from "../domain/invitation.js";
 import { hasAccount } from "../domain/member.js";
+import { assertInvitationPending } from "./invitation-validation.js";
 import type { FamiliesDeps, RequestContext } from "./ports.js";
 
 export interface FinalizeDependentAccountInvitationInput {
@@ -29,16 +29,7 @@ export function createFinalizeDependentAccountInvitationUseCase<Trx>(deps: Famil
     }
 
     const now = deps.clock.now();
-    if (invitation.status === "PENDING" && isExpired(invitation, now)) {
-      await deps.invitationsRepo.updateStatus(trx, invitation.id, "EXPIRED");
-      throw new DomainError("INVITATION_EXPIRED", { detail: "Convite expirado." });
-    }
-    if (invitation.status !== "PENDING") {
-      throw new DomainError(
-        invitation.status === "EXPIRED" ? "INVITATION_EXPIRED" : "INVITATION_INVALID",
-        { detail: invitation.status === "EXPIRED" ? "Convite expirado." : "Convite inválido." },
-      );
-    }
+    await assertInvitationPending(deps, trx, invitation, now);
 
     const profile = await deps.membersRepo.findById(trx, input.familyId, input.memberId);
     if (!profile) {

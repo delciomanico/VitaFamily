@@ -34,6 +34,21 @@ describe("register (AC-ACC-01/02/03)", () => {
     expect(fixtures.mailer.sent[0]?.to).toBe("ana@example.com");
   });
 
+  it("regressão (incidente SMTP): falha do mailer não derruba o registo com 500 genérico", async () => {
+    const clock = new FixedClock(NOW);
+    const fixtures = createAuthFixtures(clock);
+    fixtures.mailer.failWith = new Error("Invalid login: 535 5.7.8 Authentication failed");
+    const register = createRegisterUseCase(fixtures.deps);
+
+    await expect(register(baseInput(), CONTEXT)).resolves.toBeUndefined();
+
+    const user = await fixtures.usersPort.byEmail({}, "ana@example.com");
+    expect(user?.status).toBe("PENDING_VERIFICATION");
+    expect(fixtures.mailer.sent).toHaveLength(0);
+    expect(fixtures.logger.warnings).toHaveLength(1);
+    expect(fixtures.logger.warnings[0]?.msg).toBe("mailer_send_failed");
+  });
+
   it("AC-ACC-02: <18 anos é recusado com AGE_REQUIREMENT_NOT_MET", async () => {
     const clock = new FixedClock(NOW);
     const fixtures = createAuthFixtures(clock);
@@ -169,6 +184,124 @@ describe("register (AC-ACC-01/02/03)", () => {
           CONTEXT,
         ),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("convite MEMBER via invitationToken (UC-MEM-03, change control)", () => {
+    function seedMemberInvitation(
+      fixtures: ReturnType<typeof createAuthFixtures>,
+      overrides: Partial<Parameters<typeof fixtures.families.seedMember>[0]> = {},
+    ): void {
+      fixtures.families.seedMember({
+        token: "mem-token",
+        invitationId: "inv2",
+        familyId: "fam1",
+        email: "convidado@example.com",
+        status: "PENDING",
+        ...overrides,
+      });
+    }
+
+    it("cria a conta e aceita automaticamente o convite, ligando-a ao FamilyMember", async () => {
+      const clock = new FixedClock(NOW);
+      const fixtures = createAuthFixtures(clock);
+      seedMemberInvitation(fixtures, { memberId: "mem1" });
+      const register = createRegisterUseCase(fixtures.deps);
+
+      await register(
+        baseInput({
+          email: "convidado@example.com",
+          birthDate: "1990-01-01",
+          invitationToken: "mem-token",
+        }),
+        CONTEXT,
+      );
+
+      const user = await fixtures.usersPort.byEmail({}, "convidado@example.com");
+      expect(user?.status).toBe("ACTIVE");
+      expect(user?.birthDate).toBe("1990-01-01"); // ao contrário do dependente, usa o birthDate submetido
+      expect(fixtures.mailer.sent).toHaveLength(0); // sem e-mail de EMAIL_VERIFICATION (mesma analogia §3)
+
+      expect(fixtures.families.finalizedMembers).toHaveLength(1);
+      expect(fixtures.families.finalizedMembers[0]).toMatchObject({
+        invitationId: "inv2",
+        familyId: "fam1",
+        memberId: "mem1",
+        userId: user?.id,
+      });
+    });
+
+    it("exige ≥18 anos (BR-ACC-02): <18 é recusado com AGE_REQUIREMENT_NOT_MET", async () => {
+      const clock = new FixedClock(NOW);
+      const fixtures = createAuthFixtures(clock);
+      seedMemberInvitation(fixtures);
+      const register = createRegisterUseCase(fixtures.deps);
+
+      await expect(
+        register(
+          baseInput({ email: "convidado@example.com", birthDate: "2010-01-01", invitationToken: "mem-token" }),
+          CONTEXT,
+        ),
+      ).rejects.toSatisfy((err: unknown) => err instanceof DomainError && err.code === "AGE_REQUIREMENT_NOT_MET");
+      expect(fixtures.families.finalizedMembers).toHaveLength(0);
+    });
+
+    it("rejeita e-mail diferente do convidado (INVITATION_EMAIL_MISMATCH)", async () => {
+      const clock = new FixedClock(NOW);
+      const fixtures = createAuthFixtures(clock);
+      seedMemberInvitation(fixtures);
+      const register = createRegisterUseCase(fixtures.deps);
+
+      await expect(
+        register(baseInput({ email: "outro@example.com", invitationToken: "mem-token" }), CONTEXT),
+      ).rejects.toSatisfy((err: unknown) => err instanceof DomainError && err.code === "INVITATION_EMAIL_MISMATCH");
+    });
+
+    it("rejeita convite expirado (INVITATION_EXPIRED)", async () => {
+      const clock = new FixedClock(NOW);
+      const fixtures = createAuthFixtures(clock);
+      seedMemberInvitation(fixtures, { status: "EXPIRED" });
+      const register = createRegisterUseCase(fixtures.deps);
+
+      await expect(
+        register(baseInput({ email: "convidado@example.com", invitationToken: "mem-token" }), CONTEXT),
+      ).rejects.toSatisfy((err: unknown) => err instanceof DomainError && err.code === "INVITATION_EXPIRED");
+    });
+
+    it("rejeita convite revogado (INVITATION_INVALID)", async () => {
+      const clock = new FixedClock(NOW);
+      const fixtures = createAuthFixtures(clock);
+      seedMemberInvitation(fixtures, { status: "REVOKED" });
+      const register = createRegisterUseCase(fixtures.deps);
+
+      await expect(
+        register(baseInput({ email: "convidado@example.com", invitationToken: "mem-token" }), CONTEXT),
+      ).rejects.toSatisfy((err: unknown) => err instanceof DomainError && err.code === "INVITATION_INVALID");
+    });
+
+    it("AC-ACC-03: e-mail já registado responde neutro e não finaliza o convite", async () => {
+      const clock = new FixedClock(NOW);
+      const fixtures = createAuthFixtures(clock);
+      seedMemberInvitation(fixtures);
+      fixtures.usersPort.seed({
+        id: "existing",
+        email: "convidado@example.com",
+        passwordHash: "x",
+        name: "Já existe",
+        birthDate: "1990-01-01",
+        timezone: "Europe/Lisbon",
+        status: "ACTIVE",
+        platformRole: "NONE",
+        termsAcceptedVersion: "1.0.0",
+        termsAcceptedAt: NOW,
+        createdAt: NOW,
+      });
+      const register = createRegisterUseCase(fixtures.deps);
+
+      await expect(
+        register(baseInput({ email: "convidado@example.com", invitationToken: "mem-token" }), CONTEXT),
+      ).resolves.toBeUndefined();
+      expect(fixtures.families.finalizedMembers).toHaveLength(0);
     });
   });
 
