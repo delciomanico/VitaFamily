@@ -47,7 +47,11 @@
 - **AC-MED-05 (BR-MED-08)** *Given* o utilizador muda de fuso, *Then* as ocorrências PENDING futuras são recalculadas sem duplicar nem perder doses.
 - **AC-APT-01 (FR-APT)** *Given* uma consulta futura, *Then* são agendados lembretes às 24 h e 2 h antes; *When* é reagendada ou cancelada, *Then* os lembretes futuros são recalculados/removidos.
 - **AC-APT-02 (Q4)** *Given* consulta SCHEDULED já passada, *Then* permanece SCHEDULED e 24 h depois é enviado um alerta a pedir o desfecho (uma vez); o sistema nunca a marca REALIZADA sozinho.
+- **AC-APT-03 (D17, BR-APT-04/06, UC-APT-07)** *Given* um horário livre de clínica parceira, *When* T pede consulta com esse `slotId`, *Then* nasce `REQUESTED`, sem lembretes, com data/especialidade/clínica congeladas do horário; *When* outro pedido usa o mesmo horário antes de resposta, *Then* `CONFLICT`.
+- **AC-APT-04 (D17, BR-APT-09, UC-APT-08)** *Given* uma consulta `REQUESTED`/`SCHEDULED` de clínica parceira, *When* T tenta mudar `scheduledAt`/clínica/especialidade, *Then* `VALIDATION_ERROR` (só as observações são editáveis); *When* T desiste, *Then* `REQUESTED -> CANCELLED`; T nunca confirma/recusa um pedido diretamente.
 - **AC-CLN-01 (R8)** *Given* uma clínica privada de F, *Then* só é visível a F; parceiras são visíveis a todos; *When* uma clínica é arquivada, *Then* consultas existentes mantêm o nome.
+- **AC-CLN-02 (D17, BR-CLN-03, UC-CLN-05)** *Given* um pedido `REQUESTED` da própria clínica, *When* o Gestor confirma, *Then* `SCHEDULED`; *When* recusa, *Then* `REJECTED` e o horário volta a ficar livre; a vista devolvida nunca inclui dados de família/saúde além do mínimo (nome, especialidade, profissional, data/hora, observações).
+- **AC-CLN-03 (D17, BR-CLN-04/06, UC-CLN-06)** *Given* uma consulta `SCHEDULED` futura da própria clínica, *When* o Gestor cancela com motivo, *Then* `CANCELLED` e o horário volta a ficar livre; *When* tenta gerir um pedido/consulta de outra clínica, *Then* `NOT_FOUND` (nunca enumera).
 - **AC-EXM-01 (D8, Q9, D11)** *Given* resultado com valor fora do intervalo informado, *Then* o sistema guarda e mostra mas **não** gera alerta nem sinalização.
 - **AC-EXM-02 (ST5)** *Given* exame SCHEDULED, *When* se tenta adicionar resultado, *Then* `INVALID_STATE_TRANSITION`.
 

@@ -1,9 +1,12 @@
 // Casos de uso de `ClinicSlot` (BR-CLN-04, UC-CLN-04, endpoints.md `/clinic-portal/slots/*`):
-// publicar, listar e remover (só livres) os horários da própria clínica. `createListFreeClinicSlotsUseCase`
-// é também exposto pela raiz do módulo (`clinics/index.ts`) para `appointments` consumir (Fase D,
-// ainda não ligada — `appointments` não tem `slot_id` nesta fase; por isso "livre" é aqui só "foi
-// publicado e não foi removido". A composição com pedidos/consultas REQUESTED/SCHEDULED só existe
-// quando essa coluna for criada, Fase D, authorization.md §6.2).
+// publicar, listar e remover (só livres) os horários da própria clínica. `createListFreeClinicSlotsUseCase`/
+// `createFindClinicSlotUseCase` são também expostos pela raiz do módulo (`clinics/index.ts`) e
+// desde a Fase D (D17) consumidos por `appointments` (`application/ports.ts#ClinicsPort`), que é
+// quem decide "livre" cruzando com `appointments.slot_id` (`appointments` depende de `clinics`,
+// nunca o inverso — por isso esta função continua a devolver só os horários publicados, sem noção
+// de ocupação). `listOwnClinicSlots` (`ClinicSlotView.state`), usado pelo próprio portal da
+// clínica, continua a devolver sempre `FREE` (não ligado a `appointments`, ver `clinics/README.md`
+// "Decisão desta fase sobre 'livre'" — limitação conhecida, fora do âmbito da Fase D).
 import { newId } from "../../../platform/ids/index.js";
 import { NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
@@ -137,9 +140,11 @@ export function createRemoveClinicSlotUseCase<Trx>(deps: ClinicsDeps<Trx>) {
 }
 
 /**
- * API pela raiz (`clinics/index.ts`) para `appointments` consumir mais tarde (modules.md, Fase D
- * ainda não ligada): horários livres de uma clínica, opcionalmente por especialidade. Sem ator do
- * portal — é chamado por outro módulo, não por uma rota `/clinic-portal/*`.
+ * API pela raiz (`clinics/index.ts`), consumida por `appointments` desde a Fase D (D17,
+ * `listAvailableSlots`): horários livres de uma clínica, opcionalmente por especialidade. Sem ator
+ * do portal — é chamado por outro módulo, não por uma rota `/clinic-portal/*`. Devolve todos os
+ * publicados (sem noção de ocupação própria); `appointments` filtra os que já têm marcação ativa
+ * cruzando com `appointments.slot_id` (`clinics` não pode importar `appointments`).
  */
 export function createListFreeClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
   return async function listFreeClinicSlots(clinicId: string, specialty?: string): Promise<ClinicSlot[]> {
@@ -148,11 +153,11 @@ export function createListFreeClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
 }
 
 /**
- * API pela raiz (`clinics/index.ts`), para `appointments` validar um `slotId` escolhido ao pedir
- * consulta (UC-APT-07, Fase D ainda não ligada): devolve o horário só se pertencer a `clinicId`
- * (mesmo critério de não enumerar recursos de outra clínica, authorization.md §6.1 passo 2) — quem
- * chama decide "ocupado"/"livre" com o seu próprio estado (`appointments` não tem `slot_id` nesta
- * fase; `clinic_slots` não guarda estado próprio, schema.md §3).
+ * API pela raiz (`clinics/index.ts`), consumida por `appointments` desde a Fase D (D17,
+ * `support.ts#resolveSlotBooking`) para validar o `slotId`+`clinicId` escolhidos ao pedir consulta
+ * (UC-APT-07): devolve o horário só se pertencer a `clinicId` (mesmo critério de não enumerar
+ * recursos de outra clínica, authorization.md §6.1 passo 2) — quem chama decide "ocupado"/"livre"
+ * com o seu próprio estado (`clinic_slots` não guarda estado próprio, schema.md §3).
  */
 export function createFindClinicSlotUseCase<Trx>(deps: ClinicsDeps<Trx>) {
   return async function findClinicSlot(clinicId: string, slotId: string): Promise<ClinicSlot | null> {

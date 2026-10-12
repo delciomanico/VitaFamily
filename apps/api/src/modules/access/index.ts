@@ -74,6 +74,17 @@ export interface AccessModule {
    * actor não é membro da família (chamador decide NOT_FOUND, mesmo critério de `policy.can()`).
    */
   getMembershipFacts: (trx: Kysely<Database>, familyId: string, userId: string) => Promise<MembershipFacts | null>;
+  /**
+   * Nome atual de um membro (modules.md §2, Fase D, mesmo critério das notas 9/10/11):
+   * `appointments` depende só de `access`/`clinics`/`audit` (modules.md §2), nunca de `families`
+   * diretamente — mas `ClinicBooking.patientName` (BR-CLN-03, endpoints.md `listClinicRequests`/
+   * `listClinicAgenda`) precisa do nome do paciente, mínimo necessário para o portal da clínica.
+   * Passagem direta para `families.findMemberById` (já disponível porque `access` depende de
+   * `families`); devolve `null` se o membro não existir (chamador decide o erro). Sem decisão de
+   * `AccessPolicy` (quem chama já resolveu a autorização da escrita antes, ex.: ao criar a
+   * consulta) — por isso não passa por `policy.can()`.
+   */
+  getMemberName: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<string | null>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -118,6 +129,10 @@ export function createAccessModule(deps: AccessModuleDeps): AccessModule {
         isAdult: isAdultAt(member.birthDate, deps.clock.now()),
         status: member.status,
       };
+    },
+    getMemberName: async (trx, familyId, memberId) => {
+      const member = await deps.families.findMemberById(trx, familyId, memberId);
+      return member?.name ?? null;
     },
   };
 }

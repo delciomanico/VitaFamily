@@ -12,8 +12,12 @@ import type {
   AppointmentsDeps,
   AppointmentsRepository,
   AuditPort,
+  ClinicSlotLite,
+  ClinicStatusChange,
   ClinicsPort,
   CursorPage,
+  MembershipPort,
+  MemberNamesPort,
   NewAppointmentRecord,
 } from "./ports.js";
 
@@ -55,6 +59,7 @@ export class FakeAuditPort implements AuditPort<FakeTrx> {
 
 export class FakeClinicsPort implements ClinicsPort<FakeTrx> {
   readonly clinics = new Map<string, { id: string; name: string; familyId: string; active: boolean }>();
+  readonly slots = new Map<string, ClinicSlotLite>();
 
   async getBookableClinic(_trx: FakeTrx, familyId: string, clinicId: string): Promise<{ id: string; name: string } | null> {
     const clinic = this.clinics.get(clinicId);
@@ -64,8 +69,46 @@ export class FakeClinicsPort implements ClinicsPort<FakeTrx> {
     return Promise.resolve({ id: clinic.id, name: clinic.name });
   }
 
+  async listFreeSlots(clinicId: string, specialty?: string): Promise<ClinicSlotLite[]> {
+    return Promise.resolve([...this.slots.values()].filter((slot) => slot.clinicId === clinicId && (!specialty || slot.specialty === specialty)));
+  }
+
+  async findSlot(clinicId: string, slotId: string): Promise<ClinicSlotLite | null> {
+    const slot = this.slots.get(slotId);
+    return Promise.resolve(slot?.clinicId === clinicId ? slot : null);
+  }
+
   seed(id: string, name: string, familyId: string, active = true): void {
     this.clinics.set(id, { id, name, familyId, active });
+  }
+
+  seedSlot(slot: ClinicSlotLite): void {
+    this.slots.set(slot.id, slot);
+  }
+}
+
+export class FakeMembershipPort implements MembershipPort<FakeTrx> {
+  readonly members = new Map<string, { memberId: string; status: "ACTIVE" | "BLOCKED" }>();
+  defaultMembership: { memberId: string; status: "ACTIVE" | "BLOCKED" } | null = { memberId: "member-actor", status: "ACTIVE" };
+
+  async getMembershipFacts(_trx: FakeTrx, familyId: string, userId: string): Promise<{ memberId: string; status: "ACTIVE" | "BLOCKED" } | null> {
+    return Promise.resolve(this.members.get(`${familyId}:${userId}`) ?? this.defaultMembership);
+  }
+
+  seed(familyId: string, userId: string, memberId: string, status: "ACTIVE" | "BLOCKED" = "ACTIVE"): void {
+    this.members.set(`${familyId}:${userId}`, { memberId, status });
+  }
+}
+
+export class FakeMemberNamesPort implements MemberNamesPort<FakeTrx> {
+  readonly names = new Map<string, string>();
+
+  async getMemberName(_trx: FakeTrx, familyId: string, memberId: string): Promise<string | null> {
+    return Promise.resolve(this.names.get(`${familyId}:${memberId}`) ?? "Membro Teste");
+  }
+
+  seed(familyId: string, memberId: string, name: string): void {
+    this.names.set(`${familyId}:${memberId}`, name);
   }
 }
 
@@ -104,6 +147,7 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
       ...(record.specialty !== undefined ? { specialty: record.specialty } : {}),
       ...(record.reason !== undefined ? { reason: record.reason } : {}),
       ...(record.notes !== undefined ? { notes: record.notes } : {}),
+      ...(record.slotId !== undefined ? { slotId: record.slotId } : {}),
     };
     this.byId.set(appointment.id, appointment);
     return Promise.resolve(appointment);
@@ -183,6 +227,50 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     return Promise.resolve();
   }
 
+  async findActiveBySlot(_trx: FakeTrx, slotId: string): Promise<Appointment | null> {
+    const found = [...this.byId.values()].find((appointment) => appointment.slotId === slotId && (appointment.status === "REQUESTED" || appointment.status === "SCHEDULED"));
+    return Promise.resolve(found ?? null);
+  }
+
+  async listActiveSlotIds(_trx: FakeTrx, slotIds: string[]): Promise<string[]> {
+    const result: string[] = [];
+    for (const appointment of this.byId.values()) {
+      const { slotId } = appointment;
+      if (slotId === undefined) continue;
+      if (!slotIds.includes(slotId)) continue;
+      if (appointment.status !== "REQUESTED" && appointment.status !== "SCHEDULED") continue;
+      result.push(slotId);
+    }
+    return Promise.resolve(result);
+  }
+
+  async findByClinicId(_trx: FakeTrx, clinicId: string, appointmentId: string): Promise<Appointment | null> {
+    const appointment = this.byId.get(appointmentId);
+    return Promise.resolve(appointment?.clinicId === clinicId ? appointment : null);
+  }
+
+  async listByClinicAndStatus(_trx: FakeTrx, clinicId: string, statuses: AppointmentStatus[], filter: { from?: Date; to?: Date }): Promise<Appointment[]> {
+    const items = [...this.byId.values()].filter((appointment) => {
+      if (appointment.clinicId !== clinicId || !statuses.includes(appointment.status)) return false;
+      if (filter.from && appointment.scheduledAt.getTime() < filter.from.getTime()) return false;
+      if (filter.to && appointment.scheduledAt.getTime() > filter.to.getTime()) return false;
+      return true;
+    });
+    return Promise.resolve(items.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime()));
+  }
+
+  async updateStatusByClinic(_trx: FakeTrx, appointmentId: string, change: ClinicStatusChange): Promise<Appointment> {
+    const appointment = this.byId.get(appointmentId);
+    if (!appointment) {
+      throw new Error("consulta inexistente no fake");
+    }
+    const updated: Appointment = { ...appointment, status: change.status };
+    if (change.responseNote === null) delete updated.responseNote;
+    else if (change.responseNote !== undefined) updated.responseNote = change.responseNote;
+    this.byId.set(appointmentId, updated);
+    return Promise.resolve(updated);
+  }
+
   private requireOwned(familyId: string, memberId: string, appointmentId: string): Appointment {
     const appointment = this.byId.get(appointmentId);
     if (!appointment) {
@@ -203,6 +291,8 @@ export interface AppointmentsFixtures {
   deps: AppointmentsDeps<FakeTrx>;
   appointmentsRepo: FakeAppointmentsRepository;
   policy: FakeAccessPolicy;
+  membership: FakeMembershipPort;
+  memberNames: FakeMemberNamesPort;
   clinics: FakeClinicsPort;
   audit: FakeAuditPort;
 }
@@ -210,16 +300,20 @@ export interface AppointmentsFixtures {
 export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const appointmentsRepo = new FakeAppointmentsRepository();
   const policy = new FakeAccessPolicy();
+  const membership = new FakeMembershipPort();
+  const memberNames = new FakeMemberNamesPort();
   const clinics = new FakeClinicsPort();
   const audit = new FakeAuditPort();
   const deps: AppointmentsDeps<FakeTrx> = {
     appointmentsRepo,
     policy,
+    membership,
+    memberNames,
     clinics,
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, appointmentsRepo, policy, clinics, audit };
+  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, audit };
 }

@@ -12,14 +12,17 @@ import { withTransaction } from "../../platform/db/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { ClinicsModule } from "../clinics/index.js";
+import { createCancelClinicAppointmentUseCase, createListClinicAgendaUseCase, createListClinicRequestsUseCase, createRespondClinicRequestUseCase } from "./application/clinic-appointments.js";
 import { createCreateAppointmentUseCase } from "./application/create-appointment.js";
 import { createDeleteAppointmentUseCase } from "./application/delete-appointment.js";
 import { createGetAppointmentUseCase } from "./application/get-appointment.js";
 import { createListAppointmentsUseCase } from "./application/list-appointments.js";
+import { createListAvailableSlotsUseCase } from "./application/list-available-slots.js";
 import type { AppointmentsDeps } from "./application/ports.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
 import { KyselyAppointmentsRepository } from "./infrastructure/repo.js";
+import { createAppointmentsClinicPortalRouter, type AppointmentsClinicPortalController } from "./interface/clinic-portal-router.js";
 import { toAppointmentPage } from "./interface/dto.js";
 import { createAppointmentsRouter, type AppointmentsController } from "./interface/router.js";
 import type { Appointment } from "./domain/appointment.js";
@@ -36,6 +39,9 @@ export interface AppointmentsModuleDeps {
 
 export interface AppointmentsModule {
   router: Router;
+  /** `/clinic-portal/requests/*` e `/clinic-portal/agenda/*` (D17) — ver `interface/clinic-portal-router.ts`
+   * para a decisão de porque vive aqui e não em `clinics`. */
+  clinicPortalRouter: Router;
   /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
   reads: { appointments: MemberPageRead };
 }
@@ -47,7 +53,13 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
   const appointmentsDeps: AppointmentsDeps<Kysely<Database>> = {
     appointmentsRepo,
     policy: deps.access.policy,
-    clinics: { getBookableClinic: deps.clinics.getBookableClinic },
+    membership: { getMembershipFacts: deps.access.getMembershipFacts },
+    memberNames: { getMemberName: deps.access.getMemberName },
+    clinics: {
+      getBookableClinic: deps.clinics.getBookableClinic,
+      listFreeSlots: deps.clinics.listFreeClinicSlots,
+      findSlot: deps.clinics.findClinicSlot,
+    },
     audit: deps.audit,
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
@@ -61,10 +73,19 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     updateAppointment: createUpdateAppointmentUseCase(appointmentsDeps),
     deleteAppointment: createDeleteAppointmentUseCase(appointmentsDeps),
     setAppointmentStatus: createSetAppointmentStatusUseCase(appointmentsDeps),
+    listAvailableSlots: createListAvailableSlotsUseCase(appointmentsDeps),
+  };
+
+  const clinicPortalController: AppointmentsClinicPortalController = {
+    listClinicRequests: createListClinicRequestsUseCase(appointmentsDeps),
+    respondClinicRequest: createRespondClinicRequestUseCase(appointmentsDeps),
+    listClinicAgenda: createListClinicAgendaUseCase(appointmentsDeps),
+    cancelClinicAppointment: createCancelClinicAppointmentUseCase(appointmentsDeps),
   };
 
   return {
     router: createAppointmentsRouter(controller),
+    clinicPortalRouter: createAppointmentsClinicPortalRouter(clinicPortalController),
     reads: {
       appointments: async (actor, familyId, memberId, query, context) => toAppointmentPage(await controller.listAppointments(actor, familyId, memberId, query, context)),
     },

@@ -12,15 +12,62 @@ export interface ActorIdentity {
   platformAdmin: boolean;
 }
 
+/**
+ * Ator do portal da clínica (ADR-020, `platform/actor.ClinicActorInfo`) — só os campos que
+ * `appointments/application` precisa, sem importar `platform/actor` aqui (essa leitura é da
+ * `interface`, conventions.md §3.9). Mesmo critério de `clinics/application/ports.ts#ClinicPortalActor`
+ * (duplicado deliberadamente: nenhuma aresta nova no grafo de módulos).
+ */
+export interface ClinicPortalActor {
+  clinicAccountId: string;
+  clinicId: string;
+}
+
 /** Subconjunto de `AccessPolicy<Trx>` que `appointments` chama pela raiz (`access.policy`, modules.md §2). */
 export interface AccessPolicyPort<Trx> {
   can(trx: Trx, input: CanInput): Promise<AccessContext>;
 }
 
+/**
+ * Subconjunto de `access.getMembershipFacts` (modules.md §3 nota 11 — já usado por `clinics`,
+ * mesma função pública): pertença estrutural do ator à família, para `listAvailableSlots`
+ * (endpoints.md: `AUTHORIZATION: FAM_MEMBER`, sem categoria de dados de saúde — por isso não passa
+ * por `policy.can()`).
+ */
+export interface MembershipPort<Trx> {
+  getMembershipFacts(trx: Trx, familyId: string, userId: string): Promise<{ memberId: string; status: "ACTIVE" | "BLOCKED" } | null>;
+}
+
+/**
+ * `access.getMemberName` (modules.md §2, Fase D — ver nota em `access/index.ts`): nome do membro
+ * para `ClinicBooking.patientName` (BR-CLN-03) — mínimo necessário, nunca mais do que isto chega
+ * ao portal da clínica. Sem `trx` próprio: usa sempre a transação do caso de uso.
+ */
+export interface MemberNamesPort<Trx> {
+  getMemberName(trx: Trx, familyId: string, memberId: string): Promise<string | null>;
+}
+
+/** Horário de clínica parceira (`ClinicSlot`, API pública de `clinics`) — só os campos que
+ * `appointments` precisa para reservar/mostrar um pedido (BR-APT-04/06). */
+export interface ClinicSlotLite {
+  id: string;
+  clinicId: string;
+  specialty: string;
+  professionalName?: string;
+  startsAt: Date;
+  durationMinutes: number;
+}
+
 /** Subconjunto da API pública de `clinics` (modules.md §2: `ClinicLookup`) — resolve o nome
- * atual de uma clínica selecionável (BR-APT-04/BR-CLN-02: o nome fica congelado na consulta). */
+ * atual de uma clínica selecionável (BR-APT-04/BR-CLN-02: o nome fica congelado na consulta) e,
+ * desde a Fase D (D17), os horários publicados (`clinics.listFreeClinicSlots`/`findClinicSlot`,
+ * já expostos pela raiz de `clinics` — sem transação própria, mesmo critério das duas funções
+ * originais: leitura best-effort fora da transação de escrita de `appointments`, com o índice
+ * único de `clinic_slots`/`appointments.slot_id` como rede de segurança final contra corrida). */
 export interface ClinicsPort<Trx> {
   getBookableClinic(trx: Trx, familyId: string, clinicId: string): Promise<{ id: string; name: string } | null>;
+  listFreeSlots(clinicId: string, specialty?: string): Promise<ClinicSlotLite[]>;
+  findSlot(clinicId: string, slotId: string): Promise<ClinicSlotLite | null>;
 }
 
 export interface AuditPort<Trx> {
@@ -47,6 +94,8 @@ export interface NewAppointmentRecord {
   specialty?: string;
   reason?: string;
   notes?: string;
+  /** Horário de clínica parceira de origem (D17) — só em consultas que nasceram `REQUESTED`. */
+  slotId?: string;
   createdAt: Date;
 }
 
@@ -58,6 +107,13 @@ export interface AppointmentChanges {
   specialty?: string | null;
   reason?: string | null;
   notes?: string | null;
+}
+
+/** Transição de estado feita pela clínica (D17: confirmar/recusar/cancelar) — grava sempre o
+ * motivo (`responseNote`), mesmo que vazio/omitido. */
+export interface ClinicStatusChange {
+  status: AppointmentStatus;
+  responseNote?: string | null;
 }
 
 export interface AppointmentListFilter {
@@ -87,11 +143,30 @@ export interface AppointmentsRepository<Trx> {
   /** `alerts.scan` (M8): regista que o pedido de confirmação do desfecho já foi enviado para esta
    * consulta — único escritor de `outcome_requested_at` (`appointments/README.md`). */
   setOutcomeRequested(trx: Trx, appointmentId: string, requestedAt: Date): Promise<void>;
+  /** BR-APT-06 (D17): a marcação ativa (REQUESTED/SCHEDULED) de um horário, se existir — pré-cheque
+   * antes do `insert` (a UNIQUE parcial `appointments_slot_active_booking_idx` é a rede de
+   * segurança final contra corrida, schema.md §4). */
+  findActiveBySlot(trx: Trx, slotId: string): Promise<Appointment | null>;
+  /** `listAvailableSlots` (D17, endpoints.md): de entre os horários publicados devolvidos por
+   * `clinics.listFreeSlots`, quais já têm marcação ativa (REQUESTED/SCHEDULED) — BR-APT-06. */
+  listActiveSlotIds(trx: Trx, slotIds: string[]): Promise<string[]>;
+  /** Portal da clínica (D17, authorization.md §6.1 passo 2): só devolve a consulta se for da
+   * própria clínica (`clinicId` do ator) — nunca a de outra (quem chama decide `NOT_FOUND`, mesmo
+   * critério de não enumerar recursos de outra família). */
+  findByClinicId(trx: Trx, clinicId: string, appointmentId: string): Promise<Appointment | null>;
+  /** `listClinicRequests`/`listClinicAgenda` (D17, UC-CLN-05/06): consultas da própria clínica por
+   * estado, por ordem cronológica. */
+  listByClinicAndStatus(trx: Trx, clinicId: string, statuses: AppointmentStatus[], filter: { from?: Date; to?: Date }): Promise<Appointment[]>;
+  /** `confirmRequest`/`rejectRequest`/`cancelByClinic` (D17): só escritor de `status`+`response_note`
+   * para o portal da clínica — nunca `familyId`/`memberId` (o ator de clínica não os conhece). */
+  updateStatusByClinic(trx: Trx, appointmentId: string, change: ClinicStatusChange): Promise<Appointment>;
 }
 
 export interface AppointmentsDeps<Trx> {
   appointmentsRepo: AppointmentsRepository<Trx>;
   policy: AccessPolicyPort<Trx>;
+  membership: MembershipPort<Trx>;
+  memberNames: MemberNamesPort<Trx>;
   clinics: ClinicsPort<Trx>;
   audit: AuditPort<Trx>;
   db: Trx;

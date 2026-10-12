@@ -4,7 +4,14 @@ import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
 import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
 import type { Appointment, AppointmentStatus } from "../domain/appointment.js";
-import type { AppointmentChanges, AppointmentListFilter, AppointmentsRepository, CursorPage, NewAppointmentRecord } from "../application/ports.js";
+import type {
+  AppointmentChanges,
+  AppointmentListFilter,
+  AppointmentsRepository,
+  ClinicStatusChange,
+  CursorPage,
+  NewAppointmentRecord,
+} from "../application/ports.js";
 import "./schema.js";
 
 interface AppointmentRow {
@@ -19,6 +26,8 @@ interface AppointmentRow {
   specialty: string | null;
   reason: string | null;
   notes: string | null;
+  slot_id: string | null;
+  response_note: string | null;
   created_at: Date;
 }
 
@@ -37,10 +46,27 @@ function toAppointment(row: AppointmentRow): Appointment {
   if (row.specialty !== null) appointment.specialty = row.specialty;
   if (row.reason !== null) appointment.reason = row.reason;
   if (row.notes !== null) appointment.notes = row.notes;
+  if (row.slot_id !== null) appointment.slotId = row.slot_id;
+  if (row.response_note !== null) appointment.responseNote = row.response_note;
   return appointment;
 }
 
-const APPOINTMENT_COLUMNS = ["id", "family_id", "member_id", "scheduled_at", "status", "professional_name", "clinic_id", "clinic_name", "specialty", "reason", "notes", "created_at"] as const;
+const APPOINTMENT_COLUMNS = [
+  "id",
+  "family_id",
+  "member_id",
+  "scheduled_at",
+  "status",
+  "professional_name",
+  "clinic_id",
+  "clinic_name",
+  "specialty",
+  "reason",
+  "notes",
+  "slot_id",
+  "response_note",
+  "created_at",
+] as const;
 
 export class KyselyAppointmentsRepository implements AppointmentsRepository<Kysely<Database>> {
   async insert(trx: Kysely<Database>, record: NewAppointmentRecord): Promise<Appointment> {
@@ -58,6 +84,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         specialty: record.specialty ?? null,
         reason: record.reason ?? null,
         notes: record.notes ?? null,
+        slot_id: record.slotId ?? null,
         created_at: record.createdAt,
       })
       .returning(APPOINTMENT_COLUMNS)
@@ -166,5 +193,68 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
 
   async setOutcomeRequested(trx: Kysely<Database>, appointmentId: string, requestedAt: Date): Promise<void> {
     await trx.updateTable("appointments").set({ outcome_requested_at: requestedAt, updated_at: sql`now()` }).where("id", "=", appointmentId).execute();
+  }
+
+  async findActiveBySlot(trx: Kysely<Database>, slotId: string): Promise<Appointment | null> {
+    const row = await trx
+      .selectFrom("appointments")
+      .select(APPOINTMENT_COLUMNS)
+      .where("slot_id", "=", slotId)
+      .where("status", "in", ["REQUESTED", "SCHEDULED"])
+      .executeTakeFirst();
+    return row ? toAppointment(row) : null;
+  }
+
+  async listActiveSlotIds(trx: Kysely<Database>, slotIds: string[]): Promise<string[]> {
+    if (slotIds.length === 0) {
+      return [];
+    }
+    const rows = await trx
+      .selectFrom("appointments")
+      .select(["slot_id"])
+      .where("slot_id", "in", slotIds)
+      .where("status", "in", ["REQUESTED", "SCHEDULED"])
+      .execute();
+    return rows.map((row) => row.slot_id).filter((id): id is string => id !== null);
+  }
+
+  async findByClinicId(trx: Kysely<Database>, clinicId: string, appointmentId: string): Promise<Appointment | null> {
+    const row = await trx.selectFrom("appointments").select(APPOINTMENT_COLUMNS).where("clinic_id", "=", clinicId).where("id", "=", appointmentId).executeTakeFirst();
+    return row ? toAppointment(row) : null;
+  }
+
+  async listByClinicAndStatus(
+    trx: Kysely<Database>,
+    clinicId: string,
+    statuses: AppointmentStatus[],
+    filter: { from?: Date; to?: Date },
+  ): Promise<Appointment[]> {
+    let query = trx
+      .selectFrom("appointments")
+      .select(APPOINTMENT_COLUMNS)
+      .where("clinic_id", "=", clinicId)
+      .where("status", "in", statuses);
+    if (filter.from) {
+      query = query.where("scheduled_at", ">=", filter.from);
+    }
+    if (filter.to) {
+      query = query.where("scheduled_at", "<=", filter.to);
+    }
+    const rows = await query.orderBy("scheduled_at", "asc").execute();
+    return rows.map(toAppointment);
+  }
+
+  async updateStatusByClinic(trx: Kysely<Database>, appointmentId: string, change: ClinicStatusChange): Promise<Appointment> {
+    const row = await trx
+      .updateTable("appointments")
+      .set({
+        status: change.status,
+        ...(change.responseNote !== undefined ? { response_note: change.responseNote } : {}),
+        updated_at: sql`now()`,
+      })
+      .where("id", "=", appointmentId)
+      .returning(APPOINTMENT_COLUMNS)
+      .executeTakeFirstOrThrow();
+    return toAppointment(row);
   }
 }

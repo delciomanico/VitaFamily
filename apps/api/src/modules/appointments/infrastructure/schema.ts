@@ -7,7 +7,7 @@ export interface AppointmentsTable {
   family_id: string;
   member_id: string;
   scheduled_at: Date;
-  status: "SCHEDULED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
+  status: "REQUESTED" | "SCHEDULED" | "REJECTED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
   professional_name: ColumnType<string | null, string | null | undefined, string | null>;
   clinic_id: ColumnType<string | null, string | null | undefined, string | null>;
   clinic_name: ColumnType<string | null, string | null | undefined, string | null>;
@@ -15,6 +15,10 @@ export interface AppointmentsTable {
   reason: ColumnType<string | null, string | null | undefined, string | null>;
   notes: ColumnType<string | null, string | null | undefined, string | null>;
   outcome_requested_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  /** Horário de clínica parceira de origem (D17) — `db/migrations/0016_appointment_slot_booking.sql`. */
+  slot_id: ColumnType<string | null, string | null | undefined, string | null>;
+  /** Motivo da clínica ao recusar/cancelar (D17). */
+  response_note: ColumnType<string | null, string | null | undefined, string | null>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

@@ -81,13 +81,17 @@ em `modules.md`). `publishClinicSlots` ignora, em silêncio, horas passadas e du
 especialidade, profissional — BR-CLN-04) em vez de falhar o lote.
 
 **Decisão desta fase sobre "livre"**: `clinic_slots` (schema.md §3) não guarda estado próprio — é
-`appointments.slot_id` (ainda inexistente, Fase D) que marca um horário como ocupado
-(`REQUESTED`/`SCHEDULED`). Como `appointments` não foi tocado nesta fase, `listOwnClinicSlots`
-devolve sempre `state: "FREE"` (`ClinicSlotView`) e `removeClinicSlot` remove sem verificar
-ocupação (não há forma de ocupar um horário ainda). `clinics/index.ts` expõe pela raiz
-`listFreeClinicSlots(clinicId, specialty?)` e `findClinicSlot(clinicId, slotId)` para `appointments`
-consumir quando ligar o pedido de consulta (UC-APT-07, Fase D) — nenhuma aresta nova no grafo de
-módulos é criada agora; é só API pública pronta a usar.
+`appointments.slot_id` que marca um horário como ocupado (`REQUESTED`/`SCHEDULED`, ligado na Fase D,
+D17). `clinics/index.ts` expõe pela raiz `listFreeClinicSlots(clinicId, specialty?)` e
+`findClinicSlot(clinicId, slotId)` — desde a Fase D consumidas por `appointments`
+(`application/ports.ts#ClinicsPort`/`support.ts#resolveSlotBooking`) para resolver/validar pedidos
+num horário (UC-APT-07) e para `GET /families/{familyId}/clinics/{clinicId}/slots`
+(`appointments/application/list-available-slots.ts`). **Limitação que permanece** (fora do âmbito
+da Fase D, só toca `appointments`+`clinics` pela raiz): `listOwnClinicSlots`
+(`GET /clinic-portal/slots`, a vista da própria clínica) continua a devolver sempre
+`state: "FREE"` e `removeClinicSlot` continua a remover sem verificar ocupação — `clinics` não
+pode importar `appointments` (modules.md §2) para calcular o estado real aqui; resolver isto
+exigiria uma porta nova (ex.: callback injetado pelo composition root) fora do âmbito desta fase.
 
 ### Migração
 `db/migrations/0013_clinic_slots.sql`: tabela `clinic_slots` (schema.md §3 v0.2), sem FK de

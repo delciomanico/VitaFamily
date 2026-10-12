@@ -1,5 +1,6 @@
-// openapi.yaml `setAppointmentStatus`: "Autorização: WRITE(APPOINTMENTS). ST4."
-import { NotFoundError } from "../../../platform/errors/index.js";
+// openapi.yaml `setAppointmentStatus`: "Autorização: WRITE(APPOINTMENTS). ST4. A família nunca
+// define REQUESTED/confirma REQUESTED->SCHEDULED/recusa (exclusivo do portal da clínica, D17)."
+import { DomainError, NotFoundError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { assertValidAppointmentTransition, type Appointment, type AppointmentStatus } from "../domain/appointment.js";
 import type { ActorIdentity, AppointmentsDeps, RequestContext } from "./ports.js";
@@ -30,6 +31,12 @@ export function createSetAppointmentStatusUseCase<Trx>(deps: AppointmentsDeps<Tr
       const existing = await deps.appointmentsRepo.findById(trx, familyId, memberId, appointmentId);
       if (!existing) {
         throw new NotFoundError({ detail: "Consulta não encontrada." });
+      }
+      // D17 (endpoints.md `setAppointmentStatus`): a família nunca confirma/recusa um pedido —
+      // só desiste dele (REQUESTED -> CANCELLED); confirmar/recusar é exclusivo do portal da
+      // clínica (`PUT /clinic-portal/requests/{appointmentId}`).
+      if (existing.status === "REQUESTED" && input.status !== "CANCELLED") {
+        throw new DomainError("INVALID_STATE_TRANSITION", { detail: "Transição de estado da consulta não permitida." });
       }
       assertValidAppointmentTransition(existing.status, input.status);
 

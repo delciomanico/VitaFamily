@@ -94,8 +94,9 @@ export interface ClinicsModule {
   clinicActorContextMiddleware: ReturnType<typeof createClinicActorContextMiddleware>;
   /** API pública para `appointments`/`examinations` (modules.md §2: `ClinicLookup`). */
   getBookableClinic: ReturnType<typeof createGetBookableClinicUseCase<Kysely<Database>>>;
-  /** API pública de `ClinicSlot` (Fase C) para `appointments` consumir mais tarde (Fase D, ainda
-   * não ligada): horários livres de uma clínica e consulta de um horário concreto. */
+  /** API pública de `ClinicSlot` (Fase C), consumida por `appointments` desde a Fase D (D17,
+   * `application/ports.ts#ClinicsPort`): horários livres de uma clínica e consulta de um horário
+   * concreto. */
   listFreeClinicSlots: ReturnType<typeof createListFreeClinicSlotsUseCase<Kysely<Database>>>;
   findClinicSlot: ReturnType<typeof createFindClinicSlotUseCase<Kysely<Database>>>;
 }

@@ -52,6 +52,26 @@ export function createUpdateAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>)
         throw new NotFoundError({ detail: "Consulta não encontrada." });
       }
 
+      // BR-APT-09 (D17): consulta de clínica parceira (originada de um `slotId`) só tem as
+      // observações (`notes`) editáveis — mudar data/hora é cancelar e pedir outro horário
+      // (UC-APT-08); `reason` também fica congelado (texto do pedido original enviado à clínica).
+      if (existing.slotId) {
+        const restrictedFields: [string, unknown][] = [
+          ["scheduledAt", input.scheduledAt],
+          ["professionalName", input.professionalName],
+          ["clinicId", input.clinicId],
+          ["clinicName", input.clinicName],
+          ["specialty", input.specialty],
+          ["reason", input.reason],
+        ];
+        const offending = restrictedFields.find(([, value]) => value !== undefined);
+        if (offending) {
+          throw new ValidationError([{ field: offending[0], message: "não editável numa consulta de clínica parceira" }], {
+            detail: "Numa consulta de clínica parceira só as observações são editáveis (BR-APT-09).",
+          });
+        }
+      }
+
       const changes: AppointmentChanges = {
         ...(input.scheduledAt ? { scheduledAt: parseScheduledAt(input.scheduledAt) } : {}),
         ...(input.professionalName !== undefined ? { professionalName: input.professionalName } : {}),

@@ -7,7 +7,7 @@ import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { assertValidCreationStatus, type Appointment, type AppointmentStatus } from "../domain/appointment.js";
 import type { ActorIdentity, AppointmentsDeps, NewAppointmentRecord, RequestContext } from "./ports.js";
-import { resolveClinicSnapshot } from "./support.js";
+import { resolveClinicSnapshot, resolveSlotBooking } from "./support.js";
 
 export interface CreateAppointmentInput {
   scheduledAt: string;
@@ -18,6 +18,11 @@ export interface CreateAppointmentInput {
   reason?: string | null;
   notes?: string | null;
   status?: AppointmentStatus | null;
+  /** Marcação num horário de clínica parceira (D17/UC-APT-07) — "em vez de" `clinicName`
+   * (endpoints.md `createAppointment`); `clinicId` continua obrigatório para identificar o
+   * horário (ver `support.ts#resolveSlotBooking`). Ignora `status`/`scheduledAt`/`specialty`/
+   * `professionalName`/`clinicName` quando presente (congelados a partir do horário). */
+  slotId?: string | null;
 }
 
 function parseScheduledAt(value: string): Date {
@@ -30,11 +35,15 @@ function parseScheduledAt(value: string): Date {
 
 export function createCreateAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>) {
   return async function createAppointment(actor: ActorIdentity, familyId: string, memberId: string, input: CreateAppointmentInput, context: RequestContext): Promise<Appointment> {
-    const scheduledAt = parseScheduledAt(input.scheduledAt);
+    const hasSlotId = Boolean(input.slotId);
+    if (hasSlotId && !input.clinicId) {
+      throw new ValidationError([{ field: "clinicId", message: "obrigatório com slotId" }], { detail: "Clínica obrigatória para marcar num horário." });
+    }
+
     // UC-APT-01 alternativo: registo retroativo pode nascer já REALIZADA; por omissão, AGENDADA
     // mesmo se `scheduledAt` for passado (BR-APT-02: o sistema nunca assume o desfecho).
-    const status = input.status ?? "SCHEDULED";
-    assertValidCreationStatus(status);
+    const status = hasSlotId ? "REQUESTED" : input.status ?? "SCHEDULED";
+    assertValidCreationStatus(status, hasSlotId);
 
     return deps.withTransaction(async (trx) => {
       await deps.policy.can(trx, {
@@ -46,22 +55,43 @@ export function createCreateAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>)
         category: "APPOINTMENTS",
       });
 
-      const clinicSnapshot = await resolveClinicSnapshot(deps, trx, familyId, input.clinicId, input.clinicName);
-
       const now = deps.clock.now();
-      const record: NewAppointmentRecord = {
-        id: newId(),
-        familyId,
-        memberId,
-        scheduledAt,
-        status,
-        createdAt: now,
-        ...(input.professionalName ? { professionalName: input.professionalName } : {}),
-        ...(input.specialty ? { specialty: input.specialty } : {}),
-        ...(input.reason ? { reason: input.reason } : {}),
-        ...(input.notes ? { notes: input.notes } : {}),
-        ...clinicSnapshot,
-      };
+      let record: NewAppointmentRecord;
+      if (hasSlotId && input.slotId && input.clinicId) {
+        const booking = await resolveSlotBooking(deps, trx, familyId, input.clinicId, input.slotId);
+        record = {
+          id: newId(),
+          familyId,
+          memberId,
+          scheduledAt: booking.scheduledAt,
+          status,
+          createdAt: now,
+          clinicId: booking.clinicId,
+          clinicName: booking.clinicName,
+          specialty: booking.specialty,
+          slotId: booking.slotId,
+          ...(booking.professionalName ? { professionalName: booking.professionalName } : {}),
+          ...(input.reason ? { reason: input.reason } : {}),
+          ...(input.notes ? { notes: input.notes } : {}),
+        };
+      } else {
+        // UC-APT-07 (D17): `scheduledAt` só se valida aqui (sem `slotId`) — com horário, o valor
+        // vem sempre do próprio horário (acima), nunca do que o cliente enviar (BR-APT-04/06).
+        const clinicSnapshot = await resolveClinicSnapshot(deps, trx, familyId, input.clinicId, input.clinicName);
+        record = {
+          id: newId(),
+          familyId,
+          memberId,
+          scheduledAt: parseScheduledAt(input.scheduledAt),
+          status,
+          createdAt: now,
+          ...(input.professionalName ? { professionalName: input.professionalName } : {}),
+          ...(input.specialty ? { specialty: input.specialty } : {}),
+          ...(input.reason ? { reason: input.reason } : {}),
+          ...(input.notes ? { notes: input.notes } : {}),
+          ...clinicSnapshot,
+        };
+      }
       const appointment = await deps.appointmentsRepo.insert(trx, record);
 
       await deps.audit.record(trx, {

@@ -5,12 +5,13 @@ import { Router } from "express";
 import { asyncHandler, buildRequestContext, requireParam } from "../../../platform/http/index.js";
 import { getActor } from "../../../platform/actor/index.js";
 import { UnauthenticatedError } from "../../../platform/errors/index.js";
+import type { AvailableSlotsResult, ListAvailableSlotsQuery } from "../application/list-available-slots.js";
 import type { CreateAppointmentInput } from "../application/create-appointment.js";
 import type { ListAppointmentsQuery } from "../application/list-appointments.js";
 import type { ActorIdentity, Appointment, CursorPage, RequestContext } from "../application/ports.js";
 import type { SetAppointmentStatusInput } from "../application/set-appointment-status.js";
 import type { UpdateAppointmentInput } from "../application/update-appointment.js";
-import { toAppointmentPage, toAppointmentResponse } from "./dto.js";
+import { toAppointmentPage, toAppointmentResponse, toAvailableSlotListResponse } from "./dto.js";
 
 export interface AppointmentsController {
   listAppointments: (actor: ActorIdentity, familyId: string, memberId: string, query: ListAppointmentsQuery, context: RequestContext) => Promise<CursorPage<Appointment>>;
@@ -26,6 +27,7 @@ export interface AppointmentsController {
     input: SetAppointmentStatusInput,
     context: RequestContext,
   ) => Promise<Appointment>;
+  listAvailableSlots: (actor: ActorIdentity, familyId: string, clinicId: string, query: ListAvailableSlotsQuery) => Promise<AvailableSlotsResult>;
 }
 
 function requireActor(): ActorIdentity {
@@ -122,6 +124,16 @@ export function createAppointmentsRouter(controller: AppointmentsController): Ro
         buildRequestContext(req),
       );
       res.json(toAppointmentResponse(result));
+    }),
+  );
+
+  router.get(
+    "/families/:familyId/clinics/:clinicId/slots",
+    asyncHandler(async (req, res) => {
+      const specialty = queryString(req, "specialty");
+      const query: ListAvailableSlotsQuery = specialty !== undefined ? { specialty } : {};
+      const result = await controller.listAvailableSlots(requireActor(), requireParam(req, "familyId"), requireParam(req, "clinicId"), query);
+      res.json(toAvailableSlotListResponse(result.items, result.clinicName));
     }),
   );
 

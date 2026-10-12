@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
+import { createCancelClinicAppointmentUseCase, createListClinicAgendaUseCase, createListClinicRequestsUseCase, createRespondClinicRequestUseCase } from "./clinic-appointments.js";
 import { createCreateAppointmentUseCase } from "./create-appointment.js";
 import { createDeleteAppointmentUseCase } from "./delete-appointment.js";
 import { createAppointmentsFixtures } from "./fixtures.js";
 import { createGetAppointmentUseCase } from "./get-appointment.js";
 import { createListAppointmentsUseCase } from "./list-appointments.js";
+import { createListAvailableSlotsUseCase } from "./list-available-slots.js";
 import { createSetAppointmentStatusUseCase } from "./set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./update-appointment.js";
 
@@ -202,5 +204,194 @@ describe("deleteAppointment (UC-APT-06)", () => {
     const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
     const deleteAppointment = createDeleteAppointmentUseCase(fixtures.deps);
     await expect(deleteAppointment(ACTOR, FAMILY_ID, MEMBER_ID, "nope", CTX)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+const CLINIC_ID = "clinic-1";
+const CLINIC_ACTOR = { clinicAccountId: "clinic-account-1", clinicId: CLINIC_ID };
+
+function seedFreeSlot(fixtures: ReturnType<typeof createAppointmentsFixtures>, id: string, overrides: Partial<{ specialty: string; startsAt: Date; durationMinutes: number; professionalName?: string }> = {}) {
+  fixtures.clinics.seed(CLINIC_ID, "Clínica Sol", FAMILY_ID);
+  fixtures.clinics.seedSlot({
+    id,
+    clinicId: CLINIC_ID,
+    specialty: overrides.specialty ?? "Cardiologia",
+    startsAt: overrides.startsAt ?? new Date("2026-02-01T09:00:00.000Z"),
+    durationMinutes: overrides.durationMinutes ?? 30,
+    ...(overrides.professionalName ? { professionalName: overrides.professionalName } : {}),
+  });
+}
+
+describe("createAppointment com slotId (UC-APT-07, D17/BR-APT-04/06)", () => {
+  it("cria REQUESTED a partir do horário, congelando data/especialidade/clínica", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-1", { professionalName: "Dr. Costa" });
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+
+    const appointment = await createAppointment(
+      ACTOR,
+      FAMILY_ID,
+      MEMBER_ID,
+      { scheduledAt: "1999-01-01T00:00:00.000Z", clinicId: CLINIC_ID, slotId: "slot-1", notes: "dores de cabeça" },
+      CTX,
+    );
+
+    expect(appointment.status).toBe("REQUESTED");
+    expect(appointment.slotId).toBe("slot-1");
+    expect(appointment.clinicId).toBe(CLINIC_ID);
+    expect(appointment.clinicName).toBe("Clínica Sol");
+    expect(appointment.specialty).toBe("Cardiologia");
+    expect(appointment.professionalName).toBe("Dr. Costa");
+    expect(appointment.scheduledAt.toISOString()).toBe("2026-02-01T09:00:00.000Z");
+    expect(appointment.notes).toBe("dores de cabeça");
+  });
+
+  it("recusa slotId sem clinicId (VALIDATION_ERROR)", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+
+    await expect(createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "2026-02-01T09:00:00.000Z", slotId: "slot-1" }, CTX)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+
+  it("recusa horário inexistente/de outra clínica (VALIDATION_ERROR)", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    fixtures.clinics.seed(CLINIC_ID, "Clínica Sol", FAMILY_ID);
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+
+    await expect(
+      createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "2026-02-01T09:00:00.000Z", clinicId: CLINIC_ID, slotId: "nope" }, CTX),
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+
+  it("BR-APT-06: recusa horário já com marcação ativa (CONFLICT)", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-1");
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    await createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1" }, CTX);
+
+    await expect(createAppointment(ACTOR, FAMILY_ID, "m2", { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1" }, CTX)).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+});
+
+describe("updateAppointment numa consulta de clínica parceira (BR-APT-09)", () => {
+  it("recusa mudar scheduledAt/clinicId/specialty; aceita notes", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-1");
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    const updateAppointment = createUpdateAppointmentUseCase(fixtures.deps);
+    const created = await createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1" }, CTX);
+
+    await expect(updateAppointment(ACTOR, FAMILY_ID, MEMBER_ID, created.id, { scheduledAt: "2026-03-01T09:00:00.000Z" }, CTX)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    const updated = await updateAppointment(ACTOR, FAMILY_ID, MEMBER_ID, created.id, { notes: "nova observação" }, CTX);
+    expect(updated.notes).toBe("nova observação");
+  });
+});
+
+describe("setAppointmentStatus numa consulta REQUESTED (D17)", () => {
+  it("só permite desistir (REQUESTED -> CANCELLED); recusa SCHEDULED/REJECTED", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-1");
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    const setStatus = createSetAppointmentStatusUseCase(fixtures.deps);
+    const created = await createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1" }, CTX);
+
+    await expect(setStatus(ACTOR, FAMILY_ID, MEMBER_ID, created.id, { status: "SCHEDULED" }, CTX)).rejects.toMatchObject({ code: "INVALID_STATE_TRANSITION" });
+    await expect(setStatus(ACTOR, FAMILY_ID, MEMBER_ID, created.id, { status: "REJECTED" }, CTX)).rejects.toMatchObject({ code: "INVALID_STATE_TRANSITION" });
+
+    const cancelled = await setStatus(ACTOR, FAMILY_ID, MEMBER_ID, created.id, { status: "CANCELLED" }, CTX);
+    expect(cancelled.status).toBe("CANCELLED");
+  });
+});
+
+describe("listAvailableSlots (D17, FAM_MEMBER)", () => {
+  it("devolve só horários sem marcação ativa", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-1");
+    seedFreeSlot(fixtures, "slot-2", { startsAt: new Date("2026-02-02T09:00:00.000Z") });
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    await createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1" }, CTX);
+    const listAvailableSlots = createListAvailableSlotsUseCase(fixtures.deps);
+
+    const result = await listAvailableSlots(ACTOR, FAMILY_ID, CLINIC_ID, {});
+
+    expect(result.clinicName).toBe("Clínica Sol");
+    expect(result.items.map((slot) => slot.id)).toEqual(["slot-2"]);
+  });
+
+  it("devolve NOT_FOUND para clínica inexistente/não visível à família", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    const listAvailableSlots = createListAvailableSlotsUseCase(fixtures.deps);
+    await expect(listAvailableSlots(ACTOR, FAMILY_ID, "nope", {})).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("Portal da clínica — pedidos e agenda (D17/BR-CLN-03)", () => {
+  it("listClinicRequests só mostra pedidos REQUESTED da própria clínica, com o mínimo necessário", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-1");
+    fixtures.memberNames.seed(FAMILY_ID, MEMBER_ID, "Maria Silva");
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    await createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1", notes: "check-up" }, CTX);
+    const listClinicRequests = createListClinicRequestsUseCase(fixtures.deps);
+
+    const requests = await listClinicRequests(CLINIC_ACTOR);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({ status: "REQUESTED", patientName: "Maria Silva", specialty: "Cardiologia", notes: "check-up" });
+  });
+
+  it("respondClinicRequest confirma (-> SCHEDULED) e recusa (-> REJECTED, horário volta a ficar livre)", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-1");
+    seedFreeSlot(fixtures, "slot-2", { startsAt: new Date("2026-02-03T09:00:00.000Z") });
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    const confirmed = await createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1" }, CTX);
+    const rejected = await createAppointment(ACTOR, FAMILY_ID, "m2", { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-2" }, CTX);
+    const respond = createRespondClinicRequestUseCase(fixtures.deps);
+
+    const confirmResult = await respond(CLINIC_ACTOR, confirmed.id, { decision: "CONFIRM" }, CTX);
+    expect(confirmResult.status).toBe("SCHEDULED");
+
+    const rejectResult = await respond(CLINIC_ACTOR, rejected.id, { decision: "REJECT", note: "sem vaga" }, CTX);
+    expect(rejectResult.status).toBe("REJECTED");
+    expect(rejectResult.responseNote).toBe("sem vaga");
+
+    const listAvailableSlots = createListAvailableSlotsUseCase(fixtures.deps);
+    const free = await listAvailableSlots(ACTOR, FAMILY_ID, CLINIC_ID, {});
+    expect(free.items.map((slot) => slot.id)).toEqual(["slot-2"]);
+  });
+
+  it("respondClinicRequest recusa responder duas vezes (CONFLICT) e nunca vê pedido de outra clínica (NOT_FOUND)", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-1");
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    const created = await createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1" }, CTX);
+    const respond = createRespondClinicRequestUseCase(fixtures.deps);
+    await respond(CLINIC_ACTOR, created.id, { decision: "CONFIRM" }, CTX);
+
+    await expect(respond(CLINIC_ACTOR, created.id, { decision: "CONFIRM" }, CTX)).rejects.toMatchObject({ code: "CONFLICT" });
+    await expect(respond({ clinicAccountId: "other", clinicId: "other-clinic" }, created.id, { decision: "CONFIRM" }, CTX)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("listClinicAgenda e cancelClinicAppointment (UC-CLN-06)", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-1");
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    const created = await createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1" }, CTX);
+    const respond = createRespondClinicRequestUseCase(fixtures.deps);
+    await respond(CLINIC_ACTOR, created.id, { decision: "CONFIRM" }, CTX);
+
+    const listClinicAgenda = createListClinicAgendaUseCase(fixtures.deps);
+    const agenda = await listClinicAgenda(CLINIC_ACTOR, {});
+    expect(agenda).toHaveLength(1);
+    expect(agenda[0]?.status).toBe("SCHEDULED");
+
+    const cancel = createCancelClinicAppointmentUseCase(fixtures.deps);
+    await expect(cancel(CLINIC_ACTOR, created.id, { note: "" }, CTX)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    const cancelled = await cancel(CLINIC_ACTOR, created.id, { note: "sala indisponível" }, CTX);
+    expect(cancelled.status).toBe("CANCELLED");
+    expect(cancelled.responseNote).toBe("sala indisponível");
   });
 });
