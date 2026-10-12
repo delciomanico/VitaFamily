@@ -97,7 +97,9 @@ export function getMemberProfile(familyId: string, userId: string, memberId: str
       member: toPublic(member),
       isSelf: member.id === self.id,
       manage,
-      canRemove: self.role === 'FAMILY_ADMIN' && member.id !== self.id && member.isDependent && !member.userId,
+      // BR-MEM-16: o Admin também remove adultos com conta (o mock simula o pacote); LAST_ADMIN/
+      // LAST_GUARDIAN ficam a cargo do erro devolvido por `removeMember`.
+      canRemove: self.role === 'FAMILY_ADMIN' && member.id !== self.id,
       guardians: db.guardianships
         .filter((g) => g.familyId === familyId && g.dependentId === memberId)
         .map((g) => memberName(g.guardianId)),

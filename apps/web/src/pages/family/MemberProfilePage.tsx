@@ -190,6 +190,7 @@ export function MemberProfilePage() {
   }
 
   const memberName = state.status === 'success' ? state.data.member.name : ''
+  const memberHasAccount = state.status === 'success' && state.data.member.hasAccount
 
   return (
     <Page title="Membro" backTo={paths.family} backLabel="Minha família">
@@ -205,7 +206,11 @@ export function MemberProfilePage() {
       <ConfirmDialog
         open={confirming}
         title="Remover membro?"
-        description={`O perfil de ${memberName} deixa de fazer parte da família. Esta ação não se pode desfazer.`}
+        description={
+          memberHasAccount
+            ? `${memberName} deixa de fazer parte da família. Antes de apagar os dados, recebe por e-mail um pacote com tudo o que era seu. Esta ação não se pode desfazer.`
+            : `O perfil de ${memberName} deixa de fazer parte da família. Esta ação não se pode desfazer.`
+        }
         confirmLabel="Remover"
         destructive
         loading={removing}

@@ -114,6 +114,13 @@ async function apiRemoveMember(familyId: string, memberId: string): Promise<void
   await apiFetch<unknown>(`/families/${familyId}/members/${memberId}`, { method: 'DELETE' })
 }
 
+export type LeaveFamilyDataChoice = 'TAKE' | 'DELETE'
+
+/** `POST /families/{id}/leave` (UC-MEM-09, R4): o próprio escolhe levar ou apagar os dados. */
+async function apiLeaveFamily(familyId: string, dataChoice: LeaveFamilyDataChoice): Promise<void> {
+  await apiFetch<unknown>(`/families/${familyId}/leave`, { method: 'POST', body: { dataChoice } })
+}
+
 async function apiUpdateFamily(familyId: string, name: string): Promise<Family> {
   return toFamily(await apiFetch<ApiFamily>(`/families/${familyId}`, { method: 'PATCH', body: { name: name.trim() } }))
 }
@@ -174,6 +181,9 @@ export const familyService = {
   removeMember: hasApiBackend()
     ? (familyId: string, _userId: string, memberId: string) => apiRemoveMember(familyId, memberId)
     : api.removeMember,
+  leaveFamily: hasApiBackend()
+    ? (familyId: string, _userId: string, dataChoice: LeaveFamilyDataChoice) => apiLeaveFamily(familyId, dataChoice)
+    : api.leaveFamily,
   updateFamily: hasApiBackend()
     ? (familyId: string, _userId: string, name: string) => apiUpdateFamily(familyId, name)
     : api.updateFamily,

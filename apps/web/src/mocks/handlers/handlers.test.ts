@@ -83,6 +83,14 @@ describe('family', () => {
     expect(await code(family.removeMember('fam_monarca', other.id, added.id))).toBe('FORBIDDEN')
     expect(await code(family.removeMember('fam_monarca', 'usr_monarca', added.id))).toBe('OK')
   })
+
+  it('um adulto com conta sai da família (UC-MEM-09/R4); o único Admin não pode sair', async () => {
+    await auth.register(newAccount)
+    const other = await auth.verifyEmail('ana@exemplo.test', DEMO_VERIFICATION_CODE)
+    await family.joinFamily(other.id, DEMO_INVITATION_CODE)
+    expect(await code(family.leaveFamily('fam_monarca', other.id, 'DELETE'))).toBe('OK')
+    expect(await code(family.leaveFamily('fam_monarca', 'usr_monarca', 'TAKE'))).toBe('LAST_ADMIN')
+  })
 })
 
 describe('health', () => {

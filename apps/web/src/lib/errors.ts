@@ -15,6 +15,8 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'VALIDATION_ERROR'
   | 'CONFLICT'
+  | 'LAST_ADMIN'
+  | 'LAST_GUARDIAN'
   | 'ACCOUNT_DELETION_BLOCKED'
   | 'RATE_LIMITED'
   | 'UNKNOWN'
@@ -45,6 +47,8 @@ const messages: Record<ErrorCode, string> = {
   NOT_FOUND: 'Não encontrámos o que procura.',
   VALIDATION_ERROR: 'Verifique os dados introduzidos.',
   CONFLICT: 'Os dados mudaram entretanto. Atualize e tente novamente.',
+  LAST_ADMIN: 'A família ficaria sem Administrador. Torne outra pessoa Admin primeiro.',
+  LAST_GUARDIAN: 'Esta pessoa é a única tutora de um dependente. Atribua outro tutor primeiro.',
   ACCOUNT_DELETION_BLOCKED:
     'Ainda não pode eliminar a conta: é o único tutor de um dependente ou o único Admin de uma família com outros membros.',
   RATE_LIMITED: 'Fez demasiados pedidos. Tente mais tarde.',

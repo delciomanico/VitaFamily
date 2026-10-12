@@ -1,21 +1,80 @@
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Users } from 'lucide-react'
+import { LogOut, Users } from 'lucide-react'
 import { z } from 'zod'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { DetailSection, InfoList, InfoRow } from '@/components/ui/InfoList'
 import { Input } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { errorMessage } from '@/lib/errors'
 import { roleLabels } from '@/lib/labels'
 import { paths } from '@/routes/paths'
-import { familyService } from '@/services/family.service'
+import { familyService, type LeaveFamilyDataChoice } from '@/services/family.service'
 import { SettingsSubPage } from './SettingsPage'
 
 const schema = z.object({ name: z.string().trim().min(2, 'Introduza o nome da família.') })
 
 type FormValues = z.infer<typeof schema>
+
+/** Sair da família (UC-MEM-09, R4): o próprio escolhe levar ou apagar os dados antes de saír. */
+function LeaveFamily() {
+  const { user, family, refreshMembership } = useAuth()
+  const toast = useToast()
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [leaving, setLeaving] = useState<LeaveFamilyDataChoice>()
+
+  async function leave(dataChoice: LeaveFamilyDataChoice) {
+    setLeaving(dataChoice)
+    try {
+      await familyService.leaveFamily(family?.id ?? '', user?.id ?? '', dataChoice)
+      await refreshMembership()
+      setOpen(false)
+      navigate(paths.home, { replace: true })
+      toast.show(dataChoice === 'TAKE' ? 'Saiu da família; os seus dados foram exportados.' : 'Saiu da família.')
+    } catch (error) {
+      toast.show(errorMessage(error), 'error')
+    } finally {
+      setLeaving(undefined)
+    }
+  }
+
+  return (
+    <DetailSection title="Sair da família">
+      <p className="text-sm text-muted">
+        Deixa de fazer parte desta família. Pode levar os seus dados (pacote para descarregar) ou apagá-los.
+      </p>
+      <Button
+        variant="danger-ghost"
+        size="lg"
+        fullWidth
+        onClick={() => setOpen(true)}
+        icon={<LogOut className="size-5" aria-hidden />}
+      >
+        Sair da família
+      </Button>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Sair da família?"
+        description="Esta ação não se pode desfazer. Se for o único Admin ou o único tutor de um dependente, tem de resolver isso primeiro."
+      >
+        <div className="flex flex-col gap-2">
+          <Button variant="secondary" size="lg" fullWidth loading={leaving === 'TAKE'} onClick={() => leave('TAKE')}>
+            Levar os meus dados e sair
+          </Button>
+          <Button variant="danger" size="lg" fullWidth loading={leaving === 'DELETE'} onClick={() => leave('DELETE')}>
+            Apagar os meus dados e sair
+          </Button>
+        </div>
+      </Modal>
+    </DetailSection>
+  )
+}
 
 /** Família: nome (só o Admin altera, UC-FAM-03) e o seu papel. */
 export function FamilySettingsPage() {
@@ -65,6 +124,8 @@ export function FamilySettingsPage() {
       <ButtonLink to={paths.family} variant="secondary" size="lg" icon={<Users className="size-4" aria-hidden />}>
         Ver membros
       </ButtonLink>
+
+      <LeaveFamily />
     </SettingsSubPage>
   )
 }

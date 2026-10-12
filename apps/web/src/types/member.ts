@@ -14,7 +14,11 @@ export interface MemberProfile {
   member: PublicMember
   isSelf: boolean
   manage: boolean
-  /** O utilizador é Family Admin e o membro pode ser removido por ele (dependente sem conta). */
+  /**
+   * O utilizador é Family Admin e pode remover este membro (BR-MEM-16: um adulto com conta
+   * recebe o pacote de dados por e-mail antes de ser apagado). A API ainda pode recusar com
+   * `LAST_ADMIN`/`LAST_GUARDIAN` se a remoção deixasse a família sem Admin ou um dependente sem tutor.
+   */
   canRemove: boolean
   /** Tutores do membro, quando é dependente. */
   guardians: string[]

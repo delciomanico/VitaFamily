@@ -213,7 +213,9 @@ export async function apiGetMemberProfile(familyId: string, memberId: string): P
     member: toPublic(member),
     isSelf: subject.isSelf,
     manage,
-    canRemove: self.role === 'FAMILY_ADMIN' && !subject.isSelf && member.isDependent && !member.hasAccount,
+    // BR-MEM-16: o Admin também remove adultos com conta (o backend gera o pacote e avisa por
+    // e-mail antes de apagar); LAST_ADMIN/LAST_GUARDIAN ficam a cargo do erro devolvido pela API.
+    canRemove: self.role === 'FAMILY_ADMIN' && !subject.isSelf,
     guardians: subjects.filter((s) => member.guardianIds.includes(s.member.id)).map((s) => s.member.name),
     access: categories,
     bloodType: can('ALLERGIES') && report?.bloodType ? fromApiBloodType(report.bloodType) : undefined,

@@ -54,7 +54,8 @@ describe('perfil do membro', () => {
     expect(profile.conditions).toBeUndefined()
     expect(profile.medications).toBeUndefined()
     expect(profile.examinations).toBeUndefined()
-    expect(profile.canRemove).toBe(false)
+    // BR-MEM-16: o Admin pode remover um adulto com conta (recebe o pacote de dados antes).
+    expect(profile.canRemove).toBe(true)
   })
 
   it('partilha só com Monarca não chega a outros membros', async () => {
@@ -74,8 +75,8 @@ describe('perfil do membro', () => {
     expect(await code(members.getMemberProfile(FAMILY, 'usr_monarca', 'mem_x', NOW))).toBe('NOT_FOUND')
   })
 
-  it('só se removem dependentes sem conta', async () => {
-    expect(await code(family.removeMember(FAMILY, 'usr_monarca', 'mem_ana'))).toBe('CONFLICT')
+  it('o Admin remove dependentes e adultos com conta (BR-MEM-16)', async () => {
+    expect(await code(family.removeMember(FAMILY, 'usr_monarca', 'mem_ana'))).toBe('OK')
     expect(await code(family.removeMember(FAMILY, 'usr_monarca', 'mem_pedro'))).toBe('OK')
   })
 })

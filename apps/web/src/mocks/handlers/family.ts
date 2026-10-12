@@ -191,6 +191,26 @@ export function updateFamily(familyId: string, actorUserId: string, name: string
   })
 }
 
+/** BR-FAM-02: a família nunca pode ficar sem Family Admin. */
+function assertNotLastAdmin(familyId: string, target: FamilyMember) {
+  if (target.role !== 'FAMILY_ADMIN') return
+  const admins = db.members.filter((m) => m.familyId === familyId && m.status === 'ACTIVE' && m.role === 'FAMILY_ADMIN')
+  if (admins.length <= 1) throw new AppError('LAST_ADMIN')
+}
+
+/** BR-MEM-07/P8: um dependente nunca pode ficar sem tutor. */
+function assertNotLastGuardian(familyId: string, guardianId: string) {
+  const dependents = db.guardianships.filter((g) => g.familyId === familyId && g.guardianId === guardianId)
+  for (const dependency of dependents) {
+    const guardians = db.guardianships.filter((g) => g.familyId === familyId && g.dependentId === dependency.dependentId)
+    if (guardians.length <= 1) throw new AppError('LAST_GUARDIAN')
+  }
+}
+
+/**
+ * Remove membro (UC-MEM-08, só Admin). Um adulto com conta recebe o pacote de dados antes de ser
+ * apagado (BR-MEM-16) — o mock não gera o .zip real, só simula a mesma ordem de operações.
+ */
 export function removeMember(familyId: string, actorUserId: string, memberId: string) {
   return respond(() => {
     requireAdmin(familyId, actorUserId)
@@ -198,10 +218,29 @@ export function removeMember(familyId: string, actorUserId: string, memberId: st
     const target = db.members[index]
     if (!target) throw new AppError('NOT_FOUND')
     if (target.userId === actorUserId) throw new AppError('FORBIDDEN')
-    // TODO(BR-MEM-16, R4): remover um adulto com conta exige o pacote de dados; por agora só dependentes sem conta.
-    if (target.userId) throw new AppError('CONFLICT')
+    assertNotLastAdmin(familyId, target)
+    assertNotLastGuardian(familyId, target.id)
     db.members.splice(index, 1)
     db.guardianships = db.guardianships.filter((g) => g.dependentId !== memberId && g.guardianId !== memberId)
+    return undefined
+  })
+}
+
+export type LeaveFamilyDataChoice = 'TAKE' | 'DELETE'
+
+/**
+ * Sair da família (UC-MEM-09, R4): o próprio adulto, com conta, escolhe levar ou apagar os dados.
+ * Dependentes e menores não saem sozinhos (precisam de ser removidos pelo Admin/tutor).
+ */
+export function leaveFamily(familyId: string, actorUserId: string, _dataChoice: LeaveFamilyDataChoice) {
+  return respond(() => {
+    const index = db.members.findIndex((m) => m.familyId === familyId && m.userId === actorUserId && m.status === 'ACTIVE')
+    const self = db.members[index]
+    if (!self) throw new AppError('NOT_FOUND')
+    assertNotLastAdmin(familyId, self)
+    assertNotLastGuardian(familyId, self.id)
+    db.members.splice(index, 1)
+    db.guardianships = db.guardianships.filter((g) => g.dependentId !== self.id && g.guardianId !== self.id)
     return undefined
   })
 }
