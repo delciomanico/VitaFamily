@@ -90,6 +90,20 @@ export async function apiFetch<T>(
   return data as T
 }
 
+/** Descarrega um ficheiro binário (ex.: pacote de exportação .zip) da API real. */
+export async function apiFetchBlob(path: string): Promise<Blob> {
+  if (!API_BASE_URL) throw new Error('VITE_API_URL não está configurado.')
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: 'include',
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+  })
+  if (!res.ok) {
+    const problem = (await res.json().catch(() => undefined)) as Problem | undefined
+    throw new AppError(toErrorCode(problem?.code ?? 'UNKNOWN'))
+  }
+  return res.blob()
+}
+
 /** `POST /auth/refresh` (cookie `refresh_token`); falha silenciosamente se não houver sessão. */
 export async function refreshAccessToken(): Promise<string | null> {
   try {

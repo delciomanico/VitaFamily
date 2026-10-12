@@ -6,7 +6,7 @@ export type { LoginInput, RegisterInput } from '@/mocks/handlers/auth'
 import type { LoginInput, RegisterInput } from '@/mocks/handlers/auth'
 
 /** `/users/me` devolve `birthDate` como datetime; a UI só usa a parte da data (yyyy-mm-dd). */
-interface MeResponse {
+export interface MeResponse {
   id: string
   email: string
   name: string
@@ -15,7 +15,7 @@ interface MeResponse {
   status: User['status']
 }
 
-function toUser(me: MeResponse): User {
+export function toUser(me: MeResponse): User {
   return { ...me, birthDate: me.birthDate.slice(0, 10) }
 }
 

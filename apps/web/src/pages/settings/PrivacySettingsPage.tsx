@@ -12,15 +12,17 @@ import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { errorMessage, isAppError } from '@/lib/errors'
+import { hasApiBackend } from '@/lib/apiClient'
 import { formatShortDate, formatWhen } from '@/lib/format'
 import { paths } from '@/routes/paths'
 import { accountService } from '@/services/account.service'
 import type { DataExport } from '@/types/settings'
 import { SettingsSubPage } from './SettingsPage'
 
-/** Guarda um objeto como ficheiro JSON no dispositivo. */
+/** Guarda a exportação no dispositivo: JSON (mock) ou o pacote .zip devolvido pela API. */
 function saveJson(data: unknown, name: string) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+  const blob = data instanceof Blob ? data : new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
   const link = Object.assign(document.createElement('a'), { href: url, download: name })
   link.click()
   URL.revokeObjectURL(url)
@@ -51,7 +53,7 @@ function Exports() {
     try {
       saveJson(
         await accountService.downloadMyExport(userId, item.id),
-        `vita-family-dados-${item.requestedAt.slice(0, 10)}.json`,
+        `vita-family-dados-${item.requestedAt.slice(0, 10)}.${hasApiBackend() ? 'zip' : 'json'}`,
       )
     } catch (error) {
       toast.show(errorMessage(error), 'error')
