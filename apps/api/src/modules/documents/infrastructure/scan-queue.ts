@@ -33,3 +33,15 @@ export async function registerScanWorker(
     }
   });
 }
+
+export const DOCUMENTS_DELETE_FILES_QUEUE = "documents.delete-files";
+const DELETE_FILES_CRON = "*/5 * * * *";
+
+/** Esvazia a outbox `file_deletions` de 5 em 5 minutos (modules.md §5). */
+export async function registerDeleteFilesWorker(boss: PgBoss, handler: () => Promise<unknown>): Promise<string> {
+  await boss.createQueue(DOCUMENTS_DELETE_FILES_QUEUE);
+  await boss.schedule(DOCUMENTS_DELETE_FILES_QUEUE, DELETE_FILES_CRON, {});
+  return boss.work(DOCUMENTS_DELETE_FILES_QUEUE, async () => {
+    await handler();
+  });
+}

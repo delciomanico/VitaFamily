@@ -15,6 +15,7 @@ export function createDeleteFamilyUseCase<Trx>(deps: FamiliesDeps<Trx>) {
         throw new DomainError("FAMILY_NOT_EMPTY", { detail: "A família ainda tem outros membros." });
       }
 
+      await deps.memberData.purgeFamilyFiles(trx, familyId);
       await deps.familiesRepo.delete(trx, familyId);
 
       await deps.audit.record(trx, {

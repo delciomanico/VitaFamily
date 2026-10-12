@@ -21,13 +21,13 @@ import { createAuthModule, parseSigningKeys, SmtpMailer } from "../modules/auth/
 import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modules/families/index.js";
 import { createAccessModule } from "../modules/access/index.js";
 import { createHealthRecordsModule } from "../modules/health-records/index.js";
-import { ClamAvScanner, createDocumentsModule } from "../modules/documents/index.js";
+import { ClamAvScanner, createDocumentsModule, type DocumentsModule } from "../modules/documents/index.js";
 import { createMedicationsModule } from "../modules/medications/index.js";
 import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
 import { createClinicsModule } from "../modules/clinics/index.js";
 import { createAppointmentsModule } from "../modules/appointments/index.js";
 import { createExaminationsModule } from "../modules/examinations/index.js";
-import { createLifecycleModule } from "../modules/lifecycle/index.js";
+import { createLifecycleModule, type LifecycleModule } from "../modules/lifecycle/index.js";
 import { createAdminModule } from "../modules/admin/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
@@ -75,6 +75,20 @@ export function main(): void {
   const db = createDb(pool);
   const clock = new SystemClock();
 
+  // O MinIO pode ainda estar a arrancar quando a API sobe (mesmo compose): sem repetir, o bucket
+  // ficava por criar até ao próximo reinício e todos os uploads davam 500.
+  async function ensureBucketWithRetry(target: { ensureBucket: () => Promise<void> }, message: string): Promise<void> {
+    for (let attempt = 1; attempt <= 30; attempt++) {
+      try {
+        await target.ensureBucket();
+        return;
+      } catch (err) {
+        logger.error({ err, attempt }, message);
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+    }
+  }
+
   const audit = createAuditModule({ db });
   const users = createUsersModule({
     db,
@@ -85,6 +99,13 @@ export function main(): void {
   // `families` antes de `auth`: auth -> families é intencional e unidirecional (modules.md §3.7,
   // UC-MEM-05/BR-MEM-12/13/17) — auth consome o convite de conta de dependente na mesma transação
   // da criação do User.
+  // `families` precisa de `documents` (ficheiros) e `lifecycle` (pacote de dados), que dependem dele:
+  // a porta `memberData` resolve-os tardiamente (atribuídos mais abaixo, antes de o servidor ouvir).
+  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule } = {};
+  const required = <T>(module: T | undefined, name: string): T => {
+    if (!module) throw new Error(`${name} ainda não inicializado`);
+    return module;
+  };
   const families = createFamiliesModule({
     db,
     audit,
@@ -92,6 +113,11 @@ export function main(): void {
     clock,
     mailer: new FamiliesSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
     appBaseUrl: config.APP_BASE_URL,
+    memberData: {
+      purgeMemberFiles: (trx, familyId, memberId) => required(late.documents, "documents").purgeMemberFiles(trx, familyId, memberId),
+      purgeFamilyFiles: (trx, familyId) => required(late.documents, "documents").purgeFamilyFiles(trx, familyId),
+      exportBeforeRemoval: (input) => required(late.lifecycle, "lifecycle").exportBeforeRemoval(input),
+    },
   });
   const auth = createAuthModule({
     db,
@@ -128,9 +154,7 @@ export function main(): void {
     region: config.S3_REGION,
     bucket: config.S3_BUCKET_DOCUMENTS,
   });
-  storage.ensureBucket().catch((err: unknown) => {
-    logger.error({ err }, "storage_ensure_bucket_failed");
-  });
+  void ensureBucketWithRetry(storage, "storage_ensure_bucket_failed");
   const documents = createDocumentsModule({
     db,
     audit,
@@ -142,6 +166,8 @@ export function main(): void {
     maxFileSizeBytes: config.UPLOAD_MAX_BYTES,
     maxFamilyStorageBytes: config.FAMILY_STORAGE_QUOTA_BYTES,
   });
+
+  late.documents = documents;
 
   // M6 (plan.md §4): `medications` antes de `prescriptions` — `prescriptions` depende de
   // `medications` pela raiz (modules.md §3.6), nunca o inverso.
@@ -195,9 +221,7 @@ export function main(): void {
     region: config.S3_REGION,
     bucket: config.S3_BUCKET_EXPORTS,
   });
-  exportsStorage.ensureBucket().catch((err: unknown) => {
-    logger.error({ err }, "exports_storage_ensure_bucket_failed");
-  });
+  void ensureBucketWithRetry(exportsStorage, "exports_storage_ensure_bucket_failed");
   const lifecycle = createLifecycleModule({
     db,
     audit,
@@ -205,6 +229,13 @@ export function main(): void {
     storage: exportsStorage,
     onBuildError: (err, exportId) => {
       logger.error({ err, exportId }, "export_build_failed");
+    },
+    account: {
+      verifyPassword: auth.verifyPassword,
+      leaveFamily: (userId, familyId, context) => families.actions.leaveFamily(userId, familyId, context),
+      deleteFamily: (userId, familyId, context) => families.actions.deleteFamily(userId, familyId, context),
+      deleteAccount: users.deleteAccount,
+      anonymizeAudit: audit.anonymizeUser,
     },
     sources: {
       account: async (userId) => {
@@ -225,6 +256,8 @@ export function main(): void {
       downloadDocument: documents.reads.download,
     },
   });
+
+  late.lifecycle = lifecycle;
 
   function registerHealthRoutes(router: Router): void {
     router.get("/health", (_req, res) => {

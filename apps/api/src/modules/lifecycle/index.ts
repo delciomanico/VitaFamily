@@ -7,8 +7,9 @@ import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
 import type { AuditModule } from "../audit/index.js";
-import { createDownloadExportUseCase, createGetExportUseCase, createRequestExportUseCase } from "./application/exports.js";
-import type { ExportSources, ExportStorage, LifecycleDeps } from "./application/ports.js";
+import { createDeleteAccountUseCase } from "./application/delete-account.js";
+import { createDownloadExportUseCase, createExportBeforeRemovalUseCase, createGetExportUseCase, createRequestExportUseCase } from "./application/exports.js";
+import type { AccountDeletionPorts, ExportSources, ExportStorage, LifecycleDeps } from "./application/ports.js";
 import { KyselyExportsRepository } from "./infrastructure/repo.js";
 import { createLifecycleRouter, type LifecycleController } from "./interface/router.js";
 
@@ -22,10 +23,13 @@ export interface LifecycleModuleDeps {
   /** Bucket de exportações (`S3_BUCKET_EXPORTS`). */
   storage: ExportStorage;
   onBuildError: (error: unknown, exportId: string) => void;
+  account: AccountDeletionPorts<Kysely<Database>>;
 }
 
 export interface LifecycleModule {
   router: Router;
+  /** Para `families` (porta `memberData`, ligada pela raiz): pacote gerado e esperado antes de apagar dados. */
+  exportBeforeRemoval: ReturnType<typeof createExportBeforeRemovalUseCase<Kysely<Database>>>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -38,11 +42,13 @@ export function createLifecycleModule(deps: LifecycleModuleDeps): LifecycleModul
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
     onBuildError: deps.onBuildError,
+    account: deps.account,
   };
   const controller: LifecycleController = {
     requestExport: createRequestExportUseCase(lifecycleDeps),
     getExport: createGetExportUseCase(lifecycleDeps),
     downloadExport: createDownloadExportUseCase(lifecycleDeps),
+    deleteAccount: createDeleteAccountUseCase(lifecycleDeps),
   };
-  return { router: createLifecycleRouter(controller) };
+  return { router: createLifecycleRouter(controller), exportBeforeRemoval: createExportBeforeRemovalUseCase(lifecycleDeps) };
 }

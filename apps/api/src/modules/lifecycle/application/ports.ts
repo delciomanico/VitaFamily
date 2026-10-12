@@ -27,12 +27,15 @@ export interface ExportsRepository<Trx> {
   countSince(trx: Trx, requestedBy: string, since: Date): Promise<number>;
   markReady(trx: Trx, id: string, storageKey: string, expiresAt: Date): Promise<void>;
   markFailed(trx: Trx, id: string): Promise<void>;
+  /** Pacotes (já gerados) de um utilizador, para apagar os ficheiros ao eliminar a conta. */
+  listStorageKeysByUser(trx: Trx, userId: string): Promise<string[]>;
 }
 
 /** Pacote guardado no bucket de exportações (ADR-006: nunca público, descarga mediada). */
 export interface ExportStorage {
   putObject(key: string, body: Buffer, contentType: string): Promise<void>;
   getObject(key: string): Promise<Readable>;
+  deleteObject(key: string): Promise<void>;
 }
 
 export interface ExportSources {
@@ -58,7 +61,19 @@ export interface ExportSources {
   ) => Promise<{ originalName: string; stream: Readable }>;
 }
 
+/** Eliminação de conta (UC-ACC-05): tudo o que não é de `lifecycle` entra por estas portas. */
+export interface AccountDeletionPorts<Trx> {
+  verifyPassword: (userId: string, password: string) => Promise<boolean>;
+  /** `families.actions`: mesmas regras e auditoria dos endpoints (`DELETE /families/{id}`, `POST /families/{id}/leave`). */
+  leaveFamily: (userId: string, familyId: string, context: ReadContext) => Promise<void>;
+  deleteFamily: (userId: string, familyId: string, context: ReadContext) => Promise<void>;
+  deleteAccount: (trx: Trx, userId: string) => Promise<void>;
+  /** Anonimiza os logs de auditoria do utilizador (BR-ACC-07). */
+  anonymizeAudit: (userId: string) => Promise<number>;
+}
+
 export interface LifecycleDeps<Trx> {
+  account: AccountDeletionPorts<Trx>;
   exportsRepo: ExportsRepository<Trx>;
   sources: ExportSources;
   storage: ExportStorage;

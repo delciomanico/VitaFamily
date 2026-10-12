@@ -7,7 +7,6 @@ import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
 import type { AuditModule } from "../audit/index.js";
 import { createAcceptTermsUseCase } from "./application/accept-terms.js";
-import { createDeleteMeUseCase } from "./application/delete-me.js";
 import { createGetMeUseCase } from "./application/get-me.js";
 import type { NewUserRecord, UsersDeps } from "./application/ports.js";
 import { createRawOperations } from "./application/raw-operations.js";
@@ -42,6 +41,8 @@ export interface UsersModule {
   setSuspension: ReturnType<typeof createRawOperations<Kysely<Database>>>["setSuspension"];
   // Para o CLI `create-platform-admin` (environment.md §4).
   setPlatformRole: ReturnType<typeof createRawOperations<Kysely<Database>>>["setPlatformRole"];
+  // Para `lifecycle` (UC-ACC-05): eliminação definitiva depois de os dados de família saírem.
+  deleteAccount: ReturnType<typeof createRawOperations<Kysely<Database>>>["deleteAccount"];
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -61,7 +62,6 @@ export function createUsersModule(deps: UsersModuleDeps): UsersModule {
     getMe: createGetMeUseCase(usersDeps),
     updateMe: createUpdateMeUseCase(usersDeps),
     acceptTerms: createAcceptTermsUseCase(usersDeps),
-    deleteMe: createDeleteMeUseCase(),
   });
 
   return {
@@ -74,5 +74,6 @@ export function createUsersModule(deps: UsersModuleDeps): UsersModule {
     listAccounts: rawOperations.listAccounts,
     setSuspension: rawOperations.setSuspension,
     setPlatformRole: rawOperations.setPlatformRole,
+    deleteAccount: rawOperations.deleteAccount,
   };
 }

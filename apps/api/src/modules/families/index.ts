@@ -51,7 +51,7 @@ import {
 } from "./application/resolve-member-invitation.js";
 import { hashOpaqueToken } from "./domain/token.js";
 import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
-import type { FamiliesDeps, Mailer, RequestContext } from "./application/ports.js";
+import type { FamiliesDeps, Mailer, MemberDataPort, RequestContext } from "./application/ports.js";
 import { createRemoveGuardianUseCase } from "./application/remove-guardian.js";
 import { createRemoveMemberUseCase } from "./application/remove-member.js";
 import { createRevokeInvitationUseCase } from "./application/revoke-invitation.js";
@@ -73,7 +73,7 @@ export type { Family } from "./domain/family.js";
 export type { Guardianship } from "./domain/guardianship.js";
 export type { Invitation, InvitationStatus, InvitationType } from "./domain/invitation.js";
 export type { BloodType, FamilyMember, FamilyRole, MemberStatus } from "./domain/member.js";
-export type { Mailer, SentEmail } from "./application/ports.js";
+export type { Mailer, MemberDataPort, SentEmail } from "./application/ports.js";
 export type { ResolvedDependentAccountInvitation } from "./application/resolve-dependent-account-invitation.js";
 export type { FinalizeDependentAccountInvitationInput } from "./application/finalize-dependent-account-invitation.js";
 export type { ResolvedMemberInvitation } from "./application/resolve-member-invitation.js";
@@ -88,11 +88,18 @@ export interface FamiliesModuleDeps {
   mailer: Mailer;
   /** `APP_BASE_URL` (config) — link no e-mail de convite. */
   appBaseUrl: string;
+  /** Eliminação de ficheiros e pacote de dados ao sair/remover (ligado pela raiz a `documents`/`lifecycle`). */
+  memberData: MemberDataPort<Kysely<Database>>;
 }
 
 export interface FamiliesModule {
   router: Router;
   /** Leitura para `reports` (mesma autorização do `GET /families/{id}/members`). */
+  /** Para `lifecycle` (UC-ACC-05): sair/eliminar famílias em nome do utilizador, com as mesmas regras e auditoria. */
+  actions: {
+    leaveFamily: (userId: string, familyId: string, context: RequestContext) => Promise<void>;
+    deleteFamily: (userId: string, familyId: string, context: RequestContext) => Promise<void>;
+  };
   reads: {
     listFamilies: (userId: string) => Promise<Record<string, unknown>[]>;
     listMembers: (userId: string, familyId: string) => Promise<Record<string, unknown>[]>;
@@ -162,6 +169,7 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
       byId: deps.users.byId,
       byEmail: deps.users.byEmail,
     },
+    memberData: deps.memberData,
     audit: deps.audit,
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
@@ -202,6 +210,12 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
 
   return {
     router: createFamiliesRouter(controller),
+    actions: {
+      leaveFamily: async (userId, familyId, context) => {
+        await controller.leaveFamily(userId, familyId, { dataChoice: "DELETE" }, context);
+      },
+      deleteFamily: (userId, familyId, context) => controller.deleteFamily(userId, familyId, context),
+    },
     reads: {
       listFamilies: async (userId) => (await controller.listFamilies(userId)).map(toFamilyResponse),
       listMembers: async (userId, familyId) => (await controller.listMembers(userId, familyId)).map(toMemberResponse),

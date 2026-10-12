@@ -14,6 +14,7 @@ export function createRawOperations<Trx>(usersRepo: UsersRepository<Trx>): {
   listAccounts: (trx: Trx, filter: AccountListFilter) => Promise<AccountPage>;
   setSuspension: (trx: Trx, id: string, suspension: Suspension | null) => Promise<User>;
   setPlatformRole: (trx: Trx, id: string, role: User["platformRole"]) => Promise<User>;
+  deleteAccount: (trx: Trx, id: string) => Promise<void>;
 } {
   return {
     createAccount: (trx, record) =>
@@ -25,5 +26,6 @@ export function createRawOperations<Trx>(usersRepo: UsersRepository<Trx>): {
     listAccounts: (trx, filter) => usersRepo.listAll(trx, filter),
     setSuspension: (trx, id, suspension) => usersRepo.setSuspension(trx, id, suspension),
     setPlatformRole: (trx, id, role) => usersRepo.setPlatformRole(trx, id, role),
+    deleteAccount: (trx, id) => usersRepo.deleteById(trx, id),
   };
 }

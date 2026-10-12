@@ -1,8 +1,6 @@
-// UC-MEM-08/R4/BR-MEM-16: remover membro (FAM_ADMIN). Adulto com conta exige o pacote de dados de
-// BR-MEM-16 antes de apagar — depende de `lifecycle` (M9, ainda não implementado); stub explícito
-// (SERVICE_UNAVAILABLE), mesmo critério de `leave-family.ts`/`modules/users/application/delete-me.ts`.
+// UC-MEM-08/R4/BR-MEM-16: remover membro (FAM_ADMIN). Membro com conta recebe o pacote de dados
+// (gerado por `lifecycle` ANTES de apagar, pela porta `memberData`) e só depois é removido.
 // Perfil sem conta (dependente ou adulto) é removido de imediato (UC-MEM-08).
-import { ServiceUnavailableError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { hasAccount } from "../domain/member.js";
 import type { FamiliesDeps, RequestContext } from "./ports.js";
@@ -26,12 +24,18 @@ export function createRemoveMemberUseCase<Trx>(deps: FamiliesDeps<Trx>) {
       }
       await assertNotLastGuardian(deps, trx, familyId, target.id);
 
-      if (hasAccount(target)) {
-        throw new ServiceUnavailableError({
-          detail: "Remoção de membro com conta ainda não disponível (ver plan.md M9, BR-MEM-16).",
-        });
-      }
+      const dataExportId =
+        hasAccount(target) && target.userId
+          ? await deps.memberData.exportBeforeRemoval({
+              userId: target.userId,
+              familyId,
+              memberId: target.id,
+              reason: "REMOVED_BY_ADMIN",
+              requestId: context.requestId,
+            })
+          : null;
 
+      await deps.memberData.purgeMemberFiles(trx, familyId, target.id);
       if (target.isDependent) {
         await deps.guardianshipsRepo.deleteAllForDependent(trx, familyId, target.id);
       }
@@ -51,7 +55,7 @@ export function createRemoveMemberUseCase<Trx>(deps: FamiliesDeps<Trx>) {
         ...auditContextFields(context),
       });
 
-      return { dataExportId: null };
+      return { dataExportId };
     });
   };
 }

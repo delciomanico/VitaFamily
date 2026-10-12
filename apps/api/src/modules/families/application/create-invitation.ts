@@ -67,7 +67,7 @@ export function createCreateInvitationUseCase<Trx>(deps: FamiliesDeps<Trx>) {
       await deps.mailer.send({
         to: email,
         subject: "Convite para a Vita Family",
-        text: `Foi convidado para uma família na Vita Family. Para aceitar, use este código: ${rawToken} (válido 7 dias). Abra ${deps.appBaseUrl}/convites/aceitar para continuar.`,
+        text: `Foi convidado para uma família na Vita Family. Para aceitar, abra ${deps.appBaseUrl}/invite/accept?token=${rawToken} (válido 7 dias).`,
       });
 
       await deps.audit.record(trx, {

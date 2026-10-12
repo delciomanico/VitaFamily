@@ -11,6 +11,7 @@ import type { ActorIdentity, RequestContext } from "../application/ports.js";
 export interface LifecycleController {
   requestExport: (actor: ActorIdentity, target: DependentTarget | undefined, context: RequestContext) => Promise<ExportView>;
   getExport: (actor: ActorIdentity, exportId: string) => Promise<ExportView>;
+  deleteAccount: (actor: ActorIdentity, password: string, context: RequestContext) => Promise<void>;
   downloadExport: (actor: ActorIdentity, exportId: string, context: RequestContext) => Promise<{ fileName: string; stream: Readable }>;
 }
 
@@ -59,6 +60,15 @@ export function createLifecycleRouter(controller: LifecycleController): Router {
       res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
       stream.on("error", () => res.destroy());
       stream.pipe(res);
+    }),
+  );
+
+  router.delete(
+    "/users/me",
+    asyncHandler(async (req, res) => {
+      const body = req.body as { password: string };
+      await controller.deleteAccount(requireActor(), body.password, buildRequestContext(req));
+      res.status(204).end();
     }),
   );
 

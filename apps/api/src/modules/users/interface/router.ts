@@ -1,4 +1,4 @@
-// Controllers HTTP de `/users/me*` (openapi.yaml operationIds: getMe, updateMe, deleteMe,
+// Controllers HTTP de `/users/me*` (openapi.yaml operationIds: getMe, updateMe,
 // acceptTerms). Autenticação/ator já garantidos pelo middleware do módulo `auth` (M1); aqui só se
 // lê `getActor()` (platform/actor) e se traduz pedido/resposta.
 import { Router } from "express";
@@ -13,7 +13,6 @@ export interface UsersController {
   getMe: (userId: string) => Promise<UserView>;
   updateMe: (userId: string, input: UpdateMeInput, ctx: RequestContext) => Promise<UserView>;
   acceptTerms: (userId: string, termsVersion: string, ctx: RequestContext) => Promise<void>;
-  deleteMe: (userId: string, password: string) => Promise<never>;
 }
 
 function requireActor(): { userId: string } {
@@ -52,16 +51,6 @@ export function createUsersRouter(controller: UsersController): Router {
       const actor = requireActor();
       const body = req.body as { termsVersion: string };
       await controller.acceptTerms(actor.userId, body.termsVersion, buildRequestContext(req));
-      res.status(204).end();
-    }),
-  );
-
-  router.delete(
-    "/users/me",
-    asyncHandler(async (req, res) => {
-      const actor = requireActor();
-      const body = req.body as { password: string };
-      await controller.deleteMe(actor.userId, body.password);
       res.status(204).end();
     }),
   );

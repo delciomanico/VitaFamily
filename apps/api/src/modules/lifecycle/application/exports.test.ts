@@ -31,6 +31,9 @@ class FakeRepo implements ExportsRepository<null> {
     if (item) Object.assign(item, { status: "READY", storageKey: key, expiresAt });
     return Promise.resolve();
   }
+  listStorageKeysByUser() {
+    return Promise.resolve([]);
+  }
   markFailed(_t: null, id: string) {
     const item = this.items.get(id);
     if (item) item.status = "FAILED";
@@ -70,11 +73,13 @@ function setup(overrides: Partial<ExportSources> = {}) {
     storage: {
       putObject: (key, body) => { stored.set(key, body); return Promise.resolve(); },
       getObject: (key) => Promise.resolve(Readable.from([stored.get(key) ?? Buffer.alloc(0)])),
+      deleteObject: (key) => { stored.delete(key); return Promise.resolve(); },
     },
     audit: { record: (_t, e) => { events.push(e); return Promise.resolve(); } },
     withTransaction: (fn) => fn(null),
     clock,
     onBuildError: (e) => errors.push(e),
+    account: { verifyPassword: () => Promise.resolve(true), leaveFamily: () => Promise.resolve(), deleteFamily: () => Promise.resolve(), deleteAccount: () => Promise.resolve(), anonymizeAudit: () => Promise.resolve(0) },
   };
   return { deps, repo, stored, events, errors };
 }

@@ -25,13 +25,15 @@ import { createDeleteDocumentUseCase } from "./application/delete-document.js";
 import { createDownloadDocumentUseCase } from "./application/download-document.js";
 import { createDeleteAllForResourceUseCase, createListForResourceUseCase } from "./application/for-resource.js";
 import { createGetDocumentUseCase } from "./application/get-document.js";
+import { createPurgeFilesUseCases } from "./application/purge-files.js";
 import { createListDocumentsUseCase } from "./application/list-documents.js";
 import type { DocumentsDeps, ScanDocumentDeps, VirusScanner } from "./application/ports.js";
+import { createDeleteFilesUseCase } from "./application/delete-files.js";
 import { createScanDocumentUseCase } from "./application/scan-document.js";
 import { createUploadDocumentUseCase } from "./application/upload-document.js";
 import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
 import { KyselyDocumentsRepository, KyselyFileDeletionsRepository } from "./infrastructure/repo.js";
-import { PgBossScanQueue, registerScanWorker } from "./infrastructure/scan-queue.js";
+import { PgBossScanQueue, registerDeleteFilesWorker, registerScanWorker } from "./infrastructure/scan-queue.js";
 import { toDocumentResponse } from "./interface/dto.js";
 import { createDocumentsRouter, type DocumentsController } from "./interface/router.js";
 
@@ -68,6 +70,9 @@ export interface DocumentsModule {
   /** API pública para M6/M7 (ver README.md: documentos de receitas/exames). */
   listForResource: ReturnType<typeof createListForResourceUseCase<Kysely<Database>>>;
   deleteAllForResource: ReturnType<typeof createDeleteAllForResourceUseCase<Kysely<Database>>>;
+  /** Para `families`/`lifecycle` (R2/R4/BR-ACC-07): enfileiram os ficheiros na MESMA transação do apagamento dos dados. */
+  purgeMemberFiles: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<void>;
+  purgeFamilyFiles: (trx: Kysely<Database>, familyId: string) => Promise<void>;
 }
 
 /** Composition root do processo "api" (main/api.ts). */
@@ -112,6 +117,7 @@ export function createDocumentsModule(deps: DocumentsModuleDeps): DocumentsModul
     },
     listForResource: createListForResourceUseCase(documentsDeps),
     deleteAllForResource: createDeleteAllForResourceUseCase(documentsDeps),
+    ...createPurgeFilesUseCases(documentsDeps),
   };
 }
 
@@ -140,8 +146,17 @@ export function createDocumentsWorkerModule(deps: DocumentsWorkerModuleDeps): Do
     withTransaction: (fn) => withTransaction(deps.db, fn),
   };
   const scanDocument = createScanDocumentUseCase(scanDeps);
+  const deleteFiles = createDeleteFilesUseCase({
+    fileDeletionsRepo: new KyselyFileDeletionsRepository(),
+    storage: deps.storage,
+    clock: deps.clock,
+    withTransaction: (fn) => withTransaction(deps.db, fn),
+  });
 
   return {
-    registerWorker: () => registerScanWorker(deps.boss, scanDocument),
+    registerWorker: async () => {
+      await registerDeleteFilesWorker(deps.boss, deleteFiles);
+      return registerScanWorker(deps.boss, scanDocument);
+    },
   };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
-import { ForbiddenError, ServiceUnavailableError } from "../../../platform/errors/index.js";
+import { ForbiddenError } from "../../../platform/errors/index.js";
 import { createFamiliesFixtures } from "./fixtures.js";
 import { createLeaveFamilyUseCase } from "./leave-family.js";
 
@@ -141,8 +141,22 @@ describe("leaveFamily (UC-FAM-07/UC-MEM-09)", () => {
     });
     const leaveFamily = createLeaveFamilyUseCase(fixtures.deps);
 
-    await expect(leaveFamily("u2", FAMILY_ID, { dataChoice: "TAKE" }, CTX)).rejects.toBeInstanceOf(
-      ServiceUnavailableError,
-    );
+    const result = await leaveFamily("u2", FAMILY_ID, { dataChoice: "TAKE" }, CTX);
+
+    expect(result).toEqual({ dataExportId: "export-1" });
+    expect(fixtures.memberData.exports).toEqual([{ userId: "u2", memberId: "m2", reason: "LEAVE_FAMILY" }]);
+    expect(fixtures.memberData.purgedMembers).toEqual(["m2"]);
+    expect(await fixtures.membersRepo.findById({}, FAMILY_ID, "m2")).toBeNull();
+  });
+
+  it("TAKE: se o pacote falhar, a saída é abortada e o membro mantém-se", async () => {
+    const fixtures = createFamiliesFixtures(new FixedClock(NOW));
+    seedAdmin(fixtures, "admin1");
+    fixtures.membersRepo.seed({ id: "m2", familyId: FAMILY_ID, userId: "u2", name: "Membro", birthDate: "1990-01-01", role: "FAMILY_MEMBER", isDependent: false, status: "ACTIVE", createdAt: NOW });
+    fixtures.memberData.failExport = true;
+
+    await expect(createLeaveFamilyUseCase(fixtures.deps)("u2", FAMILY_ID, { dataChoice: "TAKE" }, CTX)).rejects.toThrow("export falhou");
+    expect(await fixtures.membersRepo.findById({}, FAMILY_ID, "m2")).not.toBeNull();
+    expect(fixtures.memberData.purgedMembers).toEqual([]);
   });
 });

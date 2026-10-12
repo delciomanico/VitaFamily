@@ -47,6 +47,11 @@ export class FakeUsersRepository implements UsersRepository<FakeTrx> {
     return Promise.resolve(updated);
   }
 
+  deleteById(_trx: FakeTrx, id: string): Promise<void> {
+    this.byId.delete(id);
+    return Promise.resolve();
+  }
+
   setPlatformRole(_trx: FakeTrx, id: string, role: User["platformRole"]): Promise<User> {
     const user = this.byId.get(id);
     if (!user) throw new Error("utilizador inexistente no fake");

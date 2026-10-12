@@ -67,4 +67,9 @@ export class KyselyExportsRepository implements ExportsRepository<Kysely<Databas
   async markFailed(trx: Kysely<Database>, id: string): Promise<void> {
     await trx.updateTable("data_exports").set({ status: "FAILED", updated_at: sql`now()` }).where("id", "=", id).execute();
   }
+
+  async listStorageKeysByUser(trx: Kysely<Database>, userId: string): Promise<string[]> {
+    const rows = await trx.selectFrom("data_exports").select("storage_key").where("requested_by", "=", userId).where("storage_key", "is not", null).execute();
+    return rows.flatMap((r) => (r.storage_key ? [r.storage_key] : []));
+  }
 }

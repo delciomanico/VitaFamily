@@ -63,11 +63,23 @@ export interface DocumentsRepository<Trx> {
   /** `PENDING` -> `CLEAN` (worker, scan limpo): atualiza `scan_status` e a `storage_key` final. */
   markClean(trx: Trx, documentId: string, finalStorageKey: string): Promise<Document>;
   delete(trx: Trx, familyId: string, memberId: string, documentId: string): Promise<void>;
+  /** `storage_key` de todos os documentos de um membro/família — para enfileirar o apagamento dos ficheiros. */
+  listStorageKeysByMember(trx: Trx, familyId: string, memberId: string): Promise<string[]>;
+  listStorageKeysByFamily(trx: Trx, familyId: string): Promise<string[]>;
 }
 
 /** `file_deletions` (schema.md §5/§7, ADR-011) — outbox de apagamento de ficheiros. */
+export interface PendingFileDeletion {
+  id: string;
+  storageKey: string;
+}
+
 export interface FileDeletionsRepository<Trx> {
   enqueue(trx: Trx, storageKey: string): Promise<void>;
+  /** Pendentes (não apagados) com menos de `maxAttempts` tentativas, mais antigos primeiro. */
+  listPending(trx: Trx, limit: number, maxAttempts: number): Promise<PendingFileDeletion[]>;
+  markDeleted(trx: Trx, id: string, at: Date): Promise<void>;
+  recordFailure(trx: Trx, id: string): Promise<void>;
 }
 
 /** Resultado do antivírus (ADR-006, BR-DOC-02); scanner real implementado sobre o protocolo
@@ -112,6 +124,14 @@ export type DownloadStream = Readable;
  * `DocumentsDeps<Trx>` continua estruturalmente compatível (sobreconjunto), por isso
  * `createDocumentsModule` (processo "api") pode continuar a usar o mesmo objeto para os dois.
  */
+/** Subconjunto para o job `delete-files` (outbox `file_deletions`, ADR-011). */
+export interface DeleteFilesDeps<Trx> {
+  fileDeletionsRepo: FileDeletionsRepository<Trx>;
+  storage: Storage;
+  clock: Clock;
+  withTransaction: WithTransaction<Trx>;
+}
+
 export interface ScanDocumentDeps<Trx> {
   documentsRepo: DocumentsRepository<Trx>;
   storage: Storage;

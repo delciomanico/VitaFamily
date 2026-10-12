@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
-import { ServiceUnavailableError } from "../../../platform/errors/index.js";
 import { createFamiliesFixtures } from "./fixtures.js";
 import { createRemoveMemberUseCase } from "./remove-member.js";
 
@@ -44,7 +43,7 @@ describe("removeMember (UC-MEM-08)", () => {
     expect(fixtures.audit.events.map((e) => e.action)).toContain("MEMBER_REMOVE");
   });
 
-  it("devolve SERVICE_UNAVAILABLE para membro com conta (BR-MEM-16, M9)", async () => {
+  it("membro com conta recebe o pacote antes de ser removido (BR-MEM-16)", async () => {
     const fixtures = createFamiliesFixtures(new FixedClock(NOW));
     seedAdmin(fixtures);
     fixtures.membersRepo.seed({
@@ -60,9 +59,13 @@ describe("removeMember (UC-MEM-08)", () => {
     });
     const removeMember = createRemoveMemberUseCase(fixtures.deps);
 
-    await expect(removeMember("admin1", FAMILY_ID, "member1", CTX)).rejects.toBeInstanceOf(
-      ServiceUnavailableError,
-    );
+    const result = await removeMember("admin1", FAMILY_ID, "member1", CTX);
+
+    // BR-MEM-16: o membro com conta recebe o pacote antes de os dados serem apagados.
+    expect(result).toEqual({ dataExportId: "export-1" });
+    expect(fixtures.memberData.exports).toEqual([{ userId: "member1", memberId: "member1", reason: "REMOVED_BY_ADMIN" }]);
+    expect(fixtures.memberData.purgedMembers).toEqual(["member1"]);
+    expect(await fixtures.membersRepo.findById({}, FAMILY_ID, "member1")).toBeNull();
   });
 
   it("rejeita remover o último Admin (LAST_ADMIN)", async () => {

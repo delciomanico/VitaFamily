@@ -202,4 +202,8 @@ export class KyselyUsersRepository implements UsersRepository<Kysely<Database>> 
       .executeTakeFirstOrThrow();
     return toDomain(row);
   }
+
+  async deleteById(trx: Kysely<Database>, id: string): Promise<void> {
+    await trx.deleteFrom("users").where("id", "=", id).execute();
+  }
 }

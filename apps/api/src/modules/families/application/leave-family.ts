@@ -1,9 +1,7 @@
 // UC-FAM-07/UC-MEM-09/R4/Q5/P8: sair da família (adulto com conta, não dependente — P2).
-// `dataChoice=TAKE` depende da geração do pacote de exportação, que é do módulo `lifecycle`
-// (M9, ainda não implementado) — stub explícito (SERVICE_UNAVAILABLE), mesmo critério de
-// `modules/users/application/delete-me.ts`: não fingir um fluxo que não existe. `DELETE` não
-// depende de M9 e está implementado por inteiro.
-import { ForbiddenError, ServiceUnavailableError } from "../../../platform/errors/index.js";
+// `dataChoice=TAKE`: o pacote de dados é gerado (por `lifecycle`, pela porta `memberData`) ANTES
+// de os dados serem apagados; se a geração falhar, a saída é abortada e nada se perde.
+import { ForbiddenError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { FamiliesDeps, RequestContext } from "./ports.js";
 import { assertNotLastAdmin, assertNotLastGuardian, requireMembership } from "./membership.js";
@@ -37,12 +35,13 @@ export function createLeaveFamilyUseCase<Trx>(deps: FamiliesDeps<Trx>) {
       }
       await assertNotLastGuardian(deps, trx, familyId, member.id); // P8
 
-      if (input.dataChoice === "TAKE") {
-        throw new ServiceUnavailableError({
-          detail: "Exportação de dados ainda não disponível (ver plan.md M9).",
-        });
-      }
+      const dataExportId =
+        input.dataChoice === "TAKE"
+          ? await deps.memberData.exportBeforeRemoval({ userId, familyId, memberId: member.id, reason: "LEAVE_FAMILY", requestId: context.requestId })
+          : null;
 
+      // Ficheiros na outbox ANTES de apagar (schema.md §7): os documentos saem da BD por cascata.
+      await deps.memberData.purgeMemberFiles(trx, familyId, member.id);
       await deps.membersRepo.delete(trx, familyId, member.id);
 
       await deps.audit.record(trx, {
@@ -59,7 +58,7 @@ export function createLeaveFamilyUseCase<Trx>(deps: FamiliesDeps<Trx>) {
         ...auditContextFields(context),
       });
 
-      return { dataExportId: null };
+      return { dataExportId };
     });
   };
 }

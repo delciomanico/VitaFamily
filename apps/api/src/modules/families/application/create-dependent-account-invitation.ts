@@ -58,7 +58,7 @@ export function createCreateDependentAccountInvitationUseCase<Trx>(deps: Familie
       await deps.mailer.send({
         to: email,
         subject: "Convite de conta na Vita Family",
-        text: `Foi convidado a criar uma conta de acesso limitado na Vita Family. Use este código: ${rawToken} (válido 7 dias). Abra ${deps.appBaseUrl}/registo para continuar.`,
+        text: `Foi convidado a criar uma conta de acesso limitado na Vita Family. Para criar a conta, abra ${deps.appBaseUrl}/register?invitationToken=${rawToken} (válido 7 dias).`,
       });
 
       await deps.audit.record(trx, {

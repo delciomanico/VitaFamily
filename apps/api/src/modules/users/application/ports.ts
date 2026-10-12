@@ -51,6 +51,8 @@ export interface UsersRepository<Trx> {
   listAll(trx: Trx, filter: AccountListFilter): Promise<AccountPage>;
   setSuspension(trx: Trx, id: string, suspension: Suspension | null): Promise<User>;
   setPlatformRole(trx: Trx, id: string, role: User["platformRole"]): Promise<User>;
+  /** Eliminação definitiva (BR-ACC-07): sessões, tokens e preferências saem por cascata. */
+  deleteById(trx: Trx, id: string): Promise<void>;
 }
 
 export interface AuditPort<Trx> {

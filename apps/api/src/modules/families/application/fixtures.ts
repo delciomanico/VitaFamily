@@ -15,6 +15,7 @@ import type {
   InvitationsRepository,
   Mailer,
   MemberChanges,
+  MemberDataPort,
   MembersRepository,
   NewFamilyRecord,
   NewGuardianshipRecord,
@@ -324,6 +325,30 @@ export interface FamiliesFixtures {
   usersPort: FakeUsersPort;
   audit: FakeAuditPort;
   mailer: FakeMailer;
+  memberData: FakeMemberData;
+}
+
+export class FakeMemberData implements MemberDataPort<FakeTrx> {
+  readonly purgedMembers: string[] = [];
+  readonly purgedFamilies: string[] = [];
+  readonly exports: { userId: string; memberId: string; reason: string }[] = [];
+  failExport = false;
+
+  purgeMemberFiles(_trx: FakeTrx, _familyId: string, memberId: string): Promise<void> {
+    this.purgedMembers.push(memberId);
+    return Promise.resolve();
+  }
+
+  purgeFamilyFiles(_trx: FakeTrx, familyId: string): Promise<void> {
+    this.purgedFamilies.push(familyId);
+    return Promise.resolve();
+  }
+
+  exportBeforeRemoval(input: { userId: string; memberId: string; reason: string }): Promise<string> {
+    if (this.failExport) return Promise.reject(new Error("export falhou"));
+    this.exports.push({ userId: input.userId, memberId: input.memberId, reason: input.reason });
+    return Promise.resolve(`export-${String(this.exports.length)}`);
+  }
 }
 
 export function createFamiliesFixtures(clock: Clock, appBaseUrl = "https://vitafamily.cassfrei.com"): FamiliesFixtures {
@@ -334,12 +359,14 @@ export function createFamiliesFixtures(clock: Clock, appBaseUrl = "https://vitaf
   const usersPort = new FakeUsersPort();
   const audit = new FakeAuditPort();
   const mailer = new FakeMailer();
+  const memberData = new FakeMemberData();
   const deps: FamiliesDeps<FakeTrx> = {
     familiesRepo,
     membersRepo,
     guardianshipsRepo,
     invitationsRepo,
     usersPort,
+    memberData,
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
@@ -348,5 +375,5 @@ export function createFamiliesFixtures(clock: Clock, appBaseUrl = "https://vitaf
     appBaseUrl,
     invitationRateLimiter: new InMemoryRateLimiter(clock),
   };
-  return { deps, familiesRepo, membersRepo, guardianshipsRepo, invitationsRepo, usersPort, audit, mailer };
+  return { deps, familiesRepo, membersRepo, guardianshipsRepo, invitationsRepo, usersPort, audit, mailer, memberData };
 }

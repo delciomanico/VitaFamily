@@ -5,7 +5,7 @@
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
 import type { Document, ResourceType, ScanStatus } from "../domain/document.js";
-import type { DocumentsRepository, FileDeletionsRepository, NewDocumentRecord } from "../application/ports.js";
+import type { DocumentsRepository, FileDeletionsRepository, NewDocumentRecord, PendingFileDeletion } from "../application/ports.js";
 import "./schema.js";
 
 interface DocumentRow {
@@ -106,6 +106,16 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
     return row ? toDocument(row) : null;
   }
 
+  async listStorageKeysByMember(trx: Kysely<Database>, familyId: string, memberId: string): Promise<string[]> {
+    const rows = await trx.selectFrom("documents").select("storage_key").where("family_id", "=", familyId).where("member_id", "=", memberId).execute();
+    return rows.map((r) => r.storage_key);
+  }
+
+  async listStorageKeysByFamily(trx: Kysely<Database>, familyId: string): Promise<string[]> {
+    const rows = await trx.selectFrom("documents").select("storage_key").where("family_id", "=", familyId).execute();
+    return rows.map((r) => r.storage_key);
+  }
+
   async findByIdForFamily(trx: Kysely<Database>, familyId: string, documentId: string): Promise<Document | null> {
     const row = await trx
       .selectFrom("documents")
@@ -185,5 +195,27 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
 export class KyselyFileDeletionsRepository implements FileDeletionsRepository<Kysely<Database>> {
   async enqueue(trx: Kysely<Database>, storageKey: string): Promise<void> {
     await trx.insertInto("file_deletions").values({ storage_key: storageKey }).execute();
+  }
+
+  async listPending(trx: Kysely<Database>, limit: number, maxAttempts: number): Promise<PendingFileDeletion[]> {
+    const rows = await trx
+      .selectFrom("file_deletions")
+      .select(["id", "storage_key"])
+      .where("deleted_at", "is", null)
+      .where("attempts", "<", maxAttempts)
+      .orderBy("created_at", "asc")
+      .limit(limit)
+      .forUpdate()
+      .skipLocked()
+      .execute();
+    return rows.map((r) => ({ id: r.id, storageKey: r.storage_key }));
+  }
+
+  async markDeleted(trx: Kysely<Database>, id: string, at: Date): Promise<void> {
+    await trx.updateTable("file_deletions").set({ deleted_at: at }).where("id", "=", id).execute();
+  }
+
+  async recordFailure(trx: Kysely<Database>, id: string): Promise<void> {
+    await trx.updateTable("file_deletions").set((eb) => ({ attempts: eb("attempts", "+", 1) })).where("id", "=", id).execute();
   }
 }

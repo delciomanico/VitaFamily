@@ -140,3 +140,41 @@ export function createDownloadExportUseCase<Trx>(deps: LifecycleDeps<Trx>) {
     return { fileName: `vita-family-dados-${item.createdAt.toISOString().slice(0, 10)}.zip`, stream: await deps.storage.getObject(item.storageKey ?? "") };
   };
 }
+
+/**
+ * Pacote gerado e ESPERADO antes de os dados serem apagados (UC-MEM-09 "levar", BR-MEM-16): usado
+ * por `families` (sair/remover membro) pela raiz. Se a geração falhar, propaga o erro e o chamador
+ * aborta — nunca se apaga o que não foi exportado. Não conta para o limite diário (N7).
+ */
+export function createExportBeforeRemovalUseCase<Trx>(deps: LifecycleDeps<Trx>) {
+  return async function exportBeforeRemoval(input: {
+    userId: string;
+    familyId: string;
+    memberId: string;
+    reason: "LEAVE_FAMILY" | "REMOVED_BY_ADMIN";
+    requestId: string;
+  }): Promise<string> {
+    const now = deps.clock.now();
+    const context = { requestId: input.requestId };
+    const item = await deps.withTransaction((trx) =>
+      deps.exportsRepo.insert(trx, {
+        id: newId(),
+        requestedBy: input.userId,
+        familyId: input.familyId,
+        subjectMemberId: input.memberId,
+        reason: input.reason,
+        createdAt: now,
+      }),
+    );
+    try {
+      const zip = await buildExportPackage(deps.sources, { userId: input.userId, platformAdmin: false }, { family: { familyId: input.familyId, memberId: input.memberId } }, now, context);
+      const key = exportKey(item.id);
+      await deps.storage.putObject(key, zip, "application/zip");
+      await deps.withTransaction((trx) => deps.exportsRepo.markReady(trx, item.id, key, exportExpiry(deps.clock.now())));
+      return item.id;
+    } catch (error) {
+      await deps.withTransaction((trx) => deps.exportsRepo.markFailed(trx, item.id)).catch(() => undefined);
+      throw error;
+    }
+  };
+}

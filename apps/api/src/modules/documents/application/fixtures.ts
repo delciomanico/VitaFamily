@@ -13,6 +13,7 @@ import type {
   DocumentsRepository,
   FileDeletionsRepository,
   NewDocumentRecord,
+  PendingFileDeletion,
   ScanQueuePort,
   VirusScanner,
 } from "./ports.js";
@@ -47,6 +48,14 @@ export class FakeAccessPolicy implements AccessPolicyPort<FakeTrx> {
 
 export class FakeDocumentsRepository implements DocumentsRepository<FakeTrx> {
   readonly byId = new Map<string, Document>();
+
+  listStorageKeysByMember(_trx: FakeTrx, familyId: string, memberId: string): Promise<string[]> {
+    return Promise.resolve([...this.byId.values()].filter((d) => d.familyId === familyId && d.memberId === memberId).map((d) => d.storageKey));
+  }
+
+  listStorageKeysByFamily(_trx: FakeTrx, familyId: string): Promise<string[]> {
+    return Promise.resolve([...this.byId.values()].filter((d) => d.familyId === familyId).map((d) => d.storageKey));
+  }
 
   async insert(_trx: FakeTrx, record: NewDocumentRecord): Promise<Document> {
     const document: Document = {
@@ -140,9 +149,27 @@ export class FakeDocumentsRepository implements DocumentsRepository<FakeTrx> {
 
 export class FakeFileDeletionsRepository implements FileDeletionsRepository<FakeTrx> {
   readonly enqueued: string[] = [];
+  readonly rows: { id: string; storageKey: string; attempts: number; deletedAt?: Date }[] = [];
+
+  listPending(_trx: FakeTrx, limit: number, maxAttempts: number): Promise<PendingFileDeletion[]> {
+    return Promise.resolve(this.rows.filter((r) => !r.deletedAt && r.attempts < maxAttempts).slice(0, limit).map((r) => ({ id: r.id, storageKey: r.storageKey })));
+  }
+
+  markDeleted(_trx: FakeTrx, id: string, at: Date): Promise<void> {
+    const row = this.rows.find((r) => r.id === id);
+    if (row) row.deletedAt = at;
+    return Promise.resolve();
+  }
+
+  recordFailure(_trx: FakeTrx, id: string): Promise<void> {
+    const row = this.rows.find((r) => r.id === id);
+    if (row) row.attempts += 1;
+    return Promise.resolve();
+  }
 
   async enqueue(_trx: FakeTrx, storageKey: string): Promise<void> {
     this.enqueued.push(storageKey);
+    this.rows.push({ id: `fd-${String(this.rows.length + 1)}`, storageKey, attempts: 0 });
     return Promise.resolve();
   }
 }

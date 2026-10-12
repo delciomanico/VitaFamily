@@ -144,12 +144,31 @@ export interface Mailer {
   send(email: SentEmail): Promise<void>;
 }
 
+/**
+ * Eliminação de dados de saúde (R2/R4/BR-MEM-16) — implementada fora de `families` e ligada pela
+ * raiz: `documents` enfileira os ficheiros na MESMA transação; `lifecycle` gera o pacote ANTES de
+ * os dados serem apagados (por isso é chamado antes de apagar o membro).
+ */
+export interface MemberDataPort<Trx> {
+  purgeMemberFiles(trx: Trx, familyId: string, memberId: string): Promise<void>;
+  purgeFamilyFiles(trx: Trx, familyId: string): Promise<void>;
+  /** Gera (e espera) o pacote de dados do membro; devolve o id do `DataExport` pronto. */
+  exportBeforeRemoval(input: {
+    userId: string;
+    familyId: string;
+    memberId: string;
+    reason: "LEAVE_FAMILY" | "REMOVED_BY_ADMIN";
+    requestId: string;
+  }): Promise<string>;
+}
+
 export interface FamiliesDeps<Trx> {
   familiesRepo: FamiliesRepository<Trx>;
   membersRepo: MembersRepository<Trx>;
   guardianshipsRepo: GuardianshipsRepository<Trx>;
   invitationsRepo: InvitationsRepository<Trx>;
   usersPort: UsersPort<Trx>;
+  memberData: MemberDataPort<Trx>;
   audit: AuditPort<Trx>;
   /** Ligação não transacional, para leituras que não escrevem (ex.: `listFamilies`). */
   db: Trx;

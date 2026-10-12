@@ -22,6 +22,7 @@ import { createResendVerificationUseCase } from "./application/resend-verificati
 import { createResetPasswordUseCase } from "./application/reset-password.js";
 import { createResolveActorStateUseCase } from "./application/resolve-actor-state.js";
 import { createVerifyEmailUseCase } from "./application/verify-email.js";
+import { verifyPassword } from "./domain/password.js";
 import type { SigningKey } from "./domain/jwt.js";
 import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
 import { TtlCache } from "./domain/ttl-cache.js";
@@ -64,6 +65,8 @@ export interface AuthModule {
   securityHandlers: SecurityHandlers;
   /** Middleware a montar logo após `OpenApiValidator` (preenche `platform/actor`, aplica B6). */
   actorContextMiddleware: ReturnType<typeof createActorContextMiddleware>;
+  /** Confirmação forte (UC-ACC-05): a palavra-passe pertence à conta indicada? */
+  verifyPassword: (userId: string, password: string) => Promise<boolean>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -128,6 +131,10 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
 
   return {
     router,
+    verifyPassword: async (userId, password) => {
+      const user = await deps.users.byId(deps.db, userId);
+      return user ? verifyPassword(user.passwordHash, password) : false;
+    },
     securityHandlers: {
       bearerAuth: createBearerAuthSecurityHandler({
         signingKeys: deps.signingKeys,

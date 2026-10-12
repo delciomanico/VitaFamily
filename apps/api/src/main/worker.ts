@@ -40,6 +40,12 @@ export function main(): void {
     clock,
     mailer: new FamiliesSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
     appBaseUrl: config.APP_BASE_URL,
+    // O worker nunca sai/remove membros (só consulta destinatários): a porta recusa se alguém a usar.
+    memberData: {
+      purgeMemberFiles: () => Promise.reject(new Error("memberData indisponível no worker")),
+      purgeFamilyFiles: () => Promise.reject(new Error("memberData indisponível no worker")),
+      exportBeforeRemoval: () => Promise.reject(new Error("memberData indisponível no worker")),
+    },
   });
   const access = createAccessModule({ db, audit, families, clock });
   const storage = new MinioStorage({
