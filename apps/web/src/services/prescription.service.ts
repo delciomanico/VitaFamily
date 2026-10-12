@@ -15,7 +15,7 @@ type NewPrescriptionInput = api.NewPrescriptionInput
 type NewMedicationInput = api.NewMedicationInput
 
 /** `Prescription` (openapi.yaml): sem `familyId`/`clinicName`; planos embutidos. */
-interface ApiPrescription {
+export interface ApiPrescription {
   id: string
   memberId: string
   issuedOn: string
@@ -27,7 +27,7 @@ interface ApiPrescription {
 
 const rxPath = (familyId: string, memberId: string) => `/families/${familyId}/members/${memberId}/prescriptions`
 
-function toPrescription(familyId: string, rx: ApiPrescription): Prescription {
+export function toPrescription(familyId: string, rx: ApiPrescription): Prescription {
   return {
     id: rx.id,
     familyId,

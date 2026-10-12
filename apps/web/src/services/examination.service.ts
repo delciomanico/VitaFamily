@@ -25,7 +25,7 @@ interface ApiResult {
 }
 
 /** `Examination` (openapi.yaml): resultados embutidos, sem `familyId`. */
-interface ApiExamination {
+export interface ApiExamination {
   id: string
   memberId: string
   name: string
@@ -39,7 +39,7 @@ interface ApiExamination {
 
 const examPath = (familyId: string, memberId: string) => `/families/${familyId}/members/${memberId}/examinations`
 
-function toExamination(familyId: string, e: ApiExamination): Examination {
+export function toExamination(familyId: string, e: ApiExamination): Examination {
   return {
     id: e.id,
     familyId,

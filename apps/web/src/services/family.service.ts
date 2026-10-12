@@ -1,6 +1,11 @@
 import * as api from '@/mocks/handlers/family'
 import * as members from '@/mocks/handlers/members'
 import { apiFetch, hasApiBackend } from '@/lib/apiClient'
+import {
+  apiGetFamilyOverview,
+  apiGetMemberHistory,
+  apiGetMemberProfile,
+} from './memberViews'
 import { AppError } from '@/lib/errors'
 import type { NewMemberInput } from '@/mocks/handlers/family'
 import type { Family, FamilyMember, FamilyRole, Membership } from '@/types/family'
@@ -172,7 +177,13 @@ export const familyService = {
   updateFamily: hasApiBackend()
     ? (familyId: string, _userId: string, name: string) => apiUpdateFamily(familyId, name)
     : api.updateFamily,
-  getFamilyOverview: members.getFamilyOverview,
-  getMemberProfile: members.getMemberProfile,
-  getMemberHistory: members.getMemberHistory,
+  getFamilyOverview: hasApiBackend()
+    ? (familyId: string, _userId: string) => apiGetFamilyOverview(familyId)
+    : members.getFamilyOverview,
+  getMemberProfile: hasApiBackend()
+    ? (familyId: string, _userId: string, memberId: string) => apiGetMemberProfile(familyId, memberId)
+    : members.getMemberProfile,
+  getMemberHistory: hasApiBackend()
+    ? (familyId: string, _userId: string, memberId: string) => apiGetMemberHistory(familyId, memberId)
+    : members.getMemberHistory,
 }

@@ -17,21 +17,21 @@ interface ApiMember {
   status: 'ACTIVE' | 'BLOCKED'
 }
 
-interface ApiAllergy {
+export interface ApiAllergy {
   id: string
   name: string
   notes?: string | null
   since?: string | null
 }
 
-interface ApiCondition extends ApiAllergy {
+export interface ApiCondition extends ApiAllergy {
   kind: 'CONDITION' | 'HISTORY'
   until?: string | null
 }
 
 /** Tipo sanguíneo da UI ('A+') ↔ contrato (`A_POS`). */
 const toApiBloodType = (value: BloodType) => value.replace('+', '_POS').replace('-', '_NEG')
-const fromApiBloodType = (value: string): BloodType | undefined =>
+export const fromApiBloodType = (value: string): BloodType | undefined =>
   value === 'UNKNOWN' ? undefined : (value.replace('_POS', '+').replace('_NEG', '-') as BloodType)
 
 const base = (familyId: string, memberId: string) => `/families/${familyId}/members/${memberId}`

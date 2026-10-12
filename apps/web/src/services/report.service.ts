@@ -4,7 +4,8 @@ import { apiFetch, hasApiBackend } from '@/lib/apiClient'
 import { todayISO } from '@/lib/date'
 import type { Appointment } from '@/types/appointment'
 import type { DoseStatus } from '@/types/medication'
-import type { HomeSummary, TodayDose } from '@/types/report'
+import type { HomeSummary, ReportPeriod, TodayDose } from '@/types/report'
+import { apiGetFamilyReport, apiGetMemberReport, apiListReportSubjects } from './memberViews'
 import { apiListAlerts } from './alert.service'
 
 /** Número máximo de alertas recentes enviados para a Home (a UI mostra os que couberem). */
@@ -108,10 +109,17 @@ async function apiGetHomeSummary(familyId: string): Promise<HomeSummary> {
   }
 }
 
-/** Resumos e relatórios (UC-RPT). Home com `VITE_API_URL` usa a API real; relatórios continuam em mock. */
+/** Resumos e relatórios (UC-RPT). Home com `VITE_API_URL` usa a API real; relatórios via /report. */
 export const reportService = {
   getHomeSummary: hasApiBackend() ? (familyId: string, _userId: string) => apiGetHomeSummary(familyId) : home.getHomeSummary,
-  getFamilyReport: api.getFamilyReport,
-  getMemberReport: api.getMemberReport,
-  listReportSubjects: api.listReportSubjects,
+  getFamilyReport: hasApiBackend()
+    ? (familyId: string, _userId: string) => apiGetFamilyReport(familyId)
+    : api.getFamilyReport,
+  getMemberReport: hasApiBackend()
+    ? (familyId: string, _userId: string, memberId: string, period?: Partial<ReportPeriod>) =>
+        apiGetMemberReport(familyId, memberId, period)
+    : api.getMemberReport,
+  listReportSubjects: hasApiBackend()
+    ? (familyId: string, _userId: string) => apiListReportSubjects(familyId)
+    : api.listReportSubjects,
 }

@@ -9,7 +9,7 @@ import { clinicService } from './clinic.service'
 export type { AppointmentInput, AppointmentRequestInput, NewAppointmentInput } from '@/mocks/handlers/appointments'
 
 /** `Appointment` (openapi.yaml): sem `familyId`, `specialty`, `slotId`; nulos em vez de ausentes. */
-interface ApiAppointment {
+export interface ApiAppointment {
   id: string
   memberId: string
   scheduledAt: string
@@ -25,7 +25,7 @@ interface ApiAppointment {
  * TBD: a "especialidade" da UI não existe no contrato; guarda-se no campo `reason` (motivo),
  * que é o equivalente do domínio (types/appointment.ts). Sem change control, não há campo próprio.
  */
-function toAppointment(familyId: string, a: ApiAppointment): Appointment {
+export function toAppointment(familyId: string, a: ApiAppointment): Appointment {
   return {
     id: a.id,
     familyId,
