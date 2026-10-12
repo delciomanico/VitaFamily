@@ -361,6 +361,24 @@ Cada decisão segue o formato: contexto → opções → recomendação → impa
 - Contas de Gestor da clínica criadas pelo Platform Admin (o MVP do frontend usa uma conta demo). Clínicas privadas continuam sem login.
 - **Pendente antes de implementar no backend:** `05-api/openapi.yaml`, `endpoints.md`, `07-database/schema.md` e `08-security/authorization.md` (contrato e tabelas de ClinicSlot, ClinicStaff e novos estados).
 
+#### D18 — Contas do portal da clínica, hierarquia self-service e controlo do fluxo da consulta (proprietário, 2026-10-12)
+
+**Revê e amplia D17** (que deixou `05-api/openapi.yaml`, `endpoints.md`, `07-database/schema.md` e `08-security/authorization.md` pendentes). Mantém as entidades e estados já decididos em D17 (`ClinicSlot`, `Appointment.slotId/responseNote`, estados `REQUESTED`/`REJECTED`); altera **quem** são as contas da clínica, **quem as gere** e **o que a clínica pode escrever** sobre a consulta.
+
+| Pergunta | Escolha do proprietário |
+|---|---|
+| As contas do portal da clínica são `User` da tabela `users` com um papel extra? | **Não.** São um espaço de identidade e login **totalmente separado**: nova entidade `ClinicAccount` (tabela própria `clinic_accounts`), sessões próprias (`clinic_sessions`), sem FK nem ligação a `users`/`family_members`/família. Token de sessão de clínica tem claims distintas (ex. `clinicAccountId`, `clinicId`, `role`) e nunca é aceite onde se espera o ator de User/família (e vice-versa). |
+| Quem cria as contas de Gestor (`CLINIC_MANAGER`) de cada clínica? | **Self-service dentro da clínica.** O Platform Admin cria **apenas** a primeira conta de cada clínica parceira — a conta **Admin da clínica** (`CLINIC_ADMIN`). A partir daí, é a própria conta `CLINIC_ADMIN` que cria, lista e remove os `CLINIC_MANAGER` da sua clínica; o Platform Admin não gere Gestores individualmente. O Platform Admin mantém só: ver/suspender a clínica (`Clinic` inteira) e criar/repor a conta `CLINIC_ADMIN` raiz (ex. perda de acesso). |
+| A clínica pode escrever o resultado da consulta? (revê BR-CLN-03) | **Sim**, mas só da consulta em curso que ela própria está a atender: regista o resultado e pode emitir a receita (via módulo `prescriptions`, M6), que passa automaticamente a aparecer no histórico/app do paciente. A minimização de dados mantém-se para o resto — a clínica continua **sem acesso** a condições, alergias, medicação prévia, histórico de outras consultas, ou dados de família/tutela; só vê o que é necessário à consulta em curso. |
+
+**Consequências registadas** (detalhe em `business-rules.md` §7 BR-CLN-03/05/06, BR-RX-07, ADR-020, `authorization.md`, `schema.md`, `openapi.yaml`/`endpoints.md`):
+- Nova entidade **ClinicAccount** (`CLINIC_ADMIN` | `CLINIC_MANAGER`), tabela `clinic_accounts`, sessões próprias `clinic_sessions`. Sem relação com `users`/`family_members`.
+- Novas rotas sob o prefixo `/clinic-portal/*` (auth, staff, slots, requests, agenda) autenticadas pelo token de `ClinicAccount`; nunca partilham contexto de pedido com o ator de User/família (ADR-020).
+- Nova rota de administração `/admin/clinics/{id}/root-account` (Platform Admin cria/repõe a conta `CLINIC_ADMIN` raiz).
+- `Prescription` ganha `issuedBy` (`FAMILY` | `CLINIC`, BR-RX-07) e referência ao `Appointment` de origem quando emitida pela clínica, para auditoria/rastreabilidade.
+- Resultado da consulta: desenho mínimo em `schema.md` (colunas em `appointments` ou tabela dedicada), decisão de desenho concreta deixada ao contrato (schema.md), não repetida aqui.
+- **Já preenchido por esta decisão:** `05-api/openapi.yaml`, `endpoints.md`, `07-database/schema.md` e `08-security/authorization.md` — a pendência de D17 fica resolvida.
+
 ### Pontos que ficam em aberto (derivados das decisões)
 
 - **[NEEDS DECISION] Maioridade/menores (D1+D13):** idade a partir da qual um membro é considerado adulto (RGPD/PT: consentimento digital aos 13 anos; maioridade civil aos 18). Decidir na Fase 5.

@@ -36,7 +36,7 @@ Monorepo `apps/api` (Node.js/TypeScript) · `apps/web` (futuro) · `deploy/` · 
 | **M4** | **Registos de saúde** | `health-records` (alergias, condições, tipo sanguíneo) | FR-HP | M3 |
 | **M5** | **Documentos** | `documents`: armazenamento, validação, quarentena, antivírus (worker), download mediado, quotas, outbox de ficheiros | FR-DOC, N4, Q10 | M3 |
 | **M6** | **Medicação** | `prescriptions`, `medications`: planos, geração de ocorrências (DST), ações sobre tomas, adesão; `UNCONFIRMED` | FR-RX, FR-MED | M4, M5 |
-| **M7** | **Consultas, clínicas e exames** | `appointments`, `clinics` (+ admin de parceiras), `examinations` | FR-APT, FR-EXM, FR-CLN | M5 |
+| **M7** | **Consultas, clínicas e exames** | `appointments`, `clinics` (+ admin de parceiras), `examinations`, **`clinic-portal`** (D17/D18: `ClinicAccount`/`clinic_sessions` separados de `users`, ADR-020; `ClinicSlot`; confirmar/recusar pedidos; completar consulta com resultado + receita via `prescriptions`) | FR-APT, FR-EXM, FR-CLN | M5, M6 (receita emitida pela clínica) |
 | **M8** | **Alertas e notificações** | `alerts` (scanner, regras, destinatários), `notifications` (push + e-mail, preferências, subscrições, retry), idempotência | FR-ALR, BR-ALR | M6, M7 |
 | **M9** | **Relatórios e ciclo de vida** | `reports`, `lifecycle`: exportação, sair/remover com pacote, maioridade (avisos), bloqueio/apagamento 90 dias, eliminação de conta/família, `admin` (contas) | FR-RPT, FR-PRIV-05, R4, P4, Q7 | M6–M8 |
 | **M10** | **Endurecimento e lançamento** | Carga (N9), segurança (suite completa, revisão), restauro de backup, monitorização/alertas, runbooks, AIPD e textos legais, checklist de release | NFR-*, privacidade | M0–M9 |
@@ -56,7 +56,7 @@ Monorepo `apps/api` (Node.js/TypeScript) · `apps/web` (futuro) · `deploy/` · 
 | FR-HP | M4 |
 | FR-DOC | M5 |
 | FR-RX, FR-MED | M6 |
-| FR-APT, FR-EXM, FR-CLN, FR-ADM-01 (clínicas) | M7 |
+| FR-APT, FR-EXM, FR-CLN, FR-ADM-01 (clínicas), portal da clínica (D17/D18, ADR-020 — contrato em `openapi.yaml`/`endpoints.md`/`schema.md`/`authorization.md` já preenchido; falta só a implementação) | M7 |
 | FR-ALR, BR-ALR | M8 |
 | FR-RPT, FR-PRIV-05, saída/remoção, maioridade, bloqueio, eliminações, FR-ADM-01 (contas) | M9 |
 | NFR-PERF/AVL/OPS/SEC (verificação final) | M10 |
@@ -65,6 +65,7 @@ Monorepo `apps/api` (Node.js/TypeScript) · `apps/web` (futuro) · `deploy/` · 
 | Risco | Mitigação |
 |---|---|
 | Falha de isolamento entre famílias | Cenário de dois tenants em todos os testes de integração; teste automático por endpoint; FKs compostas. |
+| Mistura entre o ator de User/família e o `ClinicAccount` do portal da clínica (D18) | ADR-020: segundo `ActorInfo`/`AsyncLocalStorage`, claims de JWT distintas, rotas `/clinic-portal/*` nunca partilham contexto com as restantes; teste de arquitetura verifica que `clinic-portal` não importa `auth`/`access`/`families`. |
 | Lembretes perdidos ou duplicados | Scanner idempotente + `dedupeKey`; testes com relógio; métrica de atraso e alerta crítico. |
 | Erros de DST/fuso | Biblioteca de tempo robusta (IANA), casos fixos de teste, relógio injetável. |
 | Prisma vs. constraints avançadas | SQL manual versionado + teste de *drift* (ADR-003). |

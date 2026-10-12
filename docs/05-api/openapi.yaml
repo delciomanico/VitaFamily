@@ -23,6 +23,7 @@ tags:
   - name: Medications
   - name: Appointments
   - name: Clinics
+  - name: Clinic Portal
   - name: Examinations
   - name: Documents
   - name: Alerts
@@ -2938,7 +2939,7 @@ paths:
       tags: [Appointments]
       operationId: createAppointment
       summary: "Criar consulta."
-      description: "Autorização: WRITE(APPOINTMENTS). FR-APT-01; gera lembretes 24 h e 2 h se futura."
+      description: "Autorização: WRITE(APPOINTMENTS). Privada/sem clínica nasce SCHEDULED; com slotId de clínica parceira nasce REQUESTED (BR-APT-04, D17). FR-APT-01; gera lembretes 24 h e 2 h se futura (só SCHEDULED, BR-APT-07)."
       parameters:
         - name: familyId
           in: path
@@ -2977,6 +2978,11 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '422':
           description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (slotId já tem marcação ativa, BR-APT-06)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -3117,7 +3123,7 @@ paths:
       tags: [Appointments]
       operationId: setAppointmentStatus
       summary: "Marcar realizada, faltou, cancelada ou reagendar."
-      description: "Autorização: WRITE(APPOINTMENTS). ST4."
+      description: "Autorização: WRITE(APPOINTMENTS). ST4. A família nunca define REQUESTED/confirma REQUESTED->SCHEDULED (exclusivo do portal da clínica, PUT /clinic-portal/requests/{appointmentId}, D17); só desiste de um pedido (REQUESTED->CANCELLED)."
       parameters:
         - name: familyId
           in: path
@@ -3356,6 +3362,491 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '404':
           description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/clinics/{clinicId}/slots:
+    get:
+      tags: [Clinics]
+      operationId: listAvailableSlots
+      summary: "Listar horários livres e futuros de uma clínica parceira."
+      description: "Autorização: FAM_MEMBER. BR-APT-06: só horários sem marcação ativa (REQUESTED/SCHEDULED). D17."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: specialty
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AvailableSlot" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/auth/login:
+    post:
+      tags: [Clinic Portal]
+      operationId: clinicLogin
+      summary: "Iniciar sessão de uma conta do portal da clínica."
+      description: "Autorização: PUBLIC. D17/D18, ADR-020. Define cookie clinic_refresh_token (HttpOnly, Secure, SameSite=Strict, caminho /api/v1/clinic-portal/auth), independente do cookie refresh_token de User. Audita sucesso e falha."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicLoginRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicTokenResponse"
+        '401':
+          description: "AUTH_INVALID_CREDENTIALS"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "ACCOUNT_SUSPENDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/auth/refresh:
+    post:
+      tags: [Clinic Portal]
+      operationId: clinicRefreshToken
+      summary: "Rodar refresh token da clínica e obter novo access token."
+      description: "Autorização: PUBLIC (cookie). Mesma política de rotação/reutilização de /auth/refresh, em clinic_sessions (ADR-020)."
+      security: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicTokenResponse"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "ACCOUNT_SUSPENDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/auth/logout:
+    post:
+      tags: [Clinic Portal]
+      operationId: clinicLogout
+      summary: "Terminar sessão atual do portal."
+      description: "Autorização: CLINIC_ACCOUNT. Revoga o refresh token da clínica e limpa o cookie."
+      security:
+        - clinicBearerAuth: []
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/staff:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicStaff
+      summary: "Listar as contas CLINIC_MANAGER da própria clínica."
+      description: "Autorização: CLINIC_ADMIN. BR-CLN-05."
+      security:
+        - clinicBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicAccount" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Clinic Portal]
+      operationId: createClinicStaff
+      summary: "Criar uma conta CLINIC_MANAGER na própria clínica."
+      description: "Autorização: CLINIC_ADMIN. BR-CLN-05: self-service; o Platform Admin nunca cria Gestores individualmente."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicStaffInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicAccount"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/staff/{clinicAccountId}:
+    delete:
+      tags: [Clinic Portal]
+      operationId: removeClinicStaff
+      summary: "Remover uma conta CLINIC_MANAGER da própria clínica."
+      description: "Autorização: CLINIC_ADMIN. Só remove contas CLINIC_MANAGER; a conta CLINIC_ADMIN raiz só é reposta pelo Platform Admin (POST /admin/clinics/{id}/root-account)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: clinicAccountId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/slots:
+    get:
+      tags: [Clinic Portal]
+      operationId: listOwnClinicSlots
+      summary: "Listar horários (livres, pedidos ou confirmados) da própria clínica."
+      description: "Autorização: CLINIC_ACCOUNT. UC-CLN-04."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicSlotView" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Clinic Portal]
+      operationId: publishClinicSlots
+      summary: "Publicar um ou mais horários num dia."
+      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-04; ignora horas passadas e duplicadas (mesma hora, especialidade e profissional). UC-CLN-04."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicSlotBatchInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicSlot" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/slots/{slotId}:
+    delete:
+      tags: [Clinic Portal]
+      operationId: removeClinicSlot
+      summary: "Remover um horário livre."
+      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-04: só remove horários livres."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (horário com marcação ativa)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/requests:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicRequests
+      summary: "Listar pedidos (REQUESTED) por confirmar/recusar, só da própria clínica."
+      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-03: só o mínimo necessário. UC-CLN-05."
+      security:
+        - clinicBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/requests/{appointmentId}:
+    put:
+      tags: [Clinic Portal]
+      operationId: respondClinicRequest
+      summary: "Confirmar ou recusar um pedido."
+      description: "Autorização: CLINIC_ACCOUNT. BR-APT-06 (horário recusado volta a ficar livre); dispara appointment.confirmed/appointment.rejected (FR-APT-07, D17). UC-CLN-05."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicRequestResponse" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicBooking"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (já respondido)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicAgenda
+      summary: "Listar as consultas confirmadas da própria clínica, por ordem cronológica."
+      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-03. UC-CLN-06."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/cancel:
+    put:
+      tags: [Clinic Portal]
+      operationId: cancelClinicAppointment
+      summary: "Cancelar uma consulta confirmada e futura, com motivo obrigatório."
+      description: "Autorização: CLINIC_ACCOUNT. Dispara appointment.cancelled (D17). UC-CLN-06."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicCancelRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicBooking"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/complete:
+    put:
+      tags: [Clinic Portal]
+      operationId: completeClinicAppointment
+      summary: "Completar a consulta em curso: resultado e receita opcional."
+      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-06, BR-RX-07, D18: a receita (se incluída) é criada no módulo prescriptions com issuedBy=CLINIC e appointmentId de origem, e passa a aparecer no histórico do paciente; só a consulta em curso que a própria clínica está a atender."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicCompleteAppointmentRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicBooking"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (consulta não está SCHEDULED, ST4)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -4536,6 +5027,49 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /admin/clinics/{clinicId}/root-account:
+    post:
+      tags: [Admin]
+      operationId: adminCreateOrResetClinicRootAccount
+      summary: "Criar ou repor a conta CLINIC_ADMIN raiz de uma clínica parceira."
+      description: "Autorização: PLATFORM_ADMIN. BR-CLN-05: única via do Platform Admin para o portal da clínica; não cria nem lista CLINIC_MANAGER. Idempotente por clínica (repor substitui a credencial da conta CLINIC_ADMIN existente, nunca cria uma segunda). D18."
+      parameters:
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicRootAccountRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicAccount"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /health:
     get:
       tags: [Operations]
@@ -4570,6 +5104,12 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: "Token de User (claims userId/sessionId/familyId?). Nunca aceite em /clinic-portal/*."
+    clinicBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "D17/D18, ADR-020. Token de ClinicAccount (claims clinicAccountId/clinicId/role), só para /clinic-portal/*. Nunca aceite nas restantes rotas, mesmo que a assinatura seja válida (claims distintas)."
   schemas:
     Message:
       type: object
@@ -5317,7 +5857,7 @@ components:
           nullable: true
     Prescription:
       type: object
-      required: [id, memberId, issuedOn, status, medications, documentIds]
+      required: [id, memberId, issuedOn, status, issuedBy, medications, documentIds]
       properties:
         id:
           type: string
@@ -5337,6 +5877,15 @@ components:
         status:
           type: string
           enum: [ACTIVE, COMPLETED, CANCELLED]
+        issuedBy:
+          type: string
+          enum: [FAMILY, CLINIC]
+          description: "D18/BR-RX-07. Default FAMILY; CLINIC quando emitida pelo portal da clínica (completeClinicAppointment)."
+        appointmentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Consulta de origem; preenchida só quando issuedBy=CLINIC (BR-RX-07)."
         medications:
           type: array
           items:
@@ -5445,7 +5994,7 @@ components:
           format: date-time
         status:
           type: string
-          enum: [SCHEDULED, COMPLETED, NO_SHOW, CANCELLED]
+          enum: [REQUESTED, SCHEDULED, REJECTED, COMPLETED, NO_SHOW, CANCELLED]
         professionalName:
           type: string
           nullable: true
@@ -5456,6 +6005,15 @@ components:
         clinicName:
           type: string
           nullable: true
+        slotId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Horário de clínica parceira de origem (D17)."
+        responseNote:
+          type: string
+          nullable: true
+          description: "Motivo da clínica ao recusar/cancelar (D17)."
         specialty:
           type: string
           nullable: true
@@ -5482,6 +6040,11 @@ components:
         clinicName:
           type: string
           nullable: true
+        slotId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Marcação num horário de clínica parceira (D17). Incompatível com clinicId/clinicName; a consulta nasce sempre REQUESTED, ignorando `status`."
         specialty:
           type: string
           nullable: true
@@ -5527,7 +6090,30 @@ components:
       properties:
         status:
           type: string
-          enum: [SCHEDULED, COMPLETED, NO_SHOW, CANCELLED]
+          enum: [SCHEDULED, REJECTED, COMPLETED, NO_SHOW, CANCELLED]
+          description: "A família nunca define REQUESTED, nem confirma REQUESTED -> SCHEDULED (exclusivo do portal da clínica, PUT /clinic-portal/requests/{appointmentId}, D17)."
+    AvailableSlot:
+      type: object
+      required: [id, clinicId, clinicName, specialty, startsAt, durationMinutes]
+      properties:
+        id:
+          type: string
+          format: uuid
+        clinicId:
+          type: string
+          format: uuid
+        clinicName:
+          type: string
+        specialty:
+          type: string
+        professionalName:
+          type: string
+          nullable: true
+        startsAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
     Clinic:
       type: object
       required: [id, name, type, status]
@@ -5589,6 +6175,171 @@ components:
         status:
           type: string
           enum: [ACTIVE, ARCHIVED]
+    ClinicRootAccountRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: "D18. A palavra-passe inicial/reposta é enviada por e-mail, fora do corpo da resposta."
+    ClinicLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    ClinicTokenResponse:
+      type: object
+      required: [accessToken, expiresIn, clinicId, role]
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+        clinicId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [CLINIC_ADMIN, CLINIC_MANAGER]
+    ClinicAccount:
+      type: object
+      required: [id, clinicId, email, role, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        clinicId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [CLINIC_ADMIN, CLINIC_MANAGER]
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED]
+    ClinicStaffInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: "A conta criada é sempre CLINIC_MANAGER (BR-CLN-05); palavra-passe inicial enviada por e-mail."
+    ClinicSlot:
+      type: object
+      required: [id, clinicId, specialty, startsAt, durationMinutes]
+      properties:
+        id:
+          type: string
+          format: uuid
+        clinicId:
+          type: string
+          format: uuid
+        specialty:
+          type: string
+        professionalName:
+          type: string
+          nullable: true
+        startsAt:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+    ClinicSlotView:
+      allOf:
+        - $ref: "#/components/schemas/ClinicSlot"
+        - type: object
+          required: [state]
+          properties:
+            state:
+              type: string
+              enum: [FREE, REQUESTED, SCHEDULED]
+    ClinicSlotBatchInput:
+      type: object
+      required: [date, times, specialty, durationMinutes]
+      properties:
+        date:
+          type: string
+          format: date
+          description: "Dia local (UC-CLN-04)."
+        times:
+          type: array
+          items:
+            type: string
+          description: "Horas locais HH:mm."
+        specialty:
+          type: string
+        professionalName:
+          type: string
+          nullable: true
+        durationMinutes:
+          type: integer
+          enum: [15, 20, 30, 45, 60]
+    ClinicBooking:
+      type: object
+      required: [id, status, scheduledAt, patientName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [REQUESTED, SCHEDULED, REJECTED, COMPLETED, NO_SHOW, CANCELLED]
+        scheduledAt:
+          type: string
+          format: date-time
+        specialty:
+          type: string
+          nullable: true
+        professionalName:
+          type: string
+          nullable: true
+        patientName:
+          type: string
+          description: "Mínimo necessário (BR-CLN-03); nunca dados de saúde da família."
+        notes:
+          type: string
+          nullable: true
+        responseNote:
+          type: string
+          nullable: true
+    ClinicRequestResponse:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [CONFIRM, REJECT]
+        note:
+          type: string
+          nullable: true
+          description: "Motivo, relevante só em REJECT."
+    ClinicCancelRequest:
+      type: object
+      required: [note]
+      properties:
+        note:
+          type: string
+    ClinicCompleteAppointmentRequest:
+      type: object
+      properties:
+        outcomeNote:
+          type: string
+          nullable: true
+          description: "Resultado da consulta (BR-CLN-06)."
+        prescription:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/PrescriptionInput"
+          description: "Opcional; se presente, cria a receita com issuedBy=CLINIC (BR-RX-07)."
     ExamResult:
       type: object
       required: [id, parameter, createdAt]

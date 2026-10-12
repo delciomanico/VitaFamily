@@ -85,6 +85,7 @@
 | BR-RX-04 | Concluir ou cancelar uma receita termina os planos associados; o histórico de tomas mantém-se. | DERIVADO |
 | BR-RX-05 | Editar um plano só afeta ocorrências **futuras**; o passado não é reescrito. | PROPOSTO |
 | BR-RX-06 | Eliminar uma receita apaga também os planos, o histórico de tomas e os documentos associados. | DERIVADO D15 |
+| BR-RX-07 | Receita emitida pela clínica parceira (BR-CLN-06): `issuedBy=CLINIC`, `issuedByClinicAccountId` e `appointmentId` de origem, para auditoria/rastreabilidade. `issuedBy=FAMILY` (default) nas restantes. A clínica só pode criar/editar enquanto o `Appointment` de origem está `SCHEDULED` e é dela; depois de `COMPLETED`, só o titular/tutor edita (como qualquer receita). | DECIDIDO D18 |
 | BR-MED-01 | Cada plano usa horários fixos (com dias da semana opcionais) **ou** "de X em X horas" a partir de uma hora de início. | DECIDIDO Q1 |
 | BR-MED-02 | O plano tem data de início e fim (por duração ou data), ou é marcado "uso contínuo" até ser terminado. | DECIDIDO B5 |
 | BR-MED-03 | Uma ocorrência de toma é **pendente** até à ação; após **2 h** sem ação passa a **não confirmada**; confirmação tardia permitida até ao fim do dia seguinte. | DECIDIDO Q2 |
@@ -108,8 +109,10 @@
 | BR-APT-09 | Numa consulta de clínica parceira, mudar a data/hora é cancelar e pedir outro horário; só as observações são editáveis. | PROPOSTO D17 |
 | BR-CLN-01 | Parceiras: criadas pelo Platform Admin, visíveis a todos. Privadas: criadas por membros adultos, visíveis só à família. | DECIDIDO R8 |
 | BR-CLN-02 | Arquivar/apagar uma clínica não destrói consultas: mantêm o nome como texto. | PROPOSTO |
-| BR-CLN-03 | ~~Nenhuma clínica tem login~~ (alterado por D17). Clínicas **privadas** não têm login. O Gestor da clínica **parceira** vê só as marcações na própria clínica com o mínimo necessário (nome do paciente, especialidade, profissional, data/hora, observações do pedido) e **nunca** dados de saúde da família. O utilizador é avisado disso antes de enviar o pedido. | DECIDIDO D3, D17 |
+| BR-CLN-03 | ~~Nenhuma clínica tem login~~ (alterado por D17). Clínicas **privadas** não têm login. Clínicas **parceiras** têm contas próprias do portal (`ClinicAccount`, D18 — **não** são `User`/não têm `family_members`; ver BR-CLN-05). O Gestor (`CLINIC_MANAGER`) vê só as marcações na própria clínica com o mínimo necessário (nome do paciente, especialidade, profissional, data/hora, observações do pedido) e **nunca** dados de saúde da família, nem o histórico de outras consultas do paciente. **Exceção (D18):** na consulta em curso que está a atender, pode registar o resultado e emitir a receita (BR-CLN-06); fora disso, a minimização mantém-se. O utilizador é avisado disso antes de enviar o pedido. | DECIDIDO D3, D17, D18 |
 | BR-CLN-04 | O Gestor da clínica publica horários (especialidade, profissional opcional, início, duração) e só remove horários **livres**. | DECIDIDO D17 |
+| BR-CLN-05 | Hierarquia de contas do portal (D18): o Platform Admin cria **apenas** a conta `CLINIC_ADMIN` raiz de cada clínica parceira (e pode repô-la em caso de perda de acesso). É a própria conta `CLINIC_ADMIN` que cria, lista e remove as contas `CLINIC_MANAGER` da sua clínica — o Platform Admin não gere Gestores individualmente. Uma clínica tem sempre exatamente uma conta `CLINIC_ADMIN` ativa. | DECIDIDO D18 |
+| BR-CLN-06 | Controlo do fluxo da consulta (D18): o Gestor da clínica que atende a consulta `SCHEDULED` pode registar o resultado e, através do módulo `prescriptions` (M6), emitir a receita associada (`issuedBy=CLINIC`, BR-RX-07); a receita passa a aparecer automaticamente no histórico/app do paciente. Só a consulta em curso que a própria clínica está a atender; nunca consultas de outros pacientes ou fora da sua clínica. | DECIDIDO D18 |
 
 ## 8. Exames e documentos (BR-EXM / BR-DOC)
 

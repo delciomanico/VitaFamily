@@ -1,8 +1,6 @@
 # Vita Family — Autorização (Fase 14)
 
-> **Pendente (D17, change control 2026-10-05):** acrescentar ClinicSlot, ClinicStaff, os estados REQUESTED/REJECTED de Appointment e as operações do portal da clínica. Até lá, este documento não cobre a marcação com clínica parceira (ver `00-product/discovery.md` → D17).
-
-> Estado: **v0.1**. Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008.
+> Estado: **v0.2** — acrescenta o portal da clínica parceira (D17/D18, ADR-020). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`).
 
 ## 1. Entradas e saída da decisão
 
@@ -13,6 +11,13 @@ actor  = { userId, platformRole, membership na família do pedido?, status da co
 action = READ | CREATE | UPDATE | DELETE | CONFIRM_DOSE | MANAGE_SHARING | MANAGE_STRUCTURE | EXPORT ...
 target = { família, categoria?, sujeito (memberId)?, recurso }
 ```
+
+**Dois tipos de ator (D18, ADR-020):** `AccessPolicy` (secções 2–6) decide **só** sobre o ator de
+User/família (`ActorInfo`, ADR-008). As rotas `/clinic-portal/*` usam um **segundo ator**,
+`ClinicActorInfo { clinicAccountId, clinicId, role, sessionId }` (ADR-020), autorizado por uma
+verificação própria e mais simples (§7) — nunca pelo `AccessPolicy` de família, e as duas árvores de
+rotas nunca partilham contexto de pedido. Um `ClinicAccount` **nunca** aparece como `actor` desta
+secção (não tem `userId`, não tem pertença de família).
 
 ## 2. Algoritmo (por ordem; a primeira regra que decide termina)
 
@@ -59,7 +64,8 @@ Notas:
 | Sair da família | Adulto com conta; menor/dependente com conta ⇒ via tutor/Admin. |
 | Exportar dados | SELF; tutor pelo dependente. |
 | Clínicas privadas | Criar: adulto da família; editar/arquivar/eliminar: criador ou FAMILY_ADMIN. |
-| Clínicas parceiras e contas | PLATFORM_ADMIN. |
+| Criar clínica parceira, ver/suspender a clínica | PLATFORM_ADMIN. |
+| Contas do portal da clínica (`CLINIC_ADMIN`/`CLINIC_MANAGER`) | Fora de `AccessPolicy` — ver §6 (ADR-020). |
 
 ## 5. Regras de implementação
 1. **Toda** a rota de negócio chama `AccessPolicy` no application service; um guard global *verifica* (em testes e em runtime de desenvolvimento) que a policy foi invocada — uma rota sem decisão registada falha.
@@ -68,5 +74,37 @@ Notas:
 4. A decisão de visibilidade ao listar (ex.: família) é calculada **uma vez** por pedido e reutilizada (evita N+1 e inconsistências).
 5. Mensagens de negação não revelam o motivo detalhado.
 
-## 6. Testes
-Os testes de autorização são **gerados a partir da matriz** acima: para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI.
+## 6. Portal da clínica (`ClinicAccount`, D17/D18, ADR-020)
+
+### 6.1 Algoritmo (rotas `/clinic-portal/*`, independente de §1–5)
+1. **Conta**: `ClinicAccount.status ≠ ACTIVE` ⇒ DENY (`ACCOUNT_SUSPENDED`).
+2. **Clínica do caminho**: `clinicAccount.clinicId` tem de coincidir com o `clinicId` do recurso (horário, pedido, consulta); senão ⇒ `NOT_FOUND` (404, sem enumeração — mesma regra de `errors.md` §2 para User).
+3. **Papel**: decidir por ação segundo a matriz §6.2.
+4. Registar auditoria (ações sensíveis e negações), com `actor_type` próprio do portal da clínica (não `USER`/`SYSTEM`/`PLATFORM_ADMIN`).
+
+### 6.2 Matriz de permissões `CLINIC_ADMIN` vs `CLINIC_MANAGER`
+| Ação | `CLINIC_ADMIN` | `CLINIC_MANAGER` |
+|---|---|---|
+| Login/refresh/logout no portal da própria clínica | sim | sim |
+| Criar/listar/remover contas `CLINIC_MANAGER` da própria clínica (BR-CLN-05) | sim | não |
+| Publicar/remover horários (`ClinicSlot`, BR-CLN-04) | sim | sim |
+| Ver pedidos/agenda da própria clínica (mínimo necessário, BR-CLN-03) | sim | sim |
+| Confirmar/recusar pedido (`REQUESTED → SCHEDULED\|REJECTED`) | sim | sim |
+| Cancelar consulta confirmada, com motivo | sim | sim |
+| Completar consulta: registar resultado e emitir receita (BR-CLN-06, BR-RX-07) | sim | sim |
+| Ver/gerir horários, pedidos ou agenda de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
+
+Não há ação do portal que leia dados fora do mínimo de BR-CLN-03 (nome do paciente, especialidade,
+profissional, data/hora, observações do pedido); nunca condições, alergias, medicação prévia,
+histórico de outras consultas, nem dados de família/tutela. A exceção de BR-CLN-06 (registar
+resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica está a atender.
+
+### 6.3 Hierarquia de contas (BR-CLN-05) — quem administra quem
+| Ação | Quem |
+|---|---|
+| Ver/suspender a clínica (inteira) | PLATFORM_ADMIN |
+| Criar/repor a conta `CLINIC_ADMIN` raiz de uma clínica parceira | PLATFORM_ADMIN (`POST /admin/clinics/{id}/root-account`) |
+| Criar/listar/remover contas `CLINIC_MANAGER` da própria clínica | `CLINIC_ADMIN` da clínica (self-service, nunca o Platform Admin diretamente) |
+
+## 7. Testes
+Os testes de autorização são **gerados a partir da matriz** acima: para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. A matriz §6.2 do portal da clínica segue a mesma regra: gerada a partir da tabela, com casos próprios `TC-AZ-CLN-*`.

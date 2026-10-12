@@ -1,8 +1,10 @@
 # Vita Family — Endpoints (Fase 13)
 
-> **Pendente (D17, change control 2026-10-05):** acrescentar ClinicSlot, ClinicStaff, os estados REQUESTED/REJECTED de Appointment e as operações do portal da clínica. Até lá, este documento não cobre a marcação com clínica parceira (ver `00-product/discovery.md` → D17).
+> Estado: **v0.2** — acrescenta o portal da clínica parceira (D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment` (ver `authorization.md` §6, ADR-020). Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
-> Estado: **v0.1** — gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+## Autenticação do portal da clínica (D17/D18, ADR-020)
+
+As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorization: Bearer <clinicAccessToken>`, com claims `clinicAccountId`, `clinicId`, `role` (nunca `userId`/`familyId`). Emitido só por `POST /clinic-portal/auth/login`; nunca aceite nas restantes rotas da API (e o token de User nunca é aceite em `/clinic-portal/*`). Ver ADR-020.
 
 ## Legenda de AUTHORIZATION
 
@@ -15,6 +17,8 @@
 | Titular / Tutor | O próprio User ligado ao membro / tutor do dependente. |
 | READ(cat) / WRITE(cat) | Ler ou escrever na categoria de dados do membro-sujeito segundo `permissions.md` (titular, tutor, dependente com conta, ou partilha só de leitura). |
 | PLATFORM_ADMIN | `platformRole = PLATFORM_ADMIN`. Nunca acede a dados de saúde. |
+| CLINIC_ACCOUNT | Qualquer `ClinicAccount` autenticado no portal da própria clínica (`CLINIC_ADMIN` ou `CLINIC_MANAGER`), token distinto do de User (ADR-020). |
+| CLINIC_ADMIN | Só `ClinicAccount` com `role=CLINIC_ADMIN` da própria clínica. |
 
 **Regras transversais:** negar por defeito; recurso de outra família ou inexistente ⇒ `404`; sem permissão numa família a que se pertence ⇒ `403`; toda ação sensível é auditada; listas com `limit`/`cursor`; datas em ISO-8601 UTC (`date` = `YYYY-MM-DD`); ids UUID.
 
@@ -644,11 +648,11 @@
 
 ### `POST /families/{familyId}/members/{memberId}/appointments`  — createAppointment
 - **AUTHORIZATION:** WRITE(APPOINTMENTS)
-- **DESCRIPTION:** Criar consulta.
+- **DESCRIPTION:** Criar consulta privada ou sem clínica (nasce `SCHEDULED`). Para marcar num horário de clínica parceira, usar `slotId` em vez de `clinicId`/`clinicName` (nasce `REQUESTED`, BR-APT-04/D17).
 - **REQUEST:** `AppointmentInput`
 - **RESPONSE:** `201` `Appointment`
-- **ERRORS:** `FORBIDDEN`, `MEMBER_BLOCKED`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** FR-APT-01; gera lembretes 24 h e 2 h se futura.
+- **ERRORS:** `FORBIDDEN`, `MEMBER_BLOCKED`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`, `CONFLICT` (`slotId` já tem marcação ativa, BR-APT-06)
+- **BUSINESS RULES:** FR-APT-01; gera lembretes 24 h e 2 h se futura (só se `SCHEDULED`, BR-APT-07); o utilizador é avisado da minimização (BR-CLN-03) antes de enviar um pedido com `slotId`.
 
 ### `GET /families/{familyId}/members/{memberId}/appointments/{appointmentId}`  — getAppointment
 - **AUTHORIZATION:** READ(APPOINTMENTS)
@@ -676,11 +680,20 @@
 
 ### `PUT /families/{familyId}/members/{memberId}/appointments/{appointmentId}/status`  — setAppointmentStatus
 - **AUTHORIZATION:** WRITE(APPOINTMENTS)
-- **DESCRIPTION:** Marcar realizada, faltou, cancelada ou reagendar.
+- **DESCRIPTION:** Marcar realizada, faltou, cancelada ou reagendar. A família nunca define `REQUESTED`/`REJECTED`/`SCHEDULED` a partir de `REQUESTED` (transições exclusivas do portal da clínica, `PUT /clinic-portal/requests/{appointmentId}`, D17); só desiste de um pedido (`REQUESTED → CANCELLED`).
 - **REQUEST:** `AppointmentStatusRequest`
 - **RESPONSE:** `200` `Appointment`
 - **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION`, `NOT_FOUND`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** ST4.
+
+### `GET /families/{familyId}/clinics/{clinicId}/slots`  — listAvailableSlots
+- **AUTHORIZATION:** FAM_MEMBER
+- **DESCRIPTION:** Listar horários livres e futuros de uma clínica parceira, para escolher ao marcar (D17).
+- **QUERY:** `specialty` (string), `from` (datetime), `to` (datetime)
+- **REQUEST:** —
+- **RESPONSE:** `200` `[AvailableSlot]`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-APT-06: só horários sem marcação ativa (`REQUESTED`/`SCHEDULED`).
 
 ## Clinics
 
@@ -724,6 +737,124 @@
 - **RESPONSE:** `204` sem corpo
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** BR-CLN-02: consultas mantêm o nome em texto.
+
+## Clinic Portal (`/clinic-portal/*`, D17/D18, ADR-020)
+
+> Autenticação por `clinicAccessToken` (ver topo do documento), **nunca** `Authorization: Bearer` de User. Nenhuma rota aqui aceita `familyId`/`memberId`; o recurso é sempre resolvido pela clínica do token (§6.1 de `authorization.md`). Minimização: o portal nunca devolve condições, alergias, medicação prévia, histórico de outras consultas, nem dados de família/tutela (BR-CLN-03).
+
+### `POST /clinic-portal/auth/login`  — clinicLogin
+- **AUTHORIZATION:** PUBLIC
+- **DESCRIPTION:** Iniciar sessão de uma conta do portal da clínica (`CLINIC_ADMIN` ou `CLINIC_MANAGER`).
+- **REQUEST:** `ClinicLoginRequest`
+- **RESPONSE:** `200` `ClinicTokenResponse`
+- **ERRORS:** `ACCOUNT_SUSPENDED`, `AUTH_INVALID_CREDENTIALS`, `RATE_LIMITED`
+- **BUSINESS RULES:** Define cookie `clinic_refresh_token` (HttpOnly, Secure, SameSite=Strict, caminho `/api/v1/clinic-portal/auth`), independente do cookie `refresh_token` de User (ADR-020). Audita sucesso e falha.
+
+### `POST /clinic-portal/auth/refresh`  — clinicRefreshToken
+- **AUTHORIZATION:** PUBLIC (cookie)
+- **DESCRIPTION:** Rodar refresh token da clínica e obter novo access token.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ClinicTokenResponse`
+- **ERRORS:** `ACCOUNT_SUSPENDED`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Mesma política de rotação/reutilização de `auth/refresh`, em `clinic_sessions`.
+
+### `POST /clinic-portal/auth/logout`  — clinicLogout
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Terminar sessão atual do portal.
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** Revoga o refresh token da clínica e limpa o cookie.
+
+### `GET /clinic-portal/staff`  — listClinicStaff
+- **AUTHORIZATION:** CLINIC_ADMIN
+- **DESCRIPTION:** Listar as contas `CLINIC_MANAGER` da própria clínica (BR-CLN-05).
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ClinicAccount]`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Nunca lista a conta `CLINIC_ADMIN` de outra clínica.
+
+### `POST /clinic-portal/staff`  — createClinicStaff
+- **AUTHORIZATION:** CLINIC_ADMIN
+- **DESCRIPTION:** Criar uma conta `CLINIC_MANAGER` na própria clínica (self-service, BR-CLN-05).
+- **REQUEST:** `ClinicStaffInput`
+- **RESPONSE:** `201` `ClinicAccount`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-05: o Platform Admin nunca cria Gestores individualmente.
+
+### `DELETE /clinic-portal/staff/{clinicAccountId}`  — removeClinicStaff
+- **AUTHORIZATION:** CLINIC_ADMIN
+- **DESCRIPTION:** Remover uma conta `CLINIC_MANAGER` da própria clínica.
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só remove contas `CLINIC_MANAGER`; a conta `CLINIC_ADMIN` raiz só é reposta pelo Platform Admin (`POST /admin/clinics/{id}/root-account`).
+
+### `GET /clinic-portal/slots`  — listOwnClinicSlots
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Listar horários (livres, pedidos ou confirmados) da própria clínica (UC-CLN-04).
+- **QUERY:** `from` (datetime), `to` (datetime)
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ClinicSlotView]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-04.
+
+### `POST /clinic-portal/slots`  — publishClinicSlots
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Publicar um ou mais horários num dia (UC-CLN-04).
+- **REQUEST:** `ClinicSlotBatchInput`
+- **RESPONSE:** `201` `[ClinicSlot]`
+- **ERRORS:** `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-04; ignora horas passadas e duplicadas (mesma hora, especialidade e profissional).
+
+### `DELETE /clinic-portal/slots/{slotId}`  — removeClinicSlot
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Remover um horário livre.
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `CONFLICT` (horário com marcação ativa), `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-04: só remove horários **livres**.
+
+### `GET /clinic-portal/requests`  — listClinicRequests
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Listar pedidos (`REQUESTED`) por confirmar/recusar, só da própria clínica (UC-CLN-05).
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ClinicBooking]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-03: só o mínimo necessário (nome do paciente, especialidade, profissional, data/hora, observações do pedido).
+
+### `PUT /clinic-portal/requests/{appointmentId}`  — respondClinicRequest
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Confirmar ou recusar um pedido (UC-CLN-05).
+- **REQUEST:** `ClinicRequestResponse`
+- **RESPONSE:** `200` `ClinicBooking`
+- **ERRORS:** `CONFLICT` (já respondido), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-APT-06 (horário recusado volta a ficar livre); dispara `appointment.confirmed`/`appointment.rejected` (FR-APT-07, D17).
+
+### `GET /clinic-portal/agenda`  — listClinicAgenda
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Listar as consultas confirmadas (`SCHEDULED`/`COMPLETED`/…) da própria clínica, por ordem cronológica (UC-CLN-06).
+- **QUERY:** `from` (datetime), `to` (datetime)
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ClinicBooking]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-03.
+
+### `PUT /clinic-portal/agenda/{appointmentId}/cancel`  — cancelClinicAppointment
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Cancelar uma consulta confirmada e futura, com motivo obrigatório (UC-CLN-06).
+- **REQUEST:** `ClinicCancelRequest`
+- **RESPONSE:** `200` `ClinicBooking`
+- **ERRORS:** `CONFLICT`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** Dispara `appointment.cancelled` (D17).
+
+### `PUT /clinic-portal/agenda/{appointmentId}/complete`  — completeClinicAppointment
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Completar a consulta em curso: marcar `COMPLETED`, registar o resultado e, opcionalmente, emitir a receita (D18).
+- **REQUEST:** `ClinicCompleteAppointmentRequest`
+- **RESPONSE:** `200` `ClinicBooking`
+- **ERRORS:** `CONFLICT` (consulta não está `SCHEDULED` ou já passou da janela, ST4), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-06, BR-RX-07: a receita (se incluída) é criada no módulo `prescriptions` com `issuedBy=CLINIC` e `appointmentId` de origem, e passa a aparecer no histórico do paciente; a clínica só pode completar a consulta em curso que a própria clínica está a atender.
 
 ## Examinations
 
@@ -966,6 +1097,14 @@
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** BR: arquivar não apaga consultas existentes.
 
+### `POST /admin/clinics/{clinicId}/root-account`  — adminCreateOrResetClinicRootAccount
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Criar a conta `CLINIC_ADMIN` raiz de uma clínica parceira (ao criar a clínica) ou repor as suas credenciais (perda de acesso, D18).
+- **REQUEST:** `ClinicRootAccountRequest`
+- **RESPONSE:** `200` `ClinicAccount`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-05: única via do Platform Admin para o portal da clínica; não cria nem lista `CLINIC_MANAGER`. Idempotente por clínica (repor substitui a credencial da conta `CLINIC_ADMIN` existente, nunca cria uma segunda).
+
 ## Operations
 
 ### `GET /health`  — healthLive
@@ -1090,7 +1229,7 @@
 
 **PlanStatusRequest** — `status`: ACTIVE|ENDED, `endAt?`: datetime, `continuous?`: bool
 
-**Prescription** — `id`: uuid, `memberId`: uuid, `issuedOn`: date, `doctorName?`: string, `notes?`: string, `status`: ACTIVE|COMPLETED|CANCELLED, `medications`: [MedicationPlan], `documentIds`: [uuid]
+**Prescription** — `id`: uuid, `memberId`: uuid, `issuedOn`: date, `doctorName?`: string, `notes?`: string, `status`: ACTIVE|COMPLETED|CANCELLED, `issuedBy`: FAMILY|CLINIC (default FAMILY, D18), `appointmentId?`: uuid (consulta de origem, só se `issuedBy=CLINIC`, BR-RX-07), `medications`: [MedicationPlan], `documentIds`: [uuid]
 
 **PrescriptionInput** — `issuedOn`: date, `doctorName?`: string, `notes?`: string, `medications`: [MedicationPlanInput]
 
@@ -1104,13 +1243,15 @@
 
 **DoseCorrectionRequest** — `status`: TAKEN|NOT_TAKEN, `note?`: string
 
-**Appointment** — `id`: uuid, `memberId`: uuid, `scheduledAt`: datetime, `status`: SCHEDULED|COMPLETED|NO_SHOW|CANCELLED, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string
+**Appointment** — `id`: uuid, `memberId`: uuid, `scheduledAt`: datetime, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (horário de clínica parceira de origem, D17), `responseNote?`: string (motivo da clínica ao recusar/cancelar, D17), `reason?`: string, `notes?`: string
 
-**AppointmentInput** — `scheduledAt`: datetime, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string, `status?`: SCHEDULED|COMPLETED
+**AppointmentInput** — `scheduledAt`: datetime, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (marcação de clínica parceira; incompatível com `clinicId`/`clinicName`, nasce `REQUESTED`, D17), `reason?`: string, `notes?`: string, `status?`: SCHEDULED|COMPLETED (ignorado se `slotId` presente — nasce sempre `REQUESTED`)
 
-**AppointmentPatch** — `scheduledAt?`: datetime, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string
+**AppointmentPatch** — `scheduledAt?`: datetime, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string (BR-APT-09: consulta de clínica parceira só edita `notes`; mudar `scheduledAt` é cancelar e pedir outro horário)
 
-**AppointmentStatusRequest** — `status`: SCHEDULED|COMPLETED|NO_SHOW|CANCELLED
+**AppointmentStatusRequest** — `status`: SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED (a família nunca define `REQUESTED`/`REJECTED`, nem confirma `REQUESTED → SCHEDULED` — exclusivo do portal da clínica, D17)
+
+**AvailableSlot** — `id`: uuid, `clinicId`: uuid, `clinicName`: string, `specialty`: string, `professionalName?`: string, `startsAt`: datetime, `durationMinutes`: int
 
 **Clinic** — `id`: uuid, `name`: string, `address?`: string, `phone?`: string, `email?`: string, `type`: PARTNER|PRIVATE, `status`: ACTIVE|ARCHIVED
 
@@ -1120,7 +1261,33 @@
 
 **ClinicStatusRequest** — `status`: ACTIVE|ARCHIVED
 
+**ClinicRootAccountRequest** — `email`: string (D18; a palavra-passe inicial é enviada por e-mail, fora do corpo da resposta — detalhe de implementação)
+
 **ExamResult** — `id`: uuid, `parameter`: string, `valueNumeric?`: number, `valueText?`: string, `unit?`: string, `referenceMin?`: number, `referenceMax?`: number, `createdAt`: datetime (só na resposta)
+
+### Portal da clínica (`/clinic-portal/*`, D17/D18)
+
+**ClinicLoginRequest** — `email`: string, `password`: string
+
+**ClinicTokenResponse** — `accessToken`: string, `expiresIn`: int, `clinicId`: uuid, `role`: CLINIC_ADMIN|CLINIC_MANAGER
+
+**ClinicAccount** — `id`: uuid, `clinicId`: uuid, `email`: string, `role`: CLINIC_ADMIN|CLINIC_MANAGER, `status`: ACTIVE|SUSPENDED
+
+**ClinicStaffInput** — `email`: string (a conta criada é sempre `CLINIC_MANAGER`, BR-CLN-05; a palavra-passe inicial é enviada por e-mail)
+
+**ClinicSlot** — `id`: uuid, `clinicId`: uuid, `specialty`: string, `professionalName?`: string, `startsAt`: datetime, `durationMinutes`: int
+
+**ClinicSlotView** — campos de `ClinicSlot` + `state`: FREE|REQUESTED|SCHEDULED
+
+**ClinicSlotBatchInput** — `date`: date (dia local), `times`: [string] (HH:mm locais), `specialty`: string, `professionalName?`: string, `durationMinutes`: int (15|20|30|45|60, BR-CLN-04)
+
+**ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família)
+
+**ClinicRequestResponse** — `decision`: CONFIRM|REJECT, `note?`: string (motivo, só relevante em `REJECT`)
+
+**ClinicCancelRequest** — `note`: string (motivo obrigatório, UC-CLN-06)
+
+**ClinicCompleteAppointmentRequest** — `outcomeNote?`: string (resultado da consulta, BR-CLN-06), `prescription?`: `PrescriptionInput` (opcional; se presente, cria a receita com `issuedBy=CLINIC`, BR-RX-07)
 
 **ExamResultInput** — `parameter`: string, `valueNumeric?`: number, `valueText?`: string, `unit?`: string, `referenceMin?`: number, `referenceMax?`: number
 
