@@ -378,7 +378,7 @@ export class FakeMailer implements Mailer {
 
 /** Só a parte do `pino.Logger` usada por `send-mail.ts` — sem I/O, regista para o teste inspecionar. */
 export class FakeLogger {
-  readonly warnings: Array<{ obj: unknown; msg: string }> = [];
+  readonly warnings: { obj: unknown; msg: string }[] = [];
 
   warn(obj: unknown, msg: string): void {
     this.warnings.push({ obj, msg });
