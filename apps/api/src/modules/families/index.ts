@@ -67,6 +67,7 @@ import {
   KyselyInvitationsRepository,
   KyselyMembersRepository,
 } from "./infrastructure/repo.js";
+import { toMemberResponse } from "./interface/dto.js";
 import { createFamiliesRouter, type FamiliesController } from "./interface/router.js";
 
 export type { Family } from "./domain/family.js";
@@ -92,6 +93,8 @@ export interface FamiliesModuleDeps {
 
 export interface FamiliesModule {
   router: Router;
+  /** Leitura para `reports` (mesma autorização do `GET /families/{id}/members`). */
+  reads: { listMembers: (userId: string, familyId: string) => Promise<Record<string, unknown>[]> };
   // Operações cruas para o módulo `auth` chamar dentro da MESMA transação de `POST /auth/register`
   // (modules.md §3.7, UC-MEM-05/BR-MEM-12/13/17) — mesmo critério de `UsersModule.createAccount`.
   resolveDependentAccountInvitation: (
@@ -198,6 +201,7 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
 
   return {
     router: createFamiliesRouter(controller),
+    reads: { listMembers: async (userId, familyId) => (await controller.listMembers(userId, familyId)).map(toMemberResponse) },
     resolveDependentAccountInvitation: createResolveDependentAccountInvitationUseCase(familiesDeps),
     finalizeDependentAccountInvitation: createFinalizeDependentAccountInvitationUseCase(familiesDeps),
     resolveMemberInvitation: createResolveMemberInvitationUseCase(familiesDeps),

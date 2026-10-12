@@ -27,6 +27,7 @@ import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
 import { createClinicsModule } from "../modules/clinics/index.js";
 import { createAppointmentsModule } from "../modules/appointments/index.js";
 import { createExaminationsModule } from "../modules/examinations/index.js";
+import { createReportsModule } from "../modules/reports/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsModule } from "../modules/alerts/index.js";
 
@@ -162,6 +163,24 @@ export function main(): void {
   });
   const alerts = createAlertsModule({ db, families, notifications, clock });
 
+  // M9 (plan.md §4): `reports` lê pelas APIs públicas dos módulos dono (modules.md §2); cada
+  // leitura aplica a sua `AccessPolicy` e auditoria, por isso reports não decide permissões.
+  const reports = createReportsModule({
+    clock,
+    sources: {
+      listMembers: families.reads.listMembers,
+      bloodType: healthRecords.reads.bloodType,
+      allergies: healthRecords.reads.allergies,
+      conditions: healthRecords.reads.conditions,
+      prescriptions: prescriptions.reads.prescriptions,
+      plans: medications.reads.plans,
+      doses: medications.reads.doses,
+      adherence: medications.reads.adherence,
+      appointments: appointments.reads.appointments,
+      examinations: examinations.reads.examinations,
+    },
+  });
+
   function registerHealthRoutes(router: Router): void {
     router.get("/health", (_req, res) => {
       res.json({ status: "ok" });
@@ -203,6 +222,7 @@ export function main(): void {
       router.use(examinations.router);
       router.use(notifications.router);
       router.use(alerts.router);
+      router.use(reports.router);
     },
   });
 

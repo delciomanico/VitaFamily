@@ -4,6 +4,7 @@
 // `clinics` (`ClinicLookup`), `documents` (documentos do exame, FR-DOC-04) e `audit`.
 import type { Router } from "express";
 import type { Kysely } from "kysely";
+import type { MemberPageRead } from "../../platform/reads/index.js";
 import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
@@ -23,6 +24,7 @@ import { createSetExaminationStatusUseCase } from "./application/set-examination
 import { createUpdateExaminationUseCase } from "./application/update-examination.js";
 import { createUpdateExamResultUseCase } from "./application/update-exam-result.js";
 import { KyselyExamResultsRepository, KyselyExaminationsRepository } from "./infrastructure/repo.js";
+import { toExaminationPage } from "./interface/dto.js";
 import { createExaminationsRouter, type ExaminationsController } from "./interface/router.js";
 
 import type { Examination } from "./domain/examination.js";
@@ -41,6 +43,8 @@ export interface ExaminationsModuleDeps {
 
 export interface ExaminationsModule {
   router: Router;
+  /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
+  reads: { examinations: MemberPageRead };
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -76,7 +80,12 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
     examResultHistory: createExamResultHistoryUseCase(examinationsDeps),
   };
 
-  return { router: createExaminationsRouter(controller) };
+  return {
+    router: createExaminationsRouter(controller),
+    reads: {
+      examinations: async (actor, familyId, memberId, query, context) => toExaminationPage(await controller.listExaminations(actor, familyId, memberId, query, context)),
+    },
+  };
 }
 
 export interface ExaminationsReminderQueries {

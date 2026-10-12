@@ -7,6 +7,7 @@ import type { Router } from "express";
 import type { Kysely } from "kysely";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
+import type { MemberPageRead } from "../../platform/reads/index.js";
 import type { Clock } from "../../platform/clock/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
@@ -21,6 +22,7 @@ import type { PrescriptionsDeps } from "./application/ports.js";
 import { createSetPrescriptionStatusUseCase } from "./application/set-prescription-status.js";
 import { createUpdatePrescriptionUseCase } from "./application/update-prescription.js";
 import { KyselyPrescriptionsRepository } from "./infrastructure/repo.js";
+import { toPrescriptionPage } from "./interface/dto.js";
 import { createPrescriptionsRouter, type PrescriptionsController } from "./interface/router.js";
 
 export type { Prescription, PrescriptionStatus } from "./domain/prescription.js";
@@ -36,6 +38,8 @@ export interface PrescriptionsModuleDeps {
 
 export interface PrescriptionsModule {
   router: Router;
+  /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
+  reads: { prescriptions: MemberPageRead };
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -70,5 +74,10 @@ export function createPrescriptionsModule(deps: PrescriptionsModuleDeps): Prescr
     addPrescriptionMedication: createAddPrescriptionMedicationUseCase(prescriptionsDeps),
   };
 
-  return { router: createPrescriptionsRouter(controller) };
+  return {
+    router: createPrescriptionsRouter(controller),
+    reads: {
+      prescriptions: async (actor, familyId, memberId, query, context) => toPrescriptionPage(await controller.listPrescriptions(actor, familyId, memberId, query, context)),
+    },
+  };
 }

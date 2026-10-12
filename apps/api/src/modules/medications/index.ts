@@ -13,6 +13,7 @@
 import type { Router } from "express";
 import type { Kysely } from "kysely";
 import type PgBoss from "pg-boss";
+import type { MemberPageRead, ReadActor, ReadContext } from "../../platform/reads/index.js";
 import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
@@ -36,6 +37,7 @@ import { createSetPlanStatusUseCase } from "./application/set-plan-status.js";
 import { createUpdatePlanUseCase } from "./application/update-plan.js";
 import { KyselyDoseOccurrencesRepository, KyselyMedicationPlansRepository } from "./infrastructure/repo.js";
 import { registerGenerateDosesWorker, registerMarkUnconfirmedWorker } from "./infrastructure/jobs.js";
+import { toAdherenceResponse, toDosePage, toMedicationPlanPage } from "./interface/dto.js";
 import { createMedicationsRouter, type MedicationsController } from "./interface/router.js";
 
 export type { DoseOccurrence, DoseStatus } from "./domain/dose-occurrence.js";
@@ -51,6 +53,12 @@ export interface MedicationsModuleDeps {
 
 export interface MedicationsModule {
   router: Router;
+  /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
+  reads: {
+    plans: MemberPageRead;
+    doses: MemberPageRead;
+    adherence: (actor: ReadActor, familyId: string, memberId: string, query: Record<string, string>, context: ReadContext) => Promise<Record<string, unknown>[]>;
+  };
   /** API pública para `prescriptions` (modules.md §3.6) — recebem `trx` já aberto. */
   createPlan: ReturnType<typeof createPlanWithTrx<Kysely<Database>>>;
   listPlansForPrescription: ReturnType<typeof createListPlansForPrescriptionUseCase<Kysely<Database>>>;
@@ -90,6 +98,11 @@ export function createMedicationsModule(deps: MedicationsModuleDeps): Medication
 
   return {
     router: createMedicationsRouter(controller),
+    reads: {
+      plans: async (actor, familyId, memberId, query, context) => toMedicationPlanPage(await controller.listPlans(actor, familyId, memberId, query, context)),
+      doses: async (actor, familyId, memberId, query, context) => toDosePage(await controller.listDoses(actor, familyId, memberId, query, context)),
+      adherence: async (actor, familyId, memberId, query, context) => toAdherenceResponse(await controller.medicationAdherence(actor, familyId, memberId, query, context)),
+    },
     createPlan: createPlanWithTrx(medicationsDeps),
     listPlansForPrescription: createListPlansForPrescriptionUseCase(medicationsDeps),
     endPlansForPrescription: createEndPlansForPrescriptionUseCase(medicationsDeps),

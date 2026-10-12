@@ -5,6 +5,7 @@
 // `audit` — nunca de `examinations`/`clinics` para além do lookup público.
 import type { Router } from "express";
 import type { Kysely } from "kysely";
+import type { MemberPageRead } from "../../platform/reads/index.js";
 import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
@@ -19,6 +20,7 @@ import type { AppointmentsDeps } from "./application/ports.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
 import { KyselyAppointmentsRepository } from "./infrastructure/repo.js";
+import { toAppointmentPage } from "./interface/dto.js";
 import { createAppointmentsRouter, type AppointmentsController } from "./interface/router.js";
 import type { Appointment } from "./domain/appointment.js";
 
@@ -34,6 +36,8 @@ export interface AppointmentsModuleDeps {
 
 export interface AppointmentsModule {
   router: Router;
+  /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
+  reads: { appointments: MemberPageRead };
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -59,7 +63,12 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     setAppointmentStatus: createSetAppointmentStatusUseCase(appointmentsDeps),
   };
 
-  return { router: createAppointmentsRouter(controller) };
+  return {
+    router: createAppointmentsRouter(controller),
+    reads: {
+      appointments: async (actor, familyId, memberId, query, context) => toAppointmentPage(await controller.listAppointments(actor, familyId, memberId, query, context)),
+    },
+  };
 }
 
 export interface AppointmentsReminderQueries {

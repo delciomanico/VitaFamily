@@ -6,6 +6,7 @@
 // só pela API pública de `families`). Não expõe nada a outros módulos no MVP (modules.md §2).
 import type { Router } from "express";
 import type { Kysely } from "kysely";
+import type { MemberRead } from "../../platform/reads/index.js";
 import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
@@ -24,6 +25,7 @@ import { createPutBloodTypeUseCase } from "./application/put-blood-type.js";
 import { createUpdateAllergyUseCase } from "./application/update-allergy.js";
 import { createUpdateConditionUseCase } from "./application/update-condition.js";
 import { KyselyAllergiesRepository, KyselyMedicalConditionsRepository } from "./infrastructure/repo.js";
+import { toAllergyResponse, toBloodTypeResponse, toConditionResponse } from "./interface/dto.js";
 import { createHealthRecordsRouter, type HealthRecordsController } from "./interface/router.js";
 
 export type { Allergy } from "./domain/allergy.js";
@@ -40,6 +42,12 @@ export interface HealthRecordsModuleDeps {
 
 export interface HealthRecordsModule {
   router: Router;
+  /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
+  reads: {
+    bloodType: MemberRead<string>;
+    allergies: MemberRead<Record<string, unknown>[]>;
+    conditions: MemberRead<Record<string, unknown>[]>;
+  };
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -74,5 +82,12 @@ export function createHealthRecordsModule(deps: HealthRecordsModuleDeps): Health
     deleteCondition: createDeleteConditionUseCase(healthRecordsDeps),
   };
 
-  return { router: createHealthRecordsRouter(controller) };
+  return {
+    router: createHealthRecordsRouter(controller),
+    reads: {
+      bloodType: async (actor, familyId, memberId, context) => toBloodTypeResponse(await controller.getBloodType(actor, familyId, memberId, context)).bloodType,
+      allergies: async (actor, familyId, memberId, context) => (await controller.listAllergies(actor, familyId, memberId, context)).map(toAllergyResponse),
+      conditions: async (actor, familyId, memberId, context) => (await controller.listConditions(actor, familyId, memberId, context)).map(toConditionResponse),
+    },
+  };
 }
