@@ -41,3 +41,5 @@ export function createAdminModule(deps: AdminModuleDeps): AdminModule {
   };
   return { router: createAdminRouter(controller) };
 }
+
+export { createCreatePlatformAdminUseCase, type CreatePlatformAdminResult } from "./application/create-platform-admin.js";

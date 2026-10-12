@@ -40,6 +40,8 @@ export interface UsersModule {
   // Operações cruas para o módulo `admin` (FR-ADM-01, modules.md §2): contas só, nunca saúde.
   listAccounts: ReturnType<typeof createRawOperations<Kysely<Database>>>["listAccounts"];
   setSuspension: ReturnType<typeof createRawOperations<Kysely<Database>>>["setSuspension"];
+  // Para o CLI `create-platform-admin` (environment.md §4).
+  setPlatformRole: ReturnType<typeof createRawOperations<Kysely<Database>>>["setPlatformRole"];
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -71,5 +73,6 @@ export function createUsersModule(deps: UsersModuleDeps): UsersModule {
     setPasswordHash: rawOperations.setPasswordHash,
     listAccounts: rawOperations.listAccounts,
     setSuspension: rawOperations.setSuspension,
+    setPlatformRole: rawOperations.setPlatformRole,
   };
 }

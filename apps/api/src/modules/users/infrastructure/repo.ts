@@ -192,4 +192,14 @@ export class KyselyUsersRepository implements UsersRepository<Kysely<Database>> 
       .executeTakeFirstOrThrow();
     return toDomain(row);
   }
+
+  async setPlatformRole(trx: Kysely<Database>, id: string, role: User["platformRole"]): Promise<User> {
+    const row = await trx
+      .updateTable("users")
+      .set({ platform_role: role, updated_at: sql`now()` })
+      .where("id", "=", id)
+      .returning(SELECT_COLUMNS)
+      .executeTakeFirstOrThrow();
+    return toDomain(row);
+  }
 }

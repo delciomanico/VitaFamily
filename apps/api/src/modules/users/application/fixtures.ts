@@ -47,6 +47,14 @@ export class FakeUsersRepository implements UsersRepository<FakeTrx> {
     return Promise.resolve(updated);
   }
 
+  setPlatformRole(_trx: FakeTrx, id: string, role: User["platformRole"]): Promise<User> {
+    const user = this.byId.get(id);
+    if (!user) throw new Error("utilizador inexistente no fake");
+    const updated: User = { ...user, platformRole: role };
+    this.byId.set(id, updated);
+    return Promise.resolve(updated);
+  }
+
   async findByEmail(_trx: FakeTrx, email: string): Promise<User | null> {
     for (const user of this.byId.values()) {
       if (user.email === email) {

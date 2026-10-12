@@ -50,6 +50,7 @@ export interface UsersRepository<Trx> {
   /** Para `admin` (FR-ADM-01): todas as contas, por ordem de criação. */
   listAll(trx: Trx, filter: AccountListFilter): Promise<AccountPage>;
   setSuspension(trx: Trx, id: string, suspension: Suspension | null): Promise<User>;
+  setPlatformRole(trx: Trx, id: string, role: User["platformRole"]): Promise<User>;
 }
 
 export interface AuditPort<Trx> {

@@ -36,6 +36,6 @@ Regra: **dados reais só em produção** (NFR-OPS-04). Ferramentas de suporte/de
 
 ## 4. Bootstrap
 - Migrações: `pnpm migrate` (runner próprio aplica `db/migrations/*.sql` numa transação, com tabela de controlo).
-- Primeiro **Platform Admin**: comando CLI explícito e auditado (`create-platform-admin <email>`); sem conta admin por defeito.
+- Primeiro **Platform Admin**: comando CLI explícito e auditado (`create-platform-admin <email>`); sem conta admin por defeito. Promove uma conta já registada, verificada e ativa (ação `ADMIN_PLATFORM_ADMIN_CREATE`, ator SYSTEM); idempotente. Produção: `docker exec api node apps/api/dist/src/main/create-platform-admin.js <email>`; depois a pessoa termina sessão e volta a entrar.
 - Clínicas parceiras: criadas pelo Platform Admin pela API.
 - Cópia de dados de produção para outros ambientes: **proibida**.

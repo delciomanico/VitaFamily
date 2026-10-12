@@ -13,6 +13,7 @@ export function createRawOperations<Trx>(usersRepo: UsersRepository<Trx>): {
   setPasswordHash: (trx: Trx, id: string, passwordHash: string) => Promise<void>;
   listAccounts: (trx: Trx, filter: AccountListFilter) => Promise<AccountPage>;
   setSuspension: (trx: Trx, id: string, suspension: Suspension | null) => Promise<User>;
+  setPlatformRole: (trx: Trx, id: string, role: User["platformRole"]) => Promise<User>;
 } {
   return {
     createAccount: (trx, record) =>
@@ -23,5 +24,6 @@ export function createRawOperations<Trx>(usersRepo: UsersRepository<Trx>): {
     setPasswordHash: (trx, id, passwordHash) => usersRepo.updatePasswordHash(trx, id, passwordHash),
     listAccounts: (trx, filter) => usersRepo.listAll(trx, filter),
     setSuspension: (trx, id, suspension) => usersRepo.setSuspension(trx, id, suspension),
+    setPlatformRole: (trx, id, role) => usersRepo.setPlatformRole(trx, id, role),
   };
 }
