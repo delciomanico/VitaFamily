@@ -27,6 +27,7 @@ import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
 import { createClinicsModule } from "../modules/clinics/index.js";
 import { createAppointmentsModule } from "../modules/appointments/index.js";
 import { createExaminationsModule } from "../modules/examinations/index.js";
+import { createLifecycleModule } from "../modules/lifecycle/index.js";
 import { createAdminModule } from "../modules/admin/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
@@ -184,6 +185,47 @@ export function main(): void {
 
   const admin = createAdminModule({ db, users, audit, clock });
 
+  // M9: `lifecycle` (exportação de dados) lê pelas mesmas APIs públicas; o pacote vai para o
+  // bucket de exportações (`S3_BUCKET_EXPORTS`), à parte dos documentos.
+  const exportsStorage = new MinioStorage({
+    endpoint: config.S3_ENDPOINT,
+    useSSL: config.S3_USE_SSL,
+    accessKey: config.S3_ACCESS_KEY,
+    secretKey: config.S3_SECRET_KEY,
+    region: config.S3_REGION,
+    bucket: config.S3_BUCKET_EXPORTS,
+  });
+  exportsStorage.ensureBucket().catch((err: unknown) => {
+    logger.error({ err }, "exports_storage_ensure_bucket_failed");
+  });
+  const lifecycle = createLifecycleModule({
+    db,
+    audit,
+    clock,
+    storage: exportsStorage,
+    onBuildError: (err, exportId) => {
+      logger.error({ err, exportId }, "export_build_failed");
+    },
+    sources: {
+      account: async (userId) => {
+        const user = await users.byId(db, userId);
+        return user ? { name: user.name, email: user.email, birthDate: user.birthDate, timezone: user.timezone } : null;
+      },
+      listFamilies: families.reads.listFamilies,
+      listMembers: families.reads.listMembers,
+      bloodType: healthRecords.reads.bloodType,
+      allergies: healthRecords.reads.allergies,
+      conditions: healthRecords.reads.conditions,
+      prescriptions: prescriptions.reads.prescriptions,
+      plans: medications.reads.plans,
+      doses: medications.reads.doses,
+      appointments: appointments.reads.appointments,
+      examinations: examinations.reads.examinations,
+      documents: documents.reads.list,
+      downloadDocument: documents.reads.download,
+    },
+  });
+
   function registerHealthRoutes(router: Router): void {
     router.get("/health", (_req, res) => {
       res.json({ status: "ok" });
@@ -227,6 +269,7 @@ export function main(): void {
       router.use(alerts.router);
       router.use(reports.router);
       router.use(admin.router);
+      router.use(lifecycle.router);
     },
   });
 

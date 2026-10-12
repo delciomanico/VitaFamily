@@ -1,7 +1,7 @@
 // Controllers HTTP de `/families*` e `/invitations/*` (openapi.yaml operationIds: createFamily,
 // listFamilies, getFamily, updateFamily, deleteFamily, leaveFamily, listMembers, createMember,
 // getMember, updateMember, removeMember, setMemberRole, setDependent, listGuardians, addGuardian,
-// removeGuardian, setPrimaryGuardian, requestDependentExport, listInvitations, createInvitation,
+// removeGuardian, setPrimaryGuardian, listInvitations, createInvitation,
 // revokeInvitation, createDependentAccountInvitation, lookupInvitation, acceptInvitation).
 import { Router } from "express";
 import { asyncHandler, buildRequestContext, requireParam, type RequestContext } from "../../../platform/http/index.js";
@@ -92,7 +92,6 @@ export interface FamiliesController {
     guardianMemberId: string,
     ctx: RequestContext,
   ) => Promise<void>;
-  requestDependentExport: (userId: string, familyId: string, memberId: string) => Promise<never>;
 
   listInvitations: (userId: string, familyId: string) => Promise<InvitationView[]>;
   createInvitation: (
@@ -335,16 +334,6 @@ export function createFamiliesRouter(controller: FamiliesController): Router {
         buildRequestContext(req),
       );
       res.status(204).end();
-    }),
-  );
-
-  router.post(
-    "/families/:familyId/members/:memberId/exports",
-    asyncHandler(async (req, res) => {
-      const actor = requireActor();
-      await controller.requestDependentExport(actor.userId, requireParam(req, "familyId"), requireParam(req, "memberId"));
-      // `requestDependentExport` lança sempre (M9 ainda não implementado) — nunca chega aqui.
-      res.status(202).end();
     }),
   );
 

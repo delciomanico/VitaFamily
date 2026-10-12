@@ -12,7 +12,9 @@
 // `ScanDocumentDeps` em `application/ports.ts`).
 import type { Router } from "express";
 import type { Kysely } from "kysely";
+import type { Readable } from "node:stream";
 import type PgBoss from "pg-boss";
+import type { MemberRead, ReadActor, ReadContext } from "../../platform/reads/index.js";
 import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
@@ -30,6 +32,7 @@ import { createUploadDocumentUseCase } from "./application/upload-document.js";
 import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
 import { KyselyDocumentsRepository, KyselyFileDeletionsRepository } from "./infrastructure/repo.js";
 import { PgBossScanQueue, registerScanWorker } from "./infrastructure/scan-queue.js";
+import { toDocumentResponse } from "./interface/dto.js";
 import { createDocumentsRouter, type DocumentsController } from "./interface/router.js";
 
 export type { Document, ResourceType, ScanStatus } from "./domain/document.js";
@@ -57,6 +60,11 @@ export interface DocumentsModuleDeps {
 
 export interface DocumentsModule {
   router: Router;
+  /** Leituras para `lifecycle` (exportação): mesma autorização e auditoria dos endpoints GET. */
+  reads: {
+    list: MemberRead<Record<string, unknown>[]>;
+    download: (actor: ReadActor, familyId: string, memberId: string, documentId: string, context: ReadContext) => Promise<{ originalName: string; stream: Readable }>;
+  };
   /** API pública para M6/M7 (ver README.md: documentos de receitas/exames). */
   listForResource: ReturnType<typeof createListForResourceUseCase<Kysely<Database>>>;
   deleteAllForResource: ReturnType<typeof createDeleteAllForResourceUseCase<Kysely<Database>>>;
@@ -95,6 +103,13 @@ export function createDocumentsModule(deps: DocumentsModuleDeps): DocumentsModul
 
   return {
     router: createDocumentsRouter(controller),
+    reads: {
+      list: async (actor, familyId, memberId) => (await controller.listDocuments(actor, familyId, memberId, {})).map(toDocumentResponse),
+      download: async (actor, familyId, memberId, documentId, context) => {
+        const { document, stream } = await controller.downloadDocument(actor, familyId, memberId, documentId, context);
+        return { originalName: document.originalName, stream };
+      },
+    },
     listForResource: createListForResourceUseCase(documentsDeps),
     deleteAllForResource: createDeleteAllForResourceUseCase(documentsDeps),
   };

@@ -84,7 +84,7 @@ CHECK `(type='PRIVATE') = (family_id IS NOT NULL)`.
 `id bigserial PK` · `occurred_at timestamptz NN default now()` · `actor_type actor_type NN` · `actor_user_id uuid` (**sem FK**, permite anonimizar) · `action text NN` · `resource_type text NN` · `resource_id uuid` · `family_id uuid` · `subject_member_id uuid` · `result audit_result NN` · `ip inet` · `user_agent text` · `request_id text NN` · `metadata jsonb`
 Sem FKs (sobrevive à eliminação de dados). Papel da aplicação: só `INSERT`; anonimização e purga por papel de manutenção separado.
 
-**data_exports** — `requested_by FK→users CASCADE NN` · `subject_member_id uuid` · `reason export_reason NN` · `status export_status NN default 'PENDING'` · `storage_key text` · `expires_at`
+**data_exports** — `requested_by FK→users CASCADE NN` · `family_id uuid` · `subject_member_id uuid` (ambos só na exportação de um dependente) · `reason export_reason NN` · `status export_status NN default 'PENDING'` · `storage_key text` · `expires_at`
 
 **file_deletions** — `storage_key text NN` · `attempts int NN default 0` · `deleted_at timestamptz`
 

@@ -109,3 +109,9 @@ Dois pontos de entrada no mesmo binário: `vita api` e `vita worker` (ver `cmd/v
 | `families.expire-invitations` | horário | PENDING → EXPIRED. |
 | `auth.cleanup` | diário | Tokens/sessões expirados. |
 | `audit.purge` | diário | Remover logs com >24 meses. |
+
+### Notas M9 (reports, admin, lifecycle)
+16. `reports` e `lifecycle` (exportação) leem os módulos de saúde por **portas definidas na sua `application`** (`ReportSources`, `ExportSources`), ligadas no composition root a leituras públicas (`reads`, contrato em `platform/reads`) de cada módulo dono — mesma `AccessPolicy` e auditoria dos endpoints GET; nenhuma aresta nova no grafo, mas `main/api.ts` passa a ligar `families`, `health-records`, `prescriptions`, `medications`, `appointments`, `examinations` e `documents` a estes dois módulos (`lifecycle` lista só `families, documents, notifications, audit` na tabela; as leituras de saúde entram apenas pelas portas). Descoberto durante M9; acrescentado aqui em vez de alterado silenciosamente (CLAUDE.md, change control).
+17. A exportação de dados é gerada no processo da API, não no job `lifecycle.build-export` do worker (§5), porque o worker não monta os módulos de saúde. Pendente de decisão do proprietário: mover para o worker (exige montar `access` + módulos de saúde aí).
+18. `users` expõe `listAccounts`/`setSuspension` (operações cruas) para `admin` (FR-ADM-01).
+19. A rota `POST /families/{f}/members/{m}/exports` passou de `families` (stub) para `lifecycle`; `families` mantém só as suas leituras.
