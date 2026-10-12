@@ -13,6 +13,7 @@ export function toExamResultResponse(result: ExamResult) {
     unit: result.unit ?? null,
     referenceMin: result.referenceMin ?? null,
     referenceMax: result.referenceMax ?? null,
+    createdAt: result.createdAt.toISOString(),
   };
 }
 

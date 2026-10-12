@@ -11,10 +11,15 @@ export interface DocumentInfo {
   mimeType: string
   sizeBytes: number
   createdAt: string
+  /** Análise antivírus (API real, BR-DOC-02); ausente nos mocks. */
+  scanStatus?: 'PENDING' | 'CLEAN' | 'INFECTED'
 }
 
 /** Metadados de um documento enviado (os mocks não guardam o ficheiro). */
-export type DocumentUpload = Pick<DocumentInfo, 'originalName' | 'mimeType' | 'sizeBytes'>
+export type DocumentUpload = Pick<DocumentInfo, 'originalName' | 'mimeType' | 'sizeBytes'> & {
+  /** Ficheiro escolhido; só é enviado com a API real. */
+  file?: File
+}
 
 /** BR-DOC-01: PDF, JPG ou PNG até 10 MB. */
 export const DOCUMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const

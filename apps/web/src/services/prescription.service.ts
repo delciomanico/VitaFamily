@@ -8,6 +8,7 @@ import type {
   PrescriptionSummary,
 } from '@/types/prescription'
 import { collectPerMember, findPerMember } from './apiMembers'
+import { apiListDocuments, apiUploadDocuments } from './document.service'
 import { toPlan, type ApiPlan } from './medication.service'
 
 export type { NewMedicationInput, NewPrescriptionInput, ScheduleInput } from '@/mocks/handlers/medications'
@@ -87,8 +88,8 @@ async function apiListPrescriptions(familyId: string): Promise<PrescriptionSumma
 async function apiGetPrescription(familyId: string, id: string): Promise<PrescriptionDetail> {
   const { member, item } = await findPerMember<ApiPrescription>(familyId, (m) => `${rxPath(familyId, m)}/${id}`)
   const medications: MedicationPlan[] = item.medications.map((plan) => toPlan(familyId, plan))
-  // TBD: os documentos precisam de upload multipart/download mediado (M5), ainda não ligados na UI.
-  return { prescription: toPrescription(familyId, item), memberName: member.name, medications, documents: [] }
+  const documents = await apiListDocuments(familyId, member.id, 'PRESCRIPTION', id)
+  return { prescription: toPrescription(familyId, item), memberName: member.name, medications, documents }
 }
 
 async function apiCreatePrescription(familyId: string, input: NewPrescriptionInput): Promise<Prescription> {
@@ -101,6 +102,7 @@ async function apiCreatePrescription(familyId: string, input: NewPrescriptionInp
       medications: input.medications.map(toPlanInput),
     },
   })
+  await apiUploadDocuments(familyId, input.memberId, 'PRESCRIPTION', created.id, input.documents)
   return toPrescription(familyId, created)
 }
 

@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { APPOINTMENT_TIMES, combineDateTime, localDay } from '@/lib/appointment'
 import { cn } from '@/lib/cn'
+import { hasApiBackend } from '@/lib/apiClient'
 import { localTime, todayISO } from '@/lib/date'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { formatCount, formatLongDate, formatTime } from '@/lib/format'
@@ -472,7 +473,14 @@ export function NewAppointmentPage() {
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
   const { state, reload } = useAsync(
-    () => Promise.all([familyService.listManagedMembers(familyId, userId), clinicService.listClinics(familyId)]),
+    async () => {
+      const [members, clinics] = await Promise.all([
+        familyService.listManagedMembers(familyId, userId),
+        clinicService.listClinics(familyId),
+      ])
+      // Marcação por horário em parceiras ainda não existe na API (D17 adiado): só clínicas privadas.
+      return [members, hasApiBackend() ? clinics.filter((c) => c.type !== 'PARTNER') : clinics] as const
+    },
     [familyId, userId],
   )
 

@@ -1104,11 +1104,11 @@
 
 **DoseCorrectionRequest** — `status`: TAKEN|NOT_TAKEN, `note?`: string
 
-**Appointment** — `id`: uuid, `memberId`: uuid, `scheduledAt`: datetime, `status`: SCHEDULED|COMPLETED|NO_SHOW|CANCELLED, `professionalName?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string
+**Appointment** — `id`: uuid, `memberId`: uuid, `scheduledAt`: datetime, `status`: SCHEDULED|COMPLETED|NO_SHOW|CANCELLED, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string
 
-**AppointmentInput** — `scheduledAt`: datetime, `professionalName?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string, `status?`: SCHEDULED|COMPLETED
+**AppointmentInput** — `scheduledAt`: datetime, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string, `status?`: SCHEDULED|COMPLETED
 
-**AppointmentPatch** — `scheduledAt?`: datetime, `professionalName?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string
+**AppointmentPatch** — `scheduledAt?`: datetime, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `reason?`: string, `notes?`: string
 
 **AppointmentStatusRequest** — `status`: SCHEDULED|COMPLETED|NO_SHOW|CANCELLED
 
@@ -1120,7 +1120,7 @@
 
 **ClinicStatusRequest** — `status`: ACTIVE|ARCHIVED
 
-**ExamResult** — `id`: uuid, `parameter`: string, `valueNumeric?`: number, `valueText?`: string, `unit?`: string, `referenceMin?`: number, `referenceMax?`: number
+**ExamResult** — `id`: uuid, `parameter`: string, `valueNumeric?`: number, `valueText?`: string, `unit?`: string, `referenceMin?`: number, `referenceMax?`: number, `createdAt`: datetime (só na resposta)
 
 **ExamResultInput** — `parameter`: string, `valueNumeric?`: number, `valueText?`: string, `unit?`: string, `referenceMin?`: number, `referenceMax?`: number
 

@@ -1,7 +1,8 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { FileImage, FileText, Paperclip, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { hasApiBackend } from '@/lib/apiClient'
 import { formatLongDate } from '@/lib/format'
 import {
   DOCUMENT_MAX_BYTES,
@@ -10,6 +11,7 @@ import {
   type DocumentInfo,
   type DocumentUpload,
 } from '@/types/document'
+import { apiDownloadDocument } from '@/services/document.service'
 
 /** “182 KB”, “1,2 MB”. */
 export function formatFileSize(bytes: number): string {
@@ -34,8 +36,7 @@ interface DocumentPickerProps {
 
 /**
  * Anexar documentos (BR-DOC-01/03: PDF, JPG ou PNG, até 10 MB, máx. 5).
- * Nos mocks só se guardam nome, tipo e tamanho; o conteúdo não sai do dispositivo.
- * TODO(backend): enviar o ficheiro e mostrar o estado da análise antivírus (BR-DOC-02).
+ * Nos mocks só se guardam nome, tipo e tamanho; com a API real o ficheiro é enviado (multipart).
  */
 export function DocumentPicker({ label, value, onChange }: DocumentPickerProps) {
   const input = useRef<HTMLInputElement>(null)
@@ -52,7 +53,7 @@ export function DocumentPicker({ label, value, onChange }: DocumentPickerProps) 
     if (invalid) setError(`“${invalid.name}” não é PDF, JPG ou PNG até 10 MB.`)
     const valid = picked
       .filter((file) => file !== invalid)
-      .map((file) => ({ originalName: file.name, mimeType: file.type, sizeBytes: file.size }))
+      .map((file) => ({ originalName: file.name, mimeType: file.type, sizeBytes: file.size, file }))
     const next = [...value, ...valid]
     if (next.length > DOCUMENTS_PER_RESOURCE) setError(`Pode anexar até ${DOCUMENTS_PER_RESOURCE} documentos.`)
     onChange(next.slice(0, DOCUMENTS_PER_RESOURCE))
@@ -119,6 +120,44 @@ export function DocumentPicker({ label, value, onChange }: DocumentPickerProps) 
   )
 }
 
+/** Pré-visualização do ficheiro real (API): só depois da análise antivírus limpa (BR-DOC-02). */
+function RealPreview({ document }: { document: DocumentInfo }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  const clean = document.scanStatus === 'CLEAN'
+
+  useEffect(() => {
+    if (!clean) return
+    let objectUrl: string | null = null
+    let cancelled = false
+    apiDownloadDocument(document)
+      .then((blob) => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setUrl(objectUrl)
+      })
+      .catch(() => !cancelled && setFailed(true))
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [clean, document])
+
+  if (document.scanStatus === 'INFECTED') {
+    return <p className="text-center text-sm text-danger">Este ficheiro foi bloqueado pela análise de segurança.</p>
+  }
+  if (!clean) {
+    return <p className="text-center text-sm text-muted">A analisar o ficheiro… Volte a abrir dentro de instantes.</p>
+  }
+  if (failed) return <p className="text-center text-sm text-danger">Não foi possível abrir o documento.</p>
+  if (!url) return <p className="text-center text-sm text-muted">A carregar…</p>
+  return document.mimeType.startsWith('image/') ? (
+    <img src={url} alt={document.originalName} className="max-h-96 self-center rounded-lg object-contain" />
+  ) : (
+    <iframe src={url} title={document.originalName} className="h-96 w-full rounded-lg border border-border" />
+  )
+}
+
 /** Documento anexado, com o botão “Ver documento”. */
 export function DocumentRow({ document }: { document: DocumentInfo }) {
   const [open, setOpen] = useState(false)
@@ -138,6 +177,10 @@ export function DocumentRow({ document }: { document: DocumentInfo }) {
         title={document.originalName}
         description={`Anexado em ${formatLongDate(document.createdAt)} · ${formatFileSize(document.sizeBytes)}`}
       >
+        {hasApiBackend() ? (
+          open && <RealPreview document={document} />
+        ) : (
+          <>
         {/* Os mocks não guardam ficheiros: a pré-visualização é ilustrativa. */}
         <div className="flex aspect-[3/4] max-h-80 flex-col gap-3 self-center rounded-lg border border-border bg-surface-muted p-6">
           <span className="h-3 w-2/3 rounded-full bg-border-strong" />
@@ -150,6 +193,8 @@ export function DocumentRow({ document }: { document: DocumentInfo }) {
         <p className="text-center text-sm text-muted">
           Pré-visualização de demonstração: o ficheiro original fica disponível com o servidor.
         </p>
+          </>
+        )}
       </Modal>
     </div>
   )

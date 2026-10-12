@@ -44,6 +44,7 @@ export interface NewAppointmentRecord {
   professionalName?: string;
   clinicId?: string;
   clinicName?: string;
+  specialty?: string;
   reason?: string;
   notes?: string;
   createdAt: Date;
@@ -54,6 +55,7 @@ export interface AppointmentChanges {
   professionalName?: string | null;
   clinicId?: string | null;
   clinicName?: string | null;
+  specialty?: string | null;
   reason?: string | null;
   notes?: string | null;
 }

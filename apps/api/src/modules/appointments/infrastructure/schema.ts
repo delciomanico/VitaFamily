@@ -11,6 +11,7 @@ export interface AppointmentsTable {
   professional_name: ColumnType<string | null, string | null | undefined, string | null>;
   clinic_id: ColumnType<string | null, string | null | undefined, string | null>;
   clinic_name: ColumnType<string | null, string | null | undefined, string | null>;
+  specialty: ColumnType<string | null, string | null | undefined, string | null>;
   reason: ColumnType<string | null, string | null | undefined, string | null>;
   notes: ColumnType<string | null, string | null | undefined, string | null>;
   outcome_requested_at: ColumnType<Date | null, Date | null | undefined, Date | null>;

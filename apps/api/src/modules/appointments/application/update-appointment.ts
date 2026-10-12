@@ -11,6 +11,7 @@ export interface UpdateAppointmentInput {
   professionalName?: string | null;
   clinicId?: string | null;
   clinicName?: string | null;
+  specialty?: string | null;
   reason?: string | null;
   notes?: string | null;
 }
@@ -54,6 +55,7 @@ export function createUpdateAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>)
       const changes: AppointmentChanges = {
         ...(input.scheduledAt ? { scheduledAt: parseScheduledAt(input.scheduledAt) } : {}),
         ...(input.professionalName !== undefined ? { professionalName: input.professionalName } : {}),
+        ...(input.specialty !== undefined ? { specialty: input.specialty } : {}),
         ...(input.reason !== undefined ? { reason: input.reason } : {}),
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
       };

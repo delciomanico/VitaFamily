@@ -5456,6 +5456,9 @@ components:
         clinicName:
           type: string
           nullable: true
+        specialty:
+          type: string
+          nullable: true
         reason:
           type: string
           nullable: true
@@ -5477,6 +5480,9 @@ components:
           format: uuid
           nullable: true
         clinicName:
+          type: string
+          nullable: true
+        specialty:
           type: string
           nullable: true
         reason:
@@ -5504,6 +5510,9 @@ components:
           format: uuid
           nullable: true
         clinicName:
+          type: string
+          nullable: true
+        specialty:
           type: string
           nullable: true
         reason:
@@ -5582,11 +5591,14 @@ components:
           enum: [ACTIVE, ARCHIVED]
     ExamResult:
       type: object
-      required: [id, parameter]
+      required: [id, parameter, createdAt]
       properties:
         id:
           type: string
           format: uuid
+        createdAt:
+          type: string
+          format: date-time
         parameter:
           type: string
         valueNumeric:

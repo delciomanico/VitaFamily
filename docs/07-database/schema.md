@@ -56,7 +56,7 @@ CHECK `(schedule_type='FIXED_TIMES' AND cardinality(times)>0 AND interval_hours 
 `plan_id FK→medication_plans CASCADE NN` · `scheduled_at timestamptz NN` · `status dose_status NN default 'PENDING'` · `acted_at` · `acted_by_user_id FK→users SET NULL` · `note text` · `generation_version int NN default 1`
 UNIQUE `(plan_id, scheduled_at)`. (`family_id`, `member_id` desnormalizados para filtro/FK composta.)
 
-**appointments** — `scheduled_at timestamptz NN` · `status appointment_status NN default 'SCHEDULED'` · `professional_name` · `clinic_id FK→clinics SET NULL` · `clinic_name text` · `reason` · `notes` · `outcome_requested_at`
+**appointments** — `scheduled_at timestamptz NN` · `status appointment_status NN default 'SCHEDULED'` · `professional_name` · `specialty text` · `clinic_id FK→clinics SET NULL` · `clinic_name text` · `reason` · `notes` · `outcome_requested_at`
 
 **examinations** — `name text NN` · `exam_date date NN` · `status exam_status NN default 'SCHEDULED'` · `clinic_id FK→clinics SET NULL` · `clinic_name` · `notes`
 

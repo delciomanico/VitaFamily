@@ -9,10 +9,7 @@ export interface Appointment {
   /** ISO UTC. */
   scheduledAt: string
   status: AppointmentStatus
-  /**
-   * TBD: “Especialidade” vem da especificação do frontend e não existe no domínio
-   * (o domínio tem `reason`). Só UI e mocks até decisão por change control.
-   */
+  /** Especialidade (texto livre; sugestões em SPECIALTY_SUGGESTIONS). */
   specialty?: string
   professionalName?: string
   clinicId?: string
@@ -32,9 +29,7 @@ export interface AppointmentItem {
   memberName: string
 }
 
-/**
- * TBD (ver `specialty`): sugestões de especialidade no formulário; o utilizador pode escrever outra.
- */
+/** Sugestões de especialidade no formulário; o utilizador pode escrever outra. */
 export const SPECIALTY_SUGGESTIONS = [
   'Medicina geral',
   'Pediatria',

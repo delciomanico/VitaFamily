@@ -8,23 +8,20 @@ import { clinicService } from './clinic.service'
 
 export type { AppointmentInput, AppointmentRequestInput, NewAppointmentInput } from '@/mocks/handlers/appointments'
 
-/** `Appointment` (openapi.yaml): sem `familyId`, `specialty`, `slotId`; nulos em vez de ausentes. */
+/** `Appointment` (openapi.yaml): sem `familyId` e `slotId`; nulos em vez de ausentes. */
 export interface ApiAppointment {
   id: string
   memberId: string
   scheduledAt: string
   status: Appointment['status']
   professionalName?: string | null
+  specialty?: string | null
   clinicId?: string | null
   clinicName?: string | null
   reason?: string | null
   notes?: string | null
 }
 
-/**
- * TBD: a "especialidade" da UI não existe no contrato; guarda-se no campo `reason` (motivo),
- * que é o equivalente do domínio (types/appointment.ts). Sem change control, não há campo próprio.
- */
 export function toAppointment(familyId: string, a: ApiAppointment): Appointment {
   return {
     id: a.id,
@@ -32,7 +29,7 @@ export function toAppointment(familyId: string, a: ApiAppointment): Appointment 
     memberId: a.memberId,
     scheduledAt: a.scheduledAt,
     status: a.status,
-    specialty: a.reason ?? undefined,
+    specialty: a.specialty ?? undefined,
     reason: a.reason ?? undefined,
     professionalName: a.professionalName ?? undefined,
     clinicId: a.clinicId ?? undefined,
@@ -46,7 +43,7 @@ const aptPath = (familyId: string, memberId: string) => `/families/${familyId}/m
 function body(input: api.AppointmentInput, clinicName?: string) {
   return {
     scheduledAt: new Date(input.scheduledAt).toISOString(),
-    reason: input.specialty?.trim() || null,
+    specialty: input.specialty?.trim() || null,
     clinicId: input.clinicId ?? null,
     clinicName: clinicName ?? null,
     professionalName: input.professionalName?.trim() || null,

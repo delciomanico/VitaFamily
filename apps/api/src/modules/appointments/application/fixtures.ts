@@ -101,6 +101,7 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
       ...(record.professionalName !== undefined ? { professionalName: record.professionalName } : {}),
       ...(record.clinicId !== undefined ? { clinicId: record.clinicId } : {}),
       ...(record.clinicName !== undefined ? { clinicName: record.clinicName } : {}),
+      ...(record.specialty !== undefined ? { specialty: record.specialty } : {}),
       ...(record.reason !== undefined ? { reason: record.reason } : {}),
       ...(record.notes !== undefined ? { notes: record.notes } : {}),
     };
@@ -134,6 +135,8 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     else if (changes.clinicId !== undefined) updated.clinicId = changes.clinicId;
     if (changes.clinicName === null) delete updated.clinicName;
     else if (changes.clinicName !== undefined) updated.clinicName = changes.clinicName;
+    if (changes.specialty === null) delete updated.specialty;
+    else if (changes.specialty !== undefined) updated.specialty = changes.specialty;
     if (changes.reason === null) delete updated.reason;
     else if (changes.reason !== undefined) updated.reason = changes.reason;
     if (changes.notes === null) delete updated.notes;

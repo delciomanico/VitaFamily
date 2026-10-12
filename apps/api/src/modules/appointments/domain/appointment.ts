@@ -13,6 +13,8 @@ export interface Appointment {
   professionalName?: string;
   clinicId?: string;
   clinicName?: string;
+  /** Especialidade (texto livre; ex.: "Cardiologia"). */
+  specialty?: string;
   reason?: string;
   notes?: string;
   outcomeRequestedAt?: Date;

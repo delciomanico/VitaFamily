@@ -10,6 +10,7 @@ import type {
   ParameterHistory,
 } from '@/types/examination'
 import { collectPerMember, findPerMember } from './apiMembers'
+import { apiListDocuments, apiUploadDocuments } from './document.service'
 import { clinicService } from './clinic.service'
 
 export type { ExamResultInput, NewExaminationInput } from '@/mocks/handlers/examinations'
@@ -22,6 +23,7 @@ interface ApiResult {
   unit?: string | null
   referenceMin?: number | null
   referenceMax?: number | null
+  createdAt: string
 }
 
 /** `Examination` (openapi.yaml): resultados embutidos, sem `familyId`. */
@@ -53,7 +55,6 @@ export function toExamination(familyId: string, e: ApiExamination): Examination 
   }
 }
 
-/** O contrato não tem data de registo do resultado; usa-se a do exame. */
 function toResult(examination: ApiExamination, r: ApiResult): ExamResult {
   return {
     id: r.id,
@@ -64,7 +65,7 @@ function toResult(examination: ApiExamination, r: ApiResult): ExamResult {
     unit: r.unit ?? undefined,
     referenceMin: r.referenceMin ?? undefined,
     referenceMax: r.referenceMax ?? undefined,
-    createdAt: examination.examDate,
+    createdAt: r.createdAt,
   }
 }
 
@@ -81,12 +82,12 @@ async function apiListExaminations(familyId: string): Promise<ExaminationSummary
 
 async function apiGetExamination(familyId: string, id: string): Promise<ExaminationDetail> {
   const { member, item } = await findPerMember<ApiExamination>(familyId, (m) => `${examPath(familyId, m)}/${id}`)
-  // TBD: documentos (upload multipart/download mediado, M5) ainda não ligados na UI.
+  const documents = await apiListDocuments(familyId, member.id, 'EXAMINATION', id)
   return {
     examination: toExamination(familyId, item),
     memberName: member.name,
     results: item.results.map((r) => toResult(item, r)),
-    documents: [],
+    documents,
   }
 }
 
@@ -124,6 +125,7 @@ async function apiCreateExamination(familyId: string, input: api.NewExaminationI
       })
     }
   }
+  await apiUploadDocuments(familyId, input.memberId, 'EXAMINATION', created.id, input.documents)
   return toExamination(familyId, created)
 }
 
@@ -163,7 +165,7 @@ async function apiGetParameterHistory(familyId: string, id: string): Promise<Par
             examDate: h.examDate,
             result: toResult(
               { ...item, id: h.examinationId, examDate: h.examDate },
-              { id: `${h.examinationId}:${current.parameter}`, parameter: current.parameter, ...h },
+              { id: `${h.examinationId}:${current.parameter}`, parameter: current.parameter, ...h, createdAt: h.examDate },
             ),
           }))
           .sort((a, b) => a.examDate.localeCompare(b.examDate)),

@@ -67,14 +67,15 @@ export async function apiFetch<T>(
   if (!API_BASE_URL) throw new Error('VITE_API_URL não está configurado.')
 
   const headers: Record<string, string> = {}
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+  const isForm = options.body instanceof FormData
+  if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (options.auth !== false && accessToken) headers.Authorization = `Bearer ${accessToken}`
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? 'GET',
     headers,
     credentials: 'include',
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: options.body === undefined ? undefined : isForm ? (options.body as FormData) : JSON.stringify(options.body),
   })
 
   if (res.status === 204) return undefined as T

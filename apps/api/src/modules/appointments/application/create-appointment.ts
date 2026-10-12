@@ -14,6 +14,7 @@ export interface CreateAppointmentInput {
   professionalName?: string | null;
   clinicId?: string | null;
   clinicName?: string | null;
+  specialty?: string | null;
   reason?: string | null;
   notes?: string | null;
   status?: AppointmentStatus | null;
@@ -56,6 +57,7 @@ export function createCreateAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>)
         status,
         createdAt: now,
         ...(input.professionalName ? { professionalName: input.professionalName } : {}),
+        ...(input.specialty ? { specialty: input.specialty } : {}),
         ...(input.reason ? { reason: input.reason } : {}),
         ...(input.notes ? { notes: input.notes } : {}),
         ...clinicSnapshot,

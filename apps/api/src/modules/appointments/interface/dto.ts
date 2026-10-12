@@ -12,6 +12,7 @@ export function toAppointmentResponse(appointment: Appointment) {
     professionalName: appointment.professionalName ?? null,
     clinicId: appointment.clinicId ?? null,
     clinicName: appointment.clinicName ?? null,
+    specialty: appointment.specialty ?? null,
     reason: appointment.reason ?? null,
     notes: appointment.notes ?? null,
   };

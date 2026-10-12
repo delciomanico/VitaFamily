@@ -16,6 +16,7 @@ interface AppointmentRow {
   professional_name: string | null;
   clinic_id: string | null;
   clinic_name: string | null;
+  specialty: string | null;
   reason: string | null;
   notes: string | null;
   created_at: Date;
@@ -33,12 +34,13 @@ function toAppointment(row: AppointmentRow): Appointment {
   if (row.professional_name !== null) appointment.professionalName = row.professional_name;
   if (row.clinic_id !== null) appointment.clinicId = row.clinic_id;
   if (row.clinic_name !== null) appointment.clinicName = row.clinic_name;
+  if (row.specialty !== null) appointment.specialty = row.specialty;
   if (row.reason !== null) appointment.reason = row.reason;
   if (row.notes !== null) appointment.notes = row.notes;
   return appointment;
 }
 
-const APPOINTMENT_COLUMNS = ["id", "family_id", "member_id", "scheduled_at", "status", "professional_name", "clinic_id", "clinic_name", "reason", "notes", "created_at"] as const;
+const APPOINTMENT_COLUMNS = ["id", "family_id", "member_id", "scheduled_at", "status", "professional_name", "clinic_id", "clinic_name", "specialty", "reason", "notes", "created_at"] as const;
 
 export class KyselyAppointmentsRepository implements AppointmentsRepository<Kysely<Database>> {
   async insert(trx: Kysely<Database>, record: NewAppointmentRecord): Promise<Appointment> {
@@ -53,6 +55,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         professional_name: record.professionalName ?? null,
         clinic_id: record.clinicId ?? null,
         clinic_name: record.clinicName ?? null,
+        specialty: record.specialty ?? null,
         reason: record.reason ?? null,
         notes: record.notes ?? null,
         created_at: record.createdAt,
@@ -109,6 +112,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         ...(changes.professionalName !== undefined ? { professional_name: changes.professionalName } : {}),
         ...(changes.clinicId !== undefined ? { clinic_id: changes.clinicId } : {}),
         ...(changes.clinicName !== undefined ? { clinic_name: changes.clinicName } : {}),
+        ...(changes.specialty !== undefined ? { specialty: changes.specialty } : {}),
         ...(changes.reason !== undefined ? { reason: changes.reason } : {}),
         ...(changes.notes !== undefined ? { notes: changes.notes } : {}),
         updated_at: sql`now()`,

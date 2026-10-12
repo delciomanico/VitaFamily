@@ -8,6 +8,9 @@ import type { HomeSummary, ReportPeriod, TodayDose } from '@/types/report'
 import { apiGetFamilyReport, apiGetMemberReport, apiListReportSubjects } from './memberViews'
 import { apiListAlerts } from './alert.service'
 
+/** TBD: durante quantos dias um resultado de exame conta como “novo” na Home. */
+const NEW_RESULT_DAYS = 7
+
 /** Número máximo de alertas recentes enviados para a Home (a UI mostra os que couberem). */
 const HOME_ALERTS_LIMIT = 8
 
@@ -16,6 +19,10 @@ interface ApiMember {
   name: string
   isSelf: boolean
   status: 'ACTIVE' | 'BLOCKED'
+}
+
+interface ApiExamResults {
+  results: Array<{ createdAt: string }>
 }
 
 interface ApiDose {
@@ -46,7 +53,7 @@ async function apiGetHomeSummary(familyId: string): Promise<HomeSummary> {
     Promise.all(
       members.map(async (member) => {
         const base = `/families/${familyId}/members/${member.id}`
-        const [appointments, doses] = await Promise.all([
+        const [appointments, doses, examinations] = await Promise.all([
           orEmpty(
             apiFetch<{ items: ApiAppointment[] }>(
               `${base}/appointments?status=SCHEDULED&from=${encodeURIComponent(now.toISOString())}&limit=20`,
@@ -57,8 +64,9 @@ async function apiGetHomeSummary(familyId: string): Promise<HomeSummary> {
               `${base}/doses?from=${encodeURIComponent(startOfDay.toISOString())}&to=${encodeURIComponent(endOfDay.toISOString())}&limit=100`,
             ),
           ),
+          orEmpty(apiFetch<{ items: ApiExamResults[] }>(`${base}/examinations?limit=100`)),
         ])
-        return { member, appointments, doses }
+        return { member, appointments, doses, examinations }
       }),
     ),
     apiListAlerts(familyId).catch(() => []),
@@ -94,8 +102,9 @@ async function apiGetHomeSummary(familyId: string): Promise<HomeSummary> {
       : null,
     today: {
       pendingDoses: todayDoses.filter((d) => d.status === 'PENDING').length,
-      // TBD: o contrato (ExamResult) não tem data de registo, logo não há como contar resultados "novos".
-      newResults: 0,
+      newResults: perMember
+        .flatMap(({ examinations }) => examinations.flatMap((e) => e.results))
+        .filter((r) => Date.parse(r.createdAt) >= now.getTime() - NEW_RESULT_DAYS * 86_400_000).length,
       members: members.length,
     },
     family: {
