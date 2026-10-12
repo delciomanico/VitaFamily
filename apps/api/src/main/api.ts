@@ -27,6 +27,7 @@ import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
 import { createClinicsModule } from "../modules/clinics/index.js";
 import { createAppointmentsModule } from "../modules/appointments/index.js";
 import { createExaminationsModule } from "../modules/examinations/index.js";
+import { createAdminModule } from "../modules/admin/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsModule } from "../modules/alerts/index.js";
@@ -181,6 +182,8 @@ export function main(): void {
     },
   });
 
+  const admin = createAdminModule({ db, users, audit, clock });
+
   function registerHealthRoutes(router: Router): void {
     router.get("/health", (_req, res) => {
       res.json({ status: "ok" });
@@ -223,6 +226,7 @@ export function main(): void {
       router.use(notifications.router);
       router.use(alerts.router);
       router.use(reports.router);
+      router.use(admin.router);
     },
   });
 

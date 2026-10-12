@@ -86,7 +86,10 @@ export type AuditAction =
   | "CLINIC_DELETE"
   | "ADMIN_CLINIC_CREATE"
   | "ADMIN_CLINIC_UPDATE"
-  | "ADMIN_CLINIC_STATUS";
+  | "ADMIN_CLINIC_STATUS"
+  // `admin` (M9 — FR-ADM-01, audit.md §3): contas de utilizador.
+  | "ADMIN_USER_SUSPEND"
+  | "ADMIN_USER_REACTIVATE";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN";
 

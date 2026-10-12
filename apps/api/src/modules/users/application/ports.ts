@@ -22,6 +22,23 @@ export interface ProfileChanges {
   timezone?: string;
 }
 
+export interface AccountListFilter {
+  status?: User["status"];
+  limit: number;
+  cursor?: string;
+}
+
+export interface AccountPage {
+  items: User[];
+  nextCursor: string | null;
+}
+
+/** `null` = reativar (BR-ACC-05: a conta volta ao estado anterior à suspensão). */
+export interface Suspension {
+  at: Date;
+  reason: string;
+}
+
 export interface UsersRepository<Trx> {
   insert(trx: Trx, record: NewUserRecord): Promise<User>;
   findByEmail(trx: Trx, email: string): Promise<User | null>;
@@ -30,6 +47,9 @@ export interface UsersRepository<Trx> {
   updateTermsAcceptance(trx: Trx, id: string, version: string, acceptedAt: Date): Promise<User>;
   updateEmailVerified(trx: Trx, id: string, verifiedAt: Date): Promise<User>;
   updatePasswordHash(trx: Trx, id: string, passwordHash: string): Promise<void>;
+  /** Para `admin` (FR-ADM-01): todas as contas, por ordem de criação. */
+  listAll(trx: Trx, filter: AccountListFilter): Promise<AccountPage>;
+  setSuspension(trx: Trx, id: string, suspension: Suspension | null): Promise<User>;
 }
 
 export interface AuditPort<Trx> {

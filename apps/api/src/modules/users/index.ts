@@ -37,6 +37,9 @@ export interface UsersModule {
   byId: (trx: Kysely<Database>, id: string) => Promise<User | null>;
   setEmailVerified: (trx: Kysely<Database>, id: string, verifiedAt: Date) => Promise<User>;
   setPasswordHash: (trx: Kysely<Database>, id: string, passwordHash: string) => Promise<void>;
+  // Operações cruas para o módulo `admin` (FR-ADM-01, modules.md §2): contas só, nunca saúde.
+  listAccounts: ReturnType<typeof createRawOperations<Kysely<Database>>>["listAccounts"];
+  setSuspension: ReturnType<typeof createRawOperations<Kysely<Database>>>["setSuspension"];
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -66,5 +69,7 @@ export function createUsersModule(deps: UsersModuleDeps): UsersModule {
     byId: rawOperations.byId,
     setEmailVerified: rawOperations.setEmailVerified,
     setPasswordHash: rawOperations.setPasswordHash,
+    listAccounts: rawOperations.listAccounts,
+    setSuspension: rawOperations.setSuspension,
   };
 }

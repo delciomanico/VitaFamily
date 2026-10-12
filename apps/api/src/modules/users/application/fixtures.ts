@@ -2,7 +2,7 @@
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { User } from "../domain/user.js";
-import type { AuditPort, NewUserRecord, ProfileChanges, UsersDeps, UsersRepository } from "./ports.js";
+import type { AccountListFilter, AccountPage, AuditPort, NewUserRecord, ProfileChanges, Suspension, UsersDeps, UsersRepository } from "./ports.js";
 
 export type FakeTrx = Record<string, never>;
 const FAKE_TRX: FakeTrx = {};
@@ -26,6 +26,25 @@ export class FakeUsersRepository implements UsersRepository<FakeTrx> {
     };
     this.byId.set(user.id, user);
     return Promise.resolve(user);
+  }
+
+  listAll(_trx: FakeTrx, filter: AccountListFilter): Promise<AccountPage> {
+    const all = [...this.byId.values()].filter((u) => !filter.status || u.status === filter.status);
+    return Promise.resolve({ items: all.slice(0, filter.limit), nextCursor: null });
+  }
+
+  setSuspension(_trx: FakeTrx, id: string, suspension: Suspension | null): Promise<User> {
+    const user = this.byId.get(id);
+    if (!user) throw new Error("utilizador inexistente no fake");
+    const updated: User = { ...user, status: suspension ? "SUSPENDED" : user.emailVerifiedAt ? "ACTIVE" : "PENDING_VERIFICATION" };
+    delete updated.suspendedAt;
+    delete updated.suspensionReason;
+    if (suspension) {
+      updated.suspendedAt = suspension.at;
+      updated.suspensionReason = suspension.reason;
+    }
+    this.byId.set(id, updated);
+    return Promise.resolve(updated);
   }
 
   async findByEmail(_trx: FakeTrx, email: string): Promise<User | null> {

@@ -1,7 +1,8 @@
 // Implementação Kysely/pg da porta `UsersRepository` (application/ports.ts).
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
-import type { NewUserRecord, ProfileChanges, UsersRepository } from "../application/ports.js";
+import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
+import type { AccountListFilter, AccountPage, NewUserRecord, ProfileChanges, Suspension, UsersRepository } from "../application/ports.js";
 import type { User } from "../domain/user.js";
 import "./schema.js";
 
@@ -155,5 +156,40 @@ export class KyselyUsersRepository implements UsersRepository<Kysely<Database>> 
       .set({ password_hash: passwordHash, updated_at: sql`now()` })
       .where("id", "=", id)
       .execute();
+  }
+
+  async listAll(trx: Kysely<Database>, filter: AccountListFilter): Promise<AccountPage> {
+    let query = trx.selectFrom("users").select(SELECT_COLUMNS);
+    if (filter.status) query = query.where("status", "=", filter.status);
+    if (filter.cursor) {
+      const after = new Date(decodeCursor(filter.cursor).createdAt);
+      const afterId = decodeCursor(filter.cursor).id;
+      query = query.where((eb) => eb.or([eb("created_at", ">", after), eb.and([eb("created_at", "=", after), eb("id", ">", afterId)])]));
+    }
+    const rows = await query.orderBy("created_at", "asc").orderBy("id", "asc").limit(filter.limit + 1).execute();
+    const hasMore = rows.length > filter.limit;
+    const page = hasMore ? rows.slice(0, filter.limit) : rows;
+    const last = page[page.length - 1];
+    return { items: page.map(toDomain), nextCursor: hasMore && last ? encodeCursor({ createdAt: last.created_at.toISOString(), id: last.id }) : null };
+  }
+
+  async setSuspension(trx: Kysely<Database>, id: string, suspension: Suspension | null): Promise<User> {
+    const row = await trx
+      .updateTable("users")
+      .set(
+        suspension
+          ? { status: "SUSPENDED", suspended_at: suspension.at, suspension_reason: suspension.reason, updated_at: sql`now()` }
+          : {
+              // Reativar: volta a ACTIVE só se o e-mail já foi verificado; senão continua por verificar.
+              status: sql`CASE WHEN email_verified_at IS NULL THEN 'PENDING_VERIFICATION'::user_status ELSE 'ACTIVE'::user_status END`,
+              suspended_at: null,
+              suspension_reason: null,
+              updated_at: sql`now()`,
+            },
+      )
+      .where("id", "=", id)
+      .returning(SELECT_COLUMNS)
+      .executeTakeFirstOrThrow();
+    return toDomain(row);
   }
 }
