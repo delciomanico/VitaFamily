@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ForbiddenError, NotFoundError, RateLimitedError } from "../../../platform/errors/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { DataExport } from "../domain/export.js";
-import { createDownloadExportUseCase, createGetExportUseCase, createRequestExportUseCase } from "./exports.js";
+import { createDownloadExportUseCase, createExportBeforeRemovalUseCase, createGetExportUseCase, createRequestExportUseCase } from "./exports.js";
 import type { ApiObject, ExportsRepository, ExportSources, LifecycleDeps, NewExportRecord } from "./ports.js";
 
 const ME = { userId: "u1", platformAdmin: false };
@@ -41,11 +41,13 @@ class FakeRepo implements ExportsRepository<null> {
   }
 }
 
-function setup(overrides: Partial<ExportSources> = {}) {
+function setup(overrides: Partial<ExportSources> = {}, mailer?: LifecycleDeps<null>["mailer"]) {
   const repo = new FakeRepo();
   const stored = new Map<string, Buffer>();
   const events: AuditEvent[] = [];
   const errors: unknown[] = [];
+  const notifyErrors: unknown[] = [];
+  const sentMails: { to: string; subject: string; text: string }[] = [];
   const members: ApiObject[] = [
     { id: "m1", isSelf: true, guardianIds: [] },
     { id: "kid", isSelf: false, guardianIds: ["m1"] },
@@ -75,13 +77,15 @@ function setup(overrides: Partial<ExportSources> = {}) {
       getObject: (key) => Promise.resolve(Readable.from([stored.get(key) ?? Buffer.alloc(0)])),
       deleteObject: (key) => { stored.delete(key); return Promise.resolve(); },
     },
+    mailer: mailer ?? { send: (email) => { sentMails.push(email); return Promise.resolve(); } },
     audit: { record: (_t, e) => { events.push(e); return Promise.resolve(); } },
     withTransaction: (fn) => fn(null),
     clock,
     onBuildError: (e) => errors.push(e),
+    onNotifyError: (e) => notifyErrors.push(e),
     account: { verifyPassword: () => Promise.resolve(true), leaveFamily: () => Promise.resolve(), deleteFamily: () => Promise.resolve(), deleteAccount: () => Promise.resolve(), anonymizeAudit: () => Promise.resolve(0) },
   };
-  return { deps, repo, stored, events, errors };
+  return { deps, repo, stored, events, errors, notifyErrors, sentMails };
 }
 
 const flush = async () => { for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r)); };
@@ -162,5 +166,23 @@ describe("exportação de dados (UC-ACC-06)", () => {
     nowMs += 20 * 60_000;
     expect((await createGetExportUseCase(deps)(ME, view.id)).status).toBe("FAILED");
     expect(repo.items.get(view.id)?.status).toBe("FAILED");
+  });
+});
+
+describe("pacote antes de sair/remover membro (BR-MEM-16/AC-MEM-07)", () => {
+  it("avisa por e-mail depois de o pacote ficar pronto", async () => {
+    const { deps, repo, sentMails } = setup();
+    const exportId = await createExportBeforeRemovalUseCase(deps)({ userId: "u1", familyId: "f1", memberId: "m1", reason: "LEAVE_FAMILY", requestId: "r1" });
+    expect(repo.items.get(exportId)?.status).toBe("READY");
+    expect(sentMails).toHaveLength(1);
+    expect(sentMails[0]).toMatchObject({ to: "eu@x.pt" });
+  });
+
+  it("falha no envio do e-mail não impede a saída/remoção (o pacote já está pronto)", async () => {
+    const failingMailer: LifecycleDeps<null>["mailer"] = { send: () => Promise.reject(new Error("smtp down")) };
+    const { deps, repo, notifyErrors } = setup({}, failingMailer);
+    const exportId = await createExportBeforeRemovalUseCase(deps)({ userId: "u1", familyId: "f1", memberId: "m1", reason: "LEAVE_FAMILY", requestId: "r1" });
+    expect(repo.items.get(exportId)?.status).toBe("READY");
+    expect(notifyErrors).toHaveLength(1);
   });
 });

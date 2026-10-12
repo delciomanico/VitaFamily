@@ -5,6 +5,8 @@
 //  - `blocked-members`: avisos aos 30, 60 e 83 dias de bloqueio; aos 90 os dados e os ficheiros
 //    do perfil são apagados.
 // Os avisos coincidem com o dia exato (o job corre uma vez por dia); um dia perdido perde só o aviso.
+// A transição em si usa "já passou" (listAdultsDue, <=), não "é hoje": se o worker esteve parado
+// no dia exato do aniversário, a transição corre no dia seguinte em que o job voltar a correr.
 import { newId } from "../../../platform/ids/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
@@ -21,6 +23,7 @@ export interface LifecycleTarget {
 export interface MemberLifecycleDeps<Trx> {
   members: {
     listTurningAdult: (trx: Trx, today: string, inDays: number) => Promise<LifecycleTarget[]>;
+    listAdultsDue: (trx: Trx, today: string) => Promise<LifecycleTarget[]>;
     completeComingOfAge: (trx: Trx, familyId: string, memberId: string, now: Date) => Promise<{ blocked: boolean }>;
     listBlockedForDays: (trx: Trx, today: string, days: number) => Promise<LifecycleTarget[]>;
     listBlockedDue: (trx: Trx, now: Date) => Promise<LifecycleTarget[]>;
@@ -85,7 +88,7 @@ export function createMemberLifecycleJobs<Trx>(deps: MemberLifecycleDeps<Trx>) {
       }
     }
 
-    const due = await deps.withTransaction((trx) => deps.members.listTurningAdult(trx, today, 0));
+    const due = await deps.withTransaction((trx) => deps.members.listAdultsDue(trx, today));
     let blocked = 0;
     for (const t of due) {
       const result = await deps.withTransaction(async (trx) => {

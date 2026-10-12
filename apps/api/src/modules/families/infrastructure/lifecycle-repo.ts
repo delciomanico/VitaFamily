@@ -54,6 +54,18 @@ export class KyselyLifecycleRepository implements LifecycleRepository<Kysely<Dat
     return this.toTargets(trx, rows);
   }
 
+  async listAdultsDue(trx: Kysely<Database>, today: string): Promise<LifecycleTarget[]> {
+    const rows = await trx
+      .selectFrom("family_members")
+      .select(["family_id", "id", "name", "user_id"])
+      .where("is_dependent", "=", true)
+      .where("status", "=", "ACTIVE")
+      .where(sql<boolean>`birth_date + interval '18 years' <= ${today}::date`)
+      .where(sql<boolean>`created_at < birth_date + interval '18 years'`)
+      .execute();
+    return this.toTargets(trx, rows);
+  }
+
   async completeComingOfAge(trx: Kysely<Database>, familyId: string, memberId: string, now: Date): Promise<{ blocked: boolean }> {
     const member = await trx.selectFrom("family_members").select("user_id").where("family_id", "=", familyId).where("id", "=", memberId).executeTakeFirstOrThrow();
     await trx.deleteFrom("guardianships").where("family_id", "=", familyId).where("dependent_id", "=", memberId).execute();

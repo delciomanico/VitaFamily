@@ -227,8 +227,12 @@ export function main(): void {
     audit,
     clock,
     storage: exportsStorage,
+    mailer: new FamiliesSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
     onBuildError: (err, exportId) => {
       logger.error({ err, exportId }, "export_build_failed");
+    },
+    onNotifyError: (err) => {
+      logger.error({ err }, "lifecycle_notify_failed");
     },
     account: {
       verifyPassword: auth.verifyPassword,

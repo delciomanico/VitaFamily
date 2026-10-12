@@ -15,8 +15,13 @@ export interface LifecycleTarget {
 }
 
 export interface LifecycleRepository<Trx> {
-  /** Menores (dependentes ativos) cujo 18.º aniversário é daqui a `inDays` dias (0 = hoje). */
+  /** Menores (dependentes ativos) cujo 18.º aniversário é daqui a exatamente `inDays` dias (avisos:
+   * um dia perdido perde só esse aviso, não é recuperado nos dias seguintes). */
   listTurningAdult(trx: Trx, today: string, inDays: number): Promise<LifecycleTarget[]>;
+  /** Menores (dependentes ativos) cujo 18.º aniversário já passou (inclui hoje) — "já passou", não
+   * "é hoje" (ao contrário de `listTurningAdult`), para a transição ocorrer mesmo que o worker
+   * tenha estado parado no próprio dia do aniversário. */
+  listAdultsDue(trx: Trx, today: string): Promise<LifecycleTarget[]>;
   /** Fim da tutela (BR-MEM-10); sem conta → BLOQUEADO com apagamento agendado a 90 dias (BR-MEM-11). */
   completeComingOfAge(trx: Trx, familyId: string, memberId: string, now: Date): Promise<{ blocked: boolean }>;
   /** Bloqueados há exatamente `days` dias (avisos aos 30/60/83). */

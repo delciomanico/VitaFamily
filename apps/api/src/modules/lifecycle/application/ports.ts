@@ -72,14 +72,21 @@ export interface AccountDeletionPorts<Trx> {
   anonymizeAudit: (userId: string) => Promise<number>;
 }
 
+export interface Mailer {
+  send: (email: { to: string; subject: string; text: string }) => Promise<void>;
+}
+
 export interface LifecycleDeps<Trx> {
   account: AccountDeletionPorts<Trx>;
   exportsRepo: ExportsRepository<Trx>;
   sources: ExportSources;
   storage: ExportStorage;
+  mailer: Mailer;
   audit: { record: (trx: Trx, event: AuditEvent) => Promise<void> };
   withTransaction: <T>(fn: (trx: Trx) => Promise<T>) => Promise<T>;
   clock: Clock;
   /** Falhas da geração em segundo plano (o pedido já respondeu 202); só registo técnico. */
   onBuildError: (error: unknown, exportId: string) => void;
+  /** Falha ao enviar o e-mail com o pacote (BR-MEM-16) não pode travar a saída/remoção do membro. */
+  onNotifyError: (error: unknown) => void;
 }

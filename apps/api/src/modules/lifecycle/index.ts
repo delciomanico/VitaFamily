@@ -12,7 +12,7 @@ import { createExpireExportsUseCase } from "./application/expire-exports.js";
 import { createMemberLifecycleJobs, type MemberLifecycleDeps } from "./application/member-lifecycle.js";
 import { createDeleteAccountUseCase } from "./application/delete-account.js";
 import { createDownloadExportUseCase, createExportBeforeRemovalUseCase, createGetExportUseCase, createRequestExportUseCase } from "./application/exports.js";
-import type { AccountDeletionPorts, ExportSources, ExportStorage, LifecycleDeps } from "./application/ports.js";
+import type { AccountDeletionPorts, ExportSources, ExportStorage, LifecycleDeps, Mailer } from "./application/ports.js";
 import { registerBlockedMembersWorker, registerComingOfAgeWorker, registerExpireExportsWorker } from "./infrastructure/jobs.js";
 import { KyselyExportsRepository } from "./infrastructure/repo.js";
 import { createLifecycleRouter, type LifecycleController } from "./interface/router.js";
@@ -26,7 +26,10 @@ export interface LifecycleModuleDeps {
   sources: ExportSources;
   /** Bucket de exportações (`S3_BUCKET_EXPORTS`). */
   storage: ExportStorage;
+  mailer: Mailer;
   onBuildError: (error: unknown, exportId: string) => void;
+  /** Falha ao enviar o e-mail do pacote (BR-MEM-16) não pode travar a saída/remoção do membro. */
+  onNotifyError: (error: unknown) => void;
   account: AccountDeletionPorts<Kysely<Database>>;
 }
 
@@ -42,10 +45,12 @@ export function createLifecycleModule(deps: LifecycleModuleDeps): LifecycleModul
     exportsRepo: new KyselyExportsRepository(),
     sources: deps.sources,
     storage: deps.storage,
+    mailer: deps.mailer,
     audit: deps.audit,
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
     onBuildError: deps.onBuildError,
+    onNotifyError: deps.onNotifyError,
     account: deps.account,
   };
   const controller: LifecycleController = {

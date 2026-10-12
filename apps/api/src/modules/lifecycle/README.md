@@ -9,7 +9,7 @@ M9 (`plan.md` §4): exportação de dados, saída/remoção de membros com pacot
 - Bucket `S3_BUCKET_EXPORTS`; descarga mediada e auditada (`USER_EXPORT_DOWNLOAD`); válida 7 dias. Job `lifecycle.expire-exports` (hora a hora) apaga os pacotes expirados e marca `EXPIRED`.
 
 ## Sair da família / remover membro (UC-MEM-08/09, BR-MEM-14/16)
-`families` chama a porta `memberData` (ligada em `main/api.ts`): `exportBeforeRemoval` gera e **espera** o pacote antes de apagar (se falhar, a saída/remoção é abortada) e `purgeMemberFiles` enfileira os ficheiros em `file_deletions` na mesma transação. O pacote do membro removido fica acessível ao próprio por `GET /users/me/exports/{id}` (o id vem na resposta ao Admin). **Pendente:** BR-MEM-16 manda também enviar o pacote por e-mail à pessoa removida.
+`families` chama a porta `memberData` (ligada em `main/api.ts`): `exportBeforeRemoval` gera e **espera** o pacote antes de apagar (se falhar, a saída/remoção é abortada) e `purgeMemberFiles` enfileira os ficheiros em `file_deletions` na mesma transação. O pacote do membro removido fica acessível ao próprio por `GET /users/me/exports/{id}` (o id vem na resposta ao Admin). Depois de o pacote ficar pronto, `exportBeforeRemoval` avisa a pessoa por e-mail (BR-MEM-16/AC-MEM-07) a dizer para entrar na app e aceder a "Os meus dados"; uma falha no envio não aborta a saída/remoção (o pacote já está acessível pela própria pessoa).
 
 ## Eliminar conta (UC-ACC-05, BR-ACC-06/07)
 `DELETE /users/me` com a palavra-passe. Primeiro verifica **todas** as famílias (único Admin com outros membros, único tutor de um dependente ou dependente com conta ⇒ `ACCOUNT_DELETION_BLOCKED`, nada é apagado); depois elimina as famílias onde é o único membro (R2), sai das outras com apagamento (R4), apaga a conta, os pacotes de exportação e anonimiza os logs de auditoria. As famílias são tratadas por use cases separados (não numa única transação): uma falha a meio pode deixar a eliminação incompleta, mas repetir o pedido continua de onde parou.
@@ -17,10 +17,8 @@ M9 (`plan.md` §4): exportação de dados, saída/remoção de membros com pacot
 ## Maioridade e bloqueio (UC-MEM-10, BR-MEM-10/11, Q7) — jobs diários no worker
 - `lifecycle.coming-of-age` (03:00 UTC): avisa o jovem (com conta) e os tutores 30 e 7 dias antes; no dia termina a tutela. Com conta passa a titular (`FAMILY_MEMBER`); **sem conta fica `BLOCKED`**, com apagamento agendado a 90 dias, e o Admin e os tutores são avisados por e-mail. Só afeta quem era menor ao ser criado (um adulto marcado como dependente por consentimento, N3, não é tocado).
 - `lifecycle.blocked-members` (03:30 UTC): avisa o Admin aos 30, 60 e 83 dias de bloqueio; aos 90 apaga ficheiros (outbox) e dados e audita `MEMBER_BLOCKED_DELETE`.
-- Os avisos coincidem com o dia exato; um dia em que o worker esteja parado perde só o aviso desse dia (a transição e o apagamento usam "já passou", não "é hoje" — o apagamento; a transição de maioridade usa a data exata do aniversário).
+- Os avisos (30/7 dias, e os 30/60/83 de bloqueio) coincidem com o dia exato; um dia em que o worker esteja parado perde só o aviso desse dia. A transição de maioridade e o apagamento aos 90 dias usam "já passou" (`listAdultsDue`/`listBlockedDue`, `<=`), não "é hoje": se o worker estiver parado exatamente no dia do 18.º aniversário, a transição corre à próxima vez que o job correr, não se perde.
 - `documents.delete-files` (5 em 5 min) esvazia a outbox `file_deletions` (ADR-011).
 
 ## Pendente
-- E-mail com o pacote ao membro removido (BR-MEM-16) e aviso dentro da app.
-- Se o worker estiver parado exatamente no dia do 18.º aniversário, a transição não corre nesse dia nem nos seguintes (a data é comparada por igualdade, para não confundir menor que cresceu com adulto marcado como dependente).
-- Sem ecrã na web para sair da família nem para remover membros com conta (o contrato e a API já suportam).
+- Aviso dentro da app ao membro removido (BR-MEM-16): exigiria um centro de notificações genérico que não existe (`notifications`, M8, só serve o pipeline `alerts` → `notifications`); o e-mail já está tratado.

@@ -145,6 +145,8 @@ export function createDownloadExportUseCase<Trx>(deps: LifecycleDeps<Trx>) {
  * Pacote gerado e ESPERADO antes de os dados serem apagados (UC-MEM-09 "levar", BR-MEM-16): usado
  * por `families` (sair/remover membro) pela raiz. Se a geração falhar, propaga o erro e o chamador
  * aborta — nunca se apaga o que não foi exportado. Não conta para o limite diário (N7).
+ * Depois de o pacote ficar pronto, avisa a pessoa por e-mail (BR-MEM-16/AC-MEM-07) — o pacote já
+ * está acessível por `GET /users/me/exports/{id}`, por isso uma falha no envio não aborta a saída.
  */
 export function createExportBeforeRemovalUseCase<Trx>(deps: LifecycleDeps<Trx>) {
   return async function exportBeforeRemoval(input: {
@@ -171,6 +173,18 @@ export function createExportBeforeRemovalUseCase<Trx>(deps: LifecycleDeps<Trx>) 
       const key = exportKey(item.id);
       await deps.storage.putObject(key, zip, "application/zip");
       await deps.withTransaction((trx) => deps.exportsRepo.markReady(trx, item.id, key, exportExpiry(deps.clock.now())));
+      try {
+        const account = await deps.sources.account(input.userId);
+        if (account) {
+          await deps.mailer.send({
+            to: account.email,
+            subject: "Vita Family: os seus dados",
+            text: "Antes de saída/remoção da família, preparámos um pacote com os seus dados. Entre na app e aceda a \"Os meus dados\" para o descarregar (disponível por 7 dias).",
+          });
+        }
+      } catch (error) {
+        deps.onNotifyError(error);
+      }
       return item.id;
     } catch (error) {
       await deps.withTransaction((trx) => deps.exportsRepo.markFailed(trx, item.id)).catch(() => undefined);
