@@ -112,6 +112,19 @@ export class KyselyClinicAccountRepository implements ClinicAccountRepository<Ky
       .executeTakeFirstOrThrow();
     return accountToDomain(row);
   }
+
+  async listByClinic(trx: Kysely<Database>, clinicId: string, role?: ClinicAccountRole): Promise<ClinicAccount[]> {
+    let query = trx.selectFrom("clinic_accounts").selectAll().where("clinic_id", "=", clinicId);
+    if (role) {
+      query = query.where("role", "=", role);
+    }
+    const rows = await query.orderBy("created_at", "asc").execute();
+    return rows.map(accountToDomain);
+  }
+
+  async delete(trx: Kysely<Database>, id: string): Promise<void> {
+    await trx.deleteFrom("clinic_accounts").where("id", "=", id).execute();
+  }
 }
 
 interface ClinicSessionRow {

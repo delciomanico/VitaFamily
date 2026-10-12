@@ -10,10 +10,23 @@ import type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "../d
 import type { ClinicSigningKey } from "../domain/clinic-jwt.js";
 import type { ClinicInMemoryRateLimiter } from "../domain/clinic-rate-limiter.js";
 import type { ClinicSession } from "../domain/clinic-session.js";
+import type { ClinicSlot } from "../domain/clinic-slot.js";
 
 export interface ActorIdentity {
   userId: string;
   platformAdmin: boolean;
+}
+
+/**
+ * Ator do portal da clínica (ADR-020, `platform/actor.ClinicActorInfo`) — só os campos que
+ * `clinics/application` precisa, sem importar `platform/actor` aqui (essa leitura é da
+ * `interface`, conventions.md §3.9). Usado por `manage-clinic-staff.ts`/`clinic-slots.ts`
+ * (Fase C, BR-CLN-04/05).
+ */
+export interface ClinicPortalActor {
+  clinicAccountId: string;
+  clinicId: string;
+  role: ClinicAccountRole;
 }
 
 /**
@@ -109,6 +122,10 @@ export interface ClinicAccountRepository<Trx> {
   /** `adminCreateOrResetClinicRootAccount` (D18): idempotente, nunca cria uma segunda conta. */
   resetCredentials(trx: Trx, id: string, changes: ClinicAccountCredentialsReset, now: Date): Promise<ClinicAccount>;
   updateStatus(trx: Trx, id: string, status: ClinicAccountStatus, now: Date): Promise<ClinicAccount>;
+  /** BR-CLN-05 (Fase C): contas da própria clínica, filtradas por papel (`listClinicStaff`). */
+  listByClinic(trx: Trx, clinicId: string, role?: ClinicAccountRole): Promise<ClinicAccount[]>;
+  /** `removeClinicStaff` (Fase C) — quem chama já validou com `assertRemovableStaffTarget`. */
+  delete(trx: Trx, id: string): Promise<void>;
 }
 
 export interface NewClinicSessionRecord {
@@ -141,6 +158,41 @@ export interface ClinicMailer {
   send(email: ClinicSentEmail): Promise<void>;
 }
 
+// --- `ClinicSlot` (Fase C, schema.md §3 v0.2, BR-CLN-04/UC-CLN-04) ---
+
+export interface NewClinicSlotRecord {
+  id: string;
+  clinicId: string;
+  specialty: string;
+  professionalName?: string;
+  startsAt: Date;
+  durationMinutes: number;
+  createdAt: Date;
+}
+
+export interface ClinicSlotListFilter {
+  from?: Date;
+  to?: Date;
+  specialty?: string;
+}
+
+export interface ClinicSlotDuplicateCheck {
+  startsAt: Date;
+  specialty: string;
+  professionalName?: string;
+}
+
+/** `clinic_slots` (schema.md §3 v0.2) — propriedade exclusiva deste módulo. */
+export interface ClinicSlotsRepository<Trx> {
+  insert(trx: Trx, record: NewClinicSlotRecord): Promise<ClinicSlot>;
+  findById(trx: Trx, slotId: string): Promise<ClinicSlot | null>;
+  /** Da própria clínica, por período opcional (`listOwnClinicSlots`/`listFreeSlots`). */
+  listByClinic(trx: Trx, clinicId: string, filter: ClinicSlotListFilter): Promise<ClinicSlot[]>;
+  /** BR-CLN-04: ignora duplicadas (mesma hora, especialidade, profissional) ao publicar. */
+  existsDuplicate(trx: Trx, clinicId: string, slot: ClinicSlotDuplicateCheck): Promise<boolean>;
+  delete(trx: Trx, slotId: string): Promise<void>;
+}
+
 export interface ClinicsDeps<Trx> {
   clinicsRepo: ClinicsRepository<Trx>;
   access: AccessPort<Trx>;
@@ -159,8 +211,11 @@ export interface ClinicsDeps<Trx> {
   clinicSigningKeys: ClinicSigningKey[];
   clinicAccessTtlSeconds: number;
   clinicRefreshTtlMs: number;
+  /** `ClinicSlot` (Fase C) — usado por `manage-clinic-staff.ts`/`clinic-slots.ts`. */
+  clinicSlotsRepo: ClinicSlotsRepository<Trx>;
 }
 
 export type { Clinic, ClinicStatus, ClinicType } from "../domain/clinic.js";
 export type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "../domain/clinic-account.js";
 export type { ClinicSession } from "../domain/clinic-session.js";
+export type { ClinicSlot, ClinicSlotState } from "../domain/clinic-slot.js";

@@ -32,6 +32,7 @@ import {
   createAdminSetClinicStatusUseCase,
   createAdminUpdateClinicUseCase,
 } from "./application/admin-clinics.js";
+import { createListFreeClinicSlotsUseCase, createFindClinicSlotUseCase, createPublishClinicSlotsUseCase, createListOwnClinicSlotsUseCase, createRemoveClinicSlotUseCase } from "./application/clinic-slots.js";
 import { createClinicLoginUseCase } from "./application/clinic-login.js";
 import { createClinicLogoutUseCase } from "./application/clinic-logout.js";
 import { createClinicRefreshUseCase } from "./application/clinic-refresh.js";
@@ -39,6 +40,7 @@ import { createCreatePrivateClinicUseCase } from "./application/create-private-c
 import { createDeletePrivateClinicUseCase } from "./application/delete-private-clinic.js";
 import { createGetBookableClinicUseCase } from "./application/get-bookable-clinic.js";
 import { createListClinicsUseCase } from "./application/list-clinics.js";
+import { createCreateClinicStaffUseCase, createListClinicStaffUseCase, createRemoveClinicStaffUseCase } from "./application/manage-clinic-staff.js";
 import type { ClinicMailer, ClinicsDeps } from "./application/ports.js";
 import { createResolveClinicActorStateUseCase } from "./application/resolve-clinic-actor-state.js";
 import { createSetPrivateClinicStatusUseCase } from "./application/set-private-clinic-status.js";
@@ -47,6 +49,7 @@ import type { ClinicSigningKey } from "./domain/clinic-jwt.js";
 import { ClinicInMemoryRateLimiter } from "./domain/clinic-rate-limiter.js";
 import { ClinicTtlCache } from "./domain/clinic-ttl-cache.js";
 import { KyselyClinicAccountRepository, KyselyClinicSessionRepository } from "./infrastructure/clinic-account-repo.js";
+import { KyselyClinicSlotsRepository } from "./infrastructure/clinic-slots-repo.js";
 import { KyselyClinicsRepository } from "./infrastructure/repo.js";
 import { createClinicsAdminRouter, type ClinicsAdminController } from "./interface/admin-router.js";
 import {
@@ -59,6 +62,7 @@ import { createClinicsRouter, type ClinicsController } from "./interface/router.
 export type { Clinic, ClinicStatus, ClinicType } from "./domain/clinic.js";
 export type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "./domain/clinic-account.js";
 export { parseClinicSigningKeys, type ClinicSigningKey } from "./domain/clinic-jwt.js";
+export type { ClinicSlot, ClinicSlotState } from "./domain/clinic-slot.js";
 export { ClinicSmtpMailer } from "./infrastructure/clinic-mailer-smtp.js";
 export { ClinicFakeMailer } from "./infrastructure/clinic-mailer-fake.js";
 
@@ -90,6 +94,10 @@ export interface ClinicsModule {
   clinicActorContextMiddleware: ReturnType<typeof createClinicActorContextMiddleware>;
   /** API pública para `appointments`/`examinations` (modules.md §2: `ClinicLookup`). */
   getBookableClinic: ReturnType<typeof createGetBookableClinicUseCase<Kysely<Database>>>;
+  /** API pública de `ClinicSlot` (Fase C) para `appointments` consumir mais tarde (Fase D, ainda
+   * não ligada): horários livres de uma clínica e consulta de um horário concreto. */
+  listFreeClinicSlots: ReturnType<typeof createListFreeClinicSlotsUseCase<Kysely<Database>>>;
+  findClinicSlot: ReturnType<typeof createFindClinicSlotUseCase<Kysely<Database>>>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -97,6 +105,7 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
   const clinicsRepo = new KyselyClinicsRepository();
   const clinicAccountRepo = new KyselyClinicAccountRepository();
   const clinicSessionRepo = new KyselyClinicSessionRepository();
+  const clinicSlotsRepo = new KyselyClinicSlotsRepository();
   const clinicRateLimiter = new ClinicInMemoryRateLimiter(deps.clock);
   const clinicAccountStateCache = new ClinicTtlCache<{
     clinicId: string;
@@ -113,6 +122,7 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     clock: deps.clock,
     clinicAccountRepo,
     clinicSessionRepo,
+    clinicSlotsRepo,
     clinicMailer: deps.clinicMailer,
     logger: deps.logger,
     clinicRateLimiter,
@@ -143,6 +153,12 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     clinicLogin: createClinicLoginUseCase(clinicsDeps),
     clinicRefresh: createClinicRefreshUseCase(clinicsDeps),
     clinicLogout: createClinicLogoutUseCase(clinicsDeps),
+    listClinicStaff: createListClinicStaffUseCase(clinicsDeps),
+    createClinicStaff: createCreateClinicStaffUseCase(clinicsDeps),
+    removeClinicStaff: createRemoveClinicStaffUseCase(clinicsDeps),
+    listOwnClinicSlots: createListOwnClinicSlotsUseCase(clinicsDeps),
+    publishClinicSlots: createPublishClinicSlotsUseCase(clinicsDeps),
+    removeClinicSlot: createRemoveClinicSlotUseCase(clinicsDeps),
   };
 
   return {
@@ -157,5 +173,7 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     },
     clinicActorContextMiddleware: createClinicActorContextMiddleware({ resolveClinicActorState }),
     getBookableClinic: createGetBookableClinicUseCase(clinicsDeps),
+    listFreeClinicSlots: createListFreeClinicSlotsUseCase(clinicsDeps),
+    findClinicSlot: createFindClinicSlotUseCase(clinicsDeps),
   };
 }

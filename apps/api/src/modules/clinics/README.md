@@ -27,13 +27,13 @@ POST /families/{familyId}/clinics
 ```
 
 ## Camadas presentes
-- `domain/clinic.ts` — `assertValidClinicName`, `MAX_PRIVATE_CLINICS_PER_FAMILY` (B4).
-- `application/` — `support.ts` (`requireMembership`/`requireAdultMember`/`requireCreatorOrFamilyAdmin`/`requirePrivateClinicOfFamily`/`requirePartnerClinic` — autorização ESTRUTURAL, `authorization.md` §4, nunca `AccessPolicy`); um ficheiro por caso de uso de família (`list-clinics`, `create-private-clinic`, `update-private-clinic`, `set-private-clinic-status`, `delete-private-clinic`); `admin-clinics.ts` (as operações de `/admin/clinics`, `requirePlatformAdmin` local, incluindo `adminCreateOrResetClinicRootAccount`); `get-bookable-clinic.ts` (API pública para `appointments`/`examinations`).
-- `infrastructure/` — `KyselyClinicsRepository` (tabela `clinics`), `KyselyClinicAccountRepository`/`KyselyClinicSessionRepository` (tabelas `clinic_accounts`/`clinic_sessions`, D18).
-- `interface/router.ts` + `interface/admin-router.ts` — ver "Duas raízes HTTP"; `interface/clinic-portal-router.ts` — ver "Portal da clínica" abaixo.
+- `domain/clinic.ts` — `assertValidClinicName`, `MAX_PRIVATE_CLINICS_PER_FAMILY` (B4). `domain/clinic-staff-hierarchy.ts` — `assertCanManageStaff`/`assertRemovableStaffTarget` (Fase C, BR-CLN-05). `domain/clinic-slot.ts`/`domain/clinic-slot-time.ts` — `ClinicSlot`, validações (BR-CLN-04) e conversão de hora local para UTC (Fase C).
+- `application/` — `support.ts` (`requireMembership`/`requireAdultMember`/`requireCreatorOrFamilyAdmin`/`requirePrivateClinicOfFamily`/`requirePartnerClinic` — autorização ESTRUTURAL, `authorization.md` §4, nunca `AccessPolicy`); um ficheiro por caso de uso de família (`list-clinics`, `create-private-clinic`, `update-private-clinic`, `set-private-clinic-status`, `delete-private-clinic`); `admin-clinics.ts` (as operações de `/admin/clinics`, `requirePlatformAdmin` local, incluindo `adminCreateOrResetClinicRootAccount`); `get-bookable-clinic.ts` (API pública para `appointments`/`examinations`); `manage-clinic-staff.ts`/`clinic-slots.ts` (Fase C, ver secção própria abaixo).
+- `infrastructure/` — `KyselyClinicsRepository` (tabela `clinics`), `KyselyClinicAccountRepository`/`KyselyClinicSessionRepository` (tabelas `clinic_accounts`/`clinic_sessions`, D18), `KyselyClinicSlotsRepository` (tabela `clinic_slots`, Fase C).
+- `interface/router.ts` + `interface/admin-router.ts` — ver "Duas raízes HTTP"; `interface/clinic-portal-router.ts` — ver "Portal da clínica" abaixo (inclui `/clinic-portal/staff/*` e `/clinic-portal/slots/*`, Fase C).
 
 ## Migração
-`db/migrations/0008_clinics_appointments_examinations.sql`: `clinics` (+ `appointments`/`examinations`/`exam_results`, ver READMEs desses módulos). `db/migrations/0012_clinic_accounts.sql`: `clinic_accounts`/`clinic_sessions` + `actor_type` ganha `CLINIC_ACCOUNT` + `audit_logs.actor_clinic_account_id` (D18).
+`db/migrations/0008_clinics_appointments_examinations.sql`: `clinics` (+ `appointments`/`examinations`/`exam_results`, ver READMEs desses módulos). `db/migrations/0012_clinic_accounts.sql`: `clinic_accounts`/`clinic_sessions` + `actor_type` ganha `CLINIC_ACCOUNT` + `audit_logs.actor_clinic_account_id` (D18). `db/migrations/0013_clinic_slots.sql`: `clinic_slots` (Fase C).
 
 ## Portal da clínica (`ClinicAccount`, D17/D18, ADR-020, change control desta fase)
 
@@ -56,4 +56,50 @@ POST /clinic-portal/auth/login
           → infrastructure/clinic-account-repo.ts (ClinicSessionRepository.insert)
             → audit.record(trx, …)   # CLINIC_ACCOUNT_LOGIN(_FAILED)
               → domain/clinic-jwt.ts (signClinicAccessToken)
+```
+
+## Hierarquia de staff e `ClinicSlot` (Fase C, BR-CLN-04/05)
+
+**Staff = `ClinicAccount` com papel `CLINIC_MANAGER`** — decisão desta fase (não uma tabela nova):
+`clinic_accounts` já modela os dois papéis do portal (`clinic_account_role`, schema.md §1, Fase A);
+um `CLINIC_MANAGER` criado pelo `CLINIC_ADMIN` da sua clínica é só mais uma linha dessa tabela, com
+`created_by_platform_admin = NULL` (esse campo só é preenchido na conta `CLINIC_ADMIN` raiz, Fase
+B). `ClinicAccountRepository` ganhou `listByClinic`/`delete` (só usados por `manage-clinic-staff.ts`
+— as restantes operações do portal continuam a usar `insert`/`findByEmail`/etc.). A regra "só o
+`CLINIC_ADMIN` da própria clínica gere os seus `CLINIC_MANAGER`" (BR-CLN-05, authorization.md §6.3)
+é pura em `domain/clinic-staff-hierarchy.ts` (`assertCanManageStaff`/`assertRemovableStaffTarget`),
+usada por `application/manage-clinic-staff.ts` — nunca o Platform Admin (esse só cria/repõe a conta
+raiz, Fase B), nunca outra clínica (`NOT_FOUND`, sem enumerar o motivo).
+
+**`ClinicSlot`** (`domain/clinic-slot.ts`, `application/clinic-slots.ts`, BR-CLN-04/UC-CLN-04):
+publicar/listar/remover os horários da própria clínica. `domain/clinic-slot-time.ts` converte
+`date`+`times` locais (fuso fixo `CLINIC_TIMEZONE = "Europe/Lisbon"` — a Vita Family só opera em
+Portugal, CLAUDE.md; sem o conceito de "fuso efetivo" de `families`/`medications`, que `clinics` não
+importa) para o instante UTC, com o mesmo algoritmo de ponto fixo sobre `Intl.DateTimeFormat` de
+`medications/domain/schedule.ts` (duplicado deliberadamente, não há aresta `clinics` → `medications`
+em `modules.md`). `publishClinicSlots` ignora, em silêncio, horas passadas e duplicadas (mesma hora,
+especialidade, profissional — BR-CLN-04) em vez de falhar o lote.
+
+**Decisão desta fase sobre "livre"**: `clinic_slots` (schema.md §3) não guarda estado próprio — é
+`appointments.slot_id` (ainda inexistente, Fase D) que marca um horário como ocupado
+(`REQUESTED`/`SCHEDULED`). Como `appointments` não foi tocado nesta fase, `listOwnClinicSlots`
+devolve sempre `state: "FREE"` (`ClinicSlotView`) e `removeClinicSlot` remove sem verificar
+ocupação (não há forma de ocupar um horário ainda). `clinics/index.ts` expõe pela raiz
+`listFreeClinicSlots(clinicId, specialty?)` e `findClinicSlot(clinicId, slotId)` para `appointments`
+consumir quando ligar o pedido de consulta (UC-APT-07, Fase D) — nenhuma aresta nova no grafo de
+módulos é criada agora; é só API pública pronta a usar.
+
+### Migração
+`db/migrations/0013_clinic_slots.sql`: tabela `clinic_slots` (schema.md §3 v0.2), sem FK de
+`appointments` (essa liga-se só na Fase D).
+
+### Mapa de um pedido típico (publicar horários)
+```
+POST /clinic-portal/slots
+  → interface/clinic-portal-router.ts (ClinicPortalActor: clinicId/role da sessão)
+    → application/clinic-slots.ts (publishClinicSlots)
+      → domain/clinic-slot.ts (assertValidSpecialty/assertValidDurationMinutes)
+        → domain/clinic-slot-time.ts (zonedTimeToUtc, CLINIC_TIMEZONE)
+          → infrastructure/clinic-slots-repo.ts (existsDuplicate + insert)
+            → audit.record(trx, …)   # CLINIC_SLOT_PUBLISH
 ```

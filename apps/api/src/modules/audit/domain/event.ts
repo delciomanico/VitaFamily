@@ -100,7 +100,13 @@ export type AuditAction =
   | "CLINIC_ACCOUNT_LOGIN_FAILED"
   | "CLINIC_ACCOUNT_LOGOUT"
   | "CLINIC_ACCOUNT_REFRESH_REUSE_DETECTED"
-  | "ADMIN_CLINIC_ROOT_ACCOUNT_CREATE";
+  | "ADMIN_CLINIC_ROOT_ACCOUNT_CREATE"
+  // Hierarquia de staff e horários do portal da clínica (Fase C, BR-CLN-04/05, D18): o próprio
+  // `CLINIC_ADMIN` gere os `CLINIC_MANAGER` da sua clínica; qualquer papel publica/remove horários.
+  | "CLINIC_STAFF_CREATE"
+  | "CLINIC_STAFF_REMOVE"
+  | "CLINIC_SLOT_PUBLISH"
+  | "CLINIC_SLOT_REMOVE";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT";
 

@@ -4,9 +4,10 @@ import type { Clock } from "../../../platform/clock/index.js";
 import type { Logger } from "../../../platform/logger/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Clinic, ClinicStatus } from "../domain/clinic.js";
-import type { ClinicAccount, ClinicAccountStatus } from "../domain/clinic-account.js";
+import type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "../domain/clinic-account.js";
 import { ClinicInMemoryRateLimiter } from "../domain/clinic-rate-limiter.js";
 import type { ClinicSession } from "../domain/clinic-session.js";
+import type { ClinicSlot } from "../domain/clinic-slot.js";
 import type {
   AccessPort,
   AuditPort,
@@ -17,12 +18,16 @@ import type {
   ClinicMailer,
   ClinicSentEmail,
   ClinicSessionRepository,
+  ClinicSlotDuplicateCheck,
+  ClinicSlotListFilter,
+  ClinicSlotsRepository,
   ClinicsDeps,
   ClinicsRepository,
   MembershipFacts,
   NewClinicAccountRecord,
   NewClinicRecord,
   NewClinicSessionRecord,
+  NewClinicSlotRecord,
 } from "./ports.js";
 
 export type FakeTrx = Record<string, never>;
@@ -193,8 +198,71 @@ export class FakeClinicAccountRepository implements ClinicAccountRepository<Fake
     return Promise.resolve(updated);
   }
 
+  async listByClinic(_trx: FakeTrx, clinicId: string, role?: ClinicAccountRole): Promise<ClinicAccount[]> {
+    return Promise.resolve([...this.byId.values()].filter((account) => account.clinicId === clinicId && (!role || account.role === role)));
+  }
+
+  async delete(_trx: FakeTrx, id: string): Promise<void> {
+    this.byId.delete(id);
+    return Promise.resolve();
+  }
+
   seed(account: ClinicAccount): void {
     this.byId.set(account.id, account);
+  }
+}
+
+export class FakeClinicSlotsRepository implements ClinicSlotsRepository<FakeTrx> {
+  readonly byId = new Map<string, ClinicSlot>();
+
+  async insert(_trx: FakeTrx, record: NewClinicSlotRecord): Promise<ClinicSlot> {
+    const slot: ClinicSlot = {
+      id: record.id,
+      clinicId: record.clinicId,
+      specialty: record.specialty,
+      startsAt: record.startsAt,
+      durationMinutes: record.durationMinutes,
+      createdAt: record.createdAt,
+      ...(record.professionalName !== undefined ? { professionalName: record.professionalName } : {}),
+    };
+    this.byId.set(slot.id, slot);
+    return Promise.resolve(slot);
+  }
+
+  async findById(_trx: FakeTrx, slotId: string): Promise<ClinicSlot | null> {
+    return Promise.resolve(this.byId.get(slotId) ?? null);
+  }
+
+  async listByClinic(_trx: FakeTrx, clinicId: string, filter: ClinicSlotListFilter): Promise<ClinicSlot[]> {
+    return Promise.resolve(
+      [...this.byId.values()]
+        .filter((slot) => slot.clinicId === clinicId)
+        .filter((slot) => !filter.from || slot.startsAt.getTime() >= filter.from.getTime())
+        .filter((slot) => !filter.to || slot.startsAt.getTime() <= filter.to.getTime())
+        .filter((slot) => !filter.specialty || slot.specialty === filter.specialty)
+        .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
+    );
+  }
+
+  async existsDuplicate(_trx: FakeTrx, clinicId: string, slot: ClinicSlotDuplicateCheck): Promise<boolean> {
+    return Promise.resolve(
+      [...this.byId.values()].some(
+        (existing) =>
+          existing.clinicId === clinicId &&
+          existing.startsAt.getTime() === slot.startsAt.getTime() &&
+          existing.specialty === slot.specialty &&
+          (existing.professionalName ?? null) === (slot.professionalName ?? null),
+      ),
+    );
+  }
+
+  async delete(_trx: FakeTrx, slotId: string): Promise<void> {
+    this.byId.delete(slotId);
+    return Promise.resolve();
+  }
+
+  seed(slot: ClinicSlot): void {
+    this.byId.set(slot.id, slot);
   }
 }
 
@@ -259,6 +327,7 @@ export interface ClinicsFixtures {
   audit: FakeAuditPort;
   clinicAccountRepo: FakeClinicAccountRepository;
   clinicSessionRepo: FakeClinicSessionRepository;
+  clinicSlotsRepo: FakeClinicSlotsRepository;
   clinicMailer: FakeClinicMailer;
   clinicLogger: FakeClinicLogger;
 }
@@ -269,6 +338,7 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
   const audit = new FakeAuditPort();
   const clinicAccountRepo = new FakeClinicAccountRepository();
   const clinicSessionRepo = new FakeClinicSessionRepository();
+  const clinicSlotsRepo = new FakeClinicSlotsRepository();
   const clinicMailer = new FakeClinicMailer();
   const clinicLogger = new FakeClinicLogger();
   const deps: ClinicsDeps<FakeTrx> = {
@@ -280,6 +350,7 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
     clock,
     clinicAccountRepo,
     clinicSessionRepo,
+    clinicSlotsRepo,
     clinicMailer,
     logger: clinicLogger as unknown as Logger,
     clinicRateLimiter: new ClinicInMemoryRateLimiter(clock),
@@ -287,5 +358,5 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
     clinicAccessTtlSeconds: 900,
     clinicRefreshTtlMs: 30 * 24 * 60 * 60 * 1000,
   };
-  return { deps, clinicsRepo, access, audit, clinicAccountRepo, clinicSessionRepo, clinicMailer, clinicLogger };
+  return { deps, clinicsRepo, access, audit, clinicAccountRepo, clinicSessionRepo, clinicSlotsRepo, clinicMailer, clinicLogger };
 }
