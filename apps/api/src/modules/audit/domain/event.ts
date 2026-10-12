@@ -90,7 +90,10 @@ export type AuditAction =
   // `admin` (M9 — FR-ADM-01, audit.md §3): contas de utilizador.
   | "ADMIN_USER_SUSPEND"
   | "ADMIN_USER_REACTIVATE"
-  | "ADMIN_PLATFORM_ADMIN_CREATE";
+  | "ADMIN_PLATFORM_ADMIN_CREATE"
+  // `lifecycle` (M9 — UC-MEM-10, BR-MEM-10/11): maioridade e apagamento de perfis bloqueados.
+  | "MEMBER_COMING_OF_AGE"
+  | "MEMBER_BLOCKED_DELETE";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN";
 

@@ -72,4 +72,22 @@ export class KyselyExportsRepository implements ExportsRepository<Kysely<Databas
     const rows = await trx.selectFrom("data_exports").select("storage_key").where("requested_by", "=", userId).where("storage_key", "is not", null).execute();
     return rows.flatMap((r) => (r.storage_key ? [r.storage_key] : []));
   }
+
+  async listExpired(trx: Kysely<Database>, now: Date, limit: number): Promise<{ id: string; storageKey: string }[]> {
+    const rows = await trx
+      .selectFrom("data_exports")
+      .select(["id", "storage_key"])
+      .where("status", "=", "READY")
+      .where("expires_at", "<=", now)
+      .where("storage_key", "is not", null)
+      .limit(limit)
+      .forUpdate()
+      .skipLocked()
+      .execute();
+    return rows.flatMap((r) => (r.storage_key ? [{ id: r.id, storageKey: r.storage_key }] : []));
+  }
+
+  async markExpired(trx: Kysely<Database>, id: string): Promise<void> {
+    await trx.updateTable("data_exports").set({ status: "EXPIRED", storage_key: null, updated_at: sql`now()` }).where("id", "=", id).execute();
+  }
 }

@@ -18,6 +18,7 @@ import { createAppointmentsReminderQueries } from "../modules/appointments/index
 import { createExaminationsReminderQueries } from "../modules/examinations/index.js";
 import { createNotificationsWorkerModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsWorkerModule } from "../modules/alerts/index.js";
+import { createLifecycleWorkerModule } from "../modules/lifecycle/index.js";
 
 export function main(): void {
   const config = loadConfig();
@@ -92,6 +93,31 @@ export function main(): void {
     boss,
   });
 
+  // M9: maioridade, bloqueio e apagamento a 90 dias (UC-MEM-10) e limpeza de exportações expiradas.
+  const exportsStorage = new MinioStorage({
+    endpoint: config.S3_ENDPOINT,
+    useSSL: config.S3_USE_SSL,
+    accessKey: config.S3_ACCESS_KEY,
+    secretKey: config.S3_SECRET_KEY,
+    region: config.S3_REGION,
+    bucket: config.S3_BUCKET_EXPORTS,
+  });
+  const lifecycleMailer = new FamiliesSmtpMailer(config.SMTP_URL, config.MAIL_FROM);
+  const lifecycleWorker = createLifecycleWorkerModule({
+    db,
+    audit,
+    clock,
+    boss,
+    members: families.lifecycleOps,
+    emailOf: async (trx, userId) => (await users.byId(trx, userId))?.email ?? null,
+    mailer: lifecycleMailer,
+    purgeMemberFiles: documentsWorker.purgeMemberFiles,
+    exportsStorage,
+    onNotifyError: (err) => {
+      logger.error({ err }, "lifecycle_notify_failed");
+    },
+  });
+
   boss
     .start()
     .then(async () => {
@@ -99,6 +125,7 @@ export function main(): void {
       await medicationsWorker.registerWorkers();
       await notificationsWorker.registerWorkers();
       await alertsWorker.registerWorkers();
+      await lifecycleWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

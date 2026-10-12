@@ -133,6 +133,8 @@ export interface DocumentsWorkerModuleDeps {
 export interface DocumentsWorkerModule {
   /** Regista o handler do job `documents.scan` (modules.md §5) — só o processo "worker" chama isto. */
   registerWorker: () => Promise<string>;
+  /** Para o job `lifecycle.blocked-members` (apagamento a 90 dias): enfileira os ficheiros na MESMA transação. */
+  purgeMemberFiles: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<void>;
 }
 
 /** Composition root do processo "worker" (main/worker.ts) — nunca monta `access`/`families`. */
@@ -154,6 +156,7 @@ export function createDocumentsWorkerModule(deps: DocumentsWorkerModuleDeps): Do
   });
 
   return {
+    purgeMemberFiles: createPurgeFilesUseCases({ documentsRepo: scanDeps.documentsRepo, fileDeletionsRepo: new KyselyFileDeletionsRepository() }).purgeMemberFiles,
     registerWorker: async () => {
       await registerDeleteFilesWorker(deps.boss, deleteFiles);
       return registerScanWorker(deps.boss, scanDocument);

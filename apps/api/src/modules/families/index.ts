@@ -66,6 +66,8 @@ import {
   KyselyInvitationsRepository,
   KyselyMembersRepository,
 } from "./infrastructure/repo.js";
+import type { LifecycleRepository } from "./application/lifecycle-ops.js";
+import { KyselyLifecycleRepository } from "./infrastructure/lifecycle-repo.js";
 import { toFamilyResponse, toMemberResponse } from "./interface/dto.js";
 import { createFamiliesRouter, type FamiliesController } from "./interface/router.js";
 
@@ -73,6 +75,7 @@ export type { Family } from "./domain/family.js";
 export type { Guardianship } from "./domain/guardianship.js";
 export type { Invitation, InvitationStatus, InvitationType } from "./domain/invitation.js";
 export type { BloodType, FamilyMember, FamilyRole, MemberStatus } from "./domain/member.js";
+export type { LifecycleRepository, LifecycleTarget } from "./application/lifecycle-ops.js";
 export type { Mailer, MemberDataPort, SentEmail } from "./application/ports.js";
 export type { ResolvedDependentAccountInvitation } from "./application/resolve-dependent-account-invitation.js";
 export type { FinalizeDependentAccountInvitationInput } from "./application/finalize-dependent-account-invitation.js";
@@ -95,6 +98,8 @@ export interface FamiliesModuleDeps {
 export interface FamiliesModule {
   router: Router;
   /** Leitura para `reports` (mesma autorização do `GET /families/{id}/members`). */
+  /** Para os jobs de `lifecycle` (maioridade, bloqueio e apagamento a 90 dias — UC-MEM-10, BR-MEM-10/11). */
+  lifecycleOps: LifecycleRepository<Kysely<Database>>;
   /** Para `lifecycle` (UC-ACC-05): sair/eliminar famílias em nome do utilizador, com as mesmas regras e auditoria. */
   actions: {
     leaveFamily: (userId: string, familyId: string, context: RequestContext) => Promise<void>;
@@ -210,6 +215,7 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
 
   return {
     router: createFamiliesRouter(controller),
+    lifecycleOps: new KyselyLifecycleRepository(),
     actions: {
       leaveFamily: async (userId, familyId, context) => {
         await controller.leaveFamily(userId, familyId, { dataChoice: "DELETE" }, context);

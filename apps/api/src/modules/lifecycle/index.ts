@@ -2,14 +2,18 @@
 // de dados (UC-ACC-06/P2). Maioridade, bloqueio e apagamento a 90 dias, saída/remoção com pacote
 // e eliminação de conta ficam por implementar (ver README.md).
 import type { Router } from "express";
+import type PgBoss from "pg-boss";
 import type { Kysely } from "kysely";
 import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
 import type { AuditModule } from "../audit/index.js";
+import { createExpireExportsUseCase } from "./application/expire-exports.js";
+import { createMemberLifecycleJobs, type MemberLifecycleDeps } from "./application/member-lifecycle.js";
 import { createDeleteAccountUseCase } from "./application/delete-account.js";
 import { createDownloadExportUseCase, createExportBeforeRemovalUseCase, createGetExportUseCase, createRequestExportUseCase } from "./application/exports.js";
 import type { AccountDeletionPorts, ExportSources, ExportStorage, LifecycleDeps } from "./application/ports.js";
+import { registerBlockedMembersWorker, registerComingOfAgeWorker, registerExpireExportsWorker } from "./infrastructure/jobs.js";
 import { KyselyExportsRepository } from "./infrastructure/repo.js";
 import { createLifecycleRouter, type LifecycleController } from "./interface/router.js";
 
@@ -51,4 +55,52 @@ export function createLifecycleModule(deps: LifecycleModuleDeps): LifecycleModul
     deleteAccount: createDeleteAccountUseCase(lifecycleDeps),
   };
   return { router: createLifecycleRouter(controller), exportBeforeRemoval: createExportBeforeRemovalUseCase(lifecycleDeps) };
+}
+
+export interface LifecycleWorkerModuleDeps {
+  db: Kysely<Database>;
+  audit: AuditModule;
+  clock: Clock;
+  boss: PgBoss;
+  /** Operações de `families` sobre membros (maioridade/bloqueio). */
+  members: MemberLifecycleDeps<Kysely<Database>>["members"];
+  emailOf: MemberLifecycleDeps<Kysely<Database>>["emailOf"];
+  mailer: MemberLifecycleDeps<Kysely<Database>>["mailer"];
+  purgeMemberFiles: MemberLifecycleDeps<Kysely<Database>>["purgeMemberFiles"];
+  /** Bucket de exportações. */
+  exportsStorage: Pick<ExportStorage, "deleteObject">;
+  onNotifyError: (error: unknown) => void;
+}
+
+export interface LifecycleWorkerModule {
+  /** Regista os jobs agendados `lifecycle.*` — só o processo "worker" chama isto. */
+  registerWorkers: () => Promise<void>;
+}
+
+/** Composition root do processo "worker" (main/worker.ts): nunca monta `access` nem módulos de saúde. */
+export function createLifecycleWorkerModule(deps: LifecycleWorkerModuleDeps): LifecycleWorkerModule {
+  const withTx = <T>(fn: (trx: Kysely<Database>) => Promise<T>) => withTransaction(deps.db, fn);
+  const jobs = createMemberLifecycleJobs<Kysely<Database>>({
+    members: deps.members,
+    emailOf: deps.emailOf,
+    mailer: deps.mailer,
+    purgeMemberFiles: deps.purgeMemberFiles,
+    audit: deps.audit,
+    withTransaction: withTx,
+    clock: deps.clock,
+    onNotifyError: deps.onNotifyError,
+  });
+  const expireExports = createExpireExportsUseCase({
+    repo: new KyselyExportsRepository(),
+    storage: deps.exportsStorage,
+    clock: deps.clock,
+    withTransaction: withTx,
+  });
+  return {
+    registerWorkers: async () => {
+      await registerComingOfAgeWorker(deps.boss, jobs.comingOfAge);
+      await registerBlockedMembersWorker(deps.boss, jobs.blockedMembers);
+      await registerExpireExportsWorker(deps.boss, expireExports);
+    },
+  };
 }
