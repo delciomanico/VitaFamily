@@ -14,7 +14,7 @@ import type { Router } from "express";
 import type { Kysely } from "kysely";
 import type { Readable } from "node:stream";
 import type PgBoss from "pg-boss";
-import type { MemberRead, ReadActor, ReadContext } from "../../platform/reads/index.js";
+import type { ReadActor, ReadContext } from "../../platform/reads/index.js";
 import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
@@ -62,7 +62,7 @@ export interface DocumentsModule {
   router: Router;
   /** Leituras para `lifecycle` (exportação): mesma autorização e auditoria dos endpoints GET. */
   reads: {
-    list: MemberRead<Record<string, unknown>[]>;
+    list: (actor: ReadActor, familyId: string, memberId: string, resourceType: "PRESCRIPTION" | "EXAMINATION", resourceId: string) => Promise<Record<string, unknown>[]>;
     download: (actor: ReadActor, familyId: string, memberId: string, documentId: string, context: ReadContext) => Promise<{ originalName: string; stream: Readable }>;
   };
   /** API pública para M6/M7 (ver README.md: documentos de receitas/exames). */
@@ -104,7 +104,7 @@ export function createDocumentsModule(deps: DocumentsModuleDeps): DocumentsModul
   return {
     router: createDocumentsRouter(controller),
     reads: {
-      list: async (actor, familyId, memberId) => (await controller.listDocuments(actor, familyId, memberId, {})).map(toDocumentResponse),
+      list: async (actor, familyId, memberId, resourceType, resourceId) => (await controller.listDocuments(actor, familyId, memberId, { resourceType, resourceId })).map(toDocumentResponse),
       download: async (actor, familyId, memberId, documentId, context) => {
         const { document, stream } = await controller.downloadDocument(actor, familyId, memberId, documentId, context);
         return { originalName: document.originalName, stream };

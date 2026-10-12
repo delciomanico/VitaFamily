@@ -24,7 +24,6 @@ export function createMemberReportUseCase(deps: ReportsDeps) {
     const now = clock.now();
     const period = resolvePeriod(query.from, query.to, now.toISOString().slice(0, 10));
     const fromInstant = `${period.from}T00:00:00.000Z`;
-    const toInstant = `${period.to}T23:59:59.999Z`;
 
     const members = await sources.listMembers(actor.userId, familyId);
     const member = members.find((m) => m.id === memberId);
@@ -36,7 +35,7 @@ export function createMemberReportUseCase(deps: ReportsDeps) {
       readable(() => sources.conditions(actor, familyId, memberId, context)),
       readable(() => readAll(sources.prescriptions, actor, familyId, memberId, {}, context)),
       readable(() => readAll(sources.plans, actor, familyId, memberId, {}, context)),
-      readable(() => sources.adherence(actor, familyId, memberId, { from: fromInstant, to: toInstant }, context)),
+      readable(() => sources.adherence(actor, familyId, memberId, { from: period.from, to: period.to }, context)),
       // Consultas do período e as futuras (UC-RPT-01): sem limite superior.
       readable(() => readAll(sources.appointments, actor, familyId, memberId, { from: fromInstant }, context)),
       readable(() => readAll(sources.examinations, actor, familyId, memberId, {}, context)),

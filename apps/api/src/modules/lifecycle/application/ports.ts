@@ -47,7 +47,8 @@ export interface ExportSources {
   doses: MemberPageRead;
   appointments: MemberPageRead;
   examinations: MemberPageRead;
-  documents: MemberRead<ApiObject[]>;
+  /** Documentos de uma receita ou de um exame (a listagem exige o recurso). */
+  documents: (actor: ReadActor, familyId: string, memberId: string, resourceType: "PRESCRIPTION" | "EXAMINATION", resourceId: string) => Promise<ApiObject[]>;
   downloadDocument: (
     actor: ReadActor,
     familyId: string,

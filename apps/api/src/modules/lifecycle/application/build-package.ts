@@ -21,7 +21,7 @@ async function memberPackage(
   files: ZipEntry[],
 ) {
   const memberId = str(member, "id");
-  const [bloodType, allergies, conditions, prescriptions, plans, doses, appointments, examinations, documents] = await Promise.all([
+  const [bloodType, allergies, conditions, prescriptions, plans, doses, appointments, examinations] = await Promise.all([
     readable(() => sources.bloodType(actor, familyId, memberId, context)),
     readable(() => sources.allergies(actor, familyId, memberId, context)),
     readable(() => sources.conditions(actor, familyId, memberId, context)),
@@ -30,11 +30,19 @@ async function memberPackage(
     readable(() => readAll(sources.doses, actor, familyId, memberId, context)),
     readable(() => readAll(sources.appointments, actor, familyId, memberId, context)),
     readable(() => readAll(sources.examinations, actor, familyId, memberId, context)),
-    readable(() => sources.documents(actor, familyId, memberId, context)),
   ]);
 
+  const resources = [
+    ...(prescriptions ?? []).map((p) => ({ resourceType: "PRESCRIPTION" as const, resourceId: str(p, "id") })),
+    ...(examinations ?? []).map((e) => ({ resourceType: "EXAMINATION" as const, resourceId: str(e, "id") })),
+  ];
+  const documents: ApiObject[] = [];
+  for (const { resourceType, resourceId } of resources) {
+    documents.push(...((await readable(() => sources.documents(actor, familyId, memberId, resourceType, resourceId))) ?? []));
+  }
+
   const documentEntries: ApiObject[] = [];
-  for (const document of documents ?? []) {
+  for (const document of documents) {
     const path = `documentos/${familyId}/${str(document, "id")}-${safeName(str(document, "originalName"))}`;
     // Só documentos já aprovados pelo antivírus são descarregáveis; os outros ficam só nos metadados.
     const file = await readable(() => sources.downloadDocument(actor, familyId, memberId, str(document, "id"), context)).catch(() => undefined);
