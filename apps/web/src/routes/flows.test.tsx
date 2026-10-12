@@ -120,8 +120,8 @@ describe('fluxos de autenticação', () => {
 
   it('convite válido sem sessão oferece entrar ou criar conta', async () => {
     const router = renderAt(`/invite/accept?token=${DEMO_INVITATION_CODE}`)
-    expect(await screen.findByRole('heading', { name: 'Convite para família' })).toBeInTheDocument()
-    expect(screen.getByText('Família Monarca')).toBeInTheDocument()
+    // O título já aparece durante o carregamento: esperar pelos dados do convite.
+    expect(await screen.findByText('Família Monarca')).toBeInTheDocument()
     expect(screen.getByText(DEMO_EMAIL)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Já tenho conta: entrar' }))
