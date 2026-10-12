@@ -21,6 +21,6 @@ M9 (`plan.md` §4): exportação de dados, saída/remoção de membros com pacot
 - `documents.delete-files` (5 em 5 min) esvazia a outbox `file_deletions` (ADR-011).
 
 ## Pendente
-- Eliminar uma **família** inteira com outros membros (UC-FAM-06 só permite com um único membro; já implementado em `families`).
-- E-mail com o pacote ao membro removido (BR-MEM-16) e notificação dentro da app.
-- Transição de maioridade perdida se o worker estiver parado exatamente no dia do aniversário (usar `<=` exige distinguir menor que cresceu de adulto dependente já existente).
+- E-mail com o pacote ao membro removido (BR-MEM-16) e aviso dentro da app.
+- Se o worker estiver parado exatamente no dia do 18.º aniversário, a transição não corre nesse dia nem nos seguintes (a data é comparada por igualdade, para não confundir menor que cresceu com adulto marcado como dependente).
+- Sem ecrã na web para sair da família nem para remover membros com conta (o contrato e a API já suportam).
