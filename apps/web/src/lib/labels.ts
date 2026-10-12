@@ -87,7 +87,9 @@ export function alertTitle({
   type,
   ruleKey,
   sourceLabel,
-}: Pick<AlertItem, 'type' | 'ruleKey' | 'sourceLabel'>): string {
+  message,
+}: Pick<AlertItem, 'type' | 'ruleKey' | 'sourceLabel' | 'message'>): string {
+  if (message) return message
   switch (type) {
     case 'MEDICATION_DUE':
       return ruleKey === 'dose.repeat' ? `Toma por confirmar: ${sourceLabel}` : `Hora de tomar ${sourceLabel}`

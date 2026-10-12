@@ -36,6 +36,8 @@ export interface HealthAlert {
 /** Alerta pronto a mostrar: inclui o nome do membro e um resumo da origem. */
 export interface AlertItem extends HealthAlert {
   memberName: string
+  /** Texto composto pelo servidor (API real); quando existe, substitui o título montado no cliente. */
+  message?: string
   /** Ex.: “Amoxicilina 500 mg”, “Cardiologia”, “Análises clínicas”. */
   sourceLabel: string
   /** Quando acontece a origem (toma, consulta ou exame). */
