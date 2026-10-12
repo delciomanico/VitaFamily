@@ -4,7 +4,7 @@
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Router } from "express";
+import type { NextFunction, Request, RequestHandler, Response, Router } from "express";
 import PgBoss from "pg-boss";
 import { loadConfig } from "../platform/config/index.js";
 import { createLogger } from "../platform/logger/index.js";
@@ -24,7 +24,7 @@ import { createHealthRecordsModule } from "../modules/health-records/index.js";
 import { ClamAvScanner, createDocumentsModule, type DocumentsModule } from "../modules/documents/index.js";
 import { createMedicationsModule } from "../modules/medications/index.js";
 import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
-import { createClinicsModule } from "../modules/clinics/index.js";
+import { ClinicSmtpMailer, createClinicsModule, parseClinicSigningKeys } from "../modules/clinics/index.js";
 import { createAppointmentsModule } from "../modules/appointments/index.js";
 import { createExaminationsModule } from "../modules/examinations/index.js";
 import { createLifecycleModule, type LifecycleModule } from "../modules/lifecycle/index.js";
@@ -176,7 +176,21 @@ export function main(): void {
 
   // M7 (plan.md §4): `clinics` antes de `appointments`/`examinations` — ambos dependem de
   // `clinics.getBookableClinic` (ClinicLookup, modules.md §2), nunca o inverso.
-  const clinics = createClinicsModule({ db, audit, access, clock });
+  // D17/D18 (ADR-020): identidade do Portal da Clínica (`ClinicAccount`) totalmente separada de
+  // `auth`/`User` — reutiliza o mesmo valor de configuração `JWT_SIGNING_KEYS`/TTLs, mas com o seu
+  // próprio parser/tipo (`parseClinicSigningKeys`, duplicado de `auth`, nunca importado de lá).
+  const clinics = createClinicsModule({
+    db,
+    audit,
+    access,
+    clock,
+    clinicMailer: new ClinicSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
+    logger,
+    clinicSigningKeys: parseClinicSigningKeys(config.JWT_SIGNING_KEYS),
+    clinicAccessTtlSeconds: Math.round(parseDurationMs(config.JWT_ACCESS_TTL) / 1000),
+    clinicRefreshTtlMs: parseDurationMs(config.REFRESH_TTL),
+    cookieDomain: config.COOKIE_DOMAIN,
+  });
   const appointments = createAppointmentsModule({ db, audit, access, clinics, clock });
   const examinations = createExaminationsModule({ db, audit, access, clinics, documents, clock });
 
@@ -282,11 +296,26 @@ export function main(): void {
 
   const metrics = createMetrics();
 
+  // D17/D18 (ADR-020): `/clinic-portal/*` usa um SEGUNDO ator (`ClinicActorInfo`), nunca o de
+  // `User` — `createApp` só tem UM slot de `actorContextMiddleware`; aqui compõem-se os dois
+  // (primeiro o de `auth`, depois o de `clinics`) porque cada pedido só preenche um dos dois
+  // `req.authSubject`/`req.clinicAuthSubject` (esquemas de segurança distintos no contrato), nunca
+  // os dois ao mesmo tempo — nenhuma rota de negócio lê o ator "errado" (ADR-020).
+  const actorContextMiddleware: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
+    auth.actorContextMiddleware(req, res, (err?: unknown) => {
+      if (err) {
+        next(err);
+        return;
+      }
+      clinics.clinicActorContextMiddleware(req, res, next);
+    });
+  };
+
   const app = createApp({
     openApiSpecPath: OPENAPI_SPEC_PATH,
     logger,
-    securityHandlers: auth.securityHandlers,
-    actorContextMiddleware: auth.actorContextMiddleware,
+    securityHandlers: { ...auth.securityHandlers, ...clinics.clinicSecurityHandlers },
+    actorContextMiddleware,
     metrics: { middleware: metrics.httpMiddleware, handler: metrics.handler },
     registerHealthRoutes,
     registerRoutes: (router) => {
@@ -300,6 +329,7 @@ export function main(): void {
       router.use(prescriptions.router);
       router.use(clinics.router);
       router.use(clinics.adminRouter);
+      router.use(clinics.clinicPortalRouter);
       router.use(appointments.router);
       router.use(examinations.router);
       router.use(notifications.router);

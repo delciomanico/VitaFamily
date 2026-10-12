@@ -28,9 +28,32 @@ POST /families/{familyId}/clinics
 
 ## Camadas presentes
 - `domain/clinic.ts` — `assertValidClinicName`, `MAX_PRIVATE_CLINICS_PER_FAMILY` (B4).
-- `application/` — `support.ts` (`requireMembership`/`requireAdultMember`/`requireCreatorOrFamilyAdmin`/`requirePrivateClinicOfFamily`/`requirePartnerClinic` — autorização ESTRUTURAL, `authorization.md` §4, nunca `AccessPolicy`); um ficheiro por caso de uso de família (`list-clinics`, `create-private-clinic`, `update-private-clinic`, `set-private-clinic-status`, `delete-private-clinic`); `admin-clinics.ts` (as 4 operações de `/admin/clinics`, `requirePlatformAdmin` local); `get-bookable-clinic.ts` (API pública para `appointments`/`examinations`).
-- `infrastructure/` — `KyselyClinicsRepository` (única tabela `clinics`).
-- `interface/router.ts` + `interface/admin-router.ts` — ver "Duas raízes HTTP".
+- `application/` — `support.ts` (`requireMembership`/`requireAdultMember`/`requireCreatorOrFamilyAdmin`/`requirePrivateClinicOfFamily`/`requirePartnerClinic` — autorização ESTRUTURAL, `authorization.md` §4, nunca `AccessPolicy`); um ficheiro por caso de uso de família (`list-clinics`, `create-private-clinic`, `update-private-clinic`, `set-private-clinic-status`, `delete-private-clinic`); `admin-clinics.ts` (as operações de `/admin/clinics`, `requirePlatformAdmin` local, incluindo `adminCreateOrResetClinicRootAccount`); `get-bookable-clinic.ts` (API pública para `appointments`/`examinations`).
+- `infrastructure/` — `KyselyClinicsRepository` (tabela `clinics`), `KyselyClinicAccountRepository`/`KyselyClinicSessionRepository` (tabelas `clinic_accounts`/`clinic_sessions`, D18).
+- `interface/router.ts` + `interface/admin-router.ts` — ver "Duas raízes HTTP"; `interface/clinic-portal-router.ts` — ver "Portal da clínica" abaixo.
 
 ## Migração
-`db/migrations/0008_clinics_appointments_examinations.sql`: `clinics` (+ `appointments`/`examinations`/`exam_results`, ver READMEs desses módulos).
+`db/migrations/0008_clinics_appointments_examinations.sql`: `clinics` (+ `appointments`/`examinations`/`exam_results`, ver READMEs desses módulos). `db/migrations/0012_clinic_accounts.sql`: `clinic_accounts`/`clinic_sessions` + `actor_type` ganha `CLINIC_ACCOUNT` + `audit_logs.actor_clinic_account_id` (D18).
+
+## Portal da clínica (`ClinicAccount`, D17/D18, ADR-020, change control desta fase)
+
+Identidade **totalmente separada** de `User`: `clinic_accounts`/`clinic_sessions` sem nenhuma FK para `users`/`family_members` (ADR-020). Decisão de onde este código vive (ADR-020 deixava "módulo `clinic-portal` novo, ou secção própria dentro de `clinics` — detalhe de implementação"): ficou dentro de `clinics`, porque já depende só de `access`/`audit` e já expõe `/admin/clinics...`; acrescentar o portal não introduz nenhuma aresta nova no grafo de módulos (`modules.md` §2/§3 inalterados) — um módulo novo exigiria repetir as mesmas duas dependências sem ganho de isolamento (o isolamento real já vem de `ClinicAccount` não ter FK/import de `users`/`auth`, não de estar numa pasta `modules/` diferente).
+
+Tudo o que seria "igual" a `auth` (hashing argon2id, refresh token opaco rotativo, rate limiter em memória, cache de estado ≤60 s, cookie HttpOnly) está **duplicado** em `domain/clinic-*.ts` (CLAUDE.md: a separação de identidade é deliberada — `clinics` nunca importa `modules/auth`).
+
+- **JWT do portal**: claims `cid` (clinicAccountId) + `csid` (sessionId do portal) — nunca `sub`/`sid`/`userId`/`familyId` de `User` (authorization.md §1, ADR-020). `clinicId`/`role` NÃO vão no token: são resolvidos por pedido a partir de `clinic_accounts`, com cache ≤60 s (`resolve-clinic-actor-state.ts`), para que uma suspensão (`authorization.md` §6.1 passo 1) tenha efeito quase imediato, não só no próximo login — mesmo critério de `auth/application/resolve-actor-state.ts`.
+- **Ator do pedido**: `platform/actor` ganhou um SEGUNDO `AsyncLocalStorage` (`ClinicActorInfo`/`runWithClinicActor`/`getClinicActor`) — nunca o mesmo de `ActorInfo` de `User` (ADR-020); só as rotas `/clinic-portal/*` o preenchem.
+- **Segurança HTTP**: `createClinicBearerAuthSecurityHandler` (esquema `clinicBearerAuth` do contrato) + `createClinicActorContextMiddleware`; `main/api.ts` compõe este middleware a seguir ao de `auth` (cada pedido só preenche um dos dois `req.authSubject`/`req.clinicAuthSubject`, nunca os dois).
+- **Admin**: `POST /admin/clinics/{clinicId}/root-account` (ator de **User**/Platform Admin normal, não o do portal) cria/repõe a conta `CLINIC_ADMIN` raiz — idempotente (UNIQUE parcial `clinic_accounts_single_active_admin_idx`, BR-CLN-05); a password é sempre gerada pelo servidor e só sai por e-mail (`ClinicMailer`, best effort via `send-clinic-mail.ts`).
+
+### Mapa de um pedido típico (login do portal)
+```
+POST /clinic-portal/auth/login
+  → interface/clinic-portal-router.ts
+    → application/clinic-login.ts
+      → domain/clinic-account-password.ts (verifyClinicPassword)
+        → infrastructure/clinic-account-repo.ts (findByEmail)
+          → infrastructure/clinic-account-repo.ts (ClinicSessionRepository.insert)
+            → audit.record(trx, …)   # CLINIC_ACCOUNT_LOGIN(_FAILED)
+              → domain/clinic-jwt.ts (signClinicAccessToken)
+```

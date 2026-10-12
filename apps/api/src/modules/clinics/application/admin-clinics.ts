@@ -7,9 +7,12 @@
 // `main/api.ts` sob `/admin/clinics` (modules.md: "clinics… inclui a gestão de parceiras, exposta
 // pelo admin através da API de clinics").
 import { newId } from "../../../platform/ids/index.js";
-import { ForbiddenError } from "../../../platform/errors/index.js";
+import { ForbiddenError, ValidationError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { assertValidClinicName, type Clinic, type ClinicStatus } from "../domain/clinic.js";
+import type { ClinicAccount } from "../domain/clinic-account.js";
+import { generateInitialClinicPassword, hashClinicPassword } from "../domain/clinic-account-password.js";
+import { trySendClinicMail } from "./send-clinic-mail.js";
 import type { ActorIdentity, ClinicChanges, ClinicsDeps, NewClinicRecord, RequestContext } from "./ports.js";
 import { requirePartnerClinic } from "./support.js";
 
@@ -116,6 +119,82 @@ export function createAdminUpdateClinicUseCase<Trx>(deps: ClinicsDeps<Trx>) {
 
       return updated;
     });
+  };
+}
+
+export interface AdminClinicRootAccountInput {
+  email: string;
+}
+
+/**
+ * `POST /admin/clinics/{clinicId}/root-account` (endpoints.md "adminCreateOrResetClinicRootAccount",
+ * BR-CLN-05, D18): única via do Platform Admin para o portal da clínica — cria a conta
+ * `CLINIC_ADMIN` raiz (primeira vez) ou repõe-lhe as credenciais (reset), nunca cria uma segunda
+ * (idempotente por clínica, UNIQUE parcial `(clinic_id) WHERE role='CLINIC_ADMIN' AND
+ * status='ACTIVE'`, schema.md). A palavra-passe é sempre gerada pelo servidor e só sai por e-mail
+ * (nunca no corpo da resposta, openapi.yaml `ClinicRootAccountRequest`).
+ */
+export function createAdminClinicRootAccountUseCase<Trx>(deps: ClinicsDeps<Trx>) {
+  return async function adminCreateOrResetClinicRootAccount(
+    actor: ActorIdentity,
+    clinicId: string,
+    input: AdminClinicRootAccountInput,
+    context: RequestContext,
+  ): Promise<ClinicAccount> {
+    requirePlatformAdmin(actor);
+    const email = input.email.trim().toLowerCase();
+
+    const { account, password } = await deps.withTransaction(async (trx) => {
+      await requirePartnerClinic(deps, trx, clinicId);
+
+      const existingByEmail = await deps.clinicAccountRepo.findByEmail(trx, email);
+      const existingAdmin = await deps.clinicAccountRepo.findActiveAdminByClinic(trx, clinicId);
+      if (existingByEmail && existingByEmail.id !== existingAdmin?.id) {
+        throw new ValidationError([{ field: "email", message: "já está em uso" }], {
+          detail: "E-mail já associado a outra conta do portal.",
+        });
+      }
+
+      const now = deps.clock.now();
+      const generatedPassword = generateInitialClinicPassword();
+      const passwordHash = await hashClinicPassword(generatedPassword);
+
+      const resultAccount = existingAdmin
+        ? await deps.clinicAccountRepo.resetCredentials(trx, existingAdmin.id, { email, passwordHash }, now)
+        : await deps.clinicAccountRepo.insert(trx, {
+            id: newId(),
+            clinicId,
+            email,
+            passwordHash,
+            role: "CLINIC_ADMIN",
+            createdByPlatformAdmin: actor.userId,
+            createdAt: now,
+          });
+
+      await deps.audit.record(trx, {
+        occurredAt: now,
+        actorType: "PLATFORM_ADMIN",
+        actorUserId: actor.userId,
+        action: "ADMIN_CLINIC_ROOT_ACCOUNT_CREATE",
+        resourceType: "ClinicAccount",
+        resourceId: resultAccount.id,
+        result: "SUCCESS",
+        requestId: context.requestId,
+        ...auditContextFields(context),
+      });
+
+      return { account: resultAccount, password: generatedPassword };
+    });
+
+    // Best effort (send-clinic-mail.ts): a conta/credencial já está gravada; uma falha do SMTP não
+    // pode transformar isto num 500 — o Platform Admin pode repetir o pedido (idempotente).
+    await trySendClinicMail(deps.clinicMailer, deps.logger, {
+      to: account.email,
+      subject: "Acesso ao Portal da Clínica Vita Family",
+      text: `A sua palavra-passe de acesso ao Portal da Clínica é: ${password}`,
+    });
+
+    return account;
   };
 }
 

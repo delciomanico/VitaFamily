@@ -5,15 +5,27 @@ import { Router } from "express";
 import { asyncHandler, buildRequestContext, requireParam } from "../../../platform/http/index.js";
 import { getActor } from "../../../platform/actor/index.js";
 import { UnauthenticatedError } from "../../../platform/errors/index.js";
-import type { AdminClinicListQuery, AdminCreateClinicInput, AdminSetClinicStatusInput, AdminUpdateClinicInput } from "../application/admin-clinics.js";
-import type { ActorIdentity, Clinic, RequestContext } from "../application/ports.js";
-import { toClinicListResponse, toClinicResponse } from "./dto.js";
+import type {
+  AdminClinicListQuery,
+  AdminClinicRootAccountInput,
+  AdminCreateClinicInput,
+  AdminSetClinicStatusInput,
+  AdminUpdateClinicInput,
+} from "../application/admin-clinics.js";
+import type { ActorIdentity, Clinic, ClinicAccount, RequestContext } from "../application/ports.js";
+import { toClinicAccountResponse, toClinicListResponse, toClinicResponse } from "./dto.js";
 
 export interface ClinicsAdminController {
   adminListClinics: (actor: ActorIdentity, query: AdminClinicListQuery) => Promise<Clinic[]>;
   adminCreateClinic: (actor: ActorIdentity, input: AdminCreateClinicInput, context: RequestContext) => Promise<Clinic>;
   adminUpdateClinic: (actor: ActorIdentity, clinicId: string, input: AdminUpdateClinicInput, context: RequestContext) => Promise<Clinic>;
   adminSetClinicStatus: (actor: ActorIdentity, clinicId: string, input: AdminSetClinicStatusInput, context: RequestContext) => Promise<Clinic>;
+  adminCreateOrResetClinicRootAccount: (
+    actor: ActorIdentity,
+    clinicId: string,
+    input: AdminClinicRootAccountInput,
+    context: RequestContext,
+  ) => Promise<ClinicAccount>;
 }
 
 function requireActor(): ActorIdentity {
@@ -62,6 +74,19 @@ export function createClinicsAdminRouter(controller: ClinicsAdminController): Ro
     asyncHandler(async (req, res) => {
       const result = await controller.adminSetClinicStatus(requireActor(), requireParam(req, "clinicId"), req.body as AdminSetClinicStatusInput, buildRequestContext(req));
       res.json(toClinicResponse(result));
+    }),
+  );
+
+  router.post(
+    "/admin/clinics/:clinicId/root-account",
+    asyncHandler(async (req, res) => {
+      const result = await controller.adminCreateOrResetClinicRootAccount(
+        requireActor(),
+        requireParam(req, "clinicId"),
+        req.body as AdminClinicRootAccountInput,
+        buildRequestContext(req),
+      );
+      res.json(toClinicAccountResponse(result));
     }),
   );
 

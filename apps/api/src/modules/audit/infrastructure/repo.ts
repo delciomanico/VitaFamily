@@ -14,6 +14,7 @@ export class KyselyAuditRepository implements AuditRepository<Kysely<Database>> 
         occurred_at: event.occurredAt,
         actor_type: event.actorType,
         actor_user_id: event.actorUserId ?? null,
+        actor_clinic_account_id: event.actorClinicAccountId ?? null,
         action: event.action,
         resource_type: event.resourceType,
         resource_id: event.resourceId ?? null,

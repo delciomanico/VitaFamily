@@ -1,5 +1,6 @@
-// Mapeamento de `Clinic` (application) -> forma da API (components.schemas.Clinic, openapi.yaml).
-import type { Clinic } from "../application/ports.js";
+// Mapeamento de `Clinic`/`ClinicAccount` (application) -> forma da API (components.schemas,
+// openapi.yaml).
+import type { Clinic, ClinicAccount } from "../application/ports.js";
 
 export function toClinicResponse(clinic: Clinic) {
   return {
@@ -15,4 +16,15 @@ export function toClinicResponse(clinic: Clinic) {
 
 export function toClinicListResponse(clinics: Clinic[]) {
   return clinics.map(toClinicResponse);
+}
+
+/** `components.schemas.ClinicAccount` (D18): nunca inclui `passwordHash`. */
+export function toClinicAccountResponse(account: ClinicAccount) {
+  return {
+    id: account.id,
+    clinicId: account.clinicId,
+    email: account.email,
+    role: account.role,
+    status: account.status,
+  };
 }

@@ -93,9 +93,16 @@ export type AuditAction =
   | "ADMIN_PLATFORM_ADMIN_CREATE"
   // `lifecycle` (M9 — UC-MEM-10, BR-MEM-10/11): maioridade e apagamento de perfis bloqueados.
   | "MEMBER_COMING_OF_AGE"
-  | "MEMBER_BLOCKED_DELETE";
+  | "MEMBER_BLOCKED_DELETE"
+  // Portal da clínica (D17/D18, ADR-020, `clinics` — identidade `ClinicAccount` separada de
+  // `User`): login/refresh/logout próprios + reposição da conta raiz pelo Platform Admin.
+  | "CLINIC_ACCOUNT_LOGIN"
+  | "CLINIC_ACCOUNT_LOGIN_FAILED"
+  | "CLINIC_ACCOUNT_LOGOUT"
+  | "CLINIC_ACCOUNT_REFRESH_REUSE_DETECTED"
+  | "ADMIN_CLINIC_ROOT_ACCOUNT_CREATE";
 
-export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN";
+export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT";
 
 export type AuditResult = "SUCCESS" | "DENIED" | "FAILURE";
 
@@ -110,6 +117,8 @@ export interface AuditEvent {
   actorType: AuditActorType;
   /** `undefined` para ações sem User identificável (ex.: falha de login com e-mail inexistente). */
   actorUserId?: string;
+  /** D18: preenchido só quando `actorType==='CLINIC_ACCOUNT'` (schema.md §5). */
+  actorClinicAccountId?: string;
   action: AuditAction;
   resourceType: string;
   resourceId?: string;

@@ -5,8 +5,9 @@ import type { ColumnType, Generated } from "kysely";
 export interface AuditLogsTable {
   id: Generated<string>;
   occurred_at: ColumnType<Date, Date | string, never>;
-  actor_type: "USER" | "SYSTEM" | "PLATFORM_ADMIN";
+  actor_type: "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT";
   actor_user_id: string | null;
+  actor_clinic_account_id: string | null;
   action: string;
   resource_type: string;
   resource_id: string | null;
