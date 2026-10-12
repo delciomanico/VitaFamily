@@ -12,6 +12,8 @@ import type {
   AppointmentsDeps,
   AppointmentsRepository,
   AuditPort,
+  ClinicOutcomeChange,
+  ClinicPrescriptionInput,
   ClinicSlotLite,
   ClinicStatusChange,
   ClinicsPort,
@@ -19,6 +21,8 @@ import type {
   MembershipPort,
   MemberNamesPort,
   NewAppointmentRecord,
+  PrescriptionsPort,
+  RequestContext,
 } from "./ports.js";
 
 export type FakeTrx = Record<string, never>;
@@ -109,6 +113,26 @@ export class FakeMemberNamesPort implements MemberNamesPort<FakeTrx> {
 
   seed(familyId: string, memberId: string, name: string): void {
     this.names.set(`${familyId}:${memberId}`, name);
+  }
+}
+
+export class FakePrescriptionsPort implements PrescriptionsPort<FakeTrx> {
+  readonly calls: { familyId: string; memberId: string; input: ClinicPrescriptionInput; origin: { clinicAccountId: string; appointmentId: string } }[] = [];
+  denyWith?: Error;
+
+  async issueForClinic(
+    _trx: FakeTrx,
+    familyId: string,
+    memberId: string,
+    input: ClinicPrescriptionInput,
+    origin: { clinicAccountId: string; appointmentId: string },
+    _context: RequestContext,
+  ): Promise<{ id: string }> {
+    if (this.denyWith) {
+      throw this.denyWith;
+    }
+    this.calls.push({ familyId, memberId, input, origin });
+    return Promise.resolve({ id: `prescription-${this.calls.length.toString()}` });
   }
 }
 
@@ -271,6 +295,23 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     return Promise.resolve(updated);
   }
 
+  async completeByClinic(_trx: FakeTrx, appointmentId: string, change: ClinicOutcomeChange): Promise<Appointment> {
+    const appointment = this.byId.get(appointmentId);
+    if (!appointment) {
+      throw new Error("consulta inexistente no fake");
+    }
+    const updated: Appointment = {
+      ...appointment,
+      status: "COMPLETED",
+      outcomeRecordedByClinicAccountId: change.clinicAccountId,
+      outcomeRecordedAt: change.recordedAt,
+    };
+    if (change.outcomeNote === null) delete updated.clinicOutcomeNote;
+    else if (change.outcomeNote !== undefined) updated.clinicOutcomeNote = change.outcomeNote;
+    this.byId.set(appointmentId, updated);
+    return Promise.resolve(updated);
+  }
+
   private requireOwned(familyId: string, memberId: string, appointmentId: string): Appointment {
     const appointment = this.byId.get(appointmentId);
     if (!appointment) {
@@ -294,6 +335,7 @@ export interface AppointmentsFixtures {
   membership: FakeMembershipPort;
   memberNames: FakeMemberNamesPort;
   clinics: FakeClinicsPort;
+  prescriptions: FakePrescriptionsPort;
   audit: FakeAuditPort;
 }
 
@@ -303,6 +345,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const membership = new FakeMembershipPort();
   const memberNames = new FakeMemberNamesPort();
   const clinics = new FakeClinicsPort();
+  const prescriptions = new FakePrescriptionsPort();
   const audit = new FakeAuditPort();
   const deps: AppointmentsDeps<FakeTrx> = {
     appointmentsRepo,
@@ -310,10 +353,11 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     membership,
     memberNames,
     clinics,
+    prescriptions,
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, audit };
+  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, prescriptions, audit };
 }

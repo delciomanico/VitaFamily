@@ -19,6 +19,10 @@ export interface AppointmentsTable {
   slot_id: ColumnType<string | null, string | null | undefined, string | null>;
   /** Motivo da clínica ao recusar/cancelar (D17). */
   response_note: ColumnType<string | null, string | null | undefined, string | null>;
+  /** Resultado da consulta registado pela clínica (D18) — `db/migrations/0017_*.sql`. */
+  clinic_outcome_note: ColumnType<string | null, string | null | undefined, string | null>;
+  outcome_recorded_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  outcome_recorded_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

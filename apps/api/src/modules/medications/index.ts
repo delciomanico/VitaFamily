@@ -21,7 +21,7 @@ import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { DoseOccurrence } from "./domain/dose-occurrence.js";
 import { createCorrectDoseUseCase } from "./application/correct-dose.js";
-import { createCreatePlanUseCase, createPlanWithTrx } from "./application/create-plan.js";
+import { createCreatePlanUseCase, createPlanForClinicWithTrx, createPlanWithTrx } from "./application/create-plan.js";
 import { createDeletePlanUseCase } from "./application/delete-plan.js";
 import { createEndPlansForPrescriptionUseCase, createListPlansForPrescriptionUseCase } from "./application/for-prescription.js";
 import { createGenerateDosesJobUseCase } from "./application/generate-doses-job.js";
@@ -61,6 +61,9 @@ export interface MedicationsModule {
   };
   /** API pública para `prescriptions` (modules.md §3.6) — recebem `trx` já aberto. */
   createPlan: ReturnType<typeof createPlanWithTrx<Kysely<Database>>>;
+  /** Portal da clínica (D18, BR-CLN-06/BR-RX-07): nunca chama `AccessPolicy` (ator `ClinicAccount`,
+   * ver `application/create-plan.js#createPlanForClinicWithTrx`). */
+  createPlanForClinic: ReturnType<typeof createPlanForClinicWithTrx<Kysely<Database>>>;
   listPlansForPrescription: ReturnType<typeof createListPlansForPrescriptionUseCase<Kysely<Database>>>;
   endPlansForPrescription: ReturnType<typeof createEndPlansForPrescriptionUseCase<Kysely<Database>>>;
 }
@@ -104,6 +107,7 @@ export function createMedicationsModule(deps: MedicationsModuleDeps): Medication
       adherence: async (actor, familyId, memberId, query, context) => toAdherenceResponse(await controller.medicationAdherence(actor, familyId, memberId, query, context)),
     },
     createPlan: createPlanWithTrx(medicationsDeps),
+    createPlanForClinic: createPlanForClinicWithTrx(medicationsDeps),
     listPlansForPrescription: createListPlansForPrescriptionUseCase(medicationsDeps),
     endPlansForPrescription: createEndPlansForPrescriptionUseCase(medicationsDeps),
   };

@@ -36,3 +36,25 @@ DELETE /families/{familyId}/members/{memberId}/prescriptions/{prescriptionId}
 
 ## Migração
 `db/migrations/0007_prescriptions_and_medications.sql`: `prescriptions` (+ `medication_plans`/`dose_occurrences`, ver `medications/README.md`) e a Fase 2 de `documents` (`ALTER TABLE documents ADD CONSTRAINT documents_prescription_fk ...`, prevista em `migrations.md`/`0006_documents.sql`).
+`db/migrations/0017_appointment_outcome_and_clinic_prescriptions.sql` (D18, Fase E): colunas
+`issued_by`/`issued_by_clinic_account_id`/`appointment_id` (BR-RX-07) e o enum `prescription_issuer`.
+
+## Receita emitida pela clínica parceira (D18, Fase E, BR-CLN-06/BR-RX-07)
+
+`application/issue-for-clinic.ts#createIssuePrescriptionForClinicUseCase`: emite a receita com
+`issuedBy=CLINIC`+`issuedByClinicAccountId`+`appointmentId`, reaproveitando as mesmas validações de
+domínio de `createPrescription` (`assertHasMedications`/`assertValidIssuedOn`). Exposta pela raiz
+como `issuePrescriptionForClinic` — porta usada por `appointments.completeClinicAppointment`
+(`appointments/README.md` "Completar a consulta e emitir receita": a direção
+`appointments → prescriptions` não é uma aresta de `modules.md` §2; a ligação é só no composition
+root, `main/api.ts`, mesmo critério de `reports`/`lifecycle`).
+
+**Nunca chama `access.policy.can()`**: o ator é um `ClinicAccount` (sem `userId`/`FamilyMember`,
+authorization.md linha 15 — "`AccessPolicy` decide só sobre o ator de User/família"). A autorização
+já foi inteiramente decidida pelo algoritmo do portal da clínica (authorization.md §6.1/§6.2) antes
+de `appointments` chegar a chamar esta função. Pelo mesmo motivo, os medicamentos da receita usam
+`medications.createPlanForClinic` (nunca `medications.createPlan`) — ver `medications/README.md`.
+
+`interface/dto.ts#toPrescriptionResponse` passou a expor `issuedBy`/`appointmentId`
+(`components.schemas.Prescription`, `openapi.yaml`) — campos sempre presentes no DTO
+(`issuedBy` default `FAMILY`; `appointmentId` `null` fora do caminho da clínica).

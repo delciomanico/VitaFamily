@@ -17,6 +17,7 @@ import { createAddPrescriptionMedicationUseCase } from "./application/add-prescr
 import { createCreatePrescriptionUseCase } from "./application/create-prescription.js";
 import { createDeletePrescriptionUseCase } from "./application/delete-prescription.js";
 import { createGetPrescriptionUseCase } from "./application/get-prescription.js";
+import { createIssuePrescriptionForClinicUseCase } from "./application/issue-for-clinic.js";
 import { createListPrescriptionsUseCase } from "./application/list-prescriptions.js";
 import type { PrescriptionsDeps } from "./application/ports.js";
 import { createSetPrescriptionStatusUseCase } from "./application/set-prescription-status.js";
@@ -40,6 +41,11 @@ export interface PrescriptionsModule {
   router: Router;
   /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
   reads: { prescriptions: MemberPageRead };
+  /** Porta usada por `appointments` (D18, BR-CLN-06/BR-RX-07) — ligada no composition root
+   * (`main/api.ts`) à `PrescriptionsPort` de `appointments/application/ports.ts`; nenhuma aresta
+   * nova no grafo de módulos (`appointments` não importa `modules/prescriptions`, modules.md §3
+   * notas 16/20). Recebe `trx` já aberto — a mesma transação de `completeConsultation`. */
+  issuePrescriptionForClinic: ReturnType<typeof createIssuePrescriptionForClinicUseCase<Kysely<Database>>>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -51,6 +57,7 @@ export function createPrescriptionsModule(deps: PrescriptionsModuleDeps): Prescr
     policy: deps.access.policy,
     medications: {
       createPlan: deps.medications.createPlan,
+      createPlanForClinic: deps.medications.createPlanForClinic,
       listPlansForPrescription: deps.medications.listPlansForPrescription,
       endPlansForPrescription: deps.medications.endPlansForPrescription,
     },
@@ -79,5 +86,6 @@ export function createPrescriptionsModule(deps: PrescriptionsModuleDeps): Prescr
     reads: {
       prescriptions: async (actor, familyId, memberId, query, context) => toPrescriptionPage(await controller.listPrescriptions(actor, familyId, memberId, query, context)),
     },
+    issuePrescriptionForClinic: createIssuePrescriptionForClinicUseCase(prescriptionsDeps),
   };
 }

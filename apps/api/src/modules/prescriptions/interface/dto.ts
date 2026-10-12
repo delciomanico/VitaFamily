@@ -33,6 +33,9 @@ export function toPrescriptionResponse(prescription: PrescriptionView) {
     doctorName: prescription.doctorName ?? null,
     notes: prescription.notes ?? null,
     status: prescription.status,
+    // BR-RX-07/D18: `issuedBy`/`appointmentId` (origem da receita emitida pelo portal da clínica).
+    issuedBy: prescription.issuedBy,
+    appointmentId: prescription.appointmentId ?? null,
     medications: prescription.medications.map(toEmbeddedMedicationPlan),
     documentIds: prescription.documentIds,
   };

@@ -191,7 +191,17 @@ export function main(): void {
     clinicRefreshTtlMs: parseDurationMs(config.REFRESH_TTL),
     cookieDomain: config.COOKIE_DOMAIN,
   });
-  const appointments = createAppointmentsModule({ db, audit, access, clinics, clock });
+  // D18 (BR-CLN-06/BR-RX-07): `appointments` liga-se a `prescriptions` só aqui, pela sua API
+  // pública (`issuePrescriptionForClinic`) — nenhuma aresta nova no grafo de módulos (modules.md
+  // §3 notas 16/20; `appointments/application/ports.ts#PrescriptionsPort`).
+  const appointments = createAppointmentsModule({
+    db,
+    audit,
+    access,
+    clinics,
+    prescriptions: { issuePrescriptionForClinic: prescriptions.issuePrescriptionForClinic },
+    clock,
+  });
   const examinations = createExaminationsModule({ db, audit, access, clinics, documents, clock });
 
   // M8 (plan.md §4): `notifications` antes de `alerts` — `alerts` depende de `notifications`

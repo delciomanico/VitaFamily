@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
-import { createCreatePlanUseCase } from "./create-plan.js";
+import { createCreatePlanUseCase, createPlanForClinicWithTrx } from "./create-plan.js";
 import { createMedicationsFixtures } from "./fixtures.js";
 
 const NOW = new Date("2026-01-15T00:00:00.000Z");
@@ -76,6 +76,42 @@ describe("createPlan (BR-MED-01/02, AC-RX-01)", () => {
     await expect(
       createPlan(ACTOR, FAMILY_ID, MEMBER_ID, { name: "X", dosage: "1", scheduleType: "INTERVAL", intervalHours: 8, startAt: NOW.toISOString(), continuous: true }, CTX),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(fixtures.plansRepo.byId.size).toBe(0);
+  });
+});
+
+describe("createPlanForClinic (D18, BR-CLN-06/BR-RX-07)", () => {
+  it("cria o plano e gera ocorrências sem chamar AccessPolicy, auditando como CLINIC_ACCOUNT", async () => {
+    const fixtures = createMedicationsFixtures(new FixedClock(NOW));
+    const createPlanForClinic = createPlanForClinicWithTrx(fixtures.deps);
+
+    const plan = await createPlanForClinic(
+      fixtures.deps.db,
+      "clinic-account-1",
+      FAMILY_ID,
+      MEMBER_ID,
+      { name: "Ibuprofeno", dosage: "400mg", scheduleType: "FIXED_TIMES", times: ["08:00"], startAt: NOW.toISOString(), continuous: true },
+      CTX,
+      { prescriptionId: "rx-1" },
+    );
+
+    expect(plan.status).toBe("ACTIVE");
+    expect(plan.prescriptionId).toBe("rx-1");
+    expect(fixtures.policy.calls).toHaveLength(0);
+    const doses = [...fixtures.dosesRepo.byId.values()].filter((d) => d.planId === plan.id);
+    expect(doses).toHaveLength(14);
+
+    const event = fixtures.audit.events.find((e) => e.action === "PLAN_CREATE");
+    expect(event).toMatchObject({ actorType: "CLINIC_ACCOUNT", actorClinicAccountId: "clinic-account-1", resourceId: plan.id });
+  });
+
+  it("recusa desenho inválido (INVALID_SCHEDULE) sem criar nada", async () => {
+    const fixtures = createMedicationsFixtures(new FixedClock(NOW));
+    const createPlanForClinic = createPlanForClinicWithTrx(fixtures.deps);
+
+    await expect(
+      createPlanForClinic(fixtures.deps.db, "clinic-account-1", FAMILY_ID, MEMBER_ID, { name: "X", dosage: "1", scheduleType: "FIXED_TIMES", times: [], startAt: NOW.toISOString(), continuous: true }, CTX),
+    ).rejects.toMatchObject({ code: "INVALID_SCHEDULE" });
     expect(fixtures.plansRepo.byId.size).toBe(0);
   });
 });

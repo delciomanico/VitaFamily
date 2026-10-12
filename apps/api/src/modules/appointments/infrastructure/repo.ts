@@ -8,6 +8,7 @@ import type {
   AppointmentChanges,
   AppointmentListFilter,
   AppointmentsRepository,
+  ClinicOutcomeChange,
   ClinicStatusChange,
   CursorPage,
   NewAppointmentRecord,
@@ -28,6 +29,9 @@ interface AppointmentRow {
   notes: string | null;
   slot_id: string | null;
   response_note: string | null;
+  clinic_outcome_note: string | null;
+  outcome_recorded_by_clinic_account_id: string | null;
+  outcome_recorded_at: Date | null;
   created_at: Date;
 }
 
@@ -48,6 +52,9 @@ function toAppointment(row: AppointmentRow): Appointment {
   if (row.notes !== null) appointment.notes = row.notes;
   if (row.slot_id !== null) appointment.slotId = row.slot_id;
   if (row.response_note !== null) appointment.responseNote = row.response_note;
+  if (row.clinic_outcome_note !== null) appointment.clinicOutcomeNote = row.clinic_outcome_note;
+  if (row.outcome_recorded_by_clinic_account_id !== null) appointment.outcomeRecordedByClinicAccountId = row.outcome_recorded_by_clinic_account_id;
+  if (row.outcome_recorded_at !== null) appointment.outcomeRecordedAt = row.outcome_recorded_at;
   return appointment;
 }
 
@@ -65,6 +72,9 @@ const APPOINTMENT_COLUMNS = [
   "notes",
   "slot_id",
   "response_note",
+  "clinic_outcome_note",
+  "outcome_recorded_by_clinic_account_id",
+  "outcome_recorded_at",
   "created_at",
 ] as const;
 
@@ -250,6 +260,22 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
       .set({
         status: change.status,
         ...(change.responseNote !== undefined ? { response_note: change.responseNote } : {}),
+        updated_at: sql`now()`,
+      })
+      .where("id", "=", appointmentId)
+      .returning(APPOINTMENT_COLUMNS)
+      .executeTakeFirstOrThrow();
+    return toAppointment(row);
+  }
+
+  async completeByClinic(trx: Kysely<Database>, appointmentId: string, change: ClinicOutcomeChange): Promise<Appointment> {
+    const row = await trx
+      .updateTable("appointments")
+      .set({
+        status: "COMPLETED",
+        clinic_outcome_note: change.outcomeNote ?? null,
+        outcome_recorded_by_clinic_account_id: change.clinicAccountId,
+        outcome_recorded_at: change.recordedAt,
         updated_at: sql`now()`,
       })
       .where("id", "=", appointmentId)

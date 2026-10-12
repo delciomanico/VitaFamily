@@ -3,6 +3,10 @@ import { DomainError, ValidationError } from "../../../platform/errors/index.js"
 
 export type PrescriptionStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
 
+/** BR-RX-07/D18: `FAMILY` (default) nas receitas normais; `CLINIC` quando emitida pelo portal da
+ * clínica parceira (`completeClinicAppointment`), sempre com `issuedByClinicAccountId`+`appointmentId`. */
+export type PrescriptionIssuer = "FAMILY" | "CLINIC";
+
 export interface Prescription {
   id: string;
   familyId: string;
@@ -11,6 +15,11 @@ export interface Prescription {
   doctorName?: string;
   notes?: string;
   status: PrescriptionStatus;
+  issuedBy: PrescriptionIssuer;
+  /** Preenchido só quando `issuedBy==='CLINIC'` (BR-RX-07). */
+  issuedByClinicAccountId?: string;
+  /** Consulta de origem; preenchida só quando `issuedBy==='CLINIC'` (BR-RX-07). */
+  appointmentId?: string;
   createdAt: Date;
 }
 

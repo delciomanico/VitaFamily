@@ -116,6 +116,58 @@ export interface ClinicStatusChange {
   responseNote?: string | null;
 }
 
+/** `completeConsultation` (D18, BR-CLN-06): sempre `COMPLETED`, com o resultado e quem o registou. */
+export interface ClinicOutcomeChange {
+  outcomeNote?: string | null;
+  clinicAccountId: string;
+  recordedAt: Date;
+}
+
+/**
+ * Medicamento de uma receita emitida pela clínica (D18, BR-RX-07) — duplicado deliberadamente de
+ * `medications.CreateMedicationPlanInput` (mesmo critério de `ClinicPortalActor`, linha 19 acima):
+ * `appointments` não depende de `medications`/`prescriptions` (modules.md §2); esta forma só
+ * precisa de atravessar a porta `PrescriptionsPort` abaixo, ligada no composition root.
+ */
+export interface ClinicPrescriptionMedicationInput {
+  name: string;
+  dosage: string;
+  scheduleType: "FIXED_TIMES" | "INTERVAL";
+  times?: string[] | null;
+  daysOfWeek?: number[] | null;
+  intervalHours?: number | null;
+  startAt: string;
+  endAt?: string | null;
+  continuous?: boolean | null;
+  notes?: string | null;
+}
+
+/** `PrescriptionInput` (openapi.yaml) emitida pela clínica, no mesmo pedido de `completeConsultation`. */
+export interface ClinicPrescriptionInput {
+  issuedOn: string;
+  doctorName?: string | null;
+  notes?: string | null;
+  medications: ClinicPrescriptionMedicationInput[];
+}
+
+/**
+ * Porta para `prescriptions.issuePrescriptionForClinic` (D18, BR-CLN-06/BR-RX-07): `appointments`
+ * e `prescriptions` não têm aresta declarada entre si (modules.md §2) — esta porta é definida aqui
+ * e ligada no composition root (`main/api.ts`) à função pública de `prescriptions`, mesmo critério
+ * de `reports`/`lifecycle` (modules.md §3 notas 16/20: porta na `application`, "nenhuma aresta nova
+ * no grafo"). Recebe `trx` já aberto — a mesma transação de `completeConsultation`.
+ */
+export interface PrescriptionsPort<Trx> {
+  issueForClinic(
+    trx: Trx,
+    familyId: string,
+    memberId: string,
+    input: ClinicPrescriptionInput,
+    origin: { clinicAccountId: string; appointmentId: string },
+    context: RequestContext,
+  ): Promise<{ id: string }>;
+}
+
 export interface AppointmentListFilter {
   status?: AppointmentStatus;
   from?: Date;
@@ -160,6 +212,9 @@ export interface AppointmentsRepository<Trx> {
   /** `confirmRequest`/`rejectRequest`/`cancelByClinic` (D17): só escritor de `status`+`response_note`
    * para o portal da clínica — nunca `familyId`/`memberId` (o ator de clínica não os conhece). */
   updateStatusByClinic(trx: Trx, appointmentId: string, change: ClinicStatusChange): Promise<Appointment>;
+  /** `completeConsultation` (D18, BR-CLN-06): marca `COMPLETED` e grava o resultado da consulta,
+   * sempre com quem o registou — nunca escrito pela família. */
+  completeByClinic(trx: Trx, appointmentId: string, change: ClinicOutcomeChange): Promise<Appointment>;
 }
 
 export interface AppointmentsDeps<Trx> {
@@ -168,6 +223,8 @@ export interface AppointmentsDeps<Trx> {
   membership: MembershipPort<Trx>;
   memberNames: MemberNamesPort<Trx>;
   clinics: ClinicsPort<Trx>;
+  /** D18 (BR-CLN-06/BR-RX-07) — ver `PrescriptionsPort` acima. */
+  prescriptions: PrescriptionsPort<Trx>;
   audit: AuditPort<Trx>;
   db: Trx;
   withTransaction: WithTransaction<Trx>;

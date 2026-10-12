@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
-import { createCancelClinicAppointmentUseCase, createListClinicAgendaUseCase, createListClinicRequestsUseCase, createRespondClinicRequestUseCase } from "./clinic-appointments.js";
+import {
+  createCancelClinicAppointmentUseCase,
+  createCompleteClinicAppointmentUseCase,
+  createListClinicAgendaUseCase,
+  createListClinicRequestsUseCase,
+  createRespondClinicRequestUseCase,
+} from "./clinic-appointments.js";
 import { createCreateAppointmentUseCase } from "./create-appointment.js";
 import { createDeleteAppointmentUseCase } from "./delete-appointment.js";
 import { createAppointmentsFixtures } from "./fixtures.js";
@@ -393,5 +399,66 @@ describe("Portal da clínica — pedidos e agenda (D17/BR-CLN-03)", () => {
     const cancelled = await cancel(CLINIC_ACTOR, created.id, { note: "sala indisponível" }, CTX);
     expect(cancelled.status).toBe("CANCELLED");
     expect(cancelled.responseNote).toBe("sala indisponível");
+  });
+});
+
+describe("completeClinicAppointment (D18, BR-CLN-06/BR-RX-07)", () => {
+  async function scheduleOne(fixtures: ReturnType<typeof createAppointmentsFixtures>) {
+    seedFreeSlot(fixtures, "slot-1");
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    const created = await createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-1" }, CTX);
+    const respond = createRespondClinicRequestUseCase(fixtures.deps);
+    await respond(CLINIC_ACTOR, created.id, { decision: "CONFIRM" }, CTX);
+    return created;
+  }
+
+  it("marca COMPLETED e regista o resultado, sem receita", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    const created = await scheduleOne(fixtures);
+    const complete = createCompleteClinicAppointmentUseCase(fixtures.deps);
+
+    const result = await complete(CLINIC_ACTOR, created.id, { outcomeNote: "Sem alterações." }, CTX);
+
+    expect(result.status).toBe("COMPLETED");
+    expect(fixtures.appointmentsRepo.byId.get(created.id)?.clinicOutcomeNote).toBe("Sem alterações.");
+    expect(fixtures.appointmentsRepo.byId.get(created.id)?.outcomeRecordedByClinicAccountId).toBe(CLINIC_ACTOR.clinicAccountId);
+    expect(fixtures.prescriptions.calls).toHaveLength(0);
+    expect(fixtures.audit.events.some((e) => e.action === "APPOINTMENT_STATUS" && e.actorType === "CLINIC_ACCOUNT")).toBe(true);
+  });
+
+  it("emite a receita associada (issueForClinic chamado com familyId/memberId/origem corretos)", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    const created = await scheduleOne(fixtures);
+    const complete = createCompleteClinicAppointmentUseCase(fixtures.deps);
+
+    const prescription = {
+      issuedOn: "2026-01-15",
+      medications: [{ name: "Paracetamol", dosage: "500mg", scheduleType: "INTERVAL" as const, intervalHours: 8, startAt: "2026-01-15T10:00:00.000Z", continuous: true }],
+    };
+    await complete(CLINIC_ACTOR, created.id, { outcomeNote: "Prescrito analgésico.", prescription }, CTX);
+
+    expect(fixtures.prescriptions.calls).toHaveLength(1);
+    expect(fixtures.prescriptions.calls[0]).toMatchObject({
+      familyId: FAMILY_ID,
+      memberId: MEMBER_ID,
+      origin: { clinicAccountId: CLINIC_ACTOR.clinicAccountId, appointmentId: created.id },
+    });
+  });
+
+  it("recusa completar uma consulta que não está SCHEDULED (CONFLICT)", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    const created = await scheduleOne(fixtures);
+    const complete = createCompleteClinicAppointmentUseCase(fixtures.deps);
+    await complete(CLINIC_ACTOR, created.id, { outcomeNote: "primeira vez" }, CTX);
+
+    await expect(complete(CLINIC_ACTOR, created.id, { outcomeNote: "segunda vez" }, CTX)).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  it("nunca completa consulta de outra clínica (NOT_FOUND)", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    const created = await scheduleOne(fixtures);
+    const complete = createCompleteClinicAppointmentUseCase(fixtures.deps);
+
+    await expect(complete({ clinicAccountId: "other", clinicId: "other-clinic" }, created.id, {}, CTX)).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

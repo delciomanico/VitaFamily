@@ -7,7 +7,7 @@ import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Document, ResourceType } from "../../documents/index.js";
 import type { CreateMedicationPlanInput, CreateMedicationPlanOptions, MedicationPlan } from "../../medications/index.js";
-import type { Prescription, PrescriptionStatus } from "../domain/prescription.js";
+import type { Prescription, PrescriptionIssuer, PrescriptionStatus } from "../domain/prescription.js";
 
 export interface ActorIdentity {
   userId: string;
@@ -28,6 +28,17 @@ export interface MedicationsPort<Trx> {
   createPlan(
     trx: Trx,
     actor: ActorIdentity,
+    familyId: string,
+    memberId: string,
+    input: CreateMedicationPlanInput,
+    context: RequestContext,
+    options?: CreateMedicationPlanOptions,
+  ): Promise<MedicationPlan>;
+  /** Portal da clínica (D18, BR-CLN-06/BR-RX-07) — `medications.createPlanForClinic`, nunca chama
+   * `AccessPolicy` (ver `medications/application/create-plan.js#createPlanForClinicWithTrx`). */
+  createPlanForClinic(
+    trx: Trx,
+    clinicAccountId: string,
     familyId: string,
     memberId: string,
     input: CreateMedicationPlanInput,
@@ -67,6 +78,10 @@ export interface NewPrescriptionRecord {
   doctorName?: string;
   notes?: string;
   createdAt: Date;
+  /** BR-RX-07/D18: omitido = `FAMILY` (default da BD); `CLINIC` só via `issuePrescriptionForClinic`. */
+  issuedBy?: PrescriptionIssuer;
+  issuedByClinicAccountId?: string;
+  appointmentId?: string;
 }
 
 export interface PrescriptionChanges {
@@ -105,7 +120,7 @@ export interface PrescriptionsDeps<Trx> {
   clock: Clock;
 }
 
-export type { Prescription, PrescriptionStatus } from "../domain/prescription.js";
+export type { Prescription, PrescriptionIssuer, PrescriptionStatus } from "../domain/prescription.js";
 // Reexportados para `interface` (dto.ts/router.ts) nunca importar `medications/index.js`
 // diretamente — "só application e a raiz chamam outros módulos" (architecture-rules.ts).
 export type { CreateMedicationPlanInput, CreateMedicationPlanOptions, MedicationPlan } from "../../medications/index.js";

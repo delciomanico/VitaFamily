@@ -23,6 +23,11 @@ export interface Appointment {
   slotId?: string;
   /** Motivo da clínica ao recusar o pedido ou cancelar a consulta confirmada (D17). */
   responseNote?: string;
+  /** Resultado da consulta registado pela própria clínica (D18, BR-CLN-06); nunca escrito pela
+   * família — distinto de `notes`. */
+  clinicOutcomeNote?: string;
+  outcomeRecordedByClinicAccountId?: string;
+  outcomeRecordedAt?: Date;
   createdAt: Date;
 }
 

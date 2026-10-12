@@ -3,7 +3,7 @@
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
 import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
-import type { Prescription, PrescriptionStatus } from "../domain/prescription.js";
+import type { Prescription, PrescriptionIssuer, PrescriptionStatus } from "../domain/prescription.js";
 import type { CursorPage, PrescriptionChanges, PrescriptionListFilter, PrescriptionsRepository, NewPrescriptionRecord } from "../application/ports.js";
 import "./schema.js";
 
@@ -15,6 +15,9 @@ interface PrescriptionRow {
   doctor_name: string | null;
   notes: string | null;
   status: PrescriptionStatus;
+  issued_by: PrescriptionIssuer;
+  issued_by_clinic_account_id: string | null;
+  appointment_id: string | null;
   created_at: Date;
 }
 
@@ -25,14 +28,29 @@ function toPrescription(row: PrescriptionRow): Prescription {
     memberId: row.member_id,
     issuedOn: row.issued_on,
     status: row.status,
+    issuedBy: row.issued_by,
     createdAt: row.created_at,
   };
   if (row.doctor_name !== null) prescription.doctorName = row.doctor_name;
   if (row.notes !== null) prescription.notes = row.notes;
+  if (row.issued_by_clinic_account_id !== null) prescription.issuedByClinicAccountId = row.issued_by_clinic_account_id;
+  if (row.appointment_id !== null) prescription.appointmentId = row.appointment_id;
   return prescription;
 }
 
-const PRESCRIPTION_COLUMNS = ["id", "family_id", "member_id", "issued_on", "doctor_name", "notes", "status", "created_at"] as const;
+const PRESCRIPTION_COLUMNS = [
+  "id",
+  "family_id",
+  "member_id",
+  "issued_on",
+  "doctor_name",
+  "notes",
+  "status",
+  "issued_by",
+  "issued_by_clinic_account_id",
+  "appointment_id",
+  "created_at",
+] as const;
 
 export class KyselyPrescriptionsRepository implements PrescriptionsRepository<Kysely<Database>> {
   async insert(trx: Kysely<Database>, record: NewPrescriptionRecord): Promise<Prescription> {
@@ -46,6 +64,9 @@ export class KyselyPrescriptionsRepository implements PrescriptionsRepository<Ky
         doctor_name: record.doctorName ?? null,
         notes: record.notes ?? null,
         status: "ACTIVE",
+        issued_by: record.issuedBy ?? "FAMILY",
+        issued_by_clinic_account_id: record.issuedByClinicAccountId ?? null,
+        appointment_id: record.appointmentId ?? null,
         created_at: record.createdAt,
       })
       .returning(PRESCRIPTION_COLUMNS)

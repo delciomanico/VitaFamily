@@ -47,6 +47,36 @@ M7 (`plan.md` §4): `Appointment` e o seu ciclo de vida (FR-APT). Depende de `ac
   `families`), mesmo critério de `getEffectiveTimezone`/`getMembershipFacts` (notas 9/10/11 em
   `access/index.ts`/`clinics/README.md`). Nenhuma aresta nova no grafo de módulos.
 
+## Completar a consulta e emitir receita (D18, Fase E, BR-CLN-06/BR-RX-07)
+
+`PUT /clinic-portal/agenda/{appointmentId}/complete` (`completeClinicAppointment`,
+`application/clinic-appointments.ts#createCompleteClinicAppointmentUseCase`): só a consulta
+`SCHEDULED` que a própria clínica está a atender — marca `COMPLETED`, grava
+`clinic_outcome_note`/`outcome_recorded_by_clinic_account_id`/`outcome_recorded_at`
+(`db/migrations/0017_appointment_outcome_and_clinic_prescriptions.sql`) e, se o pedido incluir
+`prescription`, emite a receita associada na MESMA transação (tudo ou nada). Qualquer outro estado
+devolve `CONFLICT` (nunca completa duas vezes nem repete a mesma emissão).
+
+**Direção `appointments ↔ prescriptions`** (decisão desta fase, documentada em vez de alterada
+silenciosamente — mesmo critério das notas 7-21 de `modules.md` §3): a tabela de `modules.md` §2
+não lista nenhuma aresta entre os dois módulos nos dois sentidos, e BR-CLN-06 não exige uma — só
+que a receita seja emitida "através do módulo `prescriptions`". Seguiu-se o padrão já estabelecido
+para `reports`/`lifecycle` (`modules.md` §3 notas 16/20: porta definida na própria `application`,
+ligada só no composition root à API pública do outro módulo): `PrescriptionsPort`
+(`application/ports.ts`) é implementada em `main/api.ts` a partir de
+`prescriptions.issuePrescriptionForClinic` — nenhum ficheiro de `appointments` importa
+`modules/prescriptions` (confirmado por `tests/architecture.test.ts`, que continua sem detetar essa
+aresta). `ClinicPrescriptionInput`/`ClinicPrescriptionMedicationInput` duplicam deliberadamente a
+forma de `PrescriptionInput`/`CreateMedicationPlanInput` (mesmo critério de `ClinicPortalActor`).
+
+**`medications.createPlanForClinic`** (descoberto durante esta fase, `medications/README.md`): o
+ator desta chamada é um `ClinicAccount`, sem `userId`/`FamilyMember` — `AccessPolicy` só decide
+sobre o ator de User/família (authorization.md linha 15). `medications` ganhou por isso uma segunda
+porta de entrada para `createPlan` que nunca chama `policy.can()` (mesmo critério já documentado em
+`MedicationsWorkerDeps`: "jobs de sistema, sem ator a autorizar"); a autorização desta operação já
+foi inteiramente decidida pelo algoritmo do portal da clínica (authorization.md §6.1/§6.2) antes de
+`appointments` chegar a chamar `prescriptions.issuePrescriptionForClinic`.
+
 ## Âmbito concluído em M8 (`alerts`)
 
 `BR-APT-03`/`AC-APT-01` (lembretes 24h/2h, recalculados ao editar/cancelar) e `BR-APT-02`/`AC-APT-02` (pedido de desfecho 24h depois de uma consulta `SCHEDULED` passada) descreviam comportamento do **scanner de alertas**, implementado em M8 (`modules.md` §2: `alerts` depende de `appointments`, nunca o inverso — nenhum job/fila criado aqui). Este módulo expõe só o necessário (`createAppointmentsReminderQueries`, raiz mínima sem `access`/`clinics` — processo de sistema, ver `alerts/README.md`): `listReminderCandidates` (leitura) e `setOutcomeRequested` (escrita exclusiva de `alerts`). Nenhum job interno deste módulo muda `status`/`outcomeRequestedAt` sozinho (testado em `application/appointments.test.ts`, "nunca muda de estado por si só"). `outcomeRequestedAt` existe na tabela (`schema.md`) mas não é exposto pela API (fora do contrato `Appointment` em `openapi.yaml`).

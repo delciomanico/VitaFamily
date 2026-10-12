@@ -15,8 +15,15 @@ import { Router } from "express";
 import { asyncHandler, buildRequestContext, requireParam, type RequestContext } from "../../../platform/http/index.js";
 import { getClinicActor } from "../../../platform/actor/index.js";
 import { UnauthenticatedError, ValidationError } from "../../../platform/errors/index.js";
-import type { ClinicAppointmentView, ClinicRequestDecision, RespondClinicRequestInput, CancelClinicAppointmentInput, ListClinicAgendaQuery } from "../application/clinic-appointments.js";
-import type { ClinicPortalActor } from "../application/ports.js";
+import type {
+  ClinicAppointmentView,
+  ClinicRequestDecision,
+  RespondClinicRequestInput,
+  CancelClinicAppointmentInput,
+  CompleteConsultationInput,
+  ListClinicAgendaQuery,
+} from "../application/clinic-appointments.js";
+import type { ClinicPortalActor, ClinicPrescriptionInput } from "../application/ports.js";
 import { toClinicAppointmentListResponse, toClinicAppointmentResponse } from "./dto.js";
 
 export interface AppointmentsClinicPortalController {
@@ -24,6 +31,7 @@ export interface AppointmentsClinicPortalController {
   respondClinicRequest: (actor: ClinicPortalActor, appointmentId: string, input: RespondClinicRequestInput, context: RequestContext) => Promise<ClinicAppointmentView>;
   listClinicAgenda: (actor: ClinicPortalActor, query: ListClinicAgendaQuery) => Promise<ClinicAppointmentView[]>;
   cancelClinicAppointment: (actor: ClinicPortalActor, appointmentId: string, input: CancelClinicAppointmentInput, context: RequestContext) => Promise<ClinicAppointmentView>;
+  completeClinicAppointment: (actor: ClinicPortalActor, appointmentId: string, input: CompleteConsultationInput, context: RequestContext) => Promise<ClinicAppointmentView>;
 }
 
 function requireClinicPortalActor(): ClinicPortalActor {
@@ -100,6 +108,19 @@ export function createAppointmentsClinicPortalRouter(controller: AppointmentsCli
         req.body as CancelClinicAppointmentInput,
         buildRequestContext(req),
       );
+      res.json(toClinicAppointmentResponse(result));
+    }),
+  );
+
+  router.put(
+    "/clinic-portal/agenda/:appointmentId/complete",
+    asyncHandler(async (req, res) => {
+      const body = req.body as { outcomeNote?: string | null; prescription?: ClinicPrescriptionInput | null };
+      const input: CompleteConsultationInput = {
+        outcomeNote: body.outcomeNote ?? null,
+        prescription: body.prescription ?? null,
+      };
+      const result = await controller.completeClinicAppointment(requireClinicPortalActor(), requireParam(req, "appointmentId"), input, buildRequestContext(req));
       res.json(toClinicAppointmentResponse(result));
     }),
   );

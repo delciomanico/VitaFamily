@@ -56,3 +56,20 @@ Ficheiros tocados por esta decisão: `families/application/get-effective-timezon
 
 ## Migração
 `db/migrations/0007_prescriptions_and_medications.sql`: `medication_plans`, `dose_occurrences` (+ `prescriptions`, ver `prescriptions/README.md`). CHECKs replicados em `domain/medication-plan.ts` (`assertValidSchedule`) para devolver `INVALID_SCHEDULE` com mensagem útil antes de chegar à BD. Índices conforme `indexes.md` (`member_id,status`; `prescription_id`; `status,end_at` parcial; `status,scheduled_at` parcial para o scanner/UNCONFIRMED; `member_id,scheduled_at DESC`).
+
+## `createPlanForClinic` — segunda porta de entrada sem `AccessPolicy` (D18, Fase E)
+
+`application/create-plan.ts#createPlanForClinicWithTrx`, exposta pela raiz como
+`createPlanForClinic`: chamada só por `prescriptions.issuePrescriptionForClinic`
+(`prescriptions/README.md`), por sua vez só chamada por
+`appointments.completeClinicAppointment` depois de o portal da clínica já ter validado, pelo seu
+próprio algoritmo (authorization.md §6.1/§6.2), que a consulta é `SCHEDULED` e da própria clínica.
+
+**Nunca chama `access.policy.can()`** — motivo: o ator é um `ClinicAccount` (D18, ADR-020), sem
+`userId`/`FamilyMember`; `AccessPolicy` só decide sobre o ator de User/família
+(authorization.md linha 15). Mesmo critério já documentado em `MedicationsWorkerDeps` ("jobs de
+sistema, sem ator a autorizar; mesmo critério de `documents` `ScanDocumentDeps`") — esta é a mesma
+ideia aplicada a um ator diferente (`ClinicAccount`) em vez de "sem ator nenhum". `create-plan.ts`
+foi refatorado para partilhar a lógica de inserção+geração (`insertPlanAndGenerate`) entre as duas
+portas; só a decisão de chamar (ou não) `policy.can()` e o `actorType`/`actorClinicAccountId` da
+auditoria diferem entre `createPlan` e `createPlanForClinic`.

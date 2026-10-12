@@ -12,13 +12,19 @@ import { withTransaction } from "../../platform/db/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { ClinicsModule } from "../clinics/index.js";
-import { createCancelClinicAppointmentUseCase, createListClinicAgendaUseCase, createListClinicRequestsUseCase, createRespondClinicRequestUseCase } from "./application/clinic-appointments.js";
+import {
+  createCancelClinicAppointmentUseCase,
+  createCompleteClinicAppointmentUseCase,
+  createListClinicAgendaUseCase,
+  createListClinicRequestsUseCase,
+  createRespondClinicRequestUseCase,
+} from "./application/clinic-appointments.js";
 import { createCreateAppointmentUseCase } from "./application/create-appointment.js";
 import { createDeleteAppointmentUseCase } from "./application/delete-appointment.js";
 import { createGetAppointmentUseCase } from "./application/get-appointment.js";
 import { createListAppointmentsUseCase } from "./application/list-appointments.js";
 import { createListAvailableSlotsUseCase } from "./application/list-available-slots.js";
-import type { AppointmentsDeps } from "./application/ports.js";
+import type { AppointmentsDeps, ClinicPrescriptionInput, RequestContext } from "./application/ports.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
 import { KyselyAppointmentsRepository } from "./infrastructure/repo.js";
@@ -29,11 +35,31 @@ import type { Appointment } from "./domain/appointment.js";
 
 export type { Appointment, AppointmentStatus } from "./domain/appointment.js";
 
+/**
+ * D18 (BR-CLN-06/BR-RX-07): a função pública `prescriptions.issuePrescriptionForClinic` devolve
+ * `PrescriptionView` (mais campos do que `{ id }`) — assinalável aqui por covariância estrutural,
+ * sem `appointments` importar `modules/prescriptions` (ver `PrescriptionsPort` em
+ * `application/ports.ts`).
+ */
+export interface AppointmentsPrescriptionsDeps {
+  issuePrescriptionForClinic: (
+    trx: Kysely<Database>,
+    familyId: string,
+    memberId: string,
+    input: ClinicPrescriptionInput,
+    origin: { clinicAccountId: string; appointmentId: string },
+    context: RequestContext,
+  ) => Promise<{ id: string }>;
+}
+
 export interface AppointmentsModuleDeps {
   db: Kysely<Database>;
   audit: AuditModule;
   access: AccessModule;
   clinics: ClinicsModule;
+  /** Composition root liga à API pública de `prescriptions` (modules.md §3 notas 16/20: nenhuma
+   * aresta nova no grafo — `appointments` continua a não importar `modules/prescriptions`). */
+  prescriptions: AppointmentsPrescriptionsDeps;
   clock: Clock;
 }
 
@@ -60,6 +86,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
       listFreeSlots: deps.clinics.listFreeClinicSlots,
       findSlot: deps.clinics.findClinicSlot,
     },
+    prescriptions: { issueForClinic: deps.prescriptions.issuePrescriptionForClinic },
     audit: deps.audit,
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
@@ -81,6 +108,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     respondClinicRequest: createRespondClinicRequestUseCase(appointmentsDeps),
     listClinicAgenda: createListClinicAgendaUseCase(appointmentsDeps),
     cancelClinicAppointment: createCancelClinicAppointmentUseCase(appointmentsDeps),
+    completeClinicAppointment: createCompleteClinicAppointmentUseCase(appointmentsDeps),
   };
 
   return {

@@ -95,6 +95,36 @@ export class FakeMedicationsPort implements MedicationsPort<FakeTrx> {
     return Promise.resolve(plan);
   }
 
+  readonly createForClinicCalls: { clinicAccountId: string; familyId: string; memberId: string; input: CreateMedicationPlanInput; options?: CreateMedicationPlanOptions }[] = [];
+
+  async createPlanForClinic(
+    _trx: FakeTrx,
+    clinicAccountId: string,
+    familyId: string,
+    memberId: string,
+    input: CreateMedicationPlanInput,
+    _context: RequestContext,
+    options?: CreateMedicationPlanOptions,
+  ): Promise<MedicationPlan> {
+    this.counter += 1;
+    const plan: MedicationPlan = {
+      id: `plan-${this.counter.toString()}`,
+      familyId,
+      memberId,
+      name: input.name,
+      dosage: input.dosage,
+      scheduleType: input.scheduleType,
+      startAt: new Date(input.startAt),
+      continuous: input.continuous ?? false,
+      status: "ACTIVE",
+      createdAt: new Date(input.startAt),
+      ...(options?.prescriptionId ? { prescriptionId: options.prescriptionId } : {}),
+    };
+    this.createForClinicCalls.push({ clinicAccountId, familyId, memberId, input, ...(options ? { options } : {}) });
+    this.plans.set(plan.id, plan);
+    return Promise.resolve(plan);
+  }
+
   async listPlansForPrescription(_trx: FakeTrx, familyId: string, memberId: string, prescriptionId: string): Promise<MedicationPlan[]> {
     return Promise.resolve([...this.plans.values()].filter((plan) => plan.familyId === familyId && plan.memberId === memberId && plan.prescriptionId === prescriptionId));
   }
@@ -157,9 +187,12 @@ export class FakePrescriptionsRepository implements PrescriptionsRepository<Fake
       memberId: record.memberId,
       issuedOn: record.issuedOn,
       status: "ACTIVE",
+      issuedBy: record.issuedBy ?? "FAMILY",
       createdAt: record.createdAt,
       ...(record.doctorName !== undefined ? { doctorName: record.doctorName } : {}),
       ...(record.notes !== undefined ? { notes: record.notes } : {}),
+      ...(record.issuedByClinicAccountId !== undefined ? { issuedByClinicAccountId: record.issuedByClinicAccountId } : {}),
+      ...(record.appointmentId !== undefined ? { appointmentId: record.appointmentId } : {}),
     };
     this.byId.set(prescription.id, prescription);
     return Promise.resolve(prescription);

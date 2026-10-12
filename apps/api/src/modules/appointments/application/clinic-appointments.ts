@@ -9,7 +9,7 @@
 import { ConflictError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { assertValidAppointmentTransition, type Appointment, type AppointmentStatus } from "../domain/appointment.js";
-import type { AppointmentsDeps, ClinicPortalActor, RequestContext } from "./ports.js";
+import type { AppointmentsDeps, ClinicPortalActor, ClinicPrescriptionInput, RequestContext } from "./ports.js";
 
 export interface ClinicAppointmentView {
   id: string;
@@ -150,6 +150,66 @@ export function createCancelClinicAppointmentUseCase<Trx>(deps: AppointmentsDeps
         requestId: context.requestId,
         ...auditContextFields(context),
         metadata: { from: existing.status, to: "CANCELLED" },
+      });
+
+      return toView(deps, trx, appointment);
+    });
+  };
+}
+
+export interface CompleteConsultationInput {
+  outcomeNote?: string | null;
+  /** Opcional (BR-CLN-06/BR-RX-07): se presente, emite a receita associada (`issuedBy=CLINIC`). */
+  prescription?: ClinicPrescriptionInput | null;
+}
+
+/** `PUT /clinic-portal/agenda/{appointmentId}/complete` (D18, BR-CLN-06/BR-RX-07): completa a
+ * consulta `SCHEDULED` em curso da própria clínica — marca `COMPLETED`, regista o resultado e,
+ * opcionalmente, emite a receita (via `PrescriptionsPort`, na MESMA transação: tudo ou nada, mesmo
+ * critério de `prescriptions.createPrescription` com `medications`). */
+export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>) {
+  return async function completeClinicAppointment(actor: ClinicPortalActor, appointmentId: string, input: CompleteConsultationInput, context: RequestContext): Promise<ClinicAppointmentView> {
+    return deps.withTransaction(async (trx) => {
+      const existing = await requireOwnRequest(deps, trx, actor, appointmentId);
+      // endpoints.md (completeClinicAppointment): "CONFLICT (consulta não está SCHEDULED, ST4)" —
+      // só a consulta em curso (nunca repete a mesma conclusão nem completa duas vezes).
+      if (existing.status !== "SCHEDULED") {
+        throw new ConflictError({ detail: "Só a consulta em curso (SCHEDULED) pode ser completada." });
+      }
+      assertValidAppointmentTransition(existing.status, "COMPLETED");
+
+      const now = deps.clock.now();
+      const outcomeNote = input.outcomeNote?.trim() ? input.outcomeNote.trim() : null;
+      const appointment = await deps.appointmentsRepo.completeByClinic(trx, appointmentId, {
+        outcomeNote,
+        clinicAccountId: actor.clinicAccountId,
+        recordedAt: now,
+      });
+
+      if (input.prescription) {
+        await deps.prescriptions.issueForClinic(
+          trx,
+          existing.familyId,
+          existing.memberId,
+          input.prescription,
+          { clinicAccountId: actor.clinicAccountId, appointmentId },
+          context,
+        );
+      }
+
+      await deps.audit.record(trx, {
+        occurredAt: now,
+        actorType: "CLINIC_ACCOUNT",
+        actorClinicAccountId: actor.clinicAccountId,
+        action: "APPOINTMENT_STATUS",
+        resourceType: "Appointment",
+        resourceId: appointmentId,
+        familyId: existing.familyId,
+        subjectMemberId: existing.memberId,
+        result: "SUCCESS",
+        requestId: context.requestId,
+        ...auditContextFields(context),
+        metadata: { from: existing.status, to: "COMPLETED", hasPrescription: Boolean(input.prescription) },
       });
 
       return toView(deps, trx, appointment);
