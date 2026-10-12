@@ -2,9 +2,10 @@ import * as api from '@/mocks/handlers/family'
 import * as members from '@/mocks/handlers/members'
 import { apiFetch, hasApiBackend } from '@/lib/apiClient'
 import { AppError } from '@/lib/errors'
+import type { NewMemberInput } from '@/mocks/handlers/family'
 import type { Family, FamilyMember, FamilyRole, Membership } from '@/types/family'
 
-export type { NewMemberInput } from '@/mocks/handlers/family'
+export type { NewMemberInput }
 
 /** `Family` (openapi.yaml components.schemas.Family): não expõe quem criou a família. */
 interface ApiFamily {
@@ -25,6 +26,7 @@ interface ApiMember {
   role: FamilyRole | null
   status: 'ACTIVE' | 'BLOCKED'
   isSelf: boolean
+  guardianIds?: string[]
 }
 
 function toFamily(apiFamily: ApiFamily): Family {
@@ -67,6 +69,48 @@ async function apiGetMembership(): Promise<Membership | null> {
 async function apiCreateFamily(name: string): Promise<Membership> {
   const created = await apiFetch<ApiFamily>('/families', { method: 'POST', body: { name } })
   return { family: toFamily(created), member: await fetchSelfMember(created.id) }
+}
+
+async function fetchMembers(familyId: string): Promise<ApiMember[]> {
+  return apiFetch<ApiMember[]>(`/families/${familyId}/members`)
+}
+
+/** `GET /families/{id}/members` (API real): membros ativos. */
+async function apiListMembers(familyId: string): Promise<FamilyMember[]> {
+  return (await fetchMembers(familyId)).filter((m) => m.status === 'ACTIVE').map(toFamilyMember)
+}
+
+/** O próprio e os dependentes de quem sou tutor (BR-MEM-08). */
+async function apiListManagedMembers(familyId: string): Promise<FamilyMember[]> {
+  const all = (await fetchMembers(familyId)).filter((m) => m.status === 'ACTIVE')
+  const self = all.find((m) => m.isSelf)
+  return all.filter((m) => m.isSelf || (self && m.guardianIds?.includes(self.id))).map(toFamilyMember)
+}
+
+/** `POST /families/{id}/members`: perfil sem conta é sempre dependente; quem o cria fica tutor principal. */
+async function apiAddMember(familyId: string, input: NewMemberInput): Promise<FamilyMember> {
+  const self = (await fetchMembers(familyId)).find((m) => m.isSelf)
+  if (!self) throw new AppError('NOT_FOUND')
+  // `relationship` não existe no contrato (TBD em types/family.ts): não é enviada.
+  const created = await apiFetch<ApiMember>(`/families/${familyId}/members`, {
+    method: 'POST',
+    body: {
+      name: input.name.trim(),
+      birthDate: input.birthDate,
+      isDependent: true,
+      guardianMemberIds: [self.id],
+      primaryGuardianMemberId: self.id,
+    },
+  })
+  return toFamilyMember(created)
+}
+
+async function apiRemoveMember(familyId: string, memberId: string): Promise<void> {
+  await apiFetch<unknown>(`/families/${familyId}/members/${memberId}`, { method: 'DELETE' })
+}
+
+async function apiUpdateFamily(familyId: string, name: string): Promise<Family> {
+  return toFamily(await apiFetch<ApiFamily>(`/families/${familyId}`, { method: 'PATCH', body: { name: name.trim() } }))
 }
 
 /** `InvitationPreview` (openapi.yaml): dados mínimos mostrados antes de aceitar um convite. */
@@ -115,11 +159,19 @@ export const familyService = {
         await api.acceptInvitationByToken(userId, token)
       },
   joinFamily: api.joinFamily,
-  listMembers: api.listMembers,
-  listManagedMembers: api.listManagedMembers,
-  addMember: api.addMember,
-  removeMember: api.removeMember,
-  updateFamily: api.updateFamily,
+  listMembers: hasApiBackend() ? apiListMembers : api.listMembers,
+  listManagedMembers: hasApiBackend()
+    ? (familyId: string, _userId: string) => apiListManagedMembers(familyId)
+    : api.listManagedMembers,
+  addMember: hasApiBackend()
+    ? (familyId: string, _userId: string, input: NewMemberInput) => apiAddMember(familyId, input)
+    : api.addMember,
+  removeMember: hasApiBackend()
+    ? (familyId: string, _userId: string, memberId: string) => apiRemoveMember(familyId, memberId)
+    : api.removeMember,
+  updateFamily: hasApiBackend()
+    ? (familyId: string, _userId: string, name: string) => apiUpdateFamily(familyId, name)
+    : api.updateFamily,
   getFamilyOverview: members.getFamilyOverview,
   getMemberProfile: members.getMemberProfile,
   getMemberHistory: members.getMemberHistory,
