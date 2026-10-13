@@ -4,9 +4,14 @@ import { AppError, type ErrorCode } from './errors'
 const API_BASE_URL = import.meta.env.VITE_API_URL as string | undefined
 
 /** `application/problem+json` (docs/05-api/errors.md). */
-interface Problem {
+export interface Problem {
   code: string
   errors?: Array<{ field: string; message: string }>
+}
+
+/** URL base da API real, ou `undefined` em modo demo (mocks). */
+export function apiBaseUrl(): string | undefined {
+  return API_BASE_URL
 }
 
 /** Mapeia `code` do backend (errors.md) para o `ErrorCode` da UI quando os nomes diferem. */
@@ -15,7 +20,7 @@ const CODE_MAP: Record<string, ErrorCode> = {
   UNAUTHENTICATED: 'INVALID_CREDENTIALS',
 }
 
-function toErrorCode(code: string): ErrorCode {
+export function toErrorCode(code: string): ErrorCode {
   const mapped = CODE_MAP[code]
   if (mapped) return mapped
   const known: ErrorCode[] = [

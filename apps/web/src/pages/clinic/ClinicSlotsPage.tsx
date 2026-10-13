@@ -10,15 +10,14 @@ import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, FormError, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
-import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { APPOINTMENT_TIMES, localDay } from '@/lib/appointment'
 import { cn } from '@/lib/cn'
 import { todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { formatCount, formatRelativeDay, formatTime } from '@/lib/format'
-import { SLOT_DURATIONS, clinicPortalService } from '@/services/clinicPortal.service'
-import type { ClinicSlotView } from '@/types/clinic'
+import { clinicPortalService } from '@/services/clinicPortal.service'
+import { SLOT_DURATIONS, type ClinicSlotView } from '@/types/clinic'
 
 const SLOT_DAYS = 21
 
@@ -36,7 +35,6 @@ interface PublishFormProps {
 
 /** Publicar horários num dia (UC-CLN-04): especialidade, profissional, duração e várias horas. */
 function PublishForm({ initialDate, onClose, onPublished }: PublishFormProps) {
-  const { user } = useAuth()
   const toast = useToast()
   const [date, setDate] = useState(initialDate)
   const [specialty, setSpecialty] = useState('')
@@ -55,7 +53,7 @@ function PublishForm({ initialDate, onClose, onPublished }: PublishFormProps) {
     }
     setSaving(true)
     try {
-      const created = await clinicPortalService.publishSlots(user?.id ?? '', {
+      const created = await clinicPortalService.publishSlots({
         date,
         times,
         specialty,
@@ -140,10 +138,8 @@ function PublishForm({ initialDate, onClose, onPublished }: PublishFormProps) {
 
 /** Horários publicados por dia, com o estado de cada um; só os livres se removem (BR-CLN-04). */
 export function ClinicSlotsPage() {
-  const { user } = useAuth()
   const toast = useToast()
-  const userId = user?.id ?? ''
-  const { state, reload } = useAsync(() => clinicPortalService.listClinicSlots(userId), [userId])
+  const { state, reload } = useAsync(() => clinicPortalService.listSlots(), [])
   const [day, setDay] = useState<string | null>(todayISO())
   const [publishing, setPublishing] = useState(false)
 
@@ -153,7 +149,7 @@ export function ClinicSlotsPage() {
 
   async function remove(slot: ClinicSlotView) {
     try {
-      await clinicPortalService.removeSlot(userId, slot.id)
+      await clinicPortalService.removeSlot(slot.id)
       toast.show('Horário removido.')
     } catch (error) {
       toast.show(errorMessage(error), 'error')

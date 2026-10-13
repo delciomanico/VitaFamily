@@ -78,6 +78,8 @@ function PrescriptionContent({ detail, selfMemberId, onClose }: PrescriptionCont
         {/* TBD: “Clínica” vem da especificação; o domínio não a tem na receita. */}
         <InfoRow label="Clínica" value={prescription.clinicName ?? 'Não indicada'} />
         <InfoRow label="Data" value={formatLongDate(prescription.issuedOn)} />
+        {/* Origem da receita (BR-RX-07, D18): emitida pela clínica na consulta, ou pela família. */}
+        {prescription.issuedBy === 'CLINIC' && <InfoRow label="Origem" value="Emitida pela clínica na consulta" />}
         {prescription.memberId !== selfMemberId && <InfoRow label="Para" value={memberName} />}
         <InfoRow
           label="Estado"

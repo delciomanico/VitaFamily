@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ToastProvider } from '@/components/ui/Toast'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { DEMO_CLINIC_ADMIN_EMAIL } from '@/mocks/data/clinicAccounts'
 import { DEMO_INVITATION_CODE } from '@/mocks/data/families'
 import { DEMO_EMAIL, DEMO_PASSWORD, DEMO_VERIFICATION_CODE } from '@/mocks/data/users'
 import { db, resetDb } from '@/mocks/db'
@@ -18,6 +19,13 @@ function renderAt(path: string) {
     </ToastProvider>,
   )
   return router
+}
+
+/** Dia seguinte (yyyy-mm-dd local), para publicar horários futuros. */
+function tomorrowISO(): string {
+  const date = new Date()
+  date.setDate(date.getDate() + 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function type(label: string | RegExp, value: string) {
@@ -175,6 +183,95 @@ describe('fluxos de autenticação', () => {
     renderAt(`/invite/accept?token=${token}`)
     expect(await screen.findByRole('button', { name: 'Sair da sessão atual' })).toBeInTheDocument()
     expect(screen.getAllByText(/outra@exemplo\.test/).length).toBeGreaterThan(0)
+  })
+
+  it('o portal da clínica tem login próprio e não aceita a sessão de utilizador', async () => {
+    // Sessão de `User` iniciada: não dá acesso ao portal (ADR-020) — exige a sessão de clínica.
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+    const router = renderAt('/clinic/staff')
+    expect(await screen.findByRole('heading', { name: 'Entrar na área da clínica' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/clinic/login')
+
+    type('E-mail da conta da clínica', DEMO_CLINIC_ADMIN_EMAIL)
+    type('Palavra-passe', DEMO_PASSWORD)
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
+
+    // Volta à página pedida, já dentro do portal.
+    expect(await screen.findByRole('heading', { name: 'Contas da clínica' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/clinic/staff')
+  })
+
+  it('só o Admin da clínica chega às contas da clínica (BR-CLN-05)', async () => {
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_rececao')
+    const router = renderAt('/clinic/staff')
+    // Gestor: sem separador “Contas” e redirecionado para os pedidos.
+    expect(await screen.findByRole('heading', { name: 'Pedidos de consulta' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/clinic')
+    expect(screen.queryByRole('link', { name: 'Contas' })).not.toBeInTheDocument()
+  })
+
+  it('o Admin da clínica cria uma conta de Gestor', async () => {
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_admin')
+    renderAt('/clinic/staff')
+    expect(await screen.findByRole('heading', { name: 'Contas da clínica' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Novo Gestor' }))
+    type('E-mail', 'nova@clinicahorizonte.pt')
+    fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+
+    expect(await screen.findByText('nova@clinicahorizonte.pt')).toBeInTheDocument()
+  })
+
+  it('a clínica publica horários e a família vê-os ao marcar (D17)', async () => {
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_admin')
+    renderAt('/clinic/slots')
+    await screen.findByRole('heading', { name: 'Horários' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Publicar horários' }))
+    fireEvent.change(await screen.findByLabelText('Dia'), { target: { value: tomorrowISO() } })
+    type('Especialidade', 'Ortopedia')
+    fireEvent.click(screen.getByRole('button', { name: '09:00' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Publicar' }))
+
+    expect(await screen.findByText('1 horário publicado.')).toBeInTheDocument()
+    expect(db.slots.some((s) => s.specialty === 'Ortopedia' && s.clinicId === 'cln_horizonte')).toBe(true)
+  })
+
+  it('a clínica completa a consulta com receita e o paciente passa a vê-la (BR-CLN-06/BR-RX-07)', async () => {
+    // Consulta confirmada e já em curso (hora passada) numa clínica parceira.
+    db.appointments.push({
+      id: 'apt_curso',
+      familyId: 'fam_monarca',
+      memberId: 'mem_maria',
+      scheduledAt: new Date(Date.now() - 60 * 60_000).toISOString(),
+      status: 'SCHEDULED',
+      slotId: 'slot_curso',
+      specialty: 'Dermatologia',
+      clinicId: 'cln_horizonte',
+      clinicName: 'Clínica Horizonte',
+    })
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_admin')
+    renderAt('/clinic/agenda')
+    await screen.findByRole('heading', { name: 'Agenda da clínica' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Completar consulta' }))
+    fireEvent.input(await screen.findByLabelText('Resultado da consulta'), {
+      target: { value: 'Dermatite de contacto.' },
+    })
+    fireEvent.click(screen.getByLabelText('Emitir receita'))
+    type('Nome', 'Hidrocortisona')
+    type('Dosagem', '1%')
+    fireEvent.click(screen.getByRole('button', { name: 'Concluir consulta' }))
+
+    expect(await screen.findByText('Consulta concluída.')).toBeInTheDocument()
+    const issued = db.prescriptions.find((p) => p.appointmentId === 'apt_curso')
+    expect(issued).toMatchObject({ issuedBy: 'CLINIC', memberId: 'mem_maria' })
+
+    // Do lado da família: a receita aparece na lista, marcada como emitida pela clínica.
+    cleanup()
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+    renderAt('/app/health/prescriptions')
+    expect(await screen.findByText(/Emitida pela clínica/)).toBeInTheDocument()
   })
 
   it('registo valida idade mínima e confirmação da palavra-passe', async () => {

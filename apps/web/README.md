@@ -105,18 +105,18 @@ Não precisa dos serviços do backend: `deploy/docker-compose.web.yml` é indepe
 src/
 ├── main.tsx          arranque: service worker, pedido de instalação, App
 ├── app/              App e providers (Toast, Auth, Router)
-├── routes/           paths.ts (todas as URLs), router.tsx, guards.tsx (sessão, família, clínica)
+├── routes/           paths.ts (todas as URLs), router.tsx, guards.tsx (sessão, família, sessão de clínica)
 ├── pages/            páginas por área
 │   ├── public/         splash, onboarding, login, registo, recuperação, verificação
 │   ├── setup/          criar ou entrar numa família, perfil inicial, membros
 │   ├── home/ health/ prescriptions/ medications/ examinations/ appointments/
 │   ├── family/ alerts/ reports/ settings/
-│   └── clinic/         portal da clínica parceira (D17)
+│   └── clinic/         portal da clínica parceira (D17/D18): login próprio, pedidos, agenda, horários, contas
 ├── components/
 │   ├── ui/             peças genéricas: Button, Input, Select, Card, Tabs, Modal, Switch, Toast, estados…
 │   ├── layout/         Page (faixa e conteúdo), AppShell, Sidebar, NavDrawer, AuthScreen, ClinicShell
 │   └── domain/         peças do domínio: listas, cartões de alerta, formulários de saúde, relatórios…
-├── contexts/         AuthContext (utilizador, família e membro da sessão)
+├── contexts/         AuthContext (utilizador, família e membro) e ClinicAuthContext (sessão de clínica, ADR-020)
 ├── hooks/            useAsync (carregar, erro, recarregar), useFitCount
 ├── services/         a única porta da UI para os dados (*.service.ts)
 ├── mocks/            backend simulado (ver “Mock data”)
@@ -187,9 +187,10 @@ A linha “Instalar aplicação” não aparece se a app já estiver instalada o
 | `access.ts` | visibilidade por tutela e por partilha de categoria (FR-PRV) |
 | `alertRules.ts` | scanner de alertas: eventos → regras → alertas, idempotente |
 | `bookings.ts` | pedidos às clínicas parceiras, com respostas e expiração |
+| `data/clinicAccounts.ts` | contas do portal da clínica (`ClinicAccount`), sem qualquer ligação a `users` (ADR-020) |
 
 Os dados vivem em memória e voltam ao estado inicial quando a página é recarregada. No navegador guarda-se só:
-- **`sessionStorage`:** o id do utilizador mock, que termina ao fechar o separador;
+- **`sessionStorage`:** o id do utilizador mock e, em chave separada, o id da conta de clínica mock — ambos terminam ao fechar o separador;
 - **`localStorage`:** a flag “onboarding visto”.
 
 Não se guardam tokens, palavras-passe nem dados de saúde.
@@ -199,11 +200,15 @@ Não se guardam tokens, palavras-passe nem dados de saúde.
 | O quê | Valor |
 | --- | --- |
 | Família Monarca (tutor e administrador) | `demo@vitafamily.app` · `password` |
-| Portal da Clínica Horizonte (D17) | `clinica@vitafamily.app` · `password` |
+| Admin da Clínica Horizonte (portal, em `/clinic/login`) | `admin@clinicahorizonte.pt` · `password` |
+| Gestor da Clínica Horizonte (portal, em `/clinic/login`) | `rececao@clinicahorizonte.pt` · `password` |
 | Código de verificação, após o registo | `123456` |
 | Código de convite, para entrar numa família | `MONARCA26` |
 
-No ecrã de login, os botões “Família” e “Clínica” preenchem estas contas.
+As contas do portal da clínica (`ClinicAccount`) são um espaço de identidade **separado** das contas
+de utilizador (ADR-020/D18): outro ecrã de login (`/clinic/login`), outra sessão e outro token —
+entrar num dos lados nunca dá acesso ao outro. Gestores criados no portal ficam com a mesma
+palavra-passe de demonstração (na API real a inicial vai por e-mail).
 
 A família tem:
 - **Monarca:** tutor e administrador.

@@ -21,7 +21,12 @@ export function PrescriptionList({ items, selfMemberId, linked = true }: Prescri
     <Card className="divide-y divide-border py-1">
       {items.map(({ prescription, memberName, medicationCount }) => {
         const status = prescriptionStatus[prescription.status]
-        const details = [prescription.clinicName, prescription.memberId !== selfMemberId ? memberName : null]
+        // Origem (BR-RX-07, D18): distingue as receitas emitidas pela clínica na consulta.
+        const details = [
+          prescription.issuedBy === 'CLINIC' ? 'Emitida pela clínica' : null,
+          prescription.clinicName,
+          prescription.memberId !== selfMemberId ? memberName : null,
+        ]
         return (
           <RowLink key={prescription.id} to={paths.prescription(prescription.id)} linked={linked}>
             <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">

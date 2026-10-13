@@ -1,40 +1,52 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
-import { useAuth } from '@/contexts/AuthContext'
+import { ClinicAuthProvider, useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { cn } from '@/lib/cn'
+import { clinicRole } from '@/lib/labels'
 import { paths } from '@/routes/paths'
 import { clinicPortalService } from '@/services/clinicPortal.service'
 import { LogoMark } from './Logo'
 import { bandTitleClass } from './Page'
 
-const tabs = [
-  { to: paths.clinic, label: 'Pedidos', end: true },
-  { to: paths.clinicAgenda, label: 'Agenda', end: false },
-  { to: paths.clinicSlots, label: 'Horários', end: false },
-]
+/**
+ * Raiz de `/clinic/*` (ADR-020): monta a sessão de `ClinicAccount` **só** nesta árvore de rotas,
+ * sem qualquer ligação ao `AuthProvider` da app de família (que envolve a app em `main.tsx`).
+ */
+export function ClinicPortalRoot() {
+  return (
+    <ClinicAuthProvider>
+      <Outlet />
+    </ClinicAuthProvider>
+  )
+}
 
 /** Pedidos por responder (contador no separador); atualiza a cada navegação. */
 function usePendingRequests(): number {
-  const { user } = useAuth()
   const { pathname } = useLocation()
-  const userId = user?.id ?? ''
-  const { state } = useAsync(() => clinicPortalService.listClinicBookings(userId), [userId, pathname])
-  return state.status === 'success' ? state.data.filter((b) => b.status === 'REQUESTED').length : 0
+  const { state } = useAsync(() => clinicPortalService.listRequests(), [pathname])
+  return state.status === 'success' ? state.data.length : 0
 }
 
 /**
- * Portal da clínica parceira (D17): faixa com o nome da clínica e Sair, e separadores
- * Pedidos / Agenda / Horários. Mesmo layout no mobile e no desktop.
+ * Portal da clínica parceira (D17/D18): faixa com a conta em sessão e Sair, e separadores
+ * Pedidos / Agenda / Horários (+ Contas, só para o Admin da clínica). Igual no mobile e desktop.
  */
 export function ClinicShell() {
-  const { clinic, logout } = useAuth()
+  const { session, isAdmin, logout } = useClinicAuth()
   const navigate = useNavigate()
   const pending = usePendingRequests()
 
-  function signOut() {
-    logout()
-    navigate(paths.login, { replace: true })
+  const tabs = [
+    { to: paths.clinic, label: 'Pedidos', end: true },
+    { to: paths.clinicAgenda, label: 'Agenda', end: false },
+    { to: paths.clinicSlots, label: 'Horários', end: false },
+    ...(isAdmin ? [{ to: paths.clinicStaff, label: 'Contas', end: false }] : []),
+  ]
+
+  async function signOut() {
+    await logout()
+    navigate(paths.clinicLogin, { replace: true })
   }
 
   return (
@@ -43,11 +55,14 @@ export function ClinicShell() {
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4 lg:px-8">
           <LogoMark tone="inverse" className="size-8 shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className={bandTitleClass}>{clinic?.name}</p>
+            {/* O contrato do portal não expõe o nome da clínica (ClinicTokenResponse só tem
+                `clinicId`/`role`): identifica-se a conta em sessão e o seu papel. */}
+            <p className={bandTitleClass}>{session?.clinicName ?? session?.email ?? 'Portal da clínica'}</p>
+            {session && <p className="truncate text-xs text-white/80">{clinicRole[session.role]}</p>}
           </div>
           <button
             type="button"
-            onClick={signOut}
+            onClick={() => void signOut()}
             aria-label="Sair"
             className="-mr-2 flex size-11 items-center justify-center rounded-full transition-colors hover:bg-white/15"
           >

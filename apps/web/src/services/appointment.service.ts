@@ -20,6 +20,10 @@ export interface ApiAppointment {
   clinicName?: string | null
   reason?: string | null
   notes?: string | null
+  /** Marcação num horário de clínica parceira (D17): bloqueia a edição/reagendamento (BR-APT-09). */
+  slotId?: string | null
+  /** Motivo indicado pela clínica ao recusar ou cancelar (D17). */
+  responseNote?: string | null
 }
 
 export function toAppointment(familyId: string, a: ApiAppointment): Appointment {
@@ -35,6 +39,8 @@ export function toAppointment(familyId: string, a: ApiAppointment): Appointment 
     clinicId: a.clinicId ?? undefined,
     clinicName: a.clinicName ?? undefined,
     notes: a.notes ?? undefined,
+    slotId: a.slotId ?? undefined,
+    responseNote: a.responseNote ?? undefined,
   }
 }
 
@@ -98,18 +104,89 @@ async function apiSetStatus(
   return toAppointment(familyId, updated)
 }
 
+/** `AvailableSlot` (openapi.yaml): nulos em vez de ausentes. */
+interface ApiAvailableSlot {
+  id: string
+  clinicId: string
+  clinicName: string
+  specialty: string
+  professionalName?: string | null
+  startsAt: string
+  durationMinutes: number
+}
+
 /**
- * Consultas. Com `VITE_API_URL` usa `/families/{id}/members/{id}/appointments`.
- * Pedidos em horários de clínicas parceiras (D17) não existem no contrato real: sem horários
- * publicados, e o pedido falha com NOT_FOUND.
+ * `GET /families/{familyId}/clinics/{clinicId}/slots` (D17): horários livres de cada clínica
+ * parceira ativa, para a especialidade escolhida. O contrato é **por clínica** — a UI mostra as
+ * parceiras com vagas lado a lado, por isso pergunta a cada uma (mesmo padrão de `apiMembers`).
+ */
+async function apiListAvailableSlots(familyId: string, specialty: string): Promise<AvailableSlot[]> {
+  const clinics = (await clinicService.listClinics(familyId)).filter((c) => c.type === 'PARTNER')
+  const query = specialty.trim() ? `?specialty=${encodeURIComponent(specialty.trim())}` : ''
+  const perClinic = await Promise.all(
+    clinics.map(async (clinic) => {
+      try {
+        return await apiFetch<ApiAvailableSlot[]>(`/families/${familyId}/clinics/${clinic.id}/slots${query}`)
+      } catch {
+        // Clínica entretanto arquivada ou sem horários: não impede as restantes.
+        return []
+      }
+    }),
+  )
+  return perClinic
+    .flat()
+    .map((slot) => ({
+      id: slot.id,
+      clinicId: slot.clinicId,
+      clinicName: slot.clinicName,
+      specialty: slot.specialty,
+      professionalName: slot.professionalName ?? undefined,
+      startsAt: slot.startsAt,
+      durationMinutes: slot.durationMinutes,
+    }))
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+}
+
+/**
+ * Pedido num horário publicado por uma clínica parceira (UC-APT-07, D17): `POST .../appointments`
+ * com `slotId` + `clinicId` (obrigatório para identificar o horário). A consulta nasce
+ * `REQUESTED`; `scheduledAt`/especialidade/profissional vêm do próprio horário, nunca do cliente.
+ */
+async function apiRequestAppointment(
+  familyId: string,
+  input: api.AppointmentRequestInput,
+  slot: AvailableSlot,
+): Promise<Appointment> {
+  const created = await apiFetch<ApiAppointment>(aptPath(familyId, input.memberId), {
+    method: 'POST',
+    body: {
+      scheduledAt: slot.startsAt,
+      clinicId: slot.clinicId,
+      slotId: slot.id,
+      notes: input.notes?.trim() || null,
+    },
+  })
+  return toAppointment(familyId, created)
+}
+
+/**
+ * Consultas. Com `VITE_API_URL` usa `/families/{id}/members/{id}/appointments` e, nas clínicas
+ * parceiras, os horários publicados (`/clinics/{id}/slots`, D17).
  */
 export const appointmentService = hasApiBackend()
   ? {
       listAppointments: (familyId: string, _userId: string) => apiListAppointments(familyId),
       getAppointment: (familyId: string, _userId: string, id: string) => apiGetAppointment(familyId, id),
-      listAvailableSlots: async (_familyId: string, _specialty: string): Promise<AvailableSlot[]> => [],
-      requestAppointment: async (): Promise<Appointment> => {
-        throw new AppError('NOT_FOUND')
+      listAvailableSlots: apiListAvailableSlots,
+      requestAppointment: async (
+        familyId: string,
+        _userId: string,
+        input: api.AppointmentRequestInput,
+        slot?: AvailableSlot,
+      ): Promise<Appointment> => {
+        // O `clinicId` do horário só é conhecido pela UI, que o acabou de listar (ver acima).
+        if (!slot) throw new AppError('NOT_FOUND')
+        return apiRequestAppointment(familyId, input, slot)
       },
       createAppointment: (familyId: string, _userId: string, input: api.NewAppointmentInput) =>
         apiCreateAppointment(familyId, input),
@@ -125,8 +202,14 @@ export const appointmentService = hasApiBackend()
   : {
       listAppointments: api.listAppointments,
       getAppointment: api.getAppointment,
-      listAvailableSlots: api.listAvailableSlots,
-      requestAppointment: api.requestAppointment,
+      listAvailableSlots: (familyId: string, specialty: string) => api.listAvailableSlots(familyId, specialty),
+      // O backend simulado resolve a clínica pelo próprio horário; `slot` é ignorado.
+      requestAppointment: (
+        familyId: string,
+        userId: string,
+        input: api.AppointmentRequestInput,
+        _slot?: AvailableSlot,
+      ) => api.requestAppointment(familyId, userId, input),
       createAppointment: api.createAppointment,
       updateAppointment: api.updateAppointment,
       setAppointmentStatus: api.setAppointmentStatus,

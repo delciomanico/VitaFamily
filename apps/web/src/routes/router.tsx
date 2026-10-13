@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import { createBrowserRouter, type RouteObject } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
-import { ClinicShell } from '@/components/layout/ClinicShell'
+import { ClinicPortalRoot, ClinicShell } from '@/components/layout/ClinicShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { HomePage } from '@/pages/home/HomePage'
 import { ForgotPasswordPage } from '@/pages/public/ForgotPasswordPage'
@@ -15,7 +15,15 @@ import { SetupFamilyPage } from '@/pages/setup/SetupFamilyPage'
 import { SetupHealthPage } from '@/pages/setup/SetupHealthPage'
 import { SetupMembersPage } from '@/pages/setup/SetupMembersPage'
 import { FullScreenLoader } from '@/components/ui/states'
-import { GuestOnly, RequireAuth, RequireClinic, RequireFamily, RequirePendingVerification } from './guards'
+import {
+  ClinicGuestOnly,
+  GuestOnly,
+  RequireAuth,
+  RequireClinicAccount,
+  RequireClinicAdmin,
+  RequireFamily,
+  RequirePendingVerification,
+} from './guards'
 import { paths } from './paths'
 
 /**
@@ -179,19 +187,31 @@ export const routes: RouteObject[] = [
     ],
   },
   {
-    // Portal da clínica parceira (D17).
-    element: <RequireAuth />,
+    /*
+     * Portal da clínica parceira (D17/D18, ADR-020): árvore de rotas **disjunta** da app de
+     * família — sessão de `ClinicAccount` (`ClinicPortalRoot` monta o seu provider), login
+     * próprio em `/clinic/login` e nenhum `RequireAuth`/`RequireFamily` de `User` pelo caminho.
+     */
+    path: paths.clinic,
+    element: <ClinicPortalRoot />,
     children: [
       {
-        element: <RequireClinic />,
+        element: <ClinicGuestOnly />,
+        children: [{ path: 'login', ...page(() => import('@/pages/clinic/ClinicLoginPage'), 'ClinicLoginPage') }],
+      },
+      {
+        element: <RequireClinicAccount />,
         children: [
           {
-            path: paths.clinic,
             element: <ClinicShell />,
             children: [
               { index: true, ...page(() => import('@/pages/clinic/ClinicRequestsPage'), 'ClinicRequestsPage') },
               { path: 'agenda', ...page(() => import('@/pages/clinic/ClinicAgendaPage'), 'ClinicAgendaPage') },
               { path: 'slots', ...page(() => import('@/pages/clinic/ClinicSlotsPage'), 'ClinicSlotsPage') },
+              {
+                element: <RequireClinicAdmin />,
+                children: [{ path: 'staff', ...page(() => import('@/pages/clinic/ClinicStaffPage'), 'ClinicStaffPage') }],
+              },
             ],
           },
         ],

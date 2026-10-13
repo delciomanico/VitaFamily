@@ -4,6 +4,11 @@ import { afterEach } from 'vitest'
 
 afterEach(cleanup)
 
+// O jsdom não implementa scrollIntoView (usado pela tira de dias, DatePickers): no-op.
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {}
+}
+
 // O jsdom não implementa <dialog>.showModal/close; versão mínima para os testes.
 if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.showModal) {
   HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {

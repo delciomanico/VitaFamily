@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { AppError } from '@/lib/errors'
-import { resetDb } from '../db'
+import { db, resetDb } from '../db'
+import { DEMO_CLINIC_ADMIN_EMAIL } from '../data/clinicAccounts'
 import { at } from '../time'
 import * as apt from './appointments'
 import * as portal from './clinicPortal'
@@ -9,6 +10,9 @@ import * as portal from './clinicPortal'
 const NOW = new Date(2026, 9, 4, 12, 0)
 const FAMILY = 'fam_monarca'
 const MONARCA = 'usr_monarca'
+/** Conta do portal da clínica (`ClinicAccount`), nunca um `User` (ADR-020). */
+const ADMIN = 'cac_horizonte_admin'
+const ADMIN_EMAIL = DEMO_CLINIC_ADMIN_EMAIL
 
 const code = (promise: Promise<unknown>) =>
   promise.then(
@@ -98,28 +102,24 @@ describe('marcação com a clínica parceira (D17)', () => {
   })
 
   it('a clínica confirma ou recusa; recusar liberta o horário', async () => {
-    expect((await portal.confirmBooking('usr_clinica', 'apt_derma', NOW)).status).toBe('SCHEDULED')
-    expect(await code(portal.rejectBooking('usr_clinica', 'apt_derma', 'x', NOW))).toBe('CONFLICT')
+    expect((await portal.respondClinicRequest(ADMIN, 'apt_derma', 'CONFIRM', undefined, NOW)).status).toBe('SCHEDULED')
+    expect(await code(portal.respondClinicRequest(ADMIN, 'apt_derma', 'REJECT', 'x', NOW))).toBe('CONFLICT')
 
     const [slot] = await apt.listAvailableSlots(FAMILY, 'Cardiologia', NOW)
     const req = await apt.requestAppointment(FAMILY, MONARCA, { memberId: 'mem_monarca', slotId: slot!.id }, NOW)
-    const rejected = await portal.rejectBooking('usr_clinica', req.id, 'Médica ausente', NOW)
+    const rejected = await portal.respondClinicRequest(ADMIN, req.id, 'REJECT', 'Médica ausente', NOW)
     expect(rejected).toMatchObject({ status: 'REJECTED', responseNote: 'Médica ausente' })
     expect((await apt.listAvailableSlots(FAMILY, 'Cardiologia', NOW)).some((s) => s.id === slot!.id)).toBe(true)
   })
 
   it('a clínica só vê dados mínimos das suas marcações', async () => {
-    const bookings = await portal.listClinicBookings('usr_clinica', NOW)
-    const derma = bookings.find((b) => b.id === 'apt_derma')!
+    const requests = await portal.listClinicRequests(ADMIN, NOW)
+    const derma = requests.find((b) => b.id === 'apt_derma')!
     expect(derma).toMatchObject({ patientName: 'Maria Lopes', status: 'REQUESTED' })
     expect(Object.keys(derma)).not.toContain('memberId')
     expect(Object.keys(derma)).not.toContain('familyId')
-    // Consultas de clínicas privadas não aparecem.
-    expect(bookings.some((b) => b.id === 'apt_endocrino')).toBe(false)
-  })
-
-  it('quem não é Gestor recebe FORBIDDEN', async () => {
-    expect(await code(portal.listClinicBookings(MONARCA, NOW))).toBe('FORBIDDEN')
+    // Consultas de clínicas privadas não aparecem na agenda desta clínica.
+    expect((await portal.listClinicAgenda(ADMIN, NOW)).some((b) => b.id === 'apt_endocrino')).toBe(false)
   })
 
   it('pedido sem resposta até à hora passa a cancelado', async () => {
@@ -129,13 +129,60 @@ describe('marcação com a clínica parceira (D17)', () => {
   })
 
   it('publica horários (ignorando os passados) e só remove os livres', async () => {
-    const created = await portal.publishSlots(
-      'usr_clinica',
+    const created = await portal.publishClinicSlots(
+      ADMIN,
       { date: '2026-10-04', times: ['09:00', '18:00'], specialty: 'Ortopedia', durationMinutes: 30 },
       NOW,
     )
     expect(created).toHaveLength(1)
-    await portal.removeSlot('usr_clinica', created[0]!.id)
-    expect(await code(portal.removeSlot('usr_clinica', 'slot_1_0930_card'))).toBe('CONFLICT')
+    await portal.removeClinicSlot(ADMIN, created[0]!.id)
+    expect(await code(portal.removeClinicSlot(ADMIN, 'slot_1_0930_card'))).toBe('CONFLICT')
+  })
+})
+
+describe('contas e sessões do portal da clínica (D18, ADR-020)', () => {
+  it('entra com a conta da clínica, que não é um User da app', async () => {
+    const session = await portal.clinicLogin(ADMIN_EMAIL, 'password')
+    expect(session).toMatchObject({ clinicAccountId: ADMIN, clinicId: 'cln_horizonte', role: 'CLINIC_ADMIN' })
+    // A mesma credencial não existe no espaço de identidade de `User` (e vice-versa).
+    expect(db.users.some((u) => u.email === ADMIN_EMAIL)).toBe(false)
+    expect(await code(portal.clinicLogin('demo@vitafamily.app', 'password'))).toBe('INVALID_CREDENTIALS')
+  })
+
+  it('só o Admin da clínica gere os Gestores (BR-CLN-05)', async () => {
+    const manager = (await portal.listClinicStaff(ADMIN))[0]!
+    expect(manager.role).toBe('CLINIC_MANAGER')
+    // O Gestor não gere contas.
+    expect(await code(portal.listClinicStaff(manager.id))).toBe('FORBIDDEN')
+
+    const created = await portal.createClinicStaff(ADMIN, 'Nova@clinicahorizonte.pt')
+    expect(created).toMatchObject({ clinicId: 'cln_horizonte', role: 'CLINIC_MANAGER', email: 'nova@clinicahorizonte.pt' })
+    await portal.removeClinicStaff(ADMIN, created.id)
+    expect((await portal.listClinicStaff(ADMIN)).some((a) => a.id === created.id)).toBe(false)
+    // A conta de Admin raiz nunca é removida pelo portal (só o Platform Admin a repõe).
+    expect(await code(portal.removeClinicStaff(ADMIN, ADMIN))).toBe('NOT_FOUND')
+  })
+
+  it('completar a consulta regista o desfecho e emite a receita ao paciente (BR-CLN-06/BR-RX-07)', async () => {
+    await portal.respondClinicRequest(ADMIN, 'apt_derma', 'CONFIRM', undefined, NOW)
+    const completed = await portal.completeClinicAppointment(
+      ADMIN,
+      'apt_derma',
+      {
+        outcomeNote: 'Dermatite de contacto.',
+        prescription: {
+          issuedOn: '2026-10-04',
+          doctorName: 'Dr.ª Inês Lima',
+          medications: [{ name: 'Hidrocortisona', dosage: '1%', times: ['09:00'], durationDays: 7 }],
+        },
+      },
+      NOW,
+    )
+    expect(completed.status).toBe('COMPLETED')
+    // A receita aparece nas receitas do paciente, marcada como emitida pela clínica.
+    const issued = db.prescriptions.find((p) => p.appointmentId === 'apt_derma')!
+    expect(issued).toMatchObject({ issuedBy: 'CLINIC', memberId: 'mem_maria' })
+    // Nunca duas vezes a mesma conclusão (ST4).
+    expect(await code(portal.completeClinicAppointment(ADMIN, 'apt_derma', {}, NOW))).toBe('CONFLICT')
   })
 })

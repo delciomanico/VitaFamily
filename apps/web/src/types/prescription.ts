@@ -15,6 +15,13 @@ export interface Prescription {
   clinicName?: string
   notes?: string
   status: PrescriptionStatus
+  /**
+   * Quem emitiu a receita (BR-RX-07, D18): a própria família ou a clínica parceira ao completar
+   * a consulta. Omisso = `FAMILY` (receitas antigas).
+   */
+  issuedBy?: 'FAMILY' | 'CLINIC'
+  /** Consulta de origem, só quando `issuedBy=CLINIC` (rastreabilidade, BR-RX-07). */
+  appointmentId?: string
 }
 
 /** Linha da lista de receitas. */

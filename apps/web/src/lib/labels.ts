@@ -2,6 +2,7 @@ import type { Tone } from '@/components/ui/Badge'
 import type { SelectOption } from '@/components/ui/Select'
 import type { AlertCategory, AlertItem, AlertType } from '@/types/alert'
 import type { AppointmentStatus } from '@/types/appointment'
+import type { ClinicRole } from '@/types/clinic'
 import type { ExaminationStatus } from '@/types/examination'
 import type { DoseStatus, MedicationPlanStatus } from '@/types/medication'
 import type { PrescriptionStatus } from '@/types/prescription'
@@ -32,6 +33,12 @@ export const sexLabels: Record<Sex, string> = {
 export const roleLabels: Record<FamilyRole, string> = {
   FAMILY_ADMIN: 'Administrador',
   FAMILY_MEMBER: 'Membro',
+}
+
+/** Papéis do portal da clínica (authorization.md §6, D18) — contas `ClinicAccount`, não `User`. */
+export const clinicRole: Record<ClinicRole, string> = {
+  CLINIC_ADMIN: 'Admin da clínica',
+  CLINIC_MANAGER: 'Gestor da clínica',
 }
 
 /** Categorias de partilha C2–C6 (C1 é sempre visível). */

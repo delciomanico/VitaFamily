@@ -2,9 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { isAppError } from '@/lib/errors'
 import { sessionStore } from '@/lib/storage'
 import { authService, type RegisterInput } from '@/services/auth.service'
-import { clinicPortalService } from '@/services/clinicPortal.service'
 import { familyService } from '@/services/family.service'
-import type { Clinic } from '@/types/clinic'
 import type { Family, FamilyMember, Membership } from '@/types/family'
 import type { User } from '@/types/user'
 
@@ -12,8 +10,6 @@ interface AuthState {
   status: 'loading' | 'ready'
   user: User | null
   membership: Membership | null
-  /** Clínica parceira gerida pelo utilizador (portal da clínica, D17). */
-  clinic: Clinic | null
   /** E-mail à espera do código de verificação (após registo ou login não verificado). */
   pendingEmail: string | null
   /**
@@ -30,8 +26,6 @@ interface AuthContextValue {
   family: Family | null
   /** Perfil de membro do próprio utilizador na família ativa. */
   member: FamilyMember | null
-  /** Clínica parceira, quando o utilizador é Gestor da clínica (D17). */
-  clinic: Clinic | null
   pendingEmail: string | null
   login: (email: string, password: string) => Promise<void>
   register: (input: RegisterInput) => Promise<void>
@@ -53,7 +47,6 @@ const initialState: AuthState = {
   status: 'loading',
   user: null,
   membership: null,
-  clinic: null,
   pendingEmail: null,
   pendingPassword: null,
 }
@@ -64,12 +57,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(initialState)
 
   const signIn = useCallback(async (user: User) => {
-    const [membership, clinic] = await Promise.all([
-      familyService.getMembership(user.id),
-      clinicPortalService.getClinicMembership(user.id),
-    ])
+    const membership = await familyService.getMembership(user.id)
     sessionStore.setUserId(user.id)
-    setState({ status: 'ready', user, membership, clinic, pendingEmail: null, pendingPassword: null })
+    setState({ status: 'ready', user, membership, pendingEmail: null, pendingPassword: null })
   }, [])
 
   // Restaura a sessão ao abrir a app: no mock, por `userId` (sessionStore); na API real,
@@ -149,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     void authService.logout().catch(() => undefined)
     sessionStore.setUserId(null)
-    setState({ status: 'ready', user: null, membership: null, clinic: null, pendingEmail: null, pendingPassword: null })
+    setState({ status: 'ready', user: null, membership: null, pendingEmail: null, pendingPassword: null })
   }, [])
 
   const value = useMemo<AuthContextValue>(
@@ -158,7 +148,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: state.user,
       family: state.membership?.family ?? null,
       member: state.membership?.member ?? null,
-      clinic: state.clinic,
       pendingEmail: state.pendingEmail,
       login,
       register,

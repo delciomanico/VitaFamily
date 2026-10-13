@@ -49,8 +49,10 @@ export const paths = {
   settingsTerms: '/app/settings/terms',
   settingsPrivacyPolicy: '/app/settings/privacy-policy',
 
-  // Portal da clínica parceira (D17).
+  // Portal da clínica parceira (D17/D18): login e sessão próprios, fora do fluxo da app (ADR-020).
+  clinicLogin: '/clinic/login',
   clinic: '/clinic',
   clinicAgenda: '/clinic/agenda',
   clinicSlots: '/clinic/slots',
+  clinicStaff: '/clinic/staff',
 } as const

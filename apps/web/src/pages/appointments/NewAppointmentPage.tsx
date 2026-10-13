@@ -13,7 +13,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { APPOINTMENT_TIMES, combineDateTime, localDay } from '@/lib/appointment'
 import { cn } from '@/lib/cn'
-import { hasApiBackend } from '@/lib/apiClient'
 import { localTime, todayISO } from '@/lib/date'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { formatCount, formatLongDate, formatTime } from '@/lib/format'
@@ -308,12 +307,15 @@ function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) 
     setSaving(true)
     try {
       const appointment =
-        partner && draft.slotId
-          ? await appointmentService.requestAppointment(familyId, user?.id ?? '', {
-              memberId: draft.memberId,
-              slotId: draft.slotId,
-              notes: draft.notes,
-            })
+        partner && draft.slotId && slot
+          ? await appointmentService.requestAppointment(
+              familyId,
+              user?.id ?? '',
+              { memberId: draft.memberId, slotId: draft.slotId, notes: draft.notes },
+              // O horário escolhido leva consigo a clínica: `POST .../appointments` precisa de
+              // `clinicId` + `slotId` (D17) e o pedido nasce REQUESTED, nunca SCHEDULED.
+              slot,
+            )
           : await appointmentService.createAppointment(familyId, user?.id ?? '', {
               memberId: draft.memberId,
               scheduledAt: combineDateTime(draft.date ?? '', draft.time ?? ''),
@@ -472,15 +474,13 @@ export function NewAppointmentPage() {
   const [done, setDone] = useState<Appointment | null>(null)
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
+  // Parceiras e privadas: nas parceiras marca-se por horário publicado (D17), nas privadas
+  // (ou sem clínica) é registo direto.
   const { state, reload } = useAsync(
-    async () => {
-      const [members, clinics] = await Promise.all([
-        familyService.listManagedMembers(familyId, userId),
-        clinicService.listClinics(familyId),
-      ])
-      // Marcação por horário em parceiras ainda não existe na API (D17 adiado): só clínicas privadas.
-      return [members, hasApiBackend() ? clinics.filter((c) => c.type !== 'PARTNER') : clinics] as const
-    },
+    () =>
+      Promise.all([familyService.listManagedMembers(familyId, userId), clinicService.listClinics(familyId)]).then(
+        ([members, clinics]) => [members, clinics] as const,
+      ),
     [familyId, userId],
   )
 

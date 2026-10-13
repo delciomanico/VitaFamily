@@ -164,6 +164,65 @@ export function getPrescription(familyId: string, userId: string, id: string) {
 }
 
 /**
+ * Grava a receita ATIVA e um plano de toma por medicamento (UC-RX-01, BR-RX-01/02), sem latência
+ * nem controlo de acesso: usado por `createPrescription` (família) e por `clinicPortal`, quando a
+ * clínica emite a receita ao completar a consulta (BR-RX-07, `issuedBy=CLINIC`).
+ */
+export function insertPrescription(
+  familyId: string,
+  input: NewPrescriptionInput,
+  now: Date,
+  origin?: { issuedBy: 'CLINIC'; appointmentId: string },
+): Prescription {
+  if (input.issuedOn > todayISO(now) || input.medications.length === 0) throw new AppError('VALIDATION_ERROR')
+  validateUploads(input.documents)
+  input.medications.forEach(validateSchedule)
+
+  const prescription: Prescription = {
+    id: newId('rx'),
+    familyId,
+    memberId: input.memberId,
+    issuedOn: input.issuedOn,
+    doctorName: input.doctorName?.trim() || undefined,
+    clinicName: input.clinicName?.trim() || undefined,
+    notes: input.notes?.trim() || undefined,
+    status: 'ACTIVE',
+    issuedBy: origin?.issuedBy ?? 'FAMILY',
+    ...(origin ? { appointmentId: origin.appointmentId } : {}),
+  }
+  db.prescriptions.push(prescription)
+
+  for (const medication of input.medications) {
+    const days = medication.continuous ? undefined : (medication.durationDays ?? 1)
+    const lastDay = new Date(now)
+    if (days) lastDay.setDate(lastDay.getDate() + days - 1)
+    const plan: MedicationPlan = {
+      id: newId('med'),
+      familyId,
+      memberId: input.memberId,
+      prescriptionId: prescription.id,
+      name: medication.name.trim(),
+      dosage: medication.dosage.trim(),
+      ...scheduleFields(medication),
+      startAt: atLocal(firstTimeOf(medication), now),
+      endAt: days ? endOfDay(lastDay) : undefined,
+      continuous: medication.continuous,
+      notes: medication.notes?.trim() || undefined,
+      status: 'ACTIVE',
+    }
+    db.medicationPlans.push(plan)
+    generateTodayDoses(plan, now)
+  }
+
+  attachDocuments(
+    input.documents,
+    { familyId, memberId: input.memberId, resourceType: 'PRESCRIPTION', resourceId: prescription.id },
+    now,
+  )
+  return prescription
+}
+
+/**
  * Regista a receita ATIVA e cria um plano de toma por medicamento (UC-RX-01, BR-RX-01/02).
  * Os planos começam hoje; as tomas de hoje já passadas não são criadas.
  */
@@ -175,50 +234,7 @@ export function createPrescription(
 ) {
   return respond((): Prescription => {
     findVisibleMember(familyId, userId, input.memberId)
-    if (input.issuedOn > todayISO(now) || input.medications.length === 0) throw new AppError('VALIDATION_ERROR')
-    validateUploads(input.documents)
-    input.medications.forEach(validateSchedule)
-
-    const prescription: Prescription = {
-      id: newId('rx'),
-      familyId,
-      memberId: input.memberId,
-      issuedOn: input.issuedOn,
-      doctorName: input.doctorName?.trim() || undefined,
-      clinicName: input.clinicName?.trim() || undefined,
-      notes: input.notes?.trim() || undefined,
-      status: 'ACTIVE',
-    }
-    db.prescriptions.push(prescription)
-
-    for (const medication of input.medications) {
-      const days = medication.continuous ? undefined : (medication.durationDays ?? 1)
-      const lastDay = new Date(now)
-      if (days) lastDay.setDate(lastDay.getDate() + days - 1)
-      const plan: MedicationPlan = {
-        id: newId('med'),
-        familyId,
-        memberId: input.memberId,
-        prescriptionId: prescription.id,
-        name: medication.name.trim(),
-        dosage: medication.dosage.trim(),
-        ...scheduleFields(medication),
-        startAt: atLocal(firstTimeOf(medication), now),
-        endAt: days ? endOfDay(lastDay) : undefined,
-        continuous: medication.continuous,
-        notes: medication.notes?.trim() || undefined,
-        status: 'ACTIVE',
-      }
-      db.medicationPlans.push(plan)
-      generateTodayDoses(plan, now)
-    }
-
-    attachDocuments(
-      input.documents,
-      { familyId, memberId: input.memberId, resourceType: 'PRESCRIPTION', resourceId: prescription.id },
-      now,
-    )
-    return prescription
+    return insertPrescription(familyId, input, now)
   })
 }
 

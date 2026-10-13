@@ -1,5 +1,6 @@
 import { seedAppointments } from './data/appointments'
-import { clinicStaff, clinics, seedSlots } from './data/clinics'
+import { clinicAccounts } from './data/clinicAccounts'
+import { clinics, seedSlots } from './data/clinics'
 import { seedExamDocuments, seedExamResults, seedExaminations } from './data/examinations'
 import { families, guardianships, invitations, members, sharingGrants } from './data/families'
 import { allergies, conditions } from './data/health'
@@ -32,9 +33,13 @@ function seed(now: Date = new Date()) {
       allergies,
       conditions,
       clinics,
-      clinicStaff,
+      clinicAccounts,
       sharingGrants,
     }),
+    /** Resultado da consulta escrito pela clínica (BR-CLN-06). O contrato nunca o devolve
+     * (`outcomeNote` só existe no pedido de `completeClinicAppointment`), por isso fica fora
+     * de `Appointment` — a família vê a consulta REALIZADA e a receita, não esta nota. */
+    appointmentOutcomes: [] as Array<{ appointmentId: string; outcomeNote: string; recordedAt: string }>,
     slots: seedSlots(now),
     appointments: seedAppointments(now),
     prescriptions: seedPrescriptions(now),

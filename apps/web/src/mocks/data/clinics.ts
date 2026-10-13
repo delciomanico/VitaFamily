@@ -8,16 +8,8 @@ export const clinics: Clinic[] = [
   { id: 'cln_bairro', type: 'PRIVATE', familyId: 'fam_monarca', name: 'Centro de Saúde do Bairro', status: 'ACTIVE' },
 ]
 
-/** Gestor da clínica parceira (D17): liga uma conta a uma clínica, sem família. */
-export interface MockClinicStaff {
-  clinicId: string
-  userId: string
-  role: 'CLINIC_MANAGER'
-}
-
-export const clinicStaff: MockClinicStaff[] = [
-  { clinicId: 'cln_horizonte', userId: 'usr_clinica', role: 'CLINIC_MANAGER' },
-]
+/* As contas do portal desta clínica vivem em `data/clinicAccounts.ts` (ADR-020): são
+ * `ClinicAccount`, não `User` com um papel extra. */
 
 /** Agenda-tipo da Clínica Horizonte: especialidade, profissional e horas de cada dia. */
 const HORIZONTE_SCHEDULE = [

@@ -120,10 +120,10 @@ describe('regras (UC-ALR-01)', () => {
 
 describe('respostas da clínica parceira (FR-APT-07)', () => {
   it('avisa o tutor quando a clínica confirma, recusa ou cancela', async () => {
-    await portal.confirmBooking('usr_clinica', 'apt_derma', NOW)
+    await portal.respondClinicRequest('cac_horizonte_admin', 'apt_derma', 'CONFIRM', undefined, NOW)
     expect(await rulesFor('apt_derma')).toEqual(['appointment.confirmed'])
 
-    await portal.cancelBooking('usr_clinica', 'apt_derma', 'Médica indisponível.', later(5))
+    await portal.cancelClinicAppointment('cac_horizonte_admin', 'apt_derma', 'Médica indisponível.', later(5))
     expect(await rulesFor('apt_derma', later(5))).toEqual(['appointment.cancelled', 'appointment.confirmed'])
     const [cancelled] = await alerts.listAlerts(FAMILY, MONARCA, later(5))
     expect(cancelled).toMatchObject({ type: 'APPOINTMENT_CANCELLED', memberName: 'Maria Lopes' })
@@ -132,7 +132,7 @@ describe('respostas da clínica parceira (FR-APT-07)', () => {
   it('avisa a recusa e o pedido sem resposta até à hora (BR-APT-08)', async () => {
     const slot = db.slots.find((s) => !db.appointments.some((a) => a.slotId === s.id))!
     const requested = await apt.requestAppointment(FAMILY, MONARCA, { memberId: 'mem_pedro', slotId: slot.id }, NOW)
-    await portal.rejectBooking('usr_clinica', requested.id, undefined, NOW)
+    await portal.respondClinicRequest('cac_horizonte_admin', requested.id, 'REJECT', undefined, NOW)
     expect(await rulesFor(requested.id)).toEqual(['appointment.rejected'])
 
     const afterDerma = new Date(Date.parse(at(3, '11:00', NOW)) + 60_000)

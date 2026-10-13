@@ -7,23 +7,23 @@ import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
-import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { errorMessage } from '@/lib/errors'
 import { clinicPortalService } from '@/services/clinicPortal.service'
 import type { ClinicBooking } from '@/types/clinic'
 
-/** Pedidos de consulta por responder (UC-CLN-05): confirmar ou recusar com motivo opcional. */
+/**
+ * Pedidos de consulta por responder (`GET /clinic-portal/requests`, UC-CLN-05): confirmar ou
+ * recusar com motivo opcional. A rota já devolve só os `REQUESTED` da própria clínica.
+ */
 export function ClinicRequestsPage() {
-  const { user } = useAuth()
   const toast = useToast()
-  const userId = user?.id ?? ''
-  const { state, reload } = useAsync(() => clinicPortalService.listClinicBookings(userId), [userId])
+  const { state, reload } = useAsync(() => clinicPortalService.listRequests(), [])
   const [busy, setBusy] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<ClinicBooking | null>(null)
   const [note, setNote] = useState('')
 
-  const requests = state.status === 'success' ? state.data.filter((b) => b.status === 'REQUESTED') : []
+  const requests = state.status === 'success' ? state.data : []
 
   async function run(id: string, action: () => Promise<unknown>, done: string) {
     setBusy(id)
@@ -59,7 +59,7 @@ export function ClinicRequestsPage() {
                     onClick={() =>
                       run(
                         booking.id,
-                        () => clinicPortalService.confirmBooking(userId, booking.id),
+                        () => clinicPortalService.respondRequest(booking.id, 'CONFIRM'),
                         'Consulta confirmada.',
                       )
                     }
@@ -103,7 +103,7 @@ export function ClinicRequestsPage() {
                 rejecting &&
                 run(
                   rejecting.id,
-                  () => clinicPortalService.rejectBooking(userId, rejecting.id, note),
+                  () => clinicPortalService.respondRequest(rejecting.id, 'REJECT', note),
                   'Pedido recusado.',
                 )
               }

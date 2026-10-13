@@ -1,20 +1,20 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { FullScreenLoader } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { paths } from './paths'
 
 interface FromState {
   from?: string
 }
 
-/** Destino depois de entrar: o portal da clínica, a página pedida, a Home ou a configuração da família. */
+/** Destino depois de entrar: a página pedida, a Home ou a configuração da família. */
 function useSignedInTarget(): string {
-  const { family, clinic } = useAuth()
+  const { family } = useAuth()
   const from = (useLocation().state as FromState | null)?.from
   // Login a meio de "Entrar numa família" por convite: volta para lá para concluir o accept,
   // mesmo sem família ainda (é precisamente o que esta tela vai estabelecer).
   if (from?.startsWith(paths.inviteAccept)) return from
-  if (clinic && !family) return from?.startsWith(paths.clinic) ? from : paths.clinic
   if (!family) return paths.setupFamily
   return from ?? paths.home
 }
@@ -30,15 +30,38 @@ export function RequireAuth() {
 
 /** Área da app: exige pertencer a uma família (os dados são sempre por família). */
 export function RequireFamily() {
-  const { family, clinic } = useAuth()
-  if (!family) return <Navigate to={clinic ? paths.clinic : paths.setupFamily} replace />
+  const { family } = useAuth()
+  if (!family) return <Navigate to={paths.setupFamily} replace />
   return <Outlet />
 }
 
-/** Portal da clínica: só para Gestores de uma clínica parceira (D17). */
-export function RequireClinic() {
-  const { clinic } = useAuth()
-  if (!clinic) return <Navigate to={paths.home} replace />
+/**
+ * Portal da clínica (D17/D18): exige uma sessão de `ClinicAccount` — nunca a de `User`
+ * (ADR-020). Sem sessão de clínica vai para o login do portal, não para o login da app.
+ */
+export function RequireClinicAccount() {
+  const { status, session } = useClinicAuth()
+  const location = useLocation()
+  if (status === 'loading') return <FullScreenLoader />
+  if (!session) {
+    return <Navigate to={paths.clinicLogin} replace state={{ from: location.pathname } satisfies FromState} />
+  }
+  return <Outlet />
+}
+
+/** Gestão de contas da clínica: só o Admin da clínica (BR-CLN-05). */
+export function RequireClinicAdmin() {
+  const { isAdmin } = useClinicAuth()
+  if (!isAdmin) return <Navigate to={paths.clinic} replace />
+  return <Outlet />
+}
+
+/** Login do portal: com sessão de clínica já iniciada, segue para os pedidos. */
+export function ClinicGuestOnly() {
+  const { status, session } = useClinicAuth()
+  const from = (useLocation().state as FromState | null)?.from
+  if (status === 'loading') return <FullScreenLoader />
+  if (session) return <Navigate to={from?.startsWith(paths.clinic) ? from : paths.clinic} replace />
   return <Outlet />
 }
 
