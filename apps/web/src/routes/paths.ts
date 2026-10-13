@@ -55,4 +55,8 @@ export const paths = {
   clinicAgenda: '/clinic/agenda',
   clinicSlots: '/clinic/slots',
   clinicStaff: '/clinic/staff',
+
+  // Área do Platform Admin: mesma conta/login de `User` (platformRole), mas sem família.
+  admin: '/admin',
+  adminClinics: '/admin/clinics',
 } as const

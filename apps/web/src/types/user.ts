@@ -1,6 +1,9 @@
 /** Conta de acesso (docs/04-domain/entities.md → User). */
 export type UserStatus = 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED'
 
+/** `User.platformRole` (openapi.yaml): PLATFORM_ADMIN acede à área `/admin`, sem família. */
+export type PlatformRole = 'NONE' | 'PLATFORM_ADMIN'
+
 export interface User {
   id: string
   email: string
@@ -10,4 +13,5 @@ export interface User {
   /** Fuso IANA, referência dos lembretes (BR-ACC-04). */
   timezone: string
   status: UserStatus
+  platformRole: PlatformRole
 }

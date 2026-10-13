@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import { createBrowserRouter, type RouteObject } from 'react-router-dom'
+import { AdminShell } from '@/components/layout/AdminShell'
 import { AppShell } from '@/components/layout/AppShell'
 import { ClinicPortalRoot, ClinicShell } from '@/components/layout/ClinicShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
@@ -23,6 +24,7 @@ import {
   RequireClinicAdmin,
   RequireFamily,
   RequirePendingVerification,
+  RequirePlatformAdmin,
 } from './guards'
 import { paths } from './paths'
 
@@ -180,6 +182,24 @@ export const routes: RouteObject[] = [
                 path: 'settings/privacy-policy',
                 ...page(() => import('@/pages/settings/InfoSettingsPages'), 'PrivacyPolicyPage'),
               },
+            ],
+          },
+        ],
+      },
+      {
+        /*
+         * Área do Platform Admin (`/admin`): mesma conta/sessão de `User` que a app de família
+         * (login único, `platformRole` no token), mas nunca exige família — a conta é criada
+         * pela CLI `create-platform-admin`, sem passar pelo registo normal.
+         */
+        path: paths.admin,
+        element: <RequirePlatformAdmin />,
+        children: [
+          {
+            element: <AdminShell />,
+            children: [
+              { index: true, ...page(() => import('@/pages/admin/AdminUsersPage'), 'AdminUsersPage') },
+              { path: 'clinics', ...page(() => import('@/pages/admin/AdminClinicsPage'), 'AdminClinicsPage') },
             ],
           },
         ],

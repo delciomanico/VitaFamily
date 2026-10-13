@@ -10,11 +10,13 @@ interface FromState {
 
 /** Destino depois de entrar: a página pedida, a Home ou a configuração da família. */
 function useSignedInTarget(): string {
-  const { family } = useAuth()
+  const { user, family } = useAuth()
   const from = (useLocation().state as FromState | null)?.from
   // Login a meio de "Entrar numa família" por convite: volta para lá para concluir o accept,
   // mesmo sem família ainda (é precisamente o que esta tela vai estabelecer).
   if (from?.startsWith(paths.inviteAccept)) return from
+  // Platform Admin (CLI create-platform-admin) nunca tem família — vai direto para a sua área.
+  if (user?.platformRole === 'PLATFORM_ADMIN') return from ?? paths.admin
   if (!family) return paths.setupFamily
   return from ?? paths.home
 }
@@ -62,6 +64,14 @@ export function ClinicGuestOnly() {
   const from = (useLocation().state as FromState | null)?.from
   if (status === 'loading') return <FullScreenLoader />
   if (session) return <Navigate to={from?.startsWith(paths.clinic) ? from : paths.clinic} replace />
+  return <Outlet />
+}
+
+/** Área do Platform Admin: exige `User.platformRole === 'PLATFORM_ADMIN'` (CLI create-platform-admin). */
+export function RequirePlatformAdmin() {
+  const { status, user } = useAuth()
+  if (status === 'loading') return <FullScreenLoader />
+  if (user?.platformRole !== 'PLATFORM_ADMIN') return <Navigate to={paths.home} replace />
   return <Outlet />
 }
 

@@ -12,6 +12,9 @@ export const DEMO_PASSWORD = 'password'
 /** Código de verificação aceite pelo mock (o real seria enviado por e-mail). */
 export const DEMO_VERIFICATION_CODE = '123456'
 
+/** Conta de Platform Admin de demonstração (`/admin`, sem família — CLI `create-platform-admin`). */
+export const DEMO_ADMIN_EMAIL = 'admin@vitafamily.app'
+
 export const users: MockUserRecord[] = [
   {
     id: 'usr_monarca',
@@ -21,6 +24,7 @@ export const users: MockUserRecord[] = [
     birthDate: '1985-03-12',
     timezone: 'Africa/Luanda',
     status: 'ACTIVE',
+    platformRole: 'NONE',
   },
   {
     // Irmã de Monarca, com conta própria (mostra a partilha por categoria).
@@ -31,5 +35,16 @@ export const users: MockUserRecord[] = [
     birthDate: '1992-11-08',
     timezone: 'Africa/Luanda',
     status: 'ACTIVE',
+    platformRole: 'NONE',
+  },
+  {
+    id: 'usr_platform_admin',
+    email: DEMO_ADMIN_EMAIL,
+    password: DEMO_PASSWORD,
+    name: 'Equipa Vita Family',
+    birthDate: '1990-01-01',
+    timezone: 'Europe/Lisbon',
+    status: 'ACTIVE',
+    platformRole: 'PLATFORM_ADMIN',
   },
 ]

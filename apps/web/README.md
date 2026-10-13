@@ -200,6 +200,7 @@ Não se guardam tokens, palavras-passe nem dados de saúde.
 | O quê | Valor |
 | --- | --- |
 | Família Monarca (tutor e administrador) | `demo@vitafamily.app` · `password` |
+| Platform Admin (área `/admin`, login normal) | `admin@vitafamily.app` · `password` |
 | Admin da Clínica Horizonte (portal, em `/clinic/login`) | `admin@clinicahorizonte.pt` · `password` |
 | Gestor da Clínica Horizonte (portal, em `/clinic/login`) | `rececao@clinicahorizonte.pt` · `password` |
 | Código de verificação, após o registo | `123456` |
@@ -209,6 +210,11 @@ As contas do portal da clínica (`ClinicAccount`) são um espaço de identidade 
 de utilizador (ADR-020/D18): outro ecrã de login (`/clinic/login`), outra sessão e outro token —
 entrar num dos lados nunca dá acesso ao outro. Gestores criados no portal ficam com a mesma
 palavra-passe de demonstração (na API real a inicial vai por e-mail).
+
+O Platform Admin é a mesma identidade `User` (login normal em `/login`), distinguida só pelo campo
+`platformRole`; é criado pela CLI `create-platform-admin` (`apps/api`) e nunca tem família — ao
+entrar, vai direto para `/admin` (contas de utilizador e clínicas parceiras), nunca para a app de
+família.
 
 A família tem:
 - **Monarca:** tutor e administrador.

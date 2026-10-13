@@ -26,8 +26,8 @@ export interface RegisterInput {
   invitationToken?: string
 }
 
-function toUser({ id, email, name, birthDate, timezone, status }: MockUserRecord): User {
-  return { id, email, name, birthDate, timezone, status }
+function toUser({ id, email, name, birthDate, timezone, status, platformRole }: MockUserRecord): User {
+  return { id, email, name, birthDate, timezone, status, platformRole }
 }
 
 function findByEmail(email: string) {
@@ -62,6 +62,7 @@ export function register(input: RegisterInput) {
       birthDate: input.birthDate,
       timezone: input.timezone,
       status: 'PENDING_VERIFICATION',
+      platformRole: 'NONE',
     })
     return undefined
   })

@@ -13,6 +13,7 @@ export interface MeResponse {
   birthDate: string
   timezone: string
   status: User['status']
+  platformRole: User['platformRole']
 }
 
 export function toUser(me: MeResponse): User {
