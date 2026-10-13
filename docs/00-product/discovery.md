@@ -359,7 +359,7 @@ Cada decisão segue o formato: contexto → opções → recomendação → impa
 - Fluxo com clínica parceira: o titular/tutor escolhe um horário livre → pedido **REQUESTED** → a clínica **confirma** (AGENDADA) ou **recusa**. Lembretes só depois de confirmada.
 - **Privacidade (altera BR-CLN-03):** a clínica vê **apenas** as marcações feitas na própria clínica, com o mínimo necessário — nome do paciente, especialidade, profissional, data/hora e as observações escritas no pedido. **Nunca** dados de saúde da família. O utilizador é informado disto antes de enviar o pedido.
 - Contas de Gestor da clínica criadas pelo Platform Admin (o MVP do frontend usa uma conta demo). Clínicas privadas continuam sem login.
-- **Pendente antes de implementar no backend:** `05-api/openapi.yaml`, `endpoints.md`, `07-database/schema.md` e `08-security/authorization.md` (contrato e tabelas de ClinicSlot, ClinicStaff e novos estados).
+- `05-api/openapi.yaml`, `endpoints.md`, `07-database/schema.md` e `08-security/authorization.md` (contrato e tabelas de ClinicSlot, ClinicStaff e novos estados) ficaram pendentes neste registo e foram preenchidos por D18, que também reviu quem são as contas da clínica.
 
 #### D18 — Contas do portal da clínica, hierarquia self-service e controlo do fluxo da consulta (proprietário, 2026-10-12)
 
