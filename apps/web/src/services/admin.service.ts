@@ -1,6 +1,6 @@
 import * as mock from '@/mocks/handlers/admin'
 import { apiFetch, hasApiBackend } from '@/lib/apiClient'
-import type { AdminUser, ClinicInput, ClinicPatch } from '@/types/admin'
+import type { AdminUserPage, ClinicInput, ClinicPatch } from '@/types/admin'
 import type { Clinic, ClinicAccount } from '@/types/clinic'
 
 /**
@@ -30,9 +30,9 @@ const toClinic = (clinic: ApiClinic): Clinic => ({
   status: clinic.status,
 })
 
-async function apiListUsers(): Promise<AdminUser[]> {
-  const result = await apiFetch<{ items: AdminUser[] }>('/admin/users')
-  return result.items
+function apiListUsers(cursor?: string): Promise<AdminUserPage> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  return apiFetch<AdminUserPage>(`/admin/users${query}`)
 }
 
 const apiImpl = {
@@ -81,7 +81,7 @@ const apiImpl = {
 }
 
 const mockImpl = {
-  listUsers: () => mock.adminListUsers(),
+  listUsers: (cursor?: string) => mock.adminListUsers(cursor),
   suspendUser: (userId: string, reason: string, actorUserId: string) =>
     mock.adminSuspendUser(actorUserId, userId, reason),
   reactivateUser: (userId: string) => mock.adminReactivateUser(userId),

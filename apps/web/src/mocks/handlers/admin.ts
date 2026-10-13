@@ -1,4 +1,4 @@
-import type { AdminUser, ClinicInput, ClinicPatch } from '@/types/admin'
+import type { AdminUser, AdminUserPage, ClinicInput, ClinicPatch } from '@/types/admin'
 import type { Clinic, ClinicAccount } from '@/types/clinic'
 import { AppError } from '@/lib/errors'
 import { DEMO_PASSWORD, type MockUserRecord } from '../data/users'
@@ -11,9 +11,14 @@ function toAdminUser({ id, email, status }: MockUserRecord): AdminUser {
   return { id, email, status, createdAt: new Date().toISOString() }
 }
 
-/** `GET /admin/users` (PLATFORM_ADMIN). */
-export function adminListUsers() {
-  return respond(() => db.users.map((u) => toAdminUser(u)).sort((a, b) => a.email.localeCompare(b.email, 'pt-PT')))
+/** `GET /admin/users` (PLATFORM_ADMIN): o conjunto de demonstração é pequeno, nunca pagina de
+ * facto — devolve sempre tudo numa só página (`nextCursor: null`) para a UI exercitar o mesmo
+ * formato `{items, nextCursor}` da API real sem precisar de "carregar mais" aqui. */
+export function adminListUsers(_cursor?: string): Promise<AdminUserPage> {
+  return respond(() => ({
+    items: db.users.map((u) => toAdminUser(u)).sort((a, b) => a.email.localeCompare(b.email, 'pt-PT')),
+    nextCursor: null,
+  }))
 }
 
 /** `POST /admin/users/{id}/suspend` (BR-ACC-05): nunca a própria conta. */

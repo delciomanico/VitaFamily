@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Lock, Unlock, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -85,8 +85,33 @@ export function AdminUsersPage() {
   const { state, reload } = useAsync(() => adminService.listUsers(), [])
   const [suspending, setSuspending] = useState<AdminUser | null>(null)
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
+  const [extraPages, setExtraPages] = useState<AdminUser[][]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
 
-  const users = state.status === 'success' ? state.data : []
+  // Cada nova resposta da primeira página (carga inicial ou `reload()`) reinicia a paginação.
+  useEffect(() => {
+    if (state.status === 'success') {
+      setExtraPages([])
+      setNextCursor(state.data.nextCursor)
+    }
+  }, [state])
+
+  const users = state.status === 'success' ? [...state.data.items, ...extraPages.flat()] : []
+
+  async function loadMore() {
+    if (!nextCursor) return
+    setLoadingMore(true)
+    try {
+      const page = await adminService.listUsers(nextCursor)
+      setExtraPages((pages) => [...pages, page.items])
+      setNextCursor(page.nextCursor)
+    } catch (error) {
+      toast.show(errorMessage(error), 'error')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   async function reactivate(user: AdminUser) {
     setReactivatingId(user.id)
@@ -147,6 +172,11 @@ export function AdminUsersPage() {
             </Card>
           ) : (
             <EmptyState icon={Users} title="Sem contas." />
+          )}
+          {nextCursor && (
+            <Button variant="secondary" size="sm" loading={loadingMore} onClick={() => void loadMore()}>
+              Carregar mais
+            </Button>
           )}
         </section>
       )}

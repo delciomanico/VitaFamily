@@ -8,6 +8,12 @@ export interface AdminUser {
   createdAt: string
 }
 
+/** `GET /admin/users` (openapi.yaml): página com cursor para "carregar mais". */
+export interface AdminUserPage {
+  items: AdminUser[]
+  nextCursor: string | null
+}
+
 /** `ClinicInput` (openapi.yaml): criação de clínica parceira pelo Platform Admin. */
 export interface ClinicInput {
   name: string
