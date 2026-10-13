@@ -274,6 +274,21 @@ Estes pontos estão nos documentos mas não nos ecrãs do MVP, ou dependem do ba
 - notificações push e e-mail reais (as preferências já são guardadas);
 - textos de Ajuda, Termos e Política de privacidade (os documentos só fixam a versão dos termos).
 
+## APK Android (Capacitor)
+
+`android/` embrulha a PWA já publicada num WebView nativo: `capacitor.config.ts` aponta
+`server.url` para `https://vitafamily.cassfrei.com`, por isso o APK corre sempre contra o site
+real (mesma origem/API do browser) e nunca contra uma cópia local dos ficheiros. Não há build de
+release assinado — só debug, para instalar e testar.
+
+```
+npm install
+npx cap sync android
+cd android && JAVA_HOME="<jdk do Android Studio>" ./gradlew.bat assembleDebug
+```
+
+O `.apk` fica em `android/app/build/outputs/apk/debug/app-debug.apk`.
+
 ## Testes
 
 Correr `npm test`. Os testes cobrem:
