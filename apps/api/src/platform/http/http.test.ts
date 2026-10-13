@@ -129,4 +129,30 @@ describe("createApp", () => {
     expect(response.body).toMatchObject({ code: "INTERNAL_ERROR", status: 500 });
     expect(problemBody(response).detail).toBeUndefined();
   });
+
+  // Regressão (Fase G, QA/segurança do portal da clínica): `ClinicCompleteAppointmentRequest.prescription`
+  // combinava `nullable: true` com `allOf: [$ref]` sem `type`, o que faz o AJV usado pelo
+  // express-openapi-validator recusar-se a compilar TODO o contrato ("nullable cannot be used
+  // without type") — qualquer pedido validado pelo contrato (não só este endpoint) passava a
+  // responder 500 em vez do código esperado. Este teste garante que o contrato inteiro continua a
+  // compilar e que esta rota específica responde 401 (falha fechada, sem handler de
+  // `clinicBearerAuth`) em vez de 500.
+  it("carrega o contrato inteiro sem erro de schema do AJV (regressão ClinicCompleteAppointmentRequest.prescription)", async () => {
+    const app = createApp({
+      openApiSpecPath: OPENAPI_SPEC_PATH,
+      logger: silentLogger,
+      securityHandlers: { clinicBearerAuth: () => Promise.reject(new Error("sem sessão do portal da clínica")) },
+      registerHealthRoutes: (router) => {
+        router.get("/health", (_req, res) => res.json({ status: "ok" }));
+      },
+      registerRoutes: (router) => {
+        router.put("/clinic-portal/agenda/:appointmentId/complete", (_req, res) => res.json({ ok: true }));
+      },
+    });
+    const response = await request(app)
+      .put("/api/v1/clinic-portal/agenda/11111111-1111-1111-1111-111111111111/complete")
+      .send({ outcomeNote: "Consulta concluída.", prescription: null });
+    expect(response.status).toBe(401);
+    expect(problemBody(response).code).toBe("UNAUTHENTICATED");
+  });
 });

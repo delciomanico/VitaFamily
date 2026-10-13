@@ -109,3 +109,14 @@ POST /families/{familyId}/members/{memberId}/appointments
 valores do enum `appointment_status` (D17 — `ALTER TYPE ... ADD VALUE` exige uma migração própria
 por valor, para serem usados pela migração seguinte). `db/migrations/0016_appointment_slot_booking.sql`:
 colunas `slot_id`/`response_note`, constraints BR-APT-01/04 e a UNIQUE parcial de BR-APT-06.
+
+## Pendente (Fase G, QA/segurança)
+BR-APT-08 ("um pedido sem resposta até à hora do horário passa a CANCELADA pelo sistema") está
+marcado **PROPOSTO** (nunca `DECIDIDO`) em `business-rules.md` §7 — nunca foi aprovada pelo
+proprietário, por isso não há job a cancelar pedidos `REQUESTED` expirados. Não é falha de
+segurança/isolamento (o pedido continua visível só à sua própria família e à própria clínica,
+`findByClinicId`/`findById` continuam a decidir por `clinicId`/`familyId`); é uma falha de
+integridade de negócio: um horário (`ClinicSlot`) com um pedido `REQUESTED` sem resposta fica retido
+indefinidamente (BR-APT-06: só **uma** marcação ativa por horário), mesmo depois de passada a hora,
+até a clínica responder manualmente. Registado como funcionalidade em falta, não implementada por
+não haver decisão aprovada (fica para change control do proprietário, não para esta fase).

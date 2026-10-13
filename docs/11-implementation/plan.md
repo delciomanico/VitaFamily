@@ -56,7 +56,7 @@ Monorepo `apps/api` (Node.js/TypeScript) · `apps/web` (futuro) · `deploy/` · 
 | FR-HP | M4 |
 | FR-DOC | M5 |
 | FR-RX, FR-MED | M6 |
-| FR-APT, FR-EXM, FR-CLN, FR-ADM-01 (clínicas), portal da clínica (D17/D18, ADR-020 — contrato em `openapi.yaml`/`endpoints.md`/`schema.md`/`authorization.md` já preenchido; falta só a implementação) | M7 |
+| FR-APT, FR-EXM, FR-CLN, FR-ADM-01 (clínicas), portal da clínica (D17/D18, ADR-020 — contrato, implementação (identidade, hierarquia de staff, horários, pedidos/agenda, resultado de consulta + receita, frontend) e fecho de QA/segurança concluídos) | M7 |
 | FR-ALR, BR-ALR | M8 |
 | FR-RPT, FR-PRIV-05, saída/remoção, maioridade, bloqueio, eliminações, FR-ADM-01 (contas) | M9 |
 | NFR-PERF/AVL/OPS/SEC (verificação final) | M10 |

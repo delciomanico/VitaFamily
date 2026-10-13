@@ -6336,6 +6336,7 @@ components:
           nullable: true
           description: "Resultado da consulta (BR-CLN-06)."
         prescription:
+          type: object
           nullable: true
           allOf:
             - $ref: "#/components/schemas/PrescriptionInput"

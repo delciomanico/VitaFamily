@@ -107,3 +107,11 @@ POST /clinic-portal/slots
           → infrastructure/clinic-slots-repo.ts (existsDuplicate + insert)
             → audit.record(trx, …)   # CLINIC_SLOT_PUBLISH
 ```
+
+## Pendente (Fase G — reportado pela Fase F, frontend)
+`ClinicTokenResponse` (login/refresh, `clinicLogin`/`clinicRefreshToken`) só devolve
+`clinicId`/`role`, nunca o nome da clínica — a UI do portal (`apps/web`) mostra o e-mail da conta em
+vez do nome. Não é falha de segurança (o `clinicId` já identifica a clínica correta, só a
+apresentação fica pior) nem de autorização — fica como melhoria de UX pendente, fora do âmbito
+desta fase: exigiria alterar `ClinicTokenResponse` (ou acrescentar `GET /clinic-portal/me`) por
+change control (decisão do proprietário), já que o contrato é fonte da verdade.
