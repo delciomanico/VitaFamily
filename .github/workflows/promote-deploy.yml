@@ -1,0 +1,25 @@
+name: Promote to deploy
+
+# O Dokploy faz deploy direto a partir do branch `deploy` (deployment.md §2) — nunca de `main`.
+# Isto só avança `deploy` depois do workflow CI terminar com sucesso no commit de `main`,
+# fast-forward (git push falha, em segurança, se não for ff — ex. main reescrito).
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - run: git push origin HEAD:refs/heads/deploy

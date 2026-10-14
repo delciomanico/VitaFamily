@@ -18,11 +18,19 @@ release (tag) → aprovação manual → deploy em produção
 **Implementado** (`.github/workflows/ci.yml`, GitHub Actions): `pnpm gen` → lint (`eslint`) → testes
 (unitários + integração com testcontainers, mesmo comando do `make test`) → build (`tsc`), para
 `api` e `web`; e um build de verificação das duas imagens Docker de produção (sem publicar). O
-deploy em si continua a ser o Dokploy a construir a partir do repositório (§3) — esta pipeline só
-é um portão de qualidade antes do merge. **Pendente** (fora deste change): SCA/scan de segredos,
-suite de isolamento/autorização dedicada em CI, verificação de arquitetura/drift de migrações como
-passo isolado, publicação de imagem versionada e deploy automático em staging/produção a partir da
-pipeline.
+deploy em si continua a ser o Dokploy a construir a partir do repositório (§3).
+
+**Portão de deploy (`.github/workflows/promote-deploy.yml`):** o Dokploy está configurado para
+vigiar o branch **`deploy`**, nunca `main` diretamente — cada push a `main` só chega a `deploy`
+(e por isso só dispara o build do Dokploy) depois do workflow CI terminar com sucesso nesse commit.
+O avanço é um `git push` fast-forward simples; se `main` for reescrito (rebase/force-push), o push
+falha em segurança em vez de divergir silenciosamente. Corrige a falha observada em 2026-10-13: o
+Dokploy construía a partir de `main` em paralelo ao CI, por isso um `pnpm-lock.yaml` desalinhado
+(detetável pelo CI) só foi apanhado depois de já ter rebentado o build em produção.
+
+**Pendente** (fora deste change): SCA/scan de segredos, suite de isolamento/autorização dedicada em
+CI, verificação de arquitetura/drift de migrações como passo isolado, publicação de imagem
+versionada.
 
 ## 3. Passos de deploy em produção
 1. Verificar backup recente e restauro testado (§ `monitoring.md`).
