@@ -35,8 +35,11 @@ Um User pode ter papéis diferentes em famílias diferentes (D2).
 
 | Papel | Âmbito |
 |---|---|
-| **PLATFORM_ADMIN** | Listar, suspender e reativar contas; gerir clínicas parceiras e criar contas de Gestor da clínica (R8, R10, D17). Nenhum endpoint de saúde (NFR-SEC-10). |
-| **CLINIC_MANAGER** | Por clínica parceira (D17): gerir horários, confirmar/recusar pedidos, cancelar consultas da clínica com motivo, ver a agenda da clínica com dados mínimos (BR-CLN-03). Nenhum endpoint de família ou de saúde. |
+| **PLATFORM_ADMIN** | Listar, suspender e reativar contas; gerir clínicas e seguradoras parceiras e criar a conta raiz de cada uma (R8, R10, D17/D18, ADR-021). Nenhum endpoint de saúde (NFR-SEC-10). |
+| **CLINIC_ADMIN** | Conta raiz de cada clínica parceira (D18, BR-CLN-05), criada só pelo Platform Admin. Mesmas permissões operacionais que `CLINIC_MANAGER` (ver `authorization.md` §6.2) e, além disso, cria/lista/remove as contas `CLINIC_MANAGER` da própria clínica (self-service). |
+| **CLINIC_MANAGER** | Por clínica parceira (D17), criada pelo `CLINIC_ADMIN` da sua clínica: gerir horários, confirmar/recusar pedidos, cancelar consultas da clínica com motivo, ver a agenda da clínica com dados mínimos (BR-CLN-03). Nenhum endpoint de família ou de saúde. |
+| **INSURANCE_ADMIN** | Conta raiz de cada seguradora parceira (ADR-021, mirror de `CLINIC_ADMIN`), criada só pelo Platform Admin. Mesmas permissões operacionais que `INSURANCE_AGENT` (ver `authorization.md` §8.2) e, além disso, cria/lista/remove as contas `INSURANCE_AGENT` da própria seguradora (self-service). |
+| **INSURANCE_AGENT** | Por seguradora parceira (ADR-021), criada pelo `INSURANCE_ADMIN` da sua seguradora: ver/abrir os pedidos de reembolso (`ReimbursementClaim`) da própria seguradora e os documentos anexados a cada pedido, aprovar/rejeitar com motivo. Nenhum endpoint de família ou de resto do perfil de saúde. |
 
 ## 5. Regras estruturais
 

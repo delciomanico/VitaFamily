@@ -1,6 +1,6 @@
 # Vita Family — Entidades (Fase 9)
 
-> Estado: **v0.1**. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
+> Estado: **v0.2** — acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
 > Convenções: `id` UUID; `createdAt`/`updatedAt` em UTC em todas, salvo indicação; `?` = opcional.
 > **Categoria** indica a categoria de privacidade (C2–C6) dos registos de saúde.
 
@@ -77,8 +77,8 @@ Tem 1+ MedicationPlan e 0..5 Documents.
 `examinationId` · `parameter` · `valueNumeric?` · `valueText?` · `unit?` · `referenceMin?` · `referenceMax?` (informados pelo utilizador). Pelo menos um de `valueNumeric`/`valueText`.
 
 ### Document — categoria do recurso associado
-`familyId` · `memberId` · `resourceType` (PRESCRIPTION | EXAMINATION) · `resourceId` · `storageKey` · `originalName` · `mimeType` · `sizeBytes` · `checksumSha256` · `scanStatus` (PENDING | CLEAN | INFECTED) · `uploadedBy`
-Máx. 5 por recurso e 100 MB por família (Q10).
+`familyId` · `memberId` · `resourceType` (PRESCRIPTION | EXAMINATION | INSURANCE_POLICY, ADR-021) · `resourceId` · `storageKey` · `originalName` · `mimeType` · `sizeBytes` · `checksumSha256` · `scanStatus` (PENDING | CLEAN | INFECTED) · `uploadedBy`
+Máx. 5 por recurso e 100 MB por família (Q10). `INSURANCE_POLICY` reaproveita o upload existente para a foto do cartão (ADR-021) — sem porta/endpoint de upload novo.
 
 ### Clinic
 `type` (PARTNER | PRIVATE) · `familyId?` (obrigatório se PRIVATE, nulo se PARTNER) · `name` · `address?` · `phone?` · `email?` · `status` (ACTIVE | ARCHIVED) · `createdBy`
@@ -87,9 +87,28 @@ Máx. 5 por recurso e 100 MB por família (Q10).
 `clinicId` (PARTNER) · `specialty` · `professionalName?` · `startsAt` (UTC) · `durationMinutes`
 **Regras:** BR-APT-06, BR-CLN-04. Livre = sem consulta PEDIDA ou AGENDADA associada.
 
-### ClinicStaff — Gestor da clínica (D17)
-`clinicId` (PARTNER) · `userId` · `role` (CLINIC_MANAGER) · `createdBy` (Platform Admin)
-Sem relação com Family: o Gestor não é membro de nenhuma família por esta via.
+### ClinicAccount — conta do portal da clínica (D18, ADR-020)
+**Correção (ADR-021):** esta secção referia-se antes a `ClinicStaff(userId, clinicId, role)`, suposição
+revista por D18 — a conta do portal **não** é um `User`. Alinhado aqui com `schema.md` §3 (`clinic_accounts`).
+`clinicId` (PARTNER) · `email` · `passwordHash` · `role` (CLINIC_ADMIN | CLINIC_MANAGER) · `status` (ACTIVE | SUSPENDED)
+Sem FK para `users` nem `family_members`: não é membro de nenhuma família por esta via.
+
+## Seguros (ADR-021 — sem categoria de partilha; só SELF/TUTOR_OF)
+
+### InsurancePolicy — sem categoria de partilha (ADR-021)
+`familyId` · `memberId` · `insurerName` (texto livre, não exige seguradora parceira) · `policyNumber` · `holderName` · `validUntil?` (date) · `cardDocumentId?` (referência a `Document`, `resourceType=INSURANCE_POLICY`)
+**Regras:** BR-INS-01/02. Criado/editado/visto só por `SELF` (adulto) ou `TUTOR_OF`; sem `SharingGrant`, sem acesso de `OTHER` nesta versão.
+
+### ReimbursementClaim — só existe sobre uma apólice de seguradora parceira (ADR-021)
+`policyId` · `amount` (decimal) · `currency` (default EUR) · `status` (SUBMITTED | APPROVED | REJECTED | PAID) · `decisionNote?` (motivo da seguradora) · `decidedByInsuranceAccountId?` · `decidedAt?` · `submittedBy` (userId)
+**Regras:** BR-INS-03..05. Criado/submetido por `SELF`/`TUTOR_OF`. Associação `claim ↔ Document` por `reimbursement_claim_documents (claimId, documentId)` — sem entidade de anexo nova; a seguradora só vê os documentos desta lista.
+
+### InsurerAccount — a seguradora parceira (ADR-021, mirror de `Clinic` PARTNER)
+`name` · `taxId` (NIF) · `status` (ACTIVE | SUSPENDED) · `createdBy` (Platform Admin)
+
+### InsuranceAccount — conta do portal da seguradora (ADR-021, mirror de `ClinicAccount`)
+`insurerId` · `email` · `passwordHash` · `role` (INSURANCE_ADMIN | INSURANCE_AGENT) · `status` (ACTIVE | SUSPENDED)
+Sem FK para `users` nem `family_members`.
 
 ## Alertas
 

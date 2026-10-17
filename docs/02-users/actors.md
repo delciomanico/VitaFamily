@@ -1,7 +1,7 @@
 # Vita Family — Atores (Fase 5)
 
 > Estado: **RASCUNHO v0.1** — aprovação em conjunto com `roles.md` e `permissions.md`.
-> Base: D1–D4, D13, D14, M1, M4, M6, N1–N3, R4, R8, R10.
+> Base: D1–D4, D13, D14, M1, M4, M6, N1–N3, R4, R8, R10, ADR-021.
 
 ## 1. Atores humanos
 
@@ -14,6 +14,7 @@
 | **Tutor / Responsável** | FamilyMember adulto responsável por um ou mais dependentes (relação por dependente, N1). Não é um papel da família. | Sim | Sim |
 | **Platform Admin** | Staff Vita. Gere contas e clínicas parceiras; **sem acesso a dados de saúde** (D4, R10). | Sim (conta de plataforma) | Sim |
 | **Gestor da clínica (Clinic Manager)** | Conta de uma clínica **parceira** (D17). Publica horários, confirma/recusa pedidos de consulta e vê a agenda da clínica — só dados mínimos da marcação, **nunca dados de saúde**. | Sim | Sim |
+| **Conta da seguradora (Insurance Admin/Agent)** | Conta de uma seguradora **parceira** (ADR-021). Vê e decide os pedidos de reembolso (`ReimbursementClaim`) da própria seguradora e os documentos que o titular escolheu anexar a cada pedido — **nunca** mais nada do perfil de saúde do membro. | Sim | Sim |
 
 ## 2. Atores do sistema
 

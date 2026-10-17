@@ -1,6 +1,6 @@
 # Vita Family — Estados e transições (Fase 10)
 
-> Estado: **v0.1 — decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).**
+> Estado: **v0.2 — acrescenta `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
 > Notação: `A → B [quem / condição]`. Transições não listadas são **proibidas** e devolvem `INVALID_STATE_TRANSITION` (409).
 
 ## User
@@ -87,6 +87,16 @@ ACTIVE → ARCHIVED   [Platform Admin (PARTNER); criador ou Admin da família (P
 ARCHIVED → ACTIVE   [idem]
 ```
 Arquivada: não selecionável em novas marcações; consultas existentes mantêm-na.
+
+## ReimbursementClaim (ADR-021)
+```text
+SUBMITTED → APPROVED   [portal da seguradora, com motivo opcional]
+SUBMITTED → REJECTED   [portal da seguradora, com motivo obrigatório]
+APPROVED → PAID        [titular/tutor, confirma receção do pagamento]
+```
+Nasce `SUBMITTED` ao submeter (`SELF`/`TUTOR_OF`). `APPROVED → PAID` é ação do titular/tutor nesta versão
+(não do portal — ver ADR-021, fora do MVP desta funcionalidade marcar `PAID` do lado da seguradora).
+Sem transição para fora de `PAID`/`REJECTED` (estados finais).
 
 ## Alert / Notification
 ```text

@@ -1,6 +1,6 @@
 # Vita Family — Autorização (Fase 14)
 
-> Estado: **v0.2** — acrescenta o portal da clínica parceira (D17/D18, ADR-020). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`).
+> Estado: **v0.3** — acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
 
 ## 1. Entradas e saída da decisão
 
@@ -12,12 +12,15 @@ action = READ | CREATE | UPDATE | DELETE | CONFIRM_DOSE | MANAGE_SHARING | MANAG
 target = { família, categoria?, sujeito (memberId)?, recurso }
 ```
 
-**Dois tipos de ator (D18, ADR-020):** `AccessPolicy` (secções 2–6) decide **só** sobre o ator de
+**Três tipos de ator (D18/ADR-020, ADR-021):** `AccessPolicy` (secções 2–6) decide **só** sobre o ator de
 User/família (`ActorInfo`, ADR-008). As rotas `/clinic-portal/*` usam um **segundo ator**,
 `ClinicActorInfo { clinicAccountId, clinicId, role, sessionId }` (ADR-020), autorizado por uma
-verificação própria e mais simples (§7) — nunca pelo `AccessPolicy` de família, e as duas árvores de
-rotas nunca partilham contexto de pedido. Um `ClinicAccount` **nunca** aparece como `actor` desta
-secção (não tem `userId`, não tem pertença de família).
+verificação própria e mais simples (§7) — nunca pelo `AccessPolicy` de família. As rotas
+`/insurance-portal/*` usam um **terceiro ator**, `InsuranceActorInfo { insuranceAccountId, insurerId,
+role, sessionId }` (ADR-021), com a sua própria verificação (§8), mirror exata da do portal da clínica.
+As três árvores de rotas nunca partilham contexto de pedido entre si. Um `ClinicAccount` ou uma
+`InsuranceAccount` **nunca** aparecem como `actor` desta secção (não têm `userId`, não têm pertença de
+família).
 
 ## 2. Algoritmo (por ordem; a primeira regra que decide termina)
 
@@ -49,6 +52,11 @@ Notas:
 - Um tutor que também é Admin usa a relação `TUTOR_OF` (não a de Admin).
 - Um adulto com conta que é dependente (N3) é tratado como qualquer dependente com conta: os tutores têm `TUTOR_OF` e o próprio tem `DEPENDENT_SELF` (acesso limitado, N2). Como se marcou dependente por vontade própria (Q7), pode deixar de o ser a qualquer momento (`PUT .../dependent` com `isDependent=false`), recuperando `SELF` completo.
 - `DEPENDENT_SELF` aplica-se a **qualquer idade**: o que o define é ser dependente, não ser menor.
+- `InsurancePolicy`/`ReimbursementClaim` (ADR-021) **não** são uma categoria desta matriz: não têm
+  `SharingGrant`, logo não há acesso de `OTHER` nesta versão. Só `SELF`/`TUTOR_OF` leem/criam/editam
+  (mesma regra de leitura/escrita que as restantes categorias para estas duas relações); `OTHER` e
+  `DEPENDENT_SELF` nunca veem nem criam. Se o proprietário pedir partilha com `OTHER`, é uma categoria
+  nova por change control (ver ADR-021, "porquê opt-in por documento").
 
 ## 4. Ações estruturais
 
@@ -66,6 +74,9 @@ Notas:
 | Clínicas privadas | Criar: adulto da família; editar/arquivar/eliminar: criador ou FAMILY_ADMIN. |
 | Criar clínica parceira, ver/suspender a clínica | PLATFORM_ADMIN. |
 | Contas do portal da clínica (`CLINIC_ADMIN`/`CLINIC_MANAGER`) | Fora de `AccessPolicy` — ver §6 (ADR-020). |
+| Criar/ver apólice (`InsurancePolicy`), criar/submeter pedido de reembolso (`ReimbursementClaim`) | SELF (adulto) ou TUTOR_OF (dependente); ADR-021. |
+| Criar seguradora parceira, ver/suspender a seguradora | PLATFORM_ADMIN. |
+| Contas do portal da seguradora (`INSURANCE_ADMIN`/`INSURANCE_AGENT`) | Fora de `AccessPolicy` — ver §8 (ADR-021). |
 
 ## 5. Regras de implementação
 1. **Toda** a rota de negócio chama `AccessPolicy` no application service; um guard global *verifica* (em testes e em runtime de desenvolvimento) que a policy foi invocada — uma rota sem decisão registada falha.
@@ -106,5 +117,37 @@ resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica
 | Criar/repor a conta `CLINIC_ADMIN` raiz de uma clínica parceira | PLATFORM_ADMIN (`POST /admin/clinics/{id}/root-account`) |
 | Criar/listar/remover contas `CLINIC_MANAGER` da própria clínica | `CLINIC_ADMIN` da clínica (self-service, nunca o Platform Admin diretamente) |
 
-## 7. Testes
-Os testes de autorização são **gerados a partir da matriz** acima: para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. A matriz §6.2 do portal da clínica segue a mesma regra: gerada a partir da tabela, com casos próprios `TC-AZ-CLN-*`.
+## 8. Portal da seguradora (`InsuranceAccount`, ADR-021)
+
+Mirror exato de §6, com `CLINIC_ADMIN/CLINIC_MANAGER` → `INSURANCE_ADMIN/INSURANCE_AGENT` e `clinicId` →
+`insurerId`.
+
+### 8.1 Algoritmo (rotas `/insurance-portal/*`, independente de §1–6)
+1. **Conta**: `InsuranceAccount.status ≠ ACTIVE` ⇒ DENY (`ACCOUNT_SUSPENDED`).
+2. **Seguradora do caminho**: `insuranceAccount.insurerId` tem de coincidir com o `insurerId` do recurso (pedido de reembolso, agente); senão ⇒ `NOT_FOUND` (404, sem enumeração — mesma regra de `errors.md` §2).
+3. **Papel**: decidir por ação segundo a matriz §8.2.
+4. Registar auditoria (ações sensíveis e negações), com `actor_type = INSURANCE_ACCOUNT` (não `USER`/`SYSTEM`/`PLATFORM_ADMIN`/`CLINIC_ACCOUNT`).
+
+### 8.2 Matriz de permissões `INSURANCE_ADMIN` vs `INSURANCE_AGENT`
+| Ação | `INSURANCE_ADMIN` | `INSURANCE_AGENT` |
+|---|---|---|
+| Login/refresh/logout no portal da própria seguradora | sim | sim |
+| Criar/listar/remover contas `INSURANCE_AGENT` da própria seguradora | sim | não |
+| Listar pedidos de reembolso (`ReimbursementClaim`) da própria seguradora | sim | sim |
+| Abrir um pedido e ver os documentos anexados (só os da lista do pedido) | sim | sim |
+| Aprovar/rejeitar um pedido, com motivo | sim | sim |
+| Ver/gerir pedidos ou agentes de **outra** seguradora | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
+
+Nunca há ação do portal que leia além dos documentos listados no pedido e dos dados da própria apólice
+(seguradora, número, titular) — nunca condições, alergias, medicação, consultas, exames ou dados de
+família/tutela do membro (ADR-021).
+
+### 8.3 Hierarquia de contas (ADR-021, mirror de §6.3) — quem administra quem
+| Ação | Quem |
+|---|---|
+| Ver/suspender a seguradora (inteira) | PLATFORM_ADMIN |
+| Criar/repor a conta `INSURANCE_ADMIN` raiz de uma seguradora parceira | PLATFORM_ADMIN |
+| Criar/listar/remover contas `INSURANCE_AGENT` da própria seguradora | `INSURANCE_ADMIN` da seguradora (self-service, nunca o Platform Admin diretamente) |
+
+## 9. Testes
+Os testes de autorização são **gerados a partir da matriz** acima: para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. As matrizes §6.2 (clínica) e §8.2 (seguradora) seguem a mesma regra: geradas a partir da tabela, com casos próprios `TC-AZ-CLN-*`/`TC-AZ-INS-*`.

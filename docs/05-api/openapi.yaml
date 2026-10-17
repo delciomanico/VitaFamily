@@ -26,6 +26,8 @@ tags:
   - name: Clinic Portal
   - name: Examinations
   - name: Documents
+  - name: Insurance
+  - name: Insurance Portal
   - name: Alerts
   - name: Reports
   - name: Admin
@@ -4577,6 +4579,536 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance-policies:
+    get:
+      tags: [Insurance]
+      operationId: listInsurancePolicies
+      summary: "Listar as apólices de seguro do membro."
+      description: "Autorização: SELF/TUTOR_OF (ADR-021). Sem categoria de partilha; nunca OTHER."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InsurancePolicy" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance]
+      operationId: createInsurancePolicy
+      summary: "Registar apólice de seguro (cartão)."
+      description: "Autorização: SELF/TUTOR_OF (ADR-021). BR-INS-01: insurerName é texto livre, não exige seguradora parceira."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurancePolicyInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurancePolicy" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance-policies/{policyId}:
+    get:
+      tags: [Insurance]
+      operationId: getInsurancePolicy
+      summary: "Ver apólice."
+      description: "Autorização: SELF/TUTOR_OF (ADR-021)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: policyId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurancePolicy" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Insurance]
+      operationId: updateInsurancePolicy
+      summary: "Editar apólice."
+      description: "Autorização: SELF/TUTOR_OF (ADR-021)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: policyId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurancePolicyPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurancePolicy" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Insurance]
+      operationId: deleteInsurancePolicy
+      summary: "Eliminar apólice."
+      description: "Autorização: SELF/TUTOR_OF (ADR-021). Recusa se tiver ReimbursementClaim ativo (SUBMITTED/APPROVED)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: policyId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance-policies/{policyId}/reimbursement-claims:
+    get:
+      tags: [Insurance]
+      operationId: listReimbursementClaims
+      summary: "Listar pedidos de reembolso da apólice."
+      description: "Autorização: SELF/TUTOR_OF (ADR-021)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: policyId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReimbursementClaim" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance]
+      operationId: createReimbursementClaim
+      summary: "Submeter pedido de reembolso."
+      description: "Autorização: SELF/TUTOR_OF (ADR-021). BR-INS-03: só sobre apólice de seguradora parceira; BR-INS-04: documentIds são escolhidos pelo titular entre os documentos já carregados (opt-in por documento)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: policyId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReimbursementClaimInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReimbursementClaim" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (apólice sem seguradora parceira)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance-policies/{policyId}/reimbursement-claims/{claimId}:
+    get:
+      tags: [Insurance]
+      operationId: getReimbursementClaim
+      summary: "Ver pedido de reembolso."
+      description: "Autorização: SELF/TUTOR_OF (ADR-021)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: policyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: claimId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReimbursementClaim" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance-policies/{policyId}/reimbursement-claims/{claimId}/paid:
+    put:
+      tags: [Insurance]
+      operationId: markReimbursementClaimPaid
+      summary: "Confirmar receção do pagamento."
+      description: "Autorização: SELF/TUTOR_OF (ADR-021). ST: APPROVED -> PAID, só pelo titular/tutor nesta versão."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: policyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: claimId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReimbursementClaim" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (estado não é APPROVED, ADR-021)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/auth/login:
+    post:
+      tags: [Insurance Portal]
+      operationId: insuranceLogin
+      summary: "Iniciar sessão de uma conta do portal da seguradora."
+      description: "Autorização: PUBLIC. ADR-021 (mirror de clinicLogin). Define cookie insurance_refresh_token (HttpOnly, Secure, SameSite=Strict, caminho /api/v1/insurance-portal/auth), independente dos cookies de User/ClinicAccount. Audita sucesso e falha."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsuranceLoginRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsuranceTokenResponse" }
+        '401':
+          description: "AUTH_INVALID_CREDENTIALS"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "ACCOUNT_SUSPENDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/auth/refresh:
+    post:
+      tags: [Insurance Portal]
+      operationId: insuranceRefreshToken
+      summary: "Rodar refresh token da seguradora e obter novo access token."
+      description: "Autorização: PUBLIC (cookie). Mesma política de rotação/reutilização de /auth/refresh, em insurance_sessions (ADR-021)."
+      security: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsuranceTokenResponse" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "ACCOUNT_SUSPENDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/auth/logout:
+    post:
+      tags: [Insurance Portal]
+      operationId: insuranceLogout
+      summary: "Terminar sessão atual do portal."
+      description: "Autorização: INSURANCE_ACCOUNT. Revoga o refresh token da seguradora e limpa o cookie."
+      security:
+        - insuranceBearerAuth: []
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/agents:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsuranceAgents
+      summary: "Listar as contas INSURANCE_AGENT da própria seguradora."
+      description: "Autorização: INSURANCE_ADMIN. BR-INS-06."
+      security:
+        - insuranceBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InsuranceAccount" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance Portal]
+      operationId: createInsuranceAgent
+      summary: "Criar uma conta INSURANCE_AGENT na própria seguradora."
+      description: "Autorização: INSURANCE_ADMIN. BR-INS-06: self-service; o Platform Admin nunca cria agentes individualmente."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsuranceAgentInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsuranceAccount" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/agents/{insuranceAccountId}:
+    delete:
+      tags: [Insurance Portal]
+      operationId: removeInsuranceAgent
+      summary: "Remover uma conta INSURANCE_AGENT da própria seguradora."
+      description: "Autorização: INSURANCE_ADMIN. Só remove contas INSURANCE_AGENT; a conta INSURANCE_ADMIN raiz só é reposta pelo Platform Admin (POST /admin/insurers/{id}/root-account)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: insuranceAccountId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/claims:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsuranceClaims
+      summary: "Listar pedidos de reembolso (SUBMITTED e decididos), só da própria seguradora."
+      description: "Autorização: INSURANCE_ACCOUNT. Minimização: nunca dados de saúde fora do pedido (ADR-021)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InsuranceClaimView" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/claims/{claimId}:
+    get:
+      tags: [Insurance Portal]
+      operationId: getInsuranceClaim
+      summary: "Abrir um pedido, com os documentos anexados."
+      description: "Autorização: INSURANCE_ACCOUNT. Só os documentos escolhidos pelo titular para este pedido (BR-INS-04); nunca mais nada do perfil do membro."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: claimId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsuranceClaimView" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/claims/{claimId}/decide:
+    put:
+      tags: [Insurance Portal]
+      operationId: decideInsuranceClaim
+      summary: "Aprovar ou rejeitar um pedido."
+      description: "Autorização: INSURANCE_ACCOUNT. ST: SUBMITTED -> APPROVED|REJECTED; REJECTED exige motivo (BR-INS-05)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: claimId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsuranceClaimDecisionRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsuranceClaimView" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (já decidido)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /alerts:
     get:
       tags: [Alerts]
@@ -5070,6 +5602,134 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /admin/insurers:
+    get:
+      tags: [Admin]
+      operationId: adminListInsurers
+      summary: "Listar seguradoras parceiras."
+      description: "Autorização: PLATFORM_ADMIN. ADR-021 (mirror de adminListClinics)."
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Insurer" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Admin]
+      operationId: adminCreateInsurer
+      summary: "Criar seguradora parceira."
+      description: "Autorização: PLATFORM_ADMIN. ADR-021."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Insurer" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/insurers/{insurerId}/status:
+    put:
+      tags: [Admin]
+      operationId: adminSetInsurerStatus
+      summary: "Suspender/reativar seguradora parceira."
+      description: "Autorização: PLATFORM_ADMIN. ADR-021 (mirror de adminSetClinicStatus)."
+      parameters:
+        - { name: insurerId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Insurer" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/insurers/{insurerId}/root-account:
+    post:
+      tags: [Admin]
+      operationId: adminCreateOrResetInsurerRootAccount
+      summary: "Criar ou repor a conta INSURANCE_ADMIN raiz de uma seguradora parceira."
+      description: "Autorização: PLATFORM_ADMIN. BR-INS-06: única via do Platform Admin para o portal da seguradora; não cria nem lista INSURANCE_AGENT. Idempotente por seguradora (repor substitui a credencial da conta INSURANCE_ADMIN existente, nunca cria uma segunda). ADR-021."
+      parameters:
+        - { name: insurerId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerRootAccountRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsuranceAccount" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /health:
     get:
       tags: [Operations]
@@ -5110,6 +5770,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: "D17/D18, ADR-020. Token de ClinicAccount (claims clinicAccountId/clinicId/role), só para /clinic-portal/*. Nunca aceite nas restantes rotas, mesmo que a assinatura seja válida (claims distintas)."
+    insuranceBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "ADR-021. Token de InsuranceAccount (claims insuranceAccountId/insurerId/role), só para /insurance-portal/*. Nunca aceite nas restantes rotas, mesmo que a assinatura seja válida (claims distintas)."
   schemas:
     Message:
       type: object
@@ -6734,3 +7399,236 @@ components:
       properties:
         status:
           type: string
+    InsurancePolicy:
+      type: object
+      required: [id, insurerName, policyNumber, holderName, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        insurerName:
+          type: string
+          description: "Texto livre; não exige seguradora parceira (BR-INS-01)."
+        policyNumber:
+          type: string
+        holderName:
+          type: string
+        validUntil:
+          type: string
+          format: date
+          nullable: true
+        cardDocumentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Document com resourceType=INSURANCE_POLICY (ADR-021)."
+        createdAt:
+          type: string
+          format: date-time
+    InsurancePolicyInput:
+      type: object
+      required: [insurerName, policyNumber, holderName]
+      properties:
+        insurerName:
+          type: string
+        policyNumber:
+          type: string
+        holderName:
+          type: string
+        validUntil:
+          type: string
+          format: date
+          nullable: true
+        cardDocumentId:
+          type: string
+          format: uuid
+          nullable: true
+    InsurancePolicyPatch:
+      type: object
+      properties:
+        insurerName:
+          type: string
+        policyNumber:
+          type: string
+        holderName:
+          type: string
+        validUntil:
+          type: string
+          format: date
+          nullable: true
+        cardDocumentId:
+          type: string
+          format: uuid
+          nullable: true
+    ReimbursementClaim:
+      type: object
+      required: [id, policyId, amount, currency, status, createdAt, documentIds]
+      properties:
+        id:
+          type: string
+          format: uuid
+        policyId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currency:
+          type: string
+          default: EUR
+        status:
+          type: string
+          enum: [SUBMITTED, APPROVED, REJECTED, PAID]
+        decisionNote:
+          type: string
+          nullable: true
+        documentIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: "Documentos já carregados, escolhidos pelo titular (BR-INS-04); é a única fração visível à seguradora."
+        createdAt:
+          type: string
+          format: date-time
+    ReimbursementClaimInput:
+      type: object
+      required: [amount, documentIds]
+      properties:
+        amount:
+          type: number
+        currency:
+          type: string
+          default: EUR
+        documentIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 10
+          description: "BR-INS-04: entre os documentos já carregados do membro."
+    InsuranceLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    InsuranceTokenResponse:
+      type: object
+      required: [accessToken, expiresIn, insurerId, role]
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+        insurerId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [INSURANCE_ADMIN, INSURANCE_AGENT]
+    InsuranceAccount:
+      type: object
+      required: [id, insurerId, email, role, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        insurerId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [INSURANCE_ADMIN, INSURANCE_AGENT]
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED]
+    InsuranceAgentInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: "A conta criada é sempre INSURANCE_AGENT (BR-INS-06); palavra-passe inicial enviada por e-mail."
+    InsuranceClaimView:
+      type: object
+      required: [id, status, amount, currency, policyHolderName, policyNumber, documentIds]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [SUBMITTED, APPROVED, REJECTED, PAID]
+        amount:
+          type: number
+        currency:
+          type: string
+        policyHolderName:
+          type: string
+          description: "Mínimo necessário (ADR-021); nunca dados de saúde fora do pedido."
+        policyNumber:
+          type: string
+        decisionNote:
+          type: string
+          nullable: true
+        documentIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: "Só os documentos desta lista; nunca o resto do perfil do membro (BR-INS-04)."
+    InsuranceClaimDecisionRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [APPROVE, REJECT]
+        note:
+          type: string
+          nullable: true
+          description: "Motivo; obrigatório em REJECT (BR-INS-05)."
+    Insurer:
+      type: object
+      required: [id, name, taxId, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        taxId:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED]
+    InsurerInput:
+      type: object
+      required: [name, taxId]
+      properties:
+        name:
+          type: string
+        taxId:
+          type: string
+    InsurerStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED]
+    InsurerRootAccountRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email

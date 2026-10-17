@@ -17,14 +17,17 @@
   │                        ├── 0..N MedicationPlan (avulso, sem Prescription)
   │                        ├── 0..N Appointment ── 0..1 Clinic ; ── 0..1 ClinicSlot (D17)
   │                        ├── 0..N Examination ── 0..N ExamResult ; ── 0..1 Clinic
-  │                        └── 0..N Document (→ Prescription | Examination)
+  │                        ├── 0..N Document (→ Prescription | Examination | InsurancePolicy)
+  │                        └── 0..N InsurancePolicy ── 0..N ReimbursementClaim (ADR-021)
   │
   ├── 0..N Session, AuthToken, PushSubscription ; 1 NotificationPreference
   ├── 0..N Alert (destinatário) ── 0..N Notification
   └── 0..N DataExport
 
  Family 1 ── 0..N Invitation ;  Family 1 ── 0..N Clinic(PRIVATE) ;  Clinic(PARTNER) é global
- Clinic(PARTNER) 1 ── 0..N ClinicSlot ;  Clinic(PARTNER) 1 ── 0..N ClinicStaff ── 1 User   (D17)
+ Clinic(PARTNER) 1 ── 0..N ClinicSlot ;  Clinic(PARTNER) 1 ── 0..N ClinicAccount   (D17/D18, corrige ClinicStaff/userId — ver entities.md)
+ InsurerAccount (global, parceira) 1 ── 0..N InsuranceAccount ;  1 ── 0..N ReimbursementClaim (via InsurancePolicy)   (ADR-021)
+ ReimbursementClaim 1 ── 0..N Document (reimbursement_claim_documents, associação simples)   (ADR-021)
 ```
 
 ## 2. Relações e razão de negócio
@@ -43,6 +46,11 @@
 | Examination → ExamResult | 1 : N | Resultados estruturados (D8). | Cascata. |
 | Document → Prescription ou Examination | N : 1 (polimórfico) | Anexos (M5). Integridade garantida por colunas separadas `prescription_id`/`examination_id` em `schema.md`. | Eliminar recurso apaga documentos e enfileira `FileDeletion`. |
 | Clinic(PRIVATE) → Family | N : 1 | Cadastro privado da família (R8). | Cascata com a família. |
+| FamilyMember → InsurancePolicy | 1 : N | Cartão da apólice pertence à pessoa (ADR-021), como qualquer dado de saúde. | Cascata + `FileDeletion` para a foto do cartão. |
+| InsurancePolicy → ReimbursementClaim | 1 : N | Só existe pedido sobre apólice de seguradora **parceira** (ADR-021). | Cascata. |
+| ReimbursementClaim ↔ Document | N : N (associação `reimbursement_claim_documents`) | Opt-in por documento, escolhido pelo titular a cada submissão (ADR-021); nunca acesso permanente. | Remover o documento remove a linha de associação; o pedido mantém-se. |
+| InsurerAccount → InsuranceAccount | 1 : N | Contas do portal da seguradora (ADR-021, mirror de `Clinic(PARTNER) → ClinicAccount`). | Cascata (mirror de `clinics` → `clinic_accounts`). |
+| InsuranceAccount → ReimbursementClaim (decisão) | 0..1 : N | Quem decidiu o pedido (`decidedByInsuranceAccountId`), para auditoria. | `ON DELETE SET NULL`. |
 | User → Alert | 1 : N | Destinatários dos alertas (FR-ALR-08). | Cascata com o User. |
 | Alert → Notification | 1 : N | Um alerta, uma entrega por canal ativo. | Cascata. |
 | Invitation → Family | N : 1 | Convites pertencem a uma família (D14). | Cascata. |
@@ -56,3 +64,4 @@
 - Documentos: ≤5 por recurso, ≤100 MB por família.
 - Clinic PARTNER: global; PRIVATE: ≤10 por família.
 - Membros: ≤20 por família; convites pendentes: ≤20 por família; famílias por User: ≤5.
+- InsurerAccount: global, parceira (mirror Clinic PARTNER); InsuranceAccount: 1 `INSURANCE_ADMIN` ativa por seguradora (ADR-021, mirror BR-CLN-05).

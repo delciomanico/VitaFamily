@@ -1,10 +1,14 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.2** — acrescenta o portal da clínica parceira (D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment` (ver `authorization.md` §6, ADR-020). Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.3** — acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
 As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorization: Bearer <clinicAccessToken>`, com claims `clinicAccountId`, `clinicId`, `role` (nunca `userId`/`familyId`). Emitido só por `POST /clinic-portal/auth/login`; nunca aceite nas restantes rotas da API (e o token de User nunca é aceite em `/clinic-portal/*`). Ver ADR-020.
+
+## Autenticação do portal da seguradora (ADR-021)
+
+As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de clínica: `Authorization: Bearer <insuranceAccessToken>`, com claims `insuranceAccountId`, `insurerId`, `role` (nunca `userId`/`familyId`/`clinicAccountId`). Emitido só por `POST /insurance-portal/auth/login`; nunca aceite nas restantes rotas da API (e os outros tokens nunca são aceites em `/insurance-portal/*`). Ver ADR-021 (mirror exato de ADR-020).
 
 ## Legenda de AUTHORIZATION
 
@@ -19,6 +23,9 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 | PLATFORM_ADMIN | `platformRole = PLATFORM_ADMIN`. Nunca acede a dados de saúde. |
 | CLINIC_ACCOUNT | Qualquer `ClinicAccount` autenticado no portal da própria clínica (`CLINIC_ADMIN` ou `CLINIC_MANAGER`), token distinto do de User (ADR-020). |
 | CLINIC_ADMIN | Só `ClinicAccount` com `role=CLINIC_ADMIN` da própria clínica. |
+| SELF/TUTOR_OF (seguro) | O próprio titular (adulto) do membro ou o tutor do dependente (ADR-021); sem acesso de `OTHER`, sem categoria de partilha. |
+| INSURANCE_ACCOUNT | Qualquer `InsuranceAccount` autenticado no portal da própria seguradora (`INSURANCE_ADMIN` ou `INSURANCE_AGENT`), token distinto do de User/clínica (ADR-021). |
+| INSURANCE_ADMIN | Só `InsuranceAccount` com `role=INSURANCE_ADMIN` da própria seguradora. |
 
 **Regras transversais:** negar por defeito; recurso de outra família ou inexistente ⇒ `404`; sem permissão numa família a que se pertence ⇒ `403`; toda ação sensível é auditada; listas com `limit`/`cursor`; datas em ISO-8601 UTC (`date` = `YYYY-MM-DD`); ids UUID.
 
@@ -983,6 +990,157 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** Apaga ficheiro via outbox.
 
+## Insurance (ADR-021)
+
+### `GET /families/{familyId}/members/{memberId}/insurance-policies`  — listInsurancePolicies
+- **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
+- **DESCRIPTION:** Listar apólices do membro.
+- **REQUEST:** —
+- **RESPONSE:** `200` `[InsurancePolicy]`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-INS-01/02; sem acesso de `OTHER`.
+
+### `POST /families/{familyId}/members/{memberId}/insurance-policies`  — createInsurancePolicy
+- **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
+- **DESCRIPTION:** Registar apólice (cartão); `insurerName` é texto livre.
+- **REQUEST:** `InsurancePolicyInput`
+- **RESPONSE:** `201` `InsurancePolicy`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-INS-01: não exige seguradora parceira.
+
+### `GET /families/{familyId}/members/{memberId}/insurance-policies/{policyId}`  — getInsurancePolicy
+- **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
+- **DESCRIPTION:** Ver apólice.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurancePolicy`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** —
+
+### `PATCH /families/{familyId}/members/{memberId}/insurance-policies/{policyId}`  — updateInsurancePolicy
+- **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
+- **DESCRIPTION:** Editar apólice.
+- **REQUEST:** `InsurancePolicyPatch`
+- **RESPONSE:** `200` `InsurancePolicy`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** —
+
+### `DELETE /families/{familyId}/members/{memberId}/insurance-policies/{policyId}`  — deleteInsurancePolicy
+- **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
+- **DESCRIPTION:** Eliminar apólice.
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `CONFLICT`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Recusa se existir `ReimbursementClaim` `SUBMITTED`/`APPROVED`.
+
+### `GET /families/{familyId}/members/{memberId}/insurance-policies/{policyId}/reimbursement-claims`  — listReimbursementClaims
+- **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
+- **DESCRIPTION:** Listar pedidos de reembolso da apólice.
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ReimbursementClaim]`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** —
+
+### `POST /families/{familyId}/members/{memberId}/insurance-policies/{policyId}/reimbursement-claims`  — createReimbursementClaim
+- **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
+- **DESCRIPTION:** Submeter pedido de reembolso.
+- **REQUEST:** `ReimbursementClaimInput`
+- **RESPONSE:** `201` `ReimbursementClaim`
+- **ERRORS:** `NOT_FOUND` (apólice sem seguradora parceira), `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-INS-03/04: só sobre apólice de seguradora parceira; `documentIds` escolhidos pelo titular entre documentos já carregados.
+
+### `GET /families/{familyId}/members/{memberId}/insurance-policies/{policyId}/reimbursement-claims/{claimId}`  — getReimbursementClaim
+- **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
+- **DESCRIPTION:** Ver pedido de reembolso.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ReimbursementClaim`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** —
+
+### `PUT /families/{familyId}/members/{memberId}/insurance-policies/{policyId}/reimbursement-claims/{claimId}/paid`  — markReimbursementClaimPaid
+- **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
+- **DESCRIPTION:** Confirmar receção do pagamento.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ReimbursementClaim`
+- **ERRORS:** `CONFLICT`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-INS-05: `APPROVED → PAID`, só pelo titular/tutor nesta versão (fora do MVP: o portal marcar `PAID`).
+
+## Insurance Portal (`/insurance-portal/*`, ADR-021)
+
+> Autenticação por `insuranceAccessToken` (ver topo do documento), **nunca** `Authorization: Bearer` de User ou de clínica. Nenhuma rota aqui aceita `familyId`/`memberId`; o recurso é sempre resolvido pela seguradora do token (§8.1 de `authorization.md`). Minimização: o portal nunca devolve condições, alergias, medicação, consultas, exames, nem dados de família/tutela — só os campos de `InsuranceClaimView` e os documentos escolhidos pelo titular para o pedido (BR-INS-04).
+
+### `POST /insurance-portal/auth/login`  — insuranceLogin
+- **AUTHORIZATION:** PUBLIC
+- **DESCRIPTION:** Iniciar sessão de uma conta do portal da seguradora.
+- **REQUEST:** `InsuranceLoginRequest`
+- **RESPONSE:** `200` `InsuranceTokenResponse`
+- **ERRORS:** `AUTH_INVALID_CREDENTIALS`, `ACCOUNT_SUSPENDED`, `RATE_LIMITED`
+- **BUSINESS RULES:** Define cookie `insurance_refresh_token` (HttpOnly, Secure, SameSite=Strict, caminho `/api/v1/insurance-portal/auth`), independente dos cookies de User/`ClinicAccount` (ADR-021). Audita sucesso e falha.
+
+### `POST /insurance-portal/auth/refresh`  — insuranceRefreshToken
+- **AUTHORIZATION:** PUBLIC (cookie)
+- **DESCRIPTION:** Rodar refresh token e obter novo access token.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsuranceTokenResponse`
+- **ERRORS:** `UNAUTHENTICATED`, `ACCOUNT_SUSPENDED`, `RATE_LIMITED`
+- **BUSINESS RULES:** Mesma política de rotação/reutilização de `/auth/refresh`, em `insurance_sessions`.
+
+### `POST /insurance-portal/auth/logout`  — insuranceLogout
+- **AUTHORIZATION:** INSURANCE_ACCOUNT
+- **DESCRIPTION:** Terminar sessão atual do portal.
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** —
+
+### `GET /insurance-portal/agents`  — listInsuranceAgents
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Listar as contas `INSURANCE_AGENT` da própria seguradora.
+- **REQUEST:** —
+- **RESPONSE:** `200` `[InsuranceAccount]`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-INS-06.
+
+### `POST /insurance-portal/agents`  — createInsuranceAgent
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Criar conta `INSURANCE_AGENT` na própria seguradora.
+- **REQUEST:** `InsuranceAgentInput`
+- **RESPONSE:** `201` `InsuranceAccount`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-INS-06: self-service; o Platform Admin nunca cria agentes individualmente.
+
+### `DELETE /insurance-portal/agents/{insuranceAccountId}`  — removeInsuranceAgent
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Remover conta `INSURANCE_AGENT` da própria seguradora.
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só remove `INSURANCE_AGENT`; a conta `INSURANCE_ADMIN` raiz só é reposta pelo Platform Admin (`POST /admin/insurers/{id}/root-account`).
+
+### `GET /insurance-portal/claims`  — listInsuranceClaims
+- **AUTHORIZATION:** INSURANCE_ACCOUNT
+- **DESCRIPTION:** Listar pedidos de reembolso, só da própria seguradora.
+- **QUERY:** `status` (string)
+- **REQUEST:** —
+- **RESPONSE:** `200` `[InsuranceClaimView]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** —
+
+### `GET /insurance-portal/claims/{claimId}`  — getInsuranceClaim
+- **AUTHORIZATION:** INSURANCE_ACCOUNT
+- **DESCRIPTION:** Abrir um pedido, com os documentos anexados.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsuranceClaimView`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-INS-04: só os documentos escolhidos pelo titular para este pedido.
+
+### `PUT /insurance-portal/claims/{claimId}/decide`  — decideInsuranceClaim
+- **AUTHORIZATION:** INSURANCE_ACCOUNT
+- **DESCRIPTION:** Aprovar ou rejeitar um pedido.
+- **REQUEST:** `InsuranceClaimDecisionRequest`
+- **RESPONSE:** `200` `InsuranceClaimView`
+- **ERRORS:** `CONFLICT`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-INS-05: `SUBMITTED → APPROVED|REJECTED`; `REJECTED` exige motivo.
+
 ## Alerts
 
 ### `GET /alerts`  — listAlerts
@@ -1104,6 +1262,38 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **RESPONSE:** `200` `ClinicAccount`
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** BR-CLN-05: única via do Platform Admin para o portal da clínica; não cria nem lista `CLINIC_MANAGER`. Idempotente por clínica (repor substitui a credencial da conta `CLINIC_ADMIN` existente, nunca cria uma segunda).
+
+### `GET /admin/insurers`  — adminListInsurers
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Listar seguradoras parceiras.
+- **REQUEST:** —
+- **RESPONSE:** `200` `[Insurer]`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** ADR-021 (mirror de `adminListClinics`).
+
+### `POST /admin/insurers`  — adminCreateInsurer
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Criar seguradora parceira.
+- **REQUEST:** `InsurerInput`
+- **RESPONSE:** `201` `Insurer`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** ADR-021.
+
+### `PUT /admin/insurers/{insurerId}/status`  — adminSetInsurerStatus
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Suspender/reativar seguradora parceira.
+- **REQUEST:** `InsurerStatusRequest`
+- **RESPONSE:** `200` `Insurer`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** ADR-021 (mirror de `adminSetClinicStatus`).
+
+### `POST /admin/insurers/{insurerId}/root-account`  — adminCreateOrResetInsurerRootAccount
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Criar a conta `INSURANCE_ADMIN` raiz de uma seguradora parceira (ao criar a seguradora) ou repor as suas credenciais.
+- **REQUEST:** `InsurerRootAccountRequest`
+- **RESPONSE:** `200` `InsuranceAccount`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-INS-06: única via do Platform Admin para o portal da seguradora; não cria nem lista `INSURANCE_AGENT`. Idempotente por seguradora.
 
 ## Operations
 
@@ -1303,9 +1493,9 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 
 **ExamStatusRequest** — `status`: SCHEDULED|COMPLETED|CANCELLED
 
-**UploadDocumentRequest** — `file`: binary, `resourceType`: PRESCRIPTION|EXAMINATION, `resourceId`: uuid
+**UploadDocumentRequest** — `file`: binary, `resourceType`: PRESCRIPTION|EXAMINATION|INSURANCE_POLICY (ADR-021), `resourceId`: uuid
 
-**Document** — `id`: uuid, `resourceType`: PRESCRIPTION|EXAMINATION, `resourceId`: uuid, `originalName`: string, `mimeType`: string, `sizeBytes`: int, `scanStatus`: PENDING|CLEAN|INFECTED, `createdAt`: datetime
+**Document** — `id`: uuid, `resourceType`: PRESCRIPTION|EXAMINATION|INSURANCE_POLICY (ADR-021), `resourceId`: uuid, `originalName`: string, `mimeType`: string, `sizeBytes`: int, `scanStatus`: PENDING|CLEAN|INFECTED, `createdAt`: datetime
 
 **Alert** — `id`: uuid, `type`: MEDICATION_DUE|APPOINTMENT_REMINDER|EXAM_REMINDER|APPOINTMENT_OUTCOME_REQUEST, `familyId`: uuid, `memberId`: uuid, `memberName`: string, `message`: string, `sourceType`: DOSE|APPOINTMENT|EXAMINATION, `sourceId`: uuid, `triggerAt`: datetime, `readAt?`: datetime
 
@@ -1322,6 +1512,36 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 **AdminUser** — `id`: uuid, `email`: email, `status`: PENDING_VERIFICATION|ACTIVE|SUSPENDED, `createdAt`: datetime
 
 **SuspendRequest** — `reason`: string
+
+**InsurancePolicy** — `id`: uuid, `insurerName`: string, `policyNumber`: string, `holderName`: string, `validUntil?`: date, `cardDocumentId?`: uuid, `createdAt`: datetime (ADR-021)
+
+**InsurancePolicyInput** — `insurerName`: string, `policyNumber`: string, `holderName`: string, `validUntil?`: date, `cardDocumentId?`: uuid
+
+**InsurancePolicyPatch** — `insurerName?`: string, `policyNumber?`: string, `holderName?`: string, `validUntil?`: date, `cardDocumentId?`: uuid
+
+**ReimbursementClaim** — `id`: uuid, `policyId`: uuid, `amount`: number, `currency`: string, `status`: SUBMITTED|APPROVED|REJECTED|PAID, `decisionNote?`: string, `documentIds`: [uuid], `createdAt`: datetime (ADR-021)
+
+**ReimbursementClaimInput** — `amount`: number, `currency?`: string, `documentIds`: [uuid] (1–10, BR-INS-04)
+
+**InsuranceLoginRequest** — `email`: email, `password`: string
+
+**InsuranceTokenResponse** — `accessToken`: string, `expiresIn`: int, `insurerId`: uuid, `role`: INSURANCE_ADMIN|INSURANCE_AGENT
+
+**InsuranceAccount** — `id`: uuid, `insurerId`: uuid, `email`: email, `role`: INSURANCE_ADMIN|INSURANCE_AGENT, `status`: ACTIVE|SUSPENDED
+
+**InsuranceAgentInput** — `email`: email (a conta criada é sempre `INSURANCE_AGENT`, BR-INS-06)
+
+**InsuranceClaimView** — `id`: uuid, `status`: SUBMITTED|APPROVED|REJECTED|PAID, `amount`: number, `currency`: string, `policyHolderName`: string, `policyNumber`: string, `decisionNote?`: string, `documentIds`: [uuid] (mínimo necessário, ADR-021)
+
+**InsuranceClaimDecisionRequest** — `decision`: APPROVE|REJECT, `note?`: string (obrigatório em REJECT, BR-INS-05)
+
+**Insurer** — `id`: uuid, `name`: string, `taxId`: string, `status`: ACTIVE|SUSPENDED
+
+**InsurerInput** — `name`: string, `taxId`: string
+
+**InsurerStatusRequest** — `status`: ACTIVE|SUSPENDED
+
+**InsurerRootAccountRequest** — `email`: email (a palavra-passe inicial é enviada por e-mail, ADR-021)
 
 **HealthStatus** — `status`: string
 

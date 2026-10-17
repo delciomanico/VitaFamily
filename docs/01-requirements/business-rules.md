@@ -184,4 +184,21 @@
 
 ---
 
+## 13. Seguradoras e reembolsos (BR-INS) — ADR-021
+
+> Acrescentada 2026-10-16 (change control, decisão do proprietário, ADR-021). Mirror de BR-CLN para um terceiro ator.
+
+| ID | Regra | Estado |
+|---|---|---|
+| BR-INS-01 | O cartão da apólice (`InsurancePolicy`) não exige que a seguradora seja parceira: nome da seguradora é texto livre. Pertence ao `FamilyMember`, como qualquer dado de saúde (ADR-005). | DECIDIDO ADR-021 |
+| BR-INS-02 | Criar, editar e ver a apólice: só `SELF` (adulto) ou `TUTOR_OF` (pelo dependente); sem `SharingGrant` desta categoria, sem acesso de `OTHER` nesta versão. | DECIDIDO ADR-021 |
+| BR-INS-03 | O pedido de reembolso (`ReimbursementClaim`) só existe sobre uma apólice de seguradora **parceira** (`InsurerAccount` ativo); criado/submetido por `SELF`/`TUTOR_OF`. | DECIDIDO ADR-021 |
+| BR-INS-04 | O titular escolhe, a cada submissão, os `Document`s já carregados que acompanham o pedido (opt-in por documento); a seguradora só vê essa lista, nunca o resto do perfil de saúde do membro. | DECIDIDO ADR-021 |
+| BR-INS-05 | Estados: `SUBMITTED → APPROVED\|REJECTED → PAID` (ver `state-machines.md`). `REJECTED` exige motivo; `PAID` é marcado pelo titular/tutor, não pelo portal, nesta versão. | DECIDIDO ADR-021 |
+| BR-INS-06 | Contas do portal da seguradora (D18 mirror, BR-CLN-05): o Platform Admin cria **só** a conta `INSURANCE_ADMIN` raiz de cada seguradora parceira (e pode repô-la). A própria conta `INSURANCE_ADMIN` cria, lista e remove as contas `INSURANCE_AGENT` da sua seguradora. Uma seguradora tem sempre exatamente uma conta `INSURANCE_ADMIN` ativa. | DECIDIDO ADR-021 |
+| BR-INS-07 | `INSURANCE_ADMIN` e `INSURANCE_AGENT` têm as mesmas permissões operacionais sobre pedidos (ver `authorization.md` §8.2); só a criação/remoção de agentes é exclusiva do `INSURANCE_ADMIN`. | DECIDIDO ADR-021 |
+| BR-INS-08 | Fora do MVP desta funcionalidade: sem pré-autorização, sem verificação automática do número de apólice, sem consulta de cobertura separada, sem partilha do cartão com `OTHER`, sem acesso da seguradora a condições/alergias/medicação/consultas/exames do membro. | DECIDIDO ADR-021 |
+
+---
+
 *Fim da Fase 7 (v0.2). Regras de negócio fechadas. Próxima: Fase 8.*

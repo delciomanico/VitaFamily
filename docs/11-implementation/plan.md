@@ -40,6 +40,12 @@ Monorepo `apps/api` (Node.js/TypeScript) · `apps/web` (futuro) · `deploy/` · 
 | **M8** | **Alertas e notificações** | `alerts` (scanner, regras, destinatários), `notifications` (push + e-mail, preferências, subscrições, retry), idempotência | FR-ALR, BR-ALR | M6, M7 |
 | **M9** | **Relatórios e ciclo de vida** | `reports`, `lifecycle`: exportação, sair/remover com pacote, maioridade (avisos), bloqueio/apagamento 90 dias, eliminação de conta/família, `admin` (contas) | FR-RPT, FR-PRIV-05, R4, P4, Q7 | M6–M8 |
 | **M10** | **Endurecimento e lançamento** | Carga (N9), segurança (suite completa, revisão), restauro de backup, monitorização/alertas, runbooks, AIPD e textos legais, checklist de release | NFR-*, privacidade | M0–M9 |
+| **M11** | **Seguradoras e portal da seguradora** | `insurance` (`InsurancePolicy`, `ReimbursementClaim`, reaproveita `documents`), **`insurance-portal`** (ADR-021: `InsuranceAccount`/`insurance_sessions` separados de `users`/`ClinicAccount`; hierarquia `INSURANCE_ADMIN`/`INSURANCE_AGENT`; listar/decidir pedidos) | BR-INS (ADR-021) | M3, M5 |
+
+**M11 (ADR-021, acrescentado 2026-10-16):** funcionalidade aprovada depois do plano original (M0–M10) estar
+fechado; por isso aparece depois de M10 nesta tabela, mas as suas dependências reais são só M3 (`access`) e
+M5 (`documents`) — pode ser agendado antes de M10 se a capacidade o permitir. Se for implementado antes de
+M10, os gates de M10 (segurança, carga) devem cobrir também `insurance`/`insurance-portal`.
 
 ### Porque esta ordem (para aprender)
 - **Auditoria e autorização cedo:** são transversais; acrescentá-las no fim obriga a refazer tudo. M1 e M3 criam a base sobre a qual todo o resto se escreve.
@@ -60,12 +66,14 @@ Monorepo `apps/api` (Node.js/TypeScript) · `apps/web` (futuro) · `deploy/` · 
 | FR-ALR, BR-ALR | M8 |
 | FR-RPT, FR-PRIV-05, saída/remoção, maioridade, bloqueio, eliminações, FR-ADM-01 (contas) | M9 |
 | NFR-PERF/AVL/OPS/SEC (verificação final) | M10 |
+| BR-INS (ADR-021: apólice, pedidos de reembolso, portal da seguradora) | M11 |
 
 ## 6. Riscos de implementação e mitigação
 | Risco | Mitigação |
 |---|---|
 | Falha de isolamento entre famílias | Cenário de dois tenants em todos os testes de integração; teste automático por endpoint; FKs compostas. |
 | Mistura entre o ator de User/família e o `ClinicAccount` do portal da clínica (D18) | ADR-020: segundo `ActorInfo`/`AsyncLocalStorage`, claims de JWT distintas, rotas `/clinic-portal/*` nunca partilham contexto com as restantes; teste de arquitetura verifica que `clinic-portal` não importa `auth`/`access`/`families`. |
+| Mistura entre os três atores (User/família, `ClinicAccount`, `InsuranceAccount`) (ADR-021) | Terceiro `ActorInfo`/`AsyncLocalStorage` próprio, claims de JWT distintas, rotas `/insurance-portal/*` nunca partilham contexto com as restantes; teste de arquitetura verifica que `insurance-portal` não importa `auth`/`access`/`families`/`clinic-portal`. |
 | Lembretes perdidos ou duplicados | Scanner idempotente + `dedupeKey`; testes com relógio; métrica de atraso e alerta crítico. |
 | Erros de DST/fuso | Biblioteca de tempo robusta (IANA), casos fixos de teste, relógio injetável. |
 | Prisma vs. constraints avançadas | SQL manual versionado + teste de *drift* (ADR-003). |
