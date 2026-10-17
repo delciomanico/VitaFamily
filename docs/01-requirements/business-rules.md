@@ -146,7 +146,14 @@
 |---|---|---|
 | BR-RPT-01 | Só dados existentes e visíveis ao pedinte; secções sem permissão omitidas. | DECIDIDO D10, UC-RPT |
 | BR-RPT-02 | Período por defeito 12 meses, máximo 5 anos; listas paginadas. | DECIDIDO Q11 |
-| BR-RPT-03 | Relatórios não contêm interpretação clínica. | DECIDIDO prompt §19 |
+| BR-RPT-03 | Relatórios não contêm interpretação clínica **por omissão**. Única exceção estrita: o "Resumo com IA" (BR-RPT-04..09, ADR-022), que **contextualiza tendências** nos dados já existentes, em linguagem simples, e nunca sugere ação clínica, diagnóstico ou juízo sobre normal/perigoso. | DECIDIDO prompt §19; revisto ADR-022 (2026-10-17, proprietário) |
+| BR-RPT-04 | O "Resumo com IA" tem sempre, visível e não dispensável, o aviso "Gerado por IA a partir dos seus dados; não é um conselho médico.", mostrado sempre ao lado dos dados em bruto que o geraram — nunca texto de IA isolado sem a fonte. | DECIDIDO ADR-022 |
+| BR-RPT-05 | O "Resumo com IA" só é gerado com consentimento explícito e prévio (opt-in, desligado por omissão) de SELF (adulto) ou do tutor pelo dependente, nomeando o fornecedor externo de IA — modelo de consentimento próprio, distinto do `SharingGrant` por categoria. | DECIDIDO ADR-022 |
+| BR-RPT-06 | Minimização: só se envia ao fornecedor de IA a série estruturada necessária à tendência pedida (valores/unidades/datas; estatística de adesão); nunca documentos, imagens, texto livre ou o nome do membro (referência interna/pseudónimo). | DECIDIDO ADR-022 |
+| BR-RPT-07 | A resposta da IA passa sempre por um filtro de saída que bloqueia frases de aconselhamento clínico/diagnóstico antes de ser mostrada — defesa em profundidade, não se confia só na instrução dada ao modelo. | DECIDIDO ADR-022 |
+| BR-RPT-08 | A geração de um "Resumo com IA" é sempre auditada (quem pediu, quando, tipo de resumo); a auditoria nunca guarda os dados de saúde enviados nem a resposta da IA. | DECIDIDO ADR-022 |
+| BR-RPT-09 | Gate de lançamento: o "Resumo com IA" não pode ficar ativo em produção para utilizadores reais antes de (a) a AIPD cobrir explicitamente este tratamento e (b) existir DPA assinado com o fornecedor de IA escolhido. | DECIDIDO ADR-022 |
+| BR-RPT-10 | O plano gratuito — único disponível no MVP, sem pagamentos (D/scope §3) — tem **zero** utilizações do "Resumo com IA": a funcionalidade fica reservada para um plano pago futuro, fora do MVP. A conta é informada disto no registo (mensagem, sem cobrança real). | DECIDIDO change control 2026-10-17 (proprietário) |
 
 ## 11. Auditoria e retenção (BR-AUD)
 

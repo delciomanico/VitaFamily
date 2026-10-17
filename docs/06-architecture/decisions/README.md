@@ -19,5 +19,8 @@
 - ADR-017 — Deploy com Dokploy: proxy (Traefik), domínio e TLS (decisão do proprietário; substitui o Caddy de ADR-012)
 - ADR-018 — Código de verificação de e-mail de 6 dígitos (substitui, só nessa rota, o token/link de UC-ACC-01)
 - ADR-019 — API sem domínio próprio no Dokploy; `/api` é um proxy interno feito pelo `web` (decisão do proprietário; refina a linha "Domínio" de ADR-017)
+- ADR-020 — Contas e sessões do portal da clínica separadas de `User` (D17/D18, decisão do proprietário)
+- ADR-021 — Acesso de seguradoras: cartão de apólice, pedidos de reembolso e portal (`InsuranceAccount`) (decisão do proprietário)
+- ADR-022 — Resumo de tendências com IA em relatórios, exceção estrita a BR-RPT-03 (decisão do proprietário; gate de lançamento ligado à AIPD/DPA)
 
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).

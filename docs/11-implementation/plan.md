@@ -41,11 +41,20 @@ Monorepo `apps/api` (Node.js/TypeScript) · `apps/web` (futuro) · `deploy/` · 
 | **M9** | **Relatórios e ciclo de vida** | `reports`, `lifecycle`: exportação, sair/remover com pacote, maioridade (avisos), bloqueio/apagamento 90 dias, eliminação de conta/família, `admin` (contas) | FR-RPT, FR-PRIV-05, R4, P4, Q7 | M6–M8 |
 | **M10** | **Endurecimento e lançamento** | Carga (N9), segurança (suite completa, revisão), restauro de backup, monitorização/alertas, runbooks, AIPD e textos legais, checklist de release | NFR-*, privacidade | M0–M9 |
 | **M11** | **Seguradoras e portal da seguradora** | `insurance` (`InsurancePolicy`, `ReimbursementClaim`, reaproveita `documents`), **`insurance-portal`** (ADR-021: `InsuranceAccount`/`insurance_sessions` separados de `users`/`ClinicAccount`; hierarquia `INSURANCE_ADMIN`/`INSURANCE_AGENT`; listar/decidir pedidos) | BR-INS (ADR-021) | M3, M5 |
+| **M12** | **"Resumo com IA" em `reports`** | Extensão do módulo `reports` existente (ADR-022): consentimento opt-in (SELF/tutor, separado de `SharingGrant`), chamada ao fornecedor externo de IA com dados minimizados (BR-RPT-06), filtro de saída que bloqueia aconselhamento/diagnóstico (BR-RPT-07) antes de o resultado chegar ao utilizador, aviso obrigatório sempre ao lado dos dados em bruto (BR-RPT-04), auditoria sem dados de saúde (`AI_SUMMARY_GENERATE`) | BR-RPT-03..09 (ADR-022) | M9 (`reports`) |
 
 **M11 (ADR-021, acrescentado 2026-10-16):** funcionalidade aprovada depois do plano original (M0–M10) estar
 fechado; por isso aparece depois de M10 nesta tabela, mas as suas dependências reais são só M3 (`access`) e
 M5 (`documents`) — pode ser agendado antes de M10 se a capacidade o permitir. Se for implementado antes de
 M10, os gates de M10 (segurança, carga) devem cobrir também `insurance`/`insurance-portal`.
+
+**M12 (ADR-022, acrescentado 2026-10-17):** depende só de M9 (`reports`, já implementado) — pode ser
+agendado em qualquer momento depois de M9. **Gate de lançamento específico (ADR-022, BR-RPT-09):**
+independentemente de quando for construído, não pode ficar **ativo em produção para utilizadores reais**
+antes de a AIPD (M10) cobrir explicitamente este tratamento e de existir DPA assinado com o fornecedor de
+IA escolhido — pode ficar implementado e testado, mas atrás de uma flag/consentimento que nunca se liga
+sem essas duas condições. Contrato (`openapi.yaml`), schema de consentimento e eventual porta nova em
+`reports` (ADR-016) ficam pendentes, a decidir no arranque deste milestone (ADR-022, "pendências explícitas").
 
 ### Porque esta ordem (para aprender)
 - **Auditoria e autorização cedo:** são transversais; acrescentá-las no fim obriga a refazer tudo. M1 e M3 criam a base sobre a qual todo o resto se escreve.
@@ -67,6 +76,7 @@ M10, os gates de M10 (segurança, carga) devem cobrir também `insurance`/`insur
 | FR-RPT, FR-PRIV-05, saída/remoção, maioridade, bloqueio, eliminações, FR-ADM-01 (contas) | M9 |
 | NFR-PERF/AVL/OPS/SEC (verificação final) | M10 |
 | BR-INS (ADR-021: apólice, pedidos de reembolso, portal da seguradora) | M11 |
+| BR-RPT-04..09 ("Resumo com IA", ADR-022) — gate de lançamento ligado à AIPD/DPA (M10) | M12 |
 
 ## 6. Riscos de implementação e mitigação
 | Risco | Mitigação |

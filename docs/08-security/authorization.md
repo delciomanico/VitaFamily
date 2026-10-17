@@ -71,6 +71,7 @@ Notas:
 | Definir partilha | SELF (adulto) ou tutor (dependente). |
 | Sair da família | Adulto com conta; menor/dependente com conta ⇒ via tutor/Admin. |
 | Exportar dados | SELF; tutor pelo dependente. |
+| Pedir "Resumo com IA" (tendências) | SELF; tutor pelo dependente — mesma relação de "Exportar dados"; exige consentimento explícito próprio (BR-RPT-05, ADR-022), além da autorização. |
 | Clínicas privadas | Criar: adulto da família; editar/arquivar/eliminar: criador ou FAMILY_ADMIN. |
 | Criar clínica parceira, ver/suspender a clínica | PLATFORM_ADMIN. |
 | Contas do portal da clínica (`CLINIC_ADMIN`/`CLINIC_MANAGER`) | Fora de `AccessPolicy` — ver §6 (ADR-020). |

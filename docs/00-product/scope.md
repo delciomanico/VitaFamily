@@ -6,7 +6,7 @@
 > Nota: isto define **âmbito**, não requisitos detalhados (Fase 3).
 
 ## 1. Objetivo do MVP
-Permitir que uma família em Portugal registe a saúde dos seus membros (incluindo dependentes sem conta), gira receitas, medicação, consultas e exames, receba lembretes por push e e-mail, e veja históricos e uma visão familiar básica — com privacidade controlada pelos adultos e sem qualquer diagnóstico.
+Permitir que uma família em Portugal registe a saúde dos seus membros (incluindo dependentes sem conta), gira receitas, medicação, consultas e exames, receba lembretes por push e e-mail, e veja históricos e uma visão familiar básica — com privacidade controlada pelos adultos e sem qualquer diagnóstico. **Exceção estrita, por change control (ADR-022, 2026-10-17):** um "Resumo com IA", opt-in, que contextualiza tendências nos dados já existentes em linguagem simples, sem sugerir ação clínica nem diagnóstico (ver §2/§3).
 
 ## 2. Dentro do MVP
 
@@ -23,13 +23,13 @@ Permitir que uma família em Portugal registe a saúde dos seus membros (incluin
 | **Exames** | registo, upload de documento, resultados estruturados simples (valor, unidade, intervalo de referência informado pelo utilizador), data, histórico, estado; **leitura automática (OCR) da foto no próprio dispositivo, como ajuda de pré-preenchimento (melhor esforço, sempre revista pelo utilizador)** | D8, D9, change control 2026-10-17 |
 | **Alertas** | só de agenda: medicação, consulta, exame; cadeia Evento → Regra → Alerta → Notificação | D11 |
 | **Notificações** | push (PWA) + e-mail | D6, D12 |
-| **Relatórios** | histórico individual e visão básica da família, **via API** | D10 |
+| **Relatórios** | histórico individual e visão básica da família, **via API**; **"Resumo com IA"** (opt-in, só contextualiza tendências nos dados já existentes, sem sugerir ação clínica/diagnóstico; gate de lançamento ligado à AIPD/DPA; **plano gratuito tem zero utilizações — reservado para um plano pago futuro, BR-RPT-10**) | D10, ADR-022 |
 | **Documentos** | armazenamento fora da BD, acesso controlado, validação de uploads | prompt §17 |
 | **Auditoria** | log de operações sensíveis; anonimizado ao apagar | D15 |
 | **Plataforma** | admin da plataforma **sem acesso a dados de saúde** | D4 |
 
 ## 3. Fora do MVP [OUT]
-- Tudo o que o prompt exclui: diagnóstico, IA/chatbot médico, previsão de doenças, integração com hospitais, pagamentos, marketplace, telemedicina, farmácias, seguros, IoT, wearables, ML, análise médica avançada.
+- Tudo o que o prompt exclui: diagnóstico, previsão de doenças, integração com hospitais, pagamentos, marketplace, telemedicina, farmácias, seguros, IoT, wearables, ML, análise médica avançada. **Continua fora:** IA/chatbot médico, qualquer IA que sugira ação clínica ou diagnóstico. **Entrou no MVP por ADR-022 (2026-10-17, change control):** só o "Resumo com IA" — contextualização de tendências nos dados já existentes, sem ação/diagnóstico, opt-in, gate de lançamento pela AIPD/DPA.
 - Acesso de clínicas a dados de saúde das famílias (D3). O login de Gestor da clínica parceira entrou com D17, limitado às marcações.
 - SMS (D6); exportação PDF e partilha por link (D10).
 - Alertas por resultados de exames (D11).
