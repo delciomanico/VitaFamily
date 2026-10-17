@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { useBackTo } from '@/hooks/useBackTo'
 import { MenuButton } from './MenuButton'
 
 interface PageProps {
@@ -40,6 +41,7 @@ export function Page({
   fullScreen = false,
   children,
 }: PageProps) {
+  const handleBack = useBackTo(backTo ?? '/')
   return (
     <div className={cn(fullScreen && 'flex h-dvh flex-col overflow-hidden')}>
       <header className="shrink-0 bg-brand pt-safe text-white">
@@ -47,6 +49,7 @@ export function Page({
           {backTo && (
             <Link
               to={backTo}
+              onClick={handleBack}
               aria-label={backLabel}
               className="-ml-2 flex size-11 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/15"
             >

@@ -18,10 +18,12 @@
     "react-dom": "^19.3.0",
     "react-hook-form": "^7.89.0",
     "react-router-dom": "^7.18.4",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
     "@capacitor/cli": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "@tailwindcss/vite": "^4.3.3",

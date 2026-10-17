@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { StepProgress } from '@/components/ui/StepProgress'
 import { cn } from '@/lib/cn'
+import { useBackTo } from '@/hooks/useBackTo'
 
 interface AuthScreenProps {
   title: string
@@ -23,6 +24,7 @@ interface AuthScreenProps {
  */
 export function AuthScreen({ title, description, backTo, progress, leading, children }: AuthScreenProps) {
   const hasTopBar = Boolean(backTo || progress)
+  const handleBack = useBackTo(backTo ?? '/')
 
   return (
     <div
@@ -36,6 +38,7 @@ export function AuthScreen({ title, description, backTo, progress, leading, chil
           {backTo && (
             <Link
               to={backTo}
+              onClick={handleBack}
               aria-label="Voltar"
               className="-ml-2.5 flex size-11 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-surface-muted"
             >
