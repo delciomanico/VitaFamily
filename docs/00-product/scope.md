@@ -16,11 +16,11 @@ Permitir que uma família em Portugal registe a saúde dos seus membros (incluin
 | **Família** | criar família; um User em várias famílias; membros com ou sem conta; convite por e-mail/link; criação direta de perfil; papéis Family Admin / Family Member | D1, D2, D14 |
 | **Privacidade familiar** | cada adulto controla o que partilha; dependentes geridos pelo Admin | D13 |
 | **Perfil de saúde** | tipo sanguíneo, alergias, condições, histórico médico (campos simples) | D8 |
-| **Receitas** | registo manual, medicamentos (texto livre), dosagem, frequência, duração, observações, documento anexo, estado simples | D8, D9 |
+| **Receitas** | registo manual, medicamentos (texto livre), dosagem, frequência, duração, observações, documento anexo, estado simples; **leitura automática (OCR) da foto no próprio dispositivo, como ajuda de pré-preenchimento (melhor esforço, sempre revista pelo utilizador)** | D8, D9, change control 2026-10-17 |
 | **Medicamentos** | ativos, horários, duração, lembretes, **confirmação de toma** e histórico de adesão | D7 |
 | **Consultas** | criar/editar, data/hora, profissional, clínica (cadastro `Clinic` ou texto), estados, lembretes; **marcação em horários publicados por clínicas parceiras, com confirmação da clínica** | D3, D9, D17 |
 | **Portal da clínica** | Gestor da clínica parceira: publica horários, confirma/recusa pedidos, vê a agenda da clínica — só dados mínimos da marcação, nunca dados de saúde | D17 |
-| **Exames** | registo, upload de documento, resultados estruturados simples (valor, unidade, intervalo de referência informado pelo utilizador), data, histórico, estado | D8, D9 |
+| **Exames** | registo, upload de documento, resultados estruturados simples (valor, unidade, intervalo de referência informado pelo utilizador), data, histórico, estado; **leitura automática (OCR) da foto no próprio dispositivo, como ajuda de pré-preenchimento (melhor esforço, sempre revista pelo utilizador)** | D8, D9, change control 2026-10-17 |
 | **Alertas** | só de agenda: medicação, consulta, exame; cadeia Evento → Regra → Alerta → Notificação | D11 |
 | **Notificações** | push (PWA) + e-mail | D6, D12 |
 | **Relatórios** | histórico individual e visão básica da família, **via API** | D10 |
@@ -33,7 +33,7 @@ Permitir que uma família em Portugal registe a saúde dos seus membros (incluin
 - Acesso de clínicas a dados de saúde das famílias (D3). O login de Gestor da clínica parceira entrou com D17, limitado às marcações.
 - SMS (D6); exportação PDF e partilha por link (D10).
 - Alertas por resultados de exames (D11).
-- OCR/leitura automática de documentos; interações medicamentosas; catálogos de medicamentos/doenças (D8).
+- Interações medicamentosas; catálogos de medicamentos/doenças (D8).
 - App móvel nativa (D12).
 - ~~Fluxos REQUESTED/CONFIRMED de consulta com clínica (D9).~~ Entrou no MVP por D17 (só clínicas parceiras).
 

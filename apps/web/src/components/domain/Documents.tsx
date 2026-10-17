@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { FileImage, FileText, Paperclip, X } from 'lucide-react'
+import { FileImage, FileText, Paperclip, ScanText, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { hasApiBackend } from '@/lib/apiClient'
 import { formatLongDate } from '@/lib/format'
+import { recognizeText } from '@/lib/ocr'
 import {
   DOCUMENT_MAX_BYTES,
   DOCUMENT_MIME_TYPES,
@@ -32,17 +33,39 @@ interface DocumentPickerProps {
   label: string
   value: DocumentUpload[]
   onChange: (value: DocumentUpload[]) => void
+  /**
+   * Preenchimento automático a partir da foto (leitura no próprio dispositivo, melhor esforço):
+   * mostra “Preencher a partir da foto”, lê a primeira imagem anexada e entrega o texto a quem
+   * chamou para pré-preencher campos — nunca substitui o que o utilizador já escreveu.
+   */
+  ocr?: { onExtract: (text: string) => void }
 }
 
 /**
  * Anexar documentos (BR-DOC-01/03: PDF, JPG ou PNG, até 10 MB, máx. 5).
  * Nos mocks só se guardam nome, tipo e tamanho; com a API real o ficheiro é enviado (multipart).
  */
-export function DocumentPicker({ label, value, onChange }: DocumentPickerProps) {
+export function DocumentPicker({ label, value, onChange, ocr }: DocumentPickerProps) {
   const input = useRef<HTMLInputElement>(null)
   const labelId = useId()
   const [error, setError] = useState<string | null>(null)
+  const [reading, setReading] = useState(false)
   const full = value.length >= DOCUMENTS_PER_RESOURCE
+  const imageFile = value.find((doc) => doc.mimeType.startsWith('image/') && doc.file)?.file
+
+  async function handleOcr() {
+    if (!ocr || !imageFile) return
+    setError(null)
+    setReading(true)
+    try {
+      const text = await recognizeText(imageFile)
+      ocr.onExtract(text)
+    } catch {
+      setError('Não foi possível ler o documento. Preencha os campos manualmente.')
+    } finally {
+      setReading(false)
+    }
+  }
 
   function onFiles(files: FileList | null) {
     setError(null)
@@ -99,22 +122,38 @@ export function DocumentPicker({ label, value, onChange }: DocumentPickerProps) 
         aria-hidden
         onChange={(event) => onFiles(event.target.files)}
       />
-      {!full && (
-        <Button
-          variant="secondary"
-          className="w-fit"
-          onClick={() => input.current?.click()}
-          icon={<Paperclip className="size-4" aria-hidden />}
-        >
-          Anexar documento
-        </Button>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {!full && (
+          <Button
+            variant="secondary"
+            className="w-fit"
+            onClick={() => input.current?.click()}
+            icon={<Paperclip className="size-4" aria-hidden />}
+          >
+            Anexar documento
+          </Button>
+        )}
+        {ocr && imageFile && (
+          <Button
+            variant="soft"
+            className="w-fit"
+            onClick={handleOcr}
+            loading={reading}
+            icon={<ScanText className="size-4" aria-hidden />}
+          >
+            Preencher a partir da foto
+          </Button>
+        )}
+      </div>
       {error ? (
         <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       ) : (
-        <p className="text-sm text-muted">PDF, JPG ou PNG, até 10 MB.</p>
+        <p className="text-sm text-muted">
+          PDF, JPG ou PNG, até 10 MB.
+          {ocr && imageFile && ' A leitura automática é só uma ajuda — reveja sempre os dados antes de guardar.'}
+        </p>
       )}
     </div>
   )

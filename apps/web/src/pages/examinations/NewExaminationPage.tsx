@@ -19,6 +19,7 @@ import { useAsync } from '@/hooks/useAsync'
 import { isValidISODate, todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { parseNumber } from '@/lib/examination'
+import { extractClinicName, extractDateISO, extractExamResults } from '@/lib/ocrParse'
 import { paths } from '@/routes/paths'
 import { examinationService, type ExamResultInput } from '@/services/examination.service'
 import { clinicService } from '@/services/clinic.service'
@@ -142,7 +143,9 @@ function NewExaminationForm({ members, clinics, selfMemberId }: NewExaminationFo
     control,
     handleSubmit,
     watch,
-    formState: { errors, isSubmitting },
+    setValue,
+    getValues,
+    formState: { errors, isSubmitting, dirtyFields },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -158,6 +161,35 @@ function NewExaminationForm({ members, clinics, selfMemberId }: NewExaminationFo
   const { fields, append, remove } = useFieldArray({ control, name: 'results' })
   // Exame futuro fica agendado e ainda não tem resultados (ST5).
   const scheduled = watch('examDate') > todayISO()
+
+  /** Pré-preenche a partir da leitura da foto (melhor esforço); nunca substitui o que já foi escrito. */
+  function handleOcrExtract(text: string) {
+    const values = getValues()
+    let filled = 0
+
+    const date = extractDateISO(text)
+    if (date && !dirtyFields.examDate) {
+      setValue('examDate', date, { shouldDirty: true })
+      filled++
+    }
+    const clinic = extractClinicName(text)
+    if (clinic && !values.clinicName) {
+      setValue('clinicName', clinic, { shouldDirty: true })
+      filled++
+    }
+    if (values.results.length === 0) {
+      const results = extractExamResults(text)
+      results.forEach((result) => append({ ...emptyResult(), ...result }))
+      filled += results.length
+    }
+
+    toast.show(
+      filled > 0
+        ? 'Alguns campos foram preenchidos a partir da foto — reveja antes de guardar.'
+        : 'Não reconheci dados nesta foto. Preencha os campos manualmente.',
+      filled > 0 ? 'success' : 'error',
+    )
+  }
 
   async function onSubmit({ results, ...values }: FormValues) {
     try {
@@ -235,7 +267,12 @@ function NewExaminationForm({ members, clinics, selfMemberId }: NewExaminationFo
         control={control}
         name="documents"
         render={({ field }) => (
-          <DocumentPicker label="Documento (opcional)" value={field.value} onChange={field.onChange} />
+          <DocumentPicker
+            label="Documento (opcional)"
+            value={field.value}
+            onChange={field.onChange}
+            ocr={{ onExtract: handleOcrExtract }}
+          />
         )}
       />
 
