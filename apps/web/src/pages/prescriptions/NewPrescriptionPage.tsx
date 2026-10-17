@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Controller,
   useFieldArray,
@@ -22,6 +23,7 @@ import { Page } from '@/components/layout/Page'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
+import { Disclosure } from '@/components/ui/Disclosure'
 import { DetailSection } from '@/components/ui/InfoList'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -32,6 +34,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { isValidISODate, todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
+import { extractClinicName, extractDateISO, extractDoctorName, extractMedication } from '@/lib/ocrParse'
 import { paths } from '@/routes/paths'
 import { familyService } from '@/services/family.service'
 import { prescriptionService } from '@/services/prescription.service'
@@ -140,11 +143,13 @@ function MedicationFields({ index, control, register, errors, continuous, onRemo
         />
         <Checkbox label="Uso contínuo (sem data de fim)" {...register(`medications.${index}.continuous`)} />
       </div>
-      <Input
-        label="Observações (opcional)"
-        placeholder="Ex.: tomar depois das refeições"
-        {...register(`medications.${index}.notes`)}
-      />
+      <Disclosure label="Observações">
+        <Input
+          label="Observações"
+          placeholder="Ex.: tomar depois das refeições"
+          {...register(`medications.${index}.notes`)}
+        />
+      </Disclosure>
     </Card>
   )
 }
@@ -158,7 +163,9 @@ function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[
     control,
     handleSubmit,
     watch,
-    formState: { errors, isSubmitting },
+    setValue,
+    getValues,
+    formState: { errors, isSubmitting, dirtyFields },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -173,6 +180,44 @@ function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'medications' })
   const medications = watch('medications')
+  const [doctorDetailsOpen, setDoctorDetailsOpen] = useState(false)
+
+  /** Pré-preenche a partir da leitura da foto (melhor esforço); nunca substitui o que já foi escrito. */
+  function handleOcrExtract(text: string) {
+    const values = getValues()
+    let filled = 0
+
+    const date = extractDateISO(text)
+    if (date && !dirtyFields.issuedOn) {
+      setValue('issuedOn', date, { shouldDirty: true })
+      filled++
+    }
+    const doctor = extractDoctorName(text)
+    if (doctor && !values.doctorName) {
+      setValue('doctorName', doctor, { shouldDirty: true })
+      filled++
+    }
+    const clinic = extractClinicName(text)
+    if (clinic && !values.clinicName) {
+      setValue('clinicName', clinic, { shouldDirty: true })
+      filled++
+    }
+    if (doctor || clinic) setDoctorDetailsOpen(true)
+
+    const medication = extractMedication(text)
+    if (medication && !values.medications[0]?.name) {
+      setValue('medications.0.name', medication.name, { shouldDirty: true })
+      setValue('medications.0.dosage', medication.dosage, { shouldDirty: true })
+      filled++
+    }
+
+    toast.show(
+      filled > 0
+        ? 'Alguns campos foram preenchidos a partir da foto — reveja antes de guardar.'
+        : 'Não reconheci dados nesta foto. Preencha os campos manualmente.',
+      filled > 0 ? 'success' : 'error',
+    )
+  }
 
   async function onSubmit(values: FormValues) {
     try {
@@ -219,10 +264,12 @@ function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[
           error={errors.issuedOn?.message}
           {...register('issuedOn')}
         />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Médico (opcional)" placeholder="Ex.: Dra. Ana Costa" {...register('doctorName')} />
-          <Input label="Clínica (opcional)" placeholder="Ex.: Centro de Saúde" {...register('clinicName')} />
-        </div>
+        <Disclosure label="Médico e clínica" open={doctorDetailsOpen} onOpenChange={setDoctorDetailsOpen}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input label="Médico" placeholder="Ex.: Dra. Ana Costa" {...register('doctorName')} />
+            <Input label="Clínica" placeholder="Ex.: Centro de Saúde" {...register('clinicName')} />
+          </div>
+        </Disclosure>
       </div>
 
       <DetailSection title="Medicamentos">
@@ -242,15 +289,21 @@ function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[
         </Button>
       </DetailSection>
 
-      <Controller
-        control={control}
-        name="documents"
-        render={({ field }) => (
-          <DocumentPicker label="Documento (opcional)" value={field.value} onChange={field.onChange} />
-        )}
-      />
-
-      <Textarea label="Observações (opcional)" {...register('notes')} />
+      <Disclosure label="Documento e observações">
+        <Controller
+          control={control}
+          name="documents"
+          render={({ field }) => (
+            <DocumentPicker
+              label="Documento"
+              value={field.value}
+              onChange={field.onChange}
+              ocr={{ onExtract: handleOcrExtract }}
+            />
+          )}
+        />
+        <Textarea label="Observações" {...register('notes')} />
+      </Disclosure>
 
       <div className="flex flex-col gap-2 sm:flex-row-reverse">
         <Button type="submit" size="lg" loading={isSubmitting} className="sm:flex-1">
@@ -264,7 +317,7 @@ function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[
   )
 }
 
-/** Registar receita (UC-RX-01): sem OCR; cada medicamento cria um plano de toma. */
+/** Registar receita (UC-RX-01): cada medicamento cria um plano de toma. */
 export function NewPrescriptionPage() {
   const { user, family, member } = useAuth()
   const familyId = family?.id ?? ''
