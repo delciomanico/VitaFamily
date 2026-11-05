@@ -19,14 +19,16 @@ import {
   createListClinicRequestsUseCase,
   createRespondClinicRequestUseCase,
 } from "./application/clinic-appointments.js";
+import { createClinicPatientLookupUseCase, createCreateWalkInAppointmentUseCase } from "./application/clinic-walk-in.js";
 import { createCreateAppointmentUseCase } from "./application/create-appointment.js";
 import { createDeleteAppointmentUseCase } from "./application/delete-appointment.js";
 import { createGetAppointmentUseCase } from "./application/get-appointment.js";
 import { createListAppointmentsUseCase } from "./application/list-appointments.js";
 import { createListAvailableSlotsUseCase } from "./application/list-available-slots.js";
-import type { AppointmentsDeps, ClinicPrescriptionInput, RequestContext } from "./application/ports.js";
+import type { AppointmentsDeps, ClinicPrescriptionInput, PatientDirectoryPort, RequestContext } from "./application/ports.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
+import { WalkInInMemoryRateLimiter } from "./domain/walk-in.js";
 import { KyselyAppointmentsRepository } from "./infrastructure/repo.js";
 import { createAppointmentsClinicPortalRouter, type AppointmentsClinicPortalController } from "./interface/clinic-portal-router.js";
 import { toAppointmentPage } from "./interface/dto.js";
@@ -63,6 +65,9 @@ export interface AppointmentsModuleDeps {
   /** Composition root liga à API pública de `prescriptions` (modules.md §3 notas 16/20: nenhuma
    * aresta nova no grafo — `appointments` continua a não importar `modules/prescriptions`). */
   prescriptions: AppointmentsPrescriptionsDeps;
+  /** D20 (ADR-024): resolução do paciente por e-mail exato, ligada no composition root a `users`+`families`
+   * (nenhuma aresta nova no grafo; `appointments` não importa esses módulos). */
+  patients: PatientDirectoryPort<Kysely<Database>>;
   clock: Clock;
 }
 
@@ -100,9 +105,12 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
       getBookableClinic: deps.clinics.getBookableClinic,
       listFreeSlots: deps.clinics.listFreeClinicSlots,
       findSlot: deps.clinics.findClinicSlot,
+      lockSlot: deps.clinics.lockClinicSlot,
     },
     examSlotOccupancy: deps.examSlotOccupancy,
     prescriptions: { issueForClinic: deps.prescriptions.issuePrescriptionForClinic },
+    patients: deps.patients,
+    walkInRateLimiter: new WalkInInMemoryRateLimiter(deps.clock),
     audit: deps.audit,
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
@@ -125,6 +133,8 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     listClinicAgenda: createListClinicAgendaUseCase(appointmentsDeps),
     cancelClinicAppointment: createCancelClinicAppointmentUseCase(appointmentsDeps),
     completeClinicAppointment: createCompleteClinicAppointmentUseCase(appointmentsDeps),
+    clinicPatientLookup: createClinicPatientLookupUseCase(appointmentsDeps),
+    createClinicWalkInAppointment: createCreateWalkInAppointmentUseCase(appointmentsDeps),
   };
 
   return {

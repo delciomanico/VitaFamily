@@ -245,6 +245,16 @@ export function main(): void {
     clinics,
     examSlotOccupancy: { countScheduledBySlot: examinations.countScheduledBySlot },
     prescriptions: { issuePrescriptionForClinic: prescriptions.issuePrescriptionForClinic },
+    // D20 (ADR-024, BR-CLN-10): paciente por e-mail exato; e-mail inexistente, conta não ACTIVE ou sem
+    // membro SELF dão todos `null` (oráculo uniforme). `appointments` não importa `users`/`families`.
+    patients: {
+      findSelfByEmail: async (trx, email) => {
+        const user = await users.byEmail(trx, email);
+        if (user?.status !== "ACTIVE") return null;
+        const member = await families.findActiveSelfMemberOfUser(trx, user.id);
+        return member ? { familyId: member.familyId, memberId: member.id, fullName: user.name } : null;
+      },
+    },
     clock,
   });
   late.appointments = appointments;

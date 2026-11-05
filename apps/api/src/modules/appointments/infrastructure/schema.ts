@@ -23,6 +23,9 @@ export interface AppointmentsTable {
   clinic_outcome_note: ColumnType<string | null, string | null | undefined, string | null>;
   outcome_recorded_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
   outcome_recorded_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  /** Marcada presencialmente pela clínica (D20, ADR-024) — `db/migrations/0026_appointment_walk_in.sql`; permanente. */
+  walk_in: ColumnType<boolean, boolean | undefined, boolean>;
+  booked_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

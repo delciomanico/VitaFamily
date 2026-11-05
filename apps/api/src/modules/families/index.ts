@@ -140,6 +140,8 @@ export interface FamiliesModule {
   // nunca acede às tabelas `family_members`/`guardianships` diretamente (conventions.md §3.5).
   findMemberByUserId: (trx: Kysely<Database>, familyId: string, userId: string) => Promise<FamilyMember | null>;
   findMemberById: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<FamilyMember | null>;
+  /** D20 (ADR-024): membro `SELF` ativo de um utilizador, sem conhecer a família — ligado a `appointments` pela raiz (walk-in). */
+  findActiveSelfMemberOfUser: (trx: Kysely<Database>, userId: string) => Promise<FamilyMember | null>;
   isGuardianOf: (trx: Kysely<Database>, familyId: string, dependentId: string, guardianId: string) => Promise<boolean>;
   // Operações cruas para o módulo `health-records` consumir pela raiz (modules.md §3 nota 9,
   // M4): `blood_type` vive em `family_members`, mas a decisão de autorização (categoria
@@ -240,6 +242,7 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
     countFamiliesOfUser: async (trx, userId) => (await membersRepo.listFamilyIdsForUser(trx, userId)).length,
     findMemberByUserId: (trx, familyId, userId) => membersRepo.findByUserId(trx, familyId, userId),
     findMemberById: (trx, familyId, memberId) => membersRepo.findById(trx, familyId, memberId),
+    findActiveSelfMemberOfUser: (trx, userId) => membersRepo.findActiveSelfOfUser(trx, userId),
     isGuardianOf: async (trx, familyId, dependentId, guardianId) =>
       (await guardianshipsRepo.find(trx, familyId, dependentId, guardianId)) !== null,
     getBloodType: (trx, familyId, memberId) => membersRepo.getBloodType(trx, familyId, memberId),

@@ -22,7 +22,7 @@ export interface ClinicAppointmentView {
   responseNote?: string;
 }
 
-async function toView<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, appointment: Appointment): Promise<ClinicAppointmentView> {
+export async function toView<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, appointment: Appointment): Promise<ClinicAppointmentView> {
   const patientName = (await deps.memberNames.getMemberName(trx, appointment.familyId, appointment.memberId)) ?? "Membro da família";
   return {
     id: appointment.id,

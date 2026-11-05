@@ -6,6 +6,7 @@ import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Appointment, AppointmentStatus } from "../domain/appointment.js";
+import type { WalkInRateLimiter } from "../domain/walk-in.js";
 
 export interface ActorIdentity {
   userId: string;
@@ -77,6 +78,8 @@ export interface ClinicsPort<Trx> {
   getBookableClinic(trx: Trx, familyId: string, clinicId: string): Promise<{ id: string; name: string } | null>;
   listFreeSlots(clinicId: string, specialty?: string, kind?: "APPOINTMENT" | "EXAM"): Promise<ClinicSlotLite[]>;
   findSlot(clinicId: string, slotId: string): Promise<ClinicSlotLite | null>;
+  /** BR-APT-11/BR-CLN-10: bloqueia a linha do horário (`FOR UPDATE`) na transação do chamador — serializa reservas concorrentes. */
+  lockSlot(trx: Trx, slotId: string): Promise<ClinicSlotLite | null>;
 }
 
 /**
@@ -119,8 +122,11 @@ export interface NewAppointmentRecord {
   specialty?: string;
   reason?: string;
   notes?: string;
-  /** Horário de clínica parceira de origem (D17) — só em consultas que nasceram `REQUESTED`. */
+  /** Horário de clínica parceira de origem (D17) — `REQUESTED` ou walk-in (D20). */
   slotId?: string;
+  /** D20 (ADR-024): marcação presencial pela clínica. */
+  walkIn?: boolean;
+  bookedByClinicAccountId?: string;
   createdAt: Date;
 }
 
@@ -242,6 +248,18 @@ export interface AppointmentsRepository<Trx> {
   /** `completeConsultation` (D18, BR-CLN-06): marca `COMPLETED` e grava o resultado da consulta,
    * sempre com quem o registou — nunca escrito pela família. */
   completeByClinic(trx: Trx, appointmentId: string, change: ClinicOutcomeChange): Promise<Appointment>;
+  /** BR-CLN-10 (walk-in): consultas `SCHEDULED` do membro cujo início cai em `[from, to)`. */
+  findScheduledStartingBetween(trx: Trx, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]>;
+}
+
+/**
+ * D20 (ADR-024, BR-CLN-10): resolução do paciente a partir do e-mail exato — ligada no composition
+ * root a `users.byEmail` + `families` (nenhuma aresta nova no grafo; mesmo critério de
+ * `PrescriptionsPort`). Devolve `null` para e-mail inexistente, utilizador não `ACTIVE` ou sem
+ * membro `SELF` (o oráculo é uniforme). O e-mail recebido já vem normalizado; nunca é registado.
+ */
+export interface PatientDirectoryPort<Trx> {
+  findSelfByEmail(trx: Trx, email: string): Promise<{ familyId: string; memberId: string; fullName: string } | null>;
 }
 
 export interface AppointmentsDeps<Trx> {
@@ -254,6 +272,10 @@ export interface AppointmentsDeps<Trx> {
   examSlotOccupancy: ExamSlotOccupancyPort<Trx>;
   /** D18 (BR-CLN-06/BR-RX-07) — ver `PrescriptionsPort` acima. */
   prescriptions: PrescriptionsPort<Trx>;
+  /** D20 (ADR-024): pesquisa de paciente por e-mail exato (walk-in). */
+  patients: PatientDirectoryPort<Trx>;
+  /** BR-CLN-10: rate limit dos endpoints walk-in (por conta, por IP, falhas 404). */
+  walkInRateLimiter: WalkInRateLimiter;
   audit: AuditPort<Trx>;
   db: Trx;
   withTransaction: WithTransaction<Trx>;

@@ -123,3 +123,6 @@ integridade de negócio: um horário (`ClinicSlot`) com um pedido `REQUESTED` se
 indefinidamente (BR-APT-06: só **uma** marcação ativa por horário), mesmo depois de passada a hora,
 até a clínica responder manualmente. Registado como funcionalidade em falta, não implementada por
 não haver decisão aprovada (fica para change control do proprietário, não para esta fase).
+
+## Marcação presencial pela clínica (walk-in, D20/ADR-024, BR-CLN-10)
+`POST /clinic-portal/patient-lookup` e `POST /clinic-portal/walk-in-appointments`: `interface/clinic-portal-router.ts` -> `application/clinic-walk-in.ts` (rate limit em memória de `domain/walk-in.ts`; paciente resolvido pela porta `PatientDirectoryPort`, ligada em `main/api.ts` a `users.byEmail` + `families.findActiveSelfMemberOfUser`, sem aresta nova entre módulos). A consulta nasce `SCHEDULED` no membro SELF com `walk_in=true` (migração `0026`). O alerta `APPOINTMENT_CONFIRMED` não existe (OP-22/OP-07).

@@ -28,6 +28,10 @@ export interface Appointment {
   clinicOutcomeNote?: string;
   outcomeRecordedByClinicAccountId?: string;
   outcomeRecordedAt?: Date;
+  /** D20 (ADR-024): marcada presencialmente pela clínica; marca permanente. */
+  walkIn?: boolean;
+  /** Autor da marcação walk-in (anulado se a conta for removida; `walkIn` mantém-se). */
+  bookedByClinicAccountId?: string;
   createdAt: Date;
 }
 

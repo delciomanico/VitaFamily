@@ -33,6 +33,8 @@ interface AppointmentRow {
   clinic_outcome_note: string | null;
   outcome_recorded_by_clinic_account_id: string | null;
   outcome_recorded_at: Date | null;
+  walk_in: boolean;
+  booked_by_clinic_account_id: string | null;
   created_at: Date;
 }
 
@@ -56,6 +58,8 @@ function toAppointment(row: AppointmentRow): Appointment {
   if (row.clinic_outcome_note !== null) appointment.clinicOutcomeNote = row.clinic_outcome_note;
   if (row.outcome_recorded_by_clinic_account_id !== null) appointment.outcomeRecordedByClinicAccountId = row.outcome_recorded_by_clinic_account_id;
   if (row.outcome_recorded_at !== null) appointment.outcomeRecordedAt = row.outcome_recorded_at;
+  if (row.walk_in) appointment.walkIn = true;
+  if (row.booked_by_clinic_account_id !== null) appointment.bookedByClinicAccountId = row.booked_by_clinic_account_id;
   return appointment;
 }
 
@@ -76,6 +80,8 @@ const APPOINTMENT_COLUMNS = [
   "clinic_outcome_note",
   "outcome_recorded_by_clinic_account_id",
   "outcome_recorded_at",
+  "walk_in",
+  "booked_by_clinic_account_id",
   "created_at",
 ] as const;
 
@@ -96,6 +102,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         reason: record.reason ?? null,
         notes: record.notes ?? null,
         slot_id: record.slotId ?? null,
+        ...(record.walkIn ? { walk_in: true, booked_by_clinic_account_id: record.bookedByClinicAccountId ?? null } : {}),
         created_at: record.createdAt,
       })
       .returning(APPOINTMENT_COLUMNS)
@@ -305,5 +312,18 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
       .returning(APPOINTMENT_COLUMNS)
       .executeTakeFirstOrThrow();
     return toAppointment(row);
+  }
+
+  async findScheduledStartingBetween(trx: Kysely<Database>, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]> {
+    const rows = await trx
+      .selectFrom("appointments")
+      .select(APPOINTMENT_COLUMNS)
+      .where("family_id", "=", familyId)
+      .where("member_id", "=", memberId)
+      .where("status", "=", "SCHEDULED")
+      .where("scheduled_at", ">=", from)
+      .where("scheduled_at", "<", to)
+      .execute();
+    return rows.map(toAppointment);
   }
 }

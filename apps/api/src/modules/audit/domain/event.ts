@@ -119,6 +119,9 @@ export type AuditAction =
   | "CLINIC_SLOT_PUBLISH"
   | "CLINIC_SLOT_UPDATE"
   | "CLINIC_SLOT_REMOVE"
+  // Marcação presencial pela clínica (D20, ADR-024, BR-CLN-10): nunca o e-mail pesquisado nem o displayName.
+  | "CLINIC_WALKIN_LOOKUP"
+  | "CLINIC_WALKIN_BOOK"
   // Seguradoras e portal da seguradora (ADR-021/ADR-023, BR-ADM-05/06, BR-INS-06): sem PII no metadata.
   | "ADMIN_INSURER_CREATE"
   | "ADMIN_INSURER_UPDATE"

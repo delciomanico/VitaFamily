@@ -5,6 +5,7 @@ import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput, Relation } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Appointment, AppointmentStatus } from "../domain/appointment.js";
+import { WalkInInMemoryRateLimiter } from "../domain/walk-in.js";
 import type {
   AccessPolicyPort,
   AppointmentChanges,
@@ -23,6 +24,7 @@ import type {
   MembershipPort,
   MemberNamesPort,
   NewAppointmentRecord,
+  PatientDirectoryPort,
   PrescriptionsPort,
   RequestContext,
 } from "./ports.js";
@@ -69,7 +71,7 @@ export class FakeClinicsPort implements ClinicsPort<FakeTrx> {
 
   async getBookableClinic(_trx: FakeTrx, familyId: string, clinicId: string): Promise<{ id: string; name: string } | null> {
     const clinic = this.clinics.get(clinicId);
-    if (!clinic || !clinic.active || clinic.familyId !== familyId) {
+    if (!clinic || !clinic.active || (clinic.familyId !== "" && clinic.familyId !== familyId)) {
       return Promise.resolve(null);
     }
     return Promise.resolve({ id: clinic.id, name: clinic.name });
@@ -84,6 +86,11 @@ export class FakeClinicsPort implements ClinicsPort<FakeTrx> {
     return Promise.resolve(slot?.clinicId === clinicId ? slot : null);
   }
 
+  async lockSlot(_trx: FakeTrx, slotId: string): Promise<ClinicSlotLite | null> {
+    return Promise.resolve(this.slots.get(slotId) ?? null);
+  }
+
+  /** `familyId` vazio = clínica PARTNER (selecionável por qualquer família). */
   seed(id: string, name: string, familyId: string, active = true): void {
     this.clinics.set(id, { id, name, familyId, active });
   }
@@ -147,6 +154,21 @@ export class FakePrescriptionsPort implements PrescriptionsPort<FakeTrx> {
   }
 }
 
+/** D20: `email` (já normalizado) -> paciente resolvível; ausente = inexistente/não ACTIVE/sem SELF (oráculo uniforme). */
+export class FakePatientDirectory implements PatientDirectoryPort<FakeTrx> {
+  readonly patients = new Map<string, { familyId: string; memberId: string; fullName: string }>();
+  readonly lookedUp: string[] = [];
+
+  async findSelfByEmail(_trx: FakeTrx, email: string): Promise<{ familyId: string; memberId: string; fullName: string } | null> {
+    this.lookedUp.push(email);
+    return Promise.resolve(this.patients.get(email) ?? null);
+  }
+
+  seed(email: string, familyId: string, memberId: string, fullName: string): void {
+    this.patients.set(email, { familyId, memberId, fullName });
+  }
+}
+
 function sortByCreatedAt<T extends { createdAt: Date; id: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
 }
@@ -183,6 +205,8 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
       ...(record.reason !== undefined ? { reason: record.reason } : {}),
       ...(record.notes !== undefined ? { notes: record.notes } : {}),
       ...(record.slotId !== undefined ? { slotId: record.slotId } : {}),
+      ...(record.walkIn ? { walkIn: true } : {}),
+      ...(record.bookedByClinicAccountId !== undefined ? { bookedByClinicAccountId: record.bookedByClinicAccountId } : {}),
     };
     this.byId.set(appointment.id, appointment);
     return Promise.resolve(appointment);
@@ -337,6 +361,14 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     return Promise.resolve(updated);
   }
 
+  async findScheduledStartingBetween(_trx: FakeTrx, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]> {
+    return Promise.resolve(
+      [...this.byId.values()].filter(
+        (a) => a.familyId === familyId && a.memberId === memberId && a.status === "SCHEDULED" && a.scheduledAt.getTime() >= from.getTime() && a.scheduledAt.getTime() < to.getTime(),
+      ),
+    );
+  }
+
   private requireOwned(familyId: string, memberId: string, appointmentId: string): Appointment {
     const appointment = this.byId.get(appointmentId);
     if (!appointment) {
@@ -362,6 +394,7 @@ export interface AppointmentsFixtures {
   clinics: FakeClinicsPort;
   examSlotOccupancy: FakeExamSlotOccupancyPort;
   prescriptions: FakePrescriptionsPort;
+  patients: FakePatientDirectory;
   audit: FakeAuditPort;
 }
 
@@ -373,6 +406,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const clinics = new FakeClinicsPort();
   const examSlotOccupancy = new FakeExamSlotOccupancyPort();
   const prescriptions = new FakePrescriptionsPort();
+  const patients = new FakePatientDirectory();
   const audit = new FakeAuditPort();
   const deps: AppointmentsDeps<FakeTrx> = {
     appointmentsRepo,
@@ -382,10 +416,12 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     clinics,
     examSlotOccupancy,
     prescriptions,
+    patients,
+    walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, audit };
+  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, audit };
 }

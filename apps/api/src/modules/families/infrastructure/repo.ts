@@ -237,6 +237,20 @@ export class KyselyMembersRepository implements MembersRepository<Kysely<Databas
     return row ? toMember(row) : null;
   }
 
+  /** Membro `SELF` do utilizador (o que tem a sua conta) — D20/OP-23: assume-se um por utilizador; havendo vários, o mais antigo. */
+  async findActiveSelfOfUser(trx: Kysely<Database>, userId: string): Promise<FamilyMember | null> {
+    const row = await trx
+      .selectFrom("family_members")
+      .select(MEMBER_COLUMNS)
+      .where("user_id", "=", userId)
+      .where("status", "=", "ACTIVE")
+      .orderBy("created_at", "asc")
+      .orderBy("id", "asc")
+      .limit(1)
+      .executeTakeFirst();
+    return row ? toMember(row) : null;
+  }
+
   async listFamilyIdsForUser(
     trx: Kysely<Database>,
     userId: string,

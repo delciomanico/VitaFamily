@@ -23,6 +23,7 @@ import type {
   CompleteConsultationInput,
   ListClinicAgendaQuery,
 } from "../application/clinic-appointments.js";
+import type { ClinicPatientLookupResult, CreateWalkInAppointmentInput } from "../application/clinic-walk-in.js";
 import type { ClinicPortalActor, ClinicPrescriptionInput } from "../application/ports.js";
 import { toClinicAppointmentListResponse, toClinicAppointmentResponse } from "./dto.js";
 
@@ -32,6 +33,9 @@ export interface AppointmentsClinicPortalController {
   listClinicAgenda: (actor: ClinicPortalActor, query: ListClinicAgendaQuery) => Promise<ClinicAppointmentView[]>;
   cancelClinicAppointment: (actor: ClinicPortalActor, appointmentId: string, input: CancelClinicAppointmentInput, context: RequestContext) => Promise<ClinicAppointmentView>;
   completeClinicAppointment: (actor: ClinicPortalActor, appointmentId: string, input: CompleteConsultationInput, context: RequestContext) => Promise<ClinicAppointmentView>;
+  /** D20 (ADR-024, BR-CLN-10). */
+  clinicPatientLookup: (actor: ClinicPortalActor, input: { email: unknown }, context: RequestContext) => Promise<ClinicPatientLookupResult>;
+  createClinicWalkInAppointment: (actor: ClinicPortalActor, input: CreateWalkInAppointmentInput, context: RequestContext) => Promise<ClinicAppointmentView>;
 }
 
 function requireClinicPortalActor(): ClinicPortalActor {
@@ -122,6 +126,25 @@ export function createAppointmentsClinicPortalRouter(controller: AppointmentsCli
       };
       const result = await controller.completeClinicAppointment(requireClinicPortalActor(), requireParam(req, "appointmentId"), input, buildRequestContext(req));
       res.json(toClinicAppointmentResponse(result));
+    }),
+  );
+
+  router.post(
+    "/clinic-portal/patient-lookup",
+    asyncHandler(async (req, res) => {
+      const body = req.body as { email?: unknown };
+      const result = await controller.clinicPatientLookup(requireClinicPortalActor(), { email: body.email }, buildRequestContext(req));
+      res.json({ displayName: result.displayName });
+    }),
+  );
+
+  router.post(
+    "/clinic-portal/walk-in-appointments",
+    asyncHandler(async (req, res) => {
+      const body = req.body as { patientEmail?: unknown; slotId?: unknown; notes?: string | null };
+      const input: CreateWalkInAppointmentInput = { patientEmail: body.patientEmail, slotId: typeof body.slotId === "string" ? body.slotId : "", notes: body.notes ?? null };
+      const result = await controller.createClinicWalkInAppointment(requireClinicPortalActor(), input, buildRequestContext(req));
+      res.status(201).json(toClinicAppointmentResponse(result));
     }),
   );
 
