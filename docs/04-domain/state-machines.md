@@ -1,6 +1,6 @@
 # Vita Family — Estados e transições (Fase 10)
 
-> Estado: **v0.4 — `Examination` com marcação direta (nasce `SCHEDULED`), sem `REQUESTED`/`REJECTED` (ADR-023 revisto 2026-11-04); v0.3 introduzira-os; v0.2 acrescentou `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
+> Estado: **v0.5 — módulo operacional de seguradoras: `Beneficiary`, `Policy`, `Plan`, `BeneficiaryLinkRequest`, `AuthorizationRequest`, `ExpenseClaim`, `Provider` (ADR-025); v0.4 — `Examination` com marcação direta (nasce `SCHEDULED`), sem `REQUESTED`/`REJECTED` (ADR-023 revisto 2026-11-04); v0.3 introduzira-os; v0.2 acrescentou `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
 > Notação: `A → B [quem / condição]`. Transições não listadas são **proibidas** e devolvem `INVALID_STATE_TRANSITION` (409).
 
 ## User
@@ -104,6 +104,73 @@ APPROVED → PAID        [titular/tutor, confirma receção do pagamento]
 Nasce `SUBMITTED` ao submeter (`SELF`/`TUTOR_OF`). `APPROVED → PAID` é ação do titular/tutor nesta versão
 (não do portal — ver ADR-021, fora do MVP desta funcionalidade marcar `PAID` do lado da seguradora).
 Sem transição para fora de `PAID`/`REJECTED` (estados finais).
+
+## Módulo operacional de seguradoras (ADR-025)
+
+### Beneficiary
+```text
+PENDING → ACTIVE       [BENEFICIARY_MANAGER/INSURANCE_ADMIN, após validação; nunca automático na importação, BR-SEG-17]
+ACTIVE → SUSPENDED     [idem, com motivo]
+SUSPENDED → ACTIVE     [idem]
+ACTIVE|SUSPENDED|PENDING → CANCELLED   [idem, com motivo; final]
+```
+`CANCELLED` é final. Só `ACTIVE` é elegível (BR-SEG-01).
+
+### Policy (apólice da seguradora)
+```text
+DRAFT → ACTIVE         [BENEFICIARY_MANAGER/INSURANCE_ADMIN; plano `ACTIVE`]
+ACTIVE → SUSPENDED     [idem, com motivo]
+SUSPENDED → ACTIVE     [idem]
+ACTIVE → EXPIRED       [sistema, após validTo]
+DRAFT|ACTIVE|SUSPENDED → CANCELLED   [idem, com motivo]
+```
+`EXPIRED` e `CANCELLED` são finais.
+
+### Plan
+```text
+DRAFT → ACTIVE         [INSURANCE_ADMIN]
+ACTIVE → ARCHIVED      [INSURANCE_ADMIN; já não aceita apólices novas]
+```
+Um plano com apólices ativas é imutável: alterar = nova versão em `DRAFT` (estados `Plan` PROPOSTOS, ratificar em S2).
+
+### BeneficiaryLinkRequest (BR-SEG-20)
+```text
+PENDING → CONFIRMED    [BENEFICIARY_MANAGER/INSURANCE_ADMIN]
+PENDING → REJECTED     [idem, com motivo]
+CONFIRMED → REVOKED    [paciente (SELF/TUTOR_OF) ou seguradora]
+```
+Pedido com código inválido/expirado não cria linha (resposta genérica; rate limit).
+
+### AuthorizationRequest
+```text
+SUBMITTED → AUTO_APPROVED   [sistema, só se todas as condições de BR-SEG-03 forem verdadeiras]
+SUBMITTED → IN_REVIEW       [sistema, caso contrário]
+IN_REVIEW → APPROVED        [AUTHORIZATION_ANALYST; define authorizedAmount/validUntil; reserva saldo]
+IN_REVIEW → REJECTED        [idem, motivo obrigatório; final]
+IN_REVIEW → INFO_REQUESTED  [idem, motivo obrigatório]
+INFO_REQUESTED → IN_REVIEW  [clínica responde]
+APPROVED|AUTO_APPROVED → USED       [sistema, ao aprovar a despesa ligada; reserva → used]
+APPROVED|AUTO_APPROVED → EXPIRED    [sistema, após validUntil; liberta reserva]
+APPROVED|AUTO_APPROVED → CANCELLED  [AUTHORIZATION_ANALYST (com motivo; reverte auto-aprovação, BR-SEG-16) ou clínica; liberta reserva]
+```
+Cada decisão é um evento imutável (quem, quando, motivo, estado). `REJECTED`, `USED`, `EXPIRED`, `CANCELLED` são finais.
+
+### ExpenseClaim
+```text
+SUBMITTED → IN_REVIEW   [CLAIMS_MANAGER abre/assume; ou sistema, por duplicado BR-SEG-11 ou valor > autorizado BR-SEG-13]
+IN_REVIEW → APPROVED    [CLAIMS_MANAGER; converte reserva em used; marca o atendimento DIRECT_BILLED]
+IN_REVIEW → REJECTED    [idem, motivo obrigatório; final]
+IN_REVIEW → RETURNED    [idem, motivo obrigatório, BR-SEG-12]
+RETURNED → SUBMITTED    [clínica corrige]
+APPROVED → PENDING_PAYMENT → PAID   [fase 2 — fora do MVP; no MVP termina em APPROVED]
+```
+Duplicados são detetados à submissão e ficam `IN_REVIEW` com flag, nunca rejeitados automaticamente. A clínica só edita em `RETURNED`.
+
+### Provider
+```text
+ACTIVE ⇄ SUSPENDED      [INSURANCE_ADMIN, com motivo]
+```
+`SUSPENDED`: a clínica deixa de validar/submeter (`NOT_FOUND`); registos existentes mantêm-se.
 
 ## Alert / Notification
 ```text

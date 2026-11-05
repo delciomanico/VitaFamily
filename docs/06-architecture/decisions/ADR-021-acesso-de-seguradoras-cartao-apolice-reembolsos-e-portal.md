@@ -81,3 +81,6 @@ seguradora decide ao rever o pedido, sem integração externa.
 
 ## Adenda (ADR-023, 2026-11-04, decisão do proprietário)
 Lacunas de contrato fechadas: `PATCH /admin/insurers/{insurerId}`; `InsurancePolicy.insurerId?` (ligação opcional a seguradora parceira) + `GET /families/{familyId}/insurers`; CHECK corrigida de `reimbursement_claims`; seguradora suspensa revoga sessões e bloqueia novos pedidos (BR-INS-09/10); casos de uso em `03-use-cases/insurance.md`. Ver ADR-023.
+
+## Adenda (ADR-025, 2026-11-05, decisão do proprietário)
+`BR-INS-08` emendada: as exclusões de pré-autorização, verificação de apólice e consulta de cobertura deixam de se aplicar às seguradoras com módulo operacional ativo (beneficiários, planos, elegibilidade, autorizações, despesas; papéis alargados em `authorization.md` §8.2b; moeda por seguradora). O fluxo de reembolso deste ADR mantém-se inalterado. Catálogo de auditoria do portal da seguradora fechado em `audit.md` §3. Ver ADR-025.
