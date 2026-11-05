@@ -1,6 +1,6 @@
 # Vita Family — Entidades (Fase 9)
 
-> Estado: **v0.4** — `ClinicSlot.capacity` e exame marcado diretamente (`SCHEDULED`, sem pedido/recusa; ADR-023 revisto 2026-11-04); v0.3: `ClinicSlot.kind`, `Examination` emitido pela clínica, `Recommendation`, `InsurancePolicy.insurerId` (ADR-023, D19); v0.2 acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
+> Estado: **v0.5** — módulo operacional de seguradoras (ADR-025: secção própria; `InsurerAccount.currency`/`operationalModuleEnabled`; papéis alargados); v0.4 — `ClinicSlot.capacity` e exame marcado diretamente (`SCHEDULED`, sem pedido/recusa; ADR-023 revisto 2026-11-04); v0.3: `ClinicSlot.kind`, `Examination` emitido pela clínica, `Recommendation`, `InsurancePolicy.insurerId` (ADR-023, D19); v0.2 acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
 > Convenções: `id` UUID; `createdAt`/`updatedAt` em UTC em todas, salvo indicação; `?` = opcional.
 > **Categoria** indica a categoria de privacidade (C2–C6) dos registos de saúde.
 
@@ -105,15 +105,63 @@ Sem FK para `users` nem `family_members`: não é membro de nenhuma família por
 **Regras:** BR-INS-01/02. Criado/editado/visto só por `SELF` (adulto) ou `TUTOR_OF`; sem `SharingGrant`, sem acesso de `OTHER` nesta versão.
 
 ### ReimbursementClaim — só existe sobre uma apólice de seguradora parceira (ADR-021)
-`policyId` · `amount` (decimal) · `currency` (default EUR) · `status` (SUBMITTED | APPROVED | REJECTED | PAID) · `decisionNote?` (motivo da seguradora) · `decidedByInsuranceAccountId?` · `decidedAt?` · `submittedBy` (userId)
+`policyId` · `insurerId` · `encounterId?` (atendimento do módulo operacional a que se refere, BR-SEG-21) · `amount` (decimal) · `currency` (copiada de `InsurerAccount.currency` à criação; sem default fixo, ADR-025/Q1) · `status` (SUBMITTED | APPROVED | REJECTED | PAID) · `decisionNote?` (motivo da seguradora) · `decidedByInsuranceAccountId?` · `decidedAt?` · `submittedBy` (userId)
 **Regras:** BR-INS-03..05. Criado/submetido por `SELF`/`TUTOR_OF`. Associação `claim ↔ Document` por `reimbursement_claim_documents (claimId, documentId)` — sem entidade de anexo nova; a seguradora só vê os documentos desta lista.
 
 ### InsurerAccount — a seguradora parceira (ADR-021, mirror de `Clinic` PARTNER)
-`name` · `taxId` (NIF) · `status` (ACTIVE | SUSPENDED) · `createdBy` (Platform Admin)
+`name` · `taxId` (NIF) · `status` (ACTIVE | SUSPENDED) · `currency` (ISO 4217; default `AOA`, ADR-025/Q1) · `operationalModuleEnabled` (bool, default falso; ligado pelo Platform Admin, BR-INS-08 emendada) · `createdBy` (Platform Admin)
 
 ### InsuranceAccount — conta do portal da seguradora (ADR-021, mirror de `ClinicAccount`)
-`insurerId` · `email` · `passwordHash` · `role` (INSURANCE_ADMIN | INSURANCE_AGENT) · `status` (ACTIVE | SUSPENDED)
+`insurerId` · `email` · `passwordHash` · `role` (INSURANCE_ADMIN | INSURANCE_AGENT | BENEFICIARY_MANAGER | AUTHORIZATION_ANALYST | CLAIMS_MANAGER | FINANCE_MANAGER; os quatro últimos só com módulo operacional, ADR-025) · `status` (ACTIVE | SUSPENDED)
 Sem FK para `users` nem `family_members`.
+
+## Módulo operacional de seguradoras (ADR-025) — dados **da seguradora**, nunca de `FamilyMember`
+
+> Todas as entidades desta secção têm `insurerId` (tenant, obrigatório) e referências entre si por `(insurerId, id)` (FK composta, BR-SEG-14). Não pertencem a nenhuma família (ADR-005 não se aplica) e **nunca** guardam dados de saúde: o atendimento só tem código de serviço (Q5). Valores monetários: `numeric`, na `currency` da seguradora (BR-SEG-19). Nomes de tabela com prefixo `insurer_` em `schema.md` (para não colidir com `InsurancePolicy` do paciente).
+
+### Company
+`insurerId` · `name` · `taxId` (NIF) · `status` (ACTIVE | INACTIVE). Empresa cliente (apólice de grupo). UC-SEG-01.
+
+### Beneficiary
+`insurerId` · `companyId?` · `name` · `identityDocument` (tipo + número; único por seguradora) · `birthDate` · `holderId?` (titular do agregado; nulo = é titular) · `relationship` (HOLDER | SPOUSE | CHILD | OTHER) · `cardNumber` (único por seguradora) · `cardVersion` (int; incrementado para revogar QR) · `status` (PENDING | ACTIVE | SUSPENDED | CANCELLED) · `familyId?` · `familyMemberId?` (ligação **consentida** ao perfil do paciente, BR-SEG-20; FK composta `SET NULL`).
+**Regras:** BR-SEG-01/14/17/20/23. Não é `FamilyMember`. Ciclo: `state-machines.md` (Beneficiary).
+
+### BeneficiaryLinkRequest
+`insurerId` · `beneficiaryId` · `requestedByUserId` · `familyId` · `familyMemberId` · `status` (PENDING | CONFIRMED | REJECTED | REVOKED) · `decidedByInsuranceAccountId?` · `decidedAt?`. Pedido do paciente para reclamar o cartão (nº de apólice + código da seguradora; o código é guardado só em hash, uso único, validade curta). BR-SEG-20.
+
+### Plan / PlanCoverage / InsurerService
+- **InsurerService** (lista de serviços **por seguradora**, BR-SEG-22): `insurerId` · `code` (único por seguradora) · `name` · `category` · `status` (ACTIVE | INACTIVE).
+- **Plan:** `insurerId` · `name` · `version` (int) · `status` (DRAFT | ACTIVE | ARCHIVED) · `autoApprovalCeiling?` (teto de auto-aprovação, BR-SEG-03) · `amountTolerancePct?` (tolerância fatura > autorizado, BR-SEG-13). **Imutável depois de ter apólices ativas**: alterações criam nova versão (auditável).
+- **PlanCoverage:** `planId` · `serviceId` · `type` (INCLUDED | LIMITED | EXCLUDED) · `copayPct` (0–100) · `limitPerBeneficiary?` · `limitPerFamily?` · `limitPerYear?` · `waitingDays` · `requiresAuthorization`. **Regras em dados**, nunca em código; exclusões prevalecem (BR-SEG-09).
+
+### Policy (apólice da seguradora)
+`insurerId` · `planId` · `companyId?` · `holderId` (beneficiário titular) · `number` (único por seguradora) · `validFrom` · `validTo` · `status` (DRAFT | ACTIVE | SUSPENDED | EXPIRED | CANCELLED). **Distinta** de `InsurancePolicy` (cartão do paciente, ADR-021): são dois conceitos; a ligação é só por BR-SEG-20.
+
+### Provider / ProviderUnit
+- **Provider:** `insurerId` · `name` · `taxId` · `type` (CLINIC | HOSPITAL | LABORATORY | PHARMACY) · `clinicId?` (clínica `PARTNER` da VitaFamily; único por seguradora; dá acesso do portal da clínica, `authorization.md` §8.4) · `status` (ACTIVE | SUSPENDED) · serviços cobertos (associação a `InsurerService`).
+- **ProviderUnit:** `providerId` · `name` · `address?` · `specialties` (texto).
+
+### AuthorizationRequest
+`insurerId` · `beneficiaryId` · `providerId` · `serviceId` · `justification` · `status` (SUBMITTED | AUTO_APPROVED | IN_REVIEW | INFO_REQUESTED | APPROVED | REJECTED | USED | EXPIRED | CANCELLED) · `requestedAmount` · `authorizedAmount?` · `code?` (único, não adivinhável, BR-SEG-05) · `validUntil?` · `decidedByInsuranceAccountId?` (nulo em `AUTO_APPROVED`) · `decisionNote?` · `submittedByClinicAccountId`. Anexos em `Attachment`. Cada decisão gera um evento imutável (utilizador, data, motivo, estado; correções = novo evento).
+
+### Encounter (atendimento)
+`insurerId` · `beneficiaryId` · `providerId` · `serviceId` · `doctorName` (texto) · `occurredOn` · `authorizationId?` · `directBilled` (bool; `true` quando a despesa é aprovada, BR-SEG-21) · `registeredByClinicAccountId`. **Sem diagnóstico** (Q5).
+
+### ExpenseClaim / ExpenseLine
+- **ExpenseClaim:** `insurerId` · `beneficiaryId` · `providerId` · `authorizationId?` · `encounterId` · `status` (SUBMITTED | IN_REVIEW | APPROVED | REJECTED | RETURNED; `PENDING_PAYMENT`/`PAID`: fase 2) · `total` · `insurerShare` · `patientShare` · `duplicateKey` · `duplicateFlag` · `decisionNote?`. Fluxo da **clínica**; coexiste com `ReimbursementClaim` do paciente.
+- **ExpenseLine:** `claimId` · `serviceId` · `quantity` · `unitAmount`.
+
+### CoverageConsumption
+`insurerId` · `beneficiaryId` · `coverageId` · `periodYear` · `used` · `reserved` (autorizações aprovadas e despesas pendentes, BR-SEG-07). Saldo = limite − `used` − `reserved`; vence o menor entre individual, familiar e anual (BR-SEG-08).
+
+### Attachment
+`insurerId` · `ownerType` (AUTHORIZATION | EXPENSE) · `ownerId` · metadados do ficheiro (como `Document`) · `scanStatus`. Armazenamento/antivírus reutilizados de `documents` (pendência do ADR-025).
+
+### ImportBatch
+`insurerId` · `format` (CSV | XLSX) · `rowCount` (≤ 5.000) · `status` (PREVIEW | COMMITTED | FAILED | CANCELLED) · `errorReport?` · `createdByInsuranceAccountId`. BR-SEG-17.
+
+### Cartão digital (derivado)
+Calculado a partir de `Beneficiary` + `Policy`; QR com token assinado, de validade curta e revogável por `cardVersion` (BR-SEG-18). Sem dados clínicos. Não é tabela.
 
 ## Alertas
 
@@ -126,7 +174,7 @@ Entrega de um Alert num canal. `alertId` · `channel` (PUSH | EMAIL) · `status`
 ## Transversal
 
 ### AuditLog
-`occurredAt` · `actorType` (USER | SYSTEM | PLATFORM_ADMIN | CLINIC_ACCOUNT | INSURANCE_ACCOUNT) · `actorClinicAccountId?` · `actorUserId?` · `action` · `resourceType` · `resourceId?` · `familyId?` · `subjectMemberId?` · `result` (SUCCESS | DENIED | FAILURE) · `ip?` · `userAgent?` · `requestId` · `metadata?` (sem dados de saúde)
+`occurredAt` · `actorType` (USER | SYSTEM | PLATFORM_ADMIN | CLINIC_ACCOUNT | INSURANCE_ACCOUNT) · `actorClinicAccountId?` · `actorInsuranceAccountId?` · `actorUserId?` · `action` · `resourceType` · `resourceId?` · `familyId?` · `subjectMemberId?` · `result` (SUCCESS | DENIED | FAILURE) · `ip?` · `userAgent?` · `requestId` · `metadata?` (sem dados de saúde)
 
 ### DataExport
 `requestedByUserId` · `subjectMemberId?` (dependente) · `reason` (USER_REQUEST | LEAVE_FAMILY | REMOVED_BY_ADMIN) · `status` (PENDING | READY | EXPIRED | FAILED) · `storageKey?` · `expiresAt?`

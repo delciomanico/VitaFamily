@@ -34,7 +34,8 @@ Dois pontos de entrada no mesmo binário: `vita api` e `vita worker` (ver `cmd/v
 | **examinations** | Examination e ExamResult; marcação direta (`SCHEDULED`) de exames em horários de clínica parceira com vagas (reserva sob bloqueio do horário, BR-APT-11), cancelamento e conclusão pela clínica (router `/clinic-portal/exam-agenda*`, ADR-023 revisto 2026-11-04; sem pedidos nem job de expiração). | access, clinics, documents, audit | `ExaminationLookup` (para `recommendations`/`alerts`) |
 | **clinic-portal** (transversal, **não é módulo próprio**) | O prefixo `/clinic-portal/*` (ADR-020/023; segundo ator `ClinicActorInfo`, nunca `AccessPolicy`) é servido por routers de módulos existentes: `clinics` (`auth`, `staff`, `slots`), `appointments` (`requests`, `agenda`), `examinations` (`exam-agenda`, `exam-agenda/*/documents`), `recommendations` (`recommendations`). | os do módulo que serve cada rota | — |
 | **recommendations** | Recommendation (nota clínica da clínica sobre consulta/exame, ADR-023); leitura pela família. | access, appointments, examinations, audit | `RecommendationQuery` (para `alerts`) |
-| **insurance** / **insurance-portal** | `InsurancePolicy`, `ReimbursementClaim` e portal da seguradora (ADR-021, ADR-023). `insurance`: access, documents, audit; `insurance-portal` só lê `insurance` pela raiz; nunca `auth`/`access`/`families`/`clinics`. | ver ADR-021 | — |
+| **insurance** / **insurance-portal** | `InsurancePolicy`, `ReimbursementClaim` e portal da seguradora (ADR-021, ADR-023); ADR-025: `insurer_accounts` ganha `currency`/`operational_module_enabled`, `reimbursement_claims.encounter_id`. `insurance`: access, documents, audit; `insurance-portal` só lê `insurance` pela raiz; nunca `auth`/`access`/`families`/`clinics`. | ver ADR-021 | — |
+| **insurer-ops** (ADR-025, nome provisório; pode dividir-se por ADR-016) | Módulo operacional de seguradoras: `Company`, `Beneficiary` (+ligação consentida), `Plan`/`PlanCoverage`/`InsurerService`, `Policy`, `Provider`, `AuthorizationRequest`, `Encounter`, `ExpenseClaim`, `CoverageConsumption`, importação, dashboard. Serve três prefixos: `/insurance-portal/*` (papéis de §8.2b), `/clinic-portal/insurers/*` (§8.4, ator `ClinicAccount`) e `/families/{f}/members/{m}/insurance/*` (§8.5, `AccessPolicy`, categoria de seguro). Só ativo para seguradoras com `operational_module_enabled`. Dados **da seguradora**, nunca de saúde. | access (só rotas do paciente), clinics (só `ClinicLookup`), documents (só armazenamento/antivírus de anexos, via raiz), insurance (lê `insurer_accounts` e `reimbursement_claims` pela raiz), audit (nota 23) | `EligibilityQuery`, `BeneficiaryLookup` (para `insurance`, BR-SEG-21) |
 | **documents** | Armazenamento, validação, antivírus, download mediado, quotas. | access, audit | `DocumentService` |
 | **alerts** | Regras puras, destinatários, scanner e geração idempotente de alertas, listagem/leitura. | medications, appointments, examinations, families, notifications (nota 15) | — |
 | **notifications** | Canais e entrega (push/e-mail), preferências, subscrições, retry. | users | `NotificationChannel`, `Mailer` |
@@ -89,12 +90,14 @@ Dois pontos de entrada no mesmo binário: `vita api` e `vita worker` (ver `cmd/v
     só os `userId` dos tutores (nunca o `FamilyMember` completo). Descoberto durante a
     implementação de M8; acrescentado aqui pelo mesmo critério das notas 7-15.
 
+23. (ADR-025, D21 — **declarativa até S1**) `insurer-ops` é módulo novo, **não importa** `auth`, `families`, `clinic-portal`, `reports`, módulos de saúde. Arestas: (a) `insurer-ops` → `access` só nas rotas do paciente (§8.5), ator `User`; as rotas `/insurance-portal/*` e `/clinic-portal/insurers/*` usam os seus próprios contextos (`InsuranceActorInfo`/`ClinicActorInfo`) e nunca `AccessPolicy`; (b) `insurer-ops` → `clinics` por `ClinicLookup` (validar que a clínica é `PARTNER` ao ligar um `Provider`); (c) `insurer-ops` → `documents` só pela raiz, para armazenamento/antivírus de anexos (pendência de ADR-025); (d) `insurer-ops` → `insurance` (lê `insurer_accounts`, `currency`, `operational_module_enabled`) e `insurance` → `insurer-ops` por **interface de consulta** (`BeneficiaryLookup`/`EncounterDirectBilled`, BR-SEG-21) — **risco de ciclo**: a porta é definida em `insurance/application` e implementada por `insurer-ops/interface`, ligada em `main/api.ts` (mesmo critério da nota 20), `insurance` nunca importa `insurer-ops`; (e) `admin` → `insurance` para ativar o módulo/moeda (BR-ADM); (f) a ligação paciente↔beneficiário usa `family_members` **só** pela FK composta e por uma porta `FamilyMemberLookup` (família resolve "o `userId` é `SELF`/`TUTOR_OF` deste membro"); `insurer-ops` nunca lê tabelas de `families`. Testes de arquitetura validam todas.
+
 ## 4. Processos (API vs worker)
 
 | Processo | Módulos ativos | Tarefas |
 |---|---|---|
 | **API** | todos os controllers | HTTP |
-| **Worker** | `alerts`, `notifications`, `medications` (geração/UNCONFIRMED), `documents` (antivírus), `lifecycle`, `audit` (purga), `auth` (limpeza de tokens/sessões), `families` (expirar convites) | filas e agendamentos |
+| **Worker** | `insurer-ops` (expirar autorizações/apólices), `alerts`, `notifications`, `medications` (geração/UNCONFIRMED), `documents` (antivírus), `lifecycle`, `audit` (purga), `auth` (limpeza de tokens/sessões), `families` (expirar convites) | filas e agendamentos |
 
 ## 5. Jobs agendados
 
@@ -112,6 +115,8 @@ Dois pontos de entrada no mesmo binário: `vita api` e `vita worker` (ver `cmd/v
 | `families.expire-invitations` | horário | PENDING → EXPIRED. |
 | `auth.cleanup` | diário | Tokens/sessões expirados. |
 | `audit.purge` | diário | Remover logs com >24 meses. |
+| `insurer.expire-authorizations` | diário (ADR-025, S4) | `APPROVED\|AUTO_APPROVED` com `validUntil` passado → `EXPIRED` e libertar reserva (idempotente, auditada como `SYSTEM`). |
+| `insurer.expire-policies` | diário (ADR-025, S1) | `ACTIVE` com `validTo` passado → `EXPIRED`. |
 
 > `examinations.expire-requests` (BR-EXM-07) **não faz parte do contrato**: obsoleto desde a revisão de 2026-11-04 do ADR-023 (exames nascem `SCHEDULED`, não há pedidos). BR-APT-08 (expiração de pedidos de **consulta**) continua `PROPOSTO` e **sem job** no contrato nem no código; só passa à tabela se o proprietário o aprovar.
 

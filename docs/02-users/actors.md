@@ -15,6 +15,7 @@
 | **Platform Admin** | Staff Vita. Gere contas (incl. pesquisa e reposição de acesso), clínicas e seguradoras parceiras e as contas do portal da clínica (listar/suspender); **sem acesso a dados de saúde** (D4, R10). | Sim (conta de plataforma) | Sim |
 | **Gestor da clínica (Clinic Manager)** | Conta de uma clínica **parceira** (D17). Publica horários, confirma/recusa pedidos de consulta e vê a agenda da clínica — só dados mínimos da marcação, **nunca dados de saúde**. | Sim | Sim |
 | **Conta da seguradora (Insurance Admin/Agent)** | Conta de uma seguradora **parceira** (ADR-021). Vê e decide os pedidos de reembolso (`ReimbursementClaim`) da própria seguradora e os documentos que o titular escolheu anexar a cada pedido — **nunca** mais nada do perfil de saúde do membro. | Sim | Sim |
+| **Contas operacionais da seguradora (ADR-025)** | `BENEFICIARY_MANAGER`, `AUTHORIZATION_ANALYST`, `CLAIMS_MANAGER`, `FINANCE_MANAGER` de uma seguradora com módulo operacional ativo: gerem beneficiários/apólices/planos, decidem autorizações e despesas e veem o dashboard, sempre limitados ao `insurerId` — **nunca** dados de saúde do paciente. | Sim | Sim (S1–S6) |
 
 ## 2. Atores do sistema
 

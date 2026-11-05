@@ -1,4 +1,4 @@
-import { Bell, CalendarDays, HeartPulse, House, Settings, Users, type LucideIcon } from 'lucide-react'
+import { Bell, CalendarDays, HeartPulse, House, Settings, Users, Watch, type LucideIcon } from 'lucide-react'
 import { paths } from '@/routes/paths'
 
 export interface NavItem {
@@ -15,6 +15,7 @@ export const primaryNav: NavItem[] = [
   { to: paths.health, label: 'Saúde', icon: HeartPulse },
   { to: paths.appointments, label: 'Agenda', icon: CalendarDays },
   { to: paths.family, label: 'Família', icon: Users },
+  { to: paths.watch, label: 'Relógio', icon: Watch },
 ]
 
 export const alertsNav: NavItem = { to: paths.alerts, label: 'Alertas', icon: Bell }

@@ -1,6 +1,6 @@
 # Vita Family — Autorização (Fase 14)
 
-> Estado: **v0.4** — exames, resultados e recomendações da clínica e administração de contas (ADR-023, D19: §3 nota, §4, §6.2–6.4, novo §7); v0.3 acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
+> Estado: **v0.5** — papéis e matriz do módulo operacional de seguradoras (ADR-025: §8.2b, §8.4, §8.5); v0.4 — exames, resultados e recomendações da clínica e administração de contas (ADR-023, D19: §3 nota, §4, §6.2–6.4, novo §7); v0.3 acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
 
 ## 1. Entradas e saída da decisão
 
@@ -166,12 +166,47 @@ Nunca há ação do portal que leia além dos documentos listados no pedido e do
 (seguradora, número, titular) — nunca condições, alergias, medicação, consultas, exames ou dados de
 família/tutela do membro (ADR-021).
 
+### 8.2b Papéis e matriz do módulo operacional (ADR-025)
+
+Aplica-se **só** a seguradoras com `operational_module_enabled` (BR-INS-08, emenda). O `INSURANCE_AGENT` mantém exclusivamente o fluxo de reembolso (§8.2); os papéis novos **não** acedem a `ReimbursementClaim` (conservador; alargar por change control). Passo 3 do algoritmo §8.1 decide por esta matriz; `insurerId` do contexto filtra tudo (BR-SEG-14). `✓` = leitura + escrita · `R` = leitura · `—` = nenhum.
+
+| Recurso | `INSURANCE_ADMIN` | `BENEFICIARY_MANAGER` | `AUTHORIZATION_ANALYST` | `CLAIMS_MANAGER` | `FINANCE_MANAGER` |
+|---|---|---|---|---|---|
+| Contas/papéis da seguradora | ✓ | — | — | — | — |
+| Empresas, beneficiários, apólices, importações, ligações paciente↔beneficiário | ✓ | ✓ | R | R | R |
+| Planos, coberturas e lista de serviços | ✓ | R | R | R | R |
+| Rede de prestadores | ✓ | R | R | R | R (✓ nos preços: fase 2) |
+| Pedidos de autorização | R | — | ✓ | R | R |
+| Despesas (`ExpenseClaim`) | R | — | R | ✓ | R |
+| Pagamentos (fase 2) | R | — | — | R | ✓ |
+| Dashboard | ✓ (completo) | parcial: beneficiários/apólices | parcial: autorizações | parcial: despesas | ✓ (completo) |
+| Auditoria da seguradora (`GET .../audit`) | ✓ | — | — | — | — |
+| Pedidos de reembolso (`ReimbursementClaim`) | ✓ (como §8.2) | — | — | — | — |
+
+Notas: (a) o `INSURANCE_ADMIN` tem **R** (não ✓) nas autorizações e despesas: administra, não decide (separação de funções); (b) "parcial" no dashboard = só os indicadores do seu domínio (`dashboard.md`/spec §9), sem dados nominais de saúde; (c) uma conta tem exatamente um papel; (d) `INSURANCE_ADMIN` continua único e ativo por seguradora (BR-INS-06).
+
 ### 8.3 Hierarquia de contas (ADR-021, mirror de §6.3) — quem administra quem
 | Ação | Quem |
 |---|---|
 | Ver/editar/suspender a seguradora (inteira) | PLATFORM_ADMIN |
 | Criar/repor a conta `INSURANCE_ADMIN` raiz de uma seguradora parceira | PLATFORM_ADMIN |
 | Criar/listar/remover contas `INSURANCE_AGENT` da própria seguradora | `INSURANCE_ADMIN` da seguradora (self-service, nunca o Platform Admin diretamente) |
+| Criar/listar/remover contas `BENEFICIARY_MANAGER`, `AUTHORIZATION_ANALYST`, `CLAIMS_MANAGER`, `FINANCE_MANAGER` da própria seguradora (ADR-025) | `INSURANCE_ADMIN` (self-service; só com módulo operacional ativo) |
+| Ativar/desativar o módulo operacional e definir a moeda (`currency`) de uma seguradora (ADR-025) | PLATFORM_ADMIN |
+
+### 8.4 Clínica a operar sobre uma seguradora (ADR-025)
+Rotas `/clinic-portal/insurers/{insurerId}/*` continuam no algoritmo de §6 (ator `ClinicAccount`, fora de `AccessPolicy`) com um passo extra: **(a)** conta ativa; **(b)** existe `insurer_providers` ativo com `clinic_id` = `clinicId` do token e `insurer_id` = `insurerId` do caminho, e a seguradora tem módulo operacional ativo; senão `NOT_FOUND` (sem enumeração); **(c)** `CLINIC_ADMIN` e `CLINIC_MANAGER` têm as mesmas permissões (Q6).
+| Ação | `CLINIC_ADMIN` | `CLINIC_MANAGER` |
+|---|---|---|
+| Listar seguradoras a que a clínica está ligada | sim | sim |
+| Validar elegibilidade (nº de cartão, QR ou identificação; resposta mínima, BR-SEG-18) | sim | sim |
+| Registar atendimento (serviço da lista da seguradora; sem diagnóstico) | sim | sim |
+| Pedir autorização; responder a `INFO_REQUESTED`; cancelar a própria autorização pendente | sim | sim |
+| Submeter despesa; corrigir despesa `RETURNED`; ver estados e valores | sim | sim |
+| Ver dados de outra seguradora, de beneficiários fora da validação feita, ou histórico clínico | não (`NOT_FOUND`/`FORBIDDEN`) | não |
+
+### 8.5 Paciente/titular (app) (ADR-025)
+Rotas `/families/{f}/members/{m}/insurance/*` (cartão digital, saldo, autorizações, despesas, reclamar cartão): **SELF** (adulto) ou **TUTOR_OF**, mesma regra de `BR-INS-02` — **sem** categoria de partilha nova e sem acesso de `OTHER`. Só com ligação confirmada ao `Beneficiary` (BR-SEG-20); o paciente vê apenas os valores comparticipados e o saldo, nunca dados internos de análise (notas do analista além do motivo da decisão). O módulo `insurer-ops` consulta `AccessPolicy.can()` para este ator; as rotas `/insurance-portal/*` e `/clinic-portal/*` nunca a usam.
 
 ## 9. Testes
-Os testes de autorização são **gerados a partir da matriz** acima (incl. §7: `TC-AZ-ADM-*`): para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. As matrizes §6.2 (clínica) e §8.2 (seguradora) seguem a mesma regra: geradas a partir da tabela, com casos próprios `TC-AZ-CLN-*`/`TC-AZ-INS-*`.
+Os testes de autorização são **gerados a partir da matriz** acima (incl. §7: `TC-AZ-ADM-*`): para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. As matrizes §6.2 (clínica), §8.2/§8.2b (seguradora) e §8.4 (clínica sobre seguradora) seguem a mesma regra: geradas a partir da tabela, com casos próprios `TC-AZ-CLN-*`/`TC-AZ-INS-*` (e `TC-AZ-SEG-*` para §8.2b/§8.4/§8.5, incluindo isolamento entre seguradoras).

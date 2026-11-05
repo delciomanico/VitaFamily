@@ -36,6 +36,10 @@ export const paths = {
   familyMemberInsurance: (id: string) => `/app/family/${id}/insurance`,
   familyMemberHistory: (id: string) => `/app/family/${id}/history`,
 
+  watch: '/app/watch',
+  watchConnect: '/app/watch/connect',
+  watchMetric: (slug: string) => `/app/watch/${slug}`,
+
   alerts: '/app/alerts',
   familyReport: '/app/reports/family',
   preventiveReport: '/app/reports/preventive',

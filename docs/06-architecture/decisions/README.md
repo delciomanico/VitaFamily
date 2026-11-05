@@ -24,5 +24,6 @@
 - ADR-022 — Resumo de tendências com IA em relatórios, exceção estrita a BR-RPT-03 (decisão do proprietário; gate de lançamento ligado à AIPD/DPA)
 - ADR-023 — Portal da clínica: exames (marcação direta com vagas, revisto 2026-11-04; antes espelho de consultas), resultados emitidos pela clínica, recomendações; admin de contas; fecho de lacunas de M11 (decisão do proprietário; adenda a ADR-020/ADR-021)
 - ADR-024 — Portal da clínica: marcação presencial (walk-in) para um utilizador registado, pesquisa por e-mail exato, emenda estreita a BR-CLN-03 (decisão do proprietário, D20)
+- ADR-025 — Módulo operacional de seguradoras (multi-seguradora): beneficiários, apólices, planos, elegibilidade, autorizações, despesas e rede; Kz por seguradora; emenda a BR-INS-08 (decisão do proprietário, D21; Q4 pendente)
 
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).

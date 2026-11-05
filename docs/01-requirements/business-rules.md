@@ -1,6 +1,6 @@
 # Vita Family — Regras de Negócio (Fase 7)
 
-> Estado: **v0.3 (+BR-CLN-10, ADR-024) — B1–B6 decididas (delegadas); acrescenta BR-CLN-07..09, BR-EXM-05..08, BR-APT-10/11 (exames com vagas, revisto 2026-11-04), BR-INS-09..10 e BR-ADM (ADR-023, D19)**
+> Estado: **v0.4 (+BR-SEG-01..23 e emenda a BR-INS-08, ADR-025) — v0.3 (+BR-CLN-10, ADR-024) — B1–B6 decididas (delegadas); acrescenta BR-CLN-07..09, BR-EXM-05..08, BR-APT-10/11 (exames com vagas, revisto 2026-11-04), BR-INS-09..10 e BR-ADM (ADR-023, D19)**
 > Consolida as regras já decididas (D, M, N, R, P, Q) e acrescenta regras derivadas, assinaladas.
 > Legenda: **[DECIDIDO]** com ID de origem · **[DERIVADO]** consequência lógica de decisões anteriores · **[PROPOSTO]** sugestão minha, requer aprovação · `[NEEDS DECISION]` ver secção 12.
 > Cada regra tem ID `BR-<área>-nn` para ser referenciada em testes (Fase 15) e na API (Fase 13).
@@ -214,7 +214,7 @@
 | BR-INS-05 | Estados: `SUBMITTED → APPROVED\|REJECTED → PAID` (ver `state-machines.md`). `REJECTED` exige motivo; `PAID` é marcado pelo titular/tutor, não pelo portal, nesta versão. | DECIDIDO ADR-021 |
 | BR-INS-06 | Contas do portal da seguradora (D18 mirror, BR-CLN-05): o Platform Admin cria **só** a conta `INSURANCE_ADMIN` raiz de cada seguradora parceira (e pode repô-la). A própria conta `INSURANCE_ADMIN` cria, lista e remove as contas `INSURANCE_AGENT` da sua seguradora. Uma seguradora tem **no máximo** uma conta `INSURANCE_ADMIN` ativa (mirror de BR-CLN-05). | DECIDIDO ADR-021, emendado ADR-023 |
 | BR-INS-07 | `INSURANCE_ADMIN` e `INSURANCE_AGENT` têm as mesmas permissões operacionais sobre pedidos (ver `authorization.md` §8.2); só a criação/remoção de agentes é exclusiva do `INSURANCE_ADMIN`. | DECIDIDO ADR-021 |
-| BR-INS-08 | Fora do MVP desta funcionalidade: sem pré-autorização, sem verificação automática do número de apólice, sem consulta de cobertura separada, sem partilha do cartão com `OTHER`, sem acesso da seguradora a condições/alergias/medicação/consultas/exames do membro. | DECIDIDO ADR-021 |
+| BR-INS-08 | Fora do MVP do **fluxo de reembolso**: sem pré-autorização, sem verificação automática do número de apólice, sem consulta de cobertura separada, sem partilha do cartão com `OTHER`, sem acesso da seguradora a condições/alergias/medicação/consultas/exames do membro. **Emenda ADR-025 (D21):** as três primeiras exclusões **não se aplicam** às seguradoras com módulo operacional ativo (`insurer_accounts.operational_module_enabled`), que fazem elegibilidade, autorização e consulta de cobertura nos termos de BR-SEG; as restantes (sem partilha com `OTHER`, sem acesso a dados de saúde) mantêm-se sempre. | DECIDIDO ADR-021, emendado ADR-025 |
 | BR-INS-09 | `InsurancePolicy.insurerId?` liga a apólice a uma seguradora **parceira** escolhida na lista `GET /families/{familyId}/insurers` (só `ACTIVE`); `insurerName` mantém-se texto livre (preenchido com o nome da parceira quando escolhida). Sem `insurerId` a apólice não admite pedidos de reembolso. | DECIDIDO ADR-023 (fecha lacuna de ADR-021) |
 | BR-INS-10 | Seguradora `SUSPENDED`: as suas contas não fazem login nem refresh e as sessões são revogadas; novos pedidos sobre as suas apólices são recusados (`CONFLICT`); pedidos existentes mantêm-se. | DECIDIDO ADR-023 |
 
@@ -233,6 +233,55 @@
 | BR-ADM-05 | **Seguradoras** (CRUD, sem eliminação): o Platform Admin lista, cria (nome, NIF único), edita (`PATCH`, nome/NIF) e suspende/reativa seguradoras parceiras (BR-INS-10). Auditado (`ADMIN_INSURER_CREATE/UPDATE/STATUS`). | DECIDIDO ADR-023 (completa ADR-021) |
 | BR-ADM-06 | A conta `INSURANCE_ADMIN` raiz de cada seguradora é criada/reposta só pelo Platform Admin (BR-INS-06); não lista nem gere `INSURANCE_AGENT`. | DECIDIDO ADR-021 |
 | BR-ADM-07 | Toda ação `ADMIN_*` é auditada com `actor_type=PLATFORM_ADMIN`, sem dados de saúde nem palavras-passe/tokens em `metadata`. | DECIDIDO ADR-023 |
+
+---
+
+## 15. Módulo operacional de seguradoras (BR-SEG) — ADR-025
+
+> Acrescentada 2026-11-05 (change control D21, decisão do proprietário). Aplica-se às seguradoras com módulo operacional ativo; multi-tenancy por `insurer_id`. Valores monetários em `numeric` na moeda da seguradora (Kz/AOA por omissão, Q1). Origem: `docs/insurer-module/`. BR-SEG-01..17 vêm da especificação; **BR-SEG-18..23** são derivadas das decisões do proprietário (Q1, Q2, Q3, Q7, Q11, C3).
+
+### 15.1 Elegibilidade e autorização
+| ID | Regra | Estado |
+|---|---|---|
+| BR-SEG-01 | Validação = elegibilidade + plano + validade + serviços cobertos + limites disponíveis + necessidade de autorização, filtrados por permissão (resposta mínima, BR-SEG-18). Elegível ⇔ beneficiário `ACTIVE` **e** apólice `ACTIVE` **e** data dentro de `validFrom..validTo`. | DECIDIDO ADR-025 |
+| BR-SEG-02 | `requiresAuthorization` é por cobertura; serviços sem esta marca validam-se automaticamente (consulta geral não exige). | DECIDIDO ADR-025 |
+| BR-SEG-03 | Autorização automática (`AUTO_APPROVED`) só quando todas as condições configuradas pela seguradora forem verdadeiras (coberto, dentro do limite, fora de carência, valor abaixo do **teto de auto-aprovação do plano**). Caso contrário `IN_REVIEW`. Alto custo (acima do teto) nunca é automático. | DECIDIDO ADR-025 (Q9) |
+| BR-SEG-04 | Carência: serviço dentro de `waitingDays` desde `Policy.validFrom` → não coberto (a decisão manual pode sobrepor-se, com motivo). | DECIDIDO ADR-025 |
+| BR-SEG-05 | Código de autorização único, não adivinhável, com validade; uma autorização só cobre o serviço/prestador/beneficiário para que foi emitida. | DECIDIDO ADR-025 |
+
+### 15.2 Limites e comparticipação
+| ID | Regra | Estado |
+|---|---|---|
+| BR-SEG-06 | Comparticipação = `valor × copayPct`, limitada ao saldo; o excedente é do paciente. Exemplo: 20.000 × 80 % → 16.000 seguradora / 4.000 paciente. | DECIDIDO ADR-025 |
+| BR-SEG-07 | Saldo disponível = limite − `used` − `reserved`. Aprovar autorização reserva o `authorizedAmount`; despesa aprovada converte reserva em `used`; expirar/cancelar liberta. | DECIDIDO ADR-025 |
+| BR-SEG-08 | Limites por beneficiário, por família (soma do agregado) e anual; vence o **menor saldo** entre eles. Cálculo em `numeric`; **arredondamento (PROPOSTO, a ratificar):** *half-up* à unidade menor da moeda, sobre o total da despesa, `patientShare = total − insurerShare`; ordem comparticipação → limite → excedente. Testes de propriedade obrigatórios. | DECIDIDO ADR-025 (Q8: menor saldo); arredondamento PROPOSTO |
+| BR-SEG-09 | Exclusões prevalecem sobre inclusões. | DECIDIDO ADR-025 |
+
+### 15.3 Despesas
+| ID | Regra | Estado |
+|---|---|---|
+| BR-SEG-10 | Despesa deve associar beneficiário, apólice vigente na data do atendimento e, se exigida, autorização válida para esse serviço. | DECIDIDO ADR-025 |
+| BR-SEG-11 | Duplicado = mesmo beneficiário + prestador + serviço + data (+ valor); sinalizado para revisão humana (fica `IN_REVIEW` com flag; nunca rejeitado automaticamente). | DECIDIDO ADR-025 |
+| BR-SEG-12 | Devolver (`RETURNED`) exige motivo; a clínica só edita despesas devolvidas. | DECIDIDO ADR-025 |
+| BR-SEG-13 | Valor faturado > valor autorizado (+ tolerância configurável por plano) → `IN_REVIEW` obrigatória. | DECIDIDO ADR-025 |
+
+### 15.4 Dados, auditoria e importação
+| ID | Regra | Estado |
+|---|---|---|
+| BR-SEG-14 | Multi-tenancy por `insurer_id` em todas as consultas e FKs compostas `(insurer_id, id)` (**sem RLS**, Q13); testes de isolamento entre seguradoras obrigatórios (`vita-qa-security`). | DECIDIDO ADR-025 (Q13) |
+| BR-SEG-15 | Auditar: alterações de apólice/plano/cobertura, decisões, despesas, permissões e validações de elegibilidade (`actor_type` `INSURANCE_ACCOUNT`/`CLINIC_ACCOUNT`); catálogo em `audit.md` §3. | DECIDIDO ADR-025 |
+| BR-SEG-16 | Sem decisão financeira/clínica sensível apenas automática: a auto-aprovação é configurável, auditada e **reversível** por revisão humana (`AUTO_APPROVED → CANCELLED` com motivo, antes de `USED`). | DECIDIDO ADR-025 |
+| BR-SEG-17 | Importação de beneficiários em **CSV ou XLSX, até 5.000 linhas** por lote: pré-visualização + relatório de erros por linha, transação por lote, deteção de duplicados por documento de identificação; nunca ativa beneficiários sem validação (entram `PENDING`). | DECIDIDO ADR-025 (Q12) |
+
+### 15.5 Regras derivadas das decisões do proprietário
+| ID | Regra | Estado |
+|---|---|---|
+| BR-SEG-18 | **Minimização e anti-enumeração (C3):** a resposta de elegibilidade à clínica contém só nome, estado, plano, validade, serviços cobertos, limites e necessidade de autorização — nunca histórico clínico nem dados de outras seguradoras. Cada validação é auditada (finalidade: atendimento) e sujeita a rate limit por conta de clínica e por IP; respostas de "não encontrado/não elegível" não revelam o motivo além do necessário. O QR do cartão é um token assinado, de validade curta e revogável. A clínica só opera sobre seguradoras a que está ligada (`Provider`); caso contrário `NOT_FOUND`. | DECIDIDO ADR-025 |
+| BR-SEG-19 | **Moeda (Q1):** cada seguradora tem a sua moeda (`currency`, ISO 4217; por omissão `AOA`/Kz). Todos os valores de limites, autorizações e despesas usam essa moeda; não há conversão nem comparação entre seguradoras. | DECIDIDO ADR-025 (Q1) |
+| BR-SEG-20 | **Ligação paciente ↔ beneficiário (Q2):** o paciente (`SELF`/`TUTOR_OF`) "reclama" o cartão com nº de apólice + código fornecido pela seguradora; a seguradora confirma (`BENEFICIARY_MANAGER`/`INSURANCE_ADMIN`). Sem ligação confirmada, o paciente só tem o cartão manual (BR-INS-01). Só com ligação o paciente vê saldo, cartão digital e histórico (UC-SEG-14/15). O paciente pode desligar; a seguradora nunca acede por esta via a dados de saúde. | DECIDIDO ADR-025 (Q2) |
+| BR-SEG-21 | **Dois fluxos de dinheiro (Q3):** despesa `APPROVED` marca o atendimento `DIRECT_BILLED`; um `ReimbursementClaim` que referencie um atendimento `DIRECT_BILLED` é recusado (`CONFLICT`). Pedidos sem referência ao atendimento são verificados pelo revisor (pendência ADR-025). | DECIDIDO ADR-025 (Q3) |
+| BR-SEG-22 | **Serviços por seguradora (Q7):** `serviceCode` pertence à lista de serviços da seguradora (`insurer_services`); coberturas, autorizações, atendimentos e despesas só usam códigos da própria seguradora. Sem catálogo comum. | DECIDIDO ADR-025 (Q7) |
+| BR-SEG-23 | **Várias seguradoras (Q11):** o mesmo paciente pode ser beneficiário em várias seguradoras; a seguradora a usar é a do **cartão apresentado**; sem coordenação de benefícios nem somas entre seguradoras. Sem diagnóstico no atendimento (Q5): só código de serviço. | DECIDIDO ADR-025 (Q5, Q11); seguradora por cartão = pendência Q4 |
 
 ---
 

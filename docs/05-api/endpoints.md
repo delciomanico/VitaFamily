@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.4** (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.5** (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -1241,6 +1241,49 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **RESPONSE:** `200` `InsuranceClaimView`
 - **ERRORS:** `CONFLICT`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** BR-INS-05: `SUBMITTED → APPROVED|REJECTED`; `REJECTED` exige motivo.
+
+## Seguradoras — módulo operacional (ADR-025) — ESBOÇO, NÃO CONTRATUAL
+
+> **Pendência explícita:** estas rotas **não existem em `openapi.yaml`** (não foi alterado por este change control) e **não podem ser implementadas** até o contrato ser redigido e validado no marco S1 (`vita-architect` + `vita-identity`). Prefixos, papéis e nomes são propostos; o contrato final prevalece. Base `/api/v1`; erros, paginação e `Idempotency-Key` (nas submissões da clínica) como `errors.md`/`api-overview.md`. Tokens: `/insurance-portal/*` com o `insuranceAccessToken`; `/clinic-portal/*` com o `clinicAccessToken`; `/families/...` com o token de User. Autorização: `authorization.md` §8.2b (seguradora), §8.4 (clínica), §8.5 (paciente). Respostas de `insurerId` diferente do do token ⇒ `NOT_FOUND`.
+
+### Portal da seguradora (`/insurance-portal/*`; papéis na coluna Quem)
+| Método e caminho | Quem | Descrição | UC / BR |
+|---|---|---|---|
+| `GET/POST /insurance-portal/companies`, `PATCH .../companies/{id}` | ADMIN, BENEFICIARY_MGR (escrita); restantes R | Empresas. | UC-SEG-01 |
+| `GET/POST /insurance-portal/beneficiaries`, `GET/PATCH .../{id}`, `POST .../{id}/status` | BENEFICIARY_MGR, ADMIN (escrita) | Beneficiários e dependentes; estado `PENDING→ACTIVE⇄SUSPENDED→CANCELLED`. | UC-SEG-02, BR-SEG-17 |
+| `POST /insurance-portal/imports` (multipart CSV/XLSX), `GET .../imports/{id}` (pré-visualização + erros por linha), `POST .../imports/{id}/commit`, `DELETE .../imports/{id}` | BENEFICIARY_MGR, ADMIN | Importação até 5.000 linhas. | BR-SEG-17 |
+| `GET /insurance-portal/link-requests`, `POST .../link-requests/{id}/confirm\|reject` | BENEFICIARY_MGR, ADMIN | Confirmar ligação paciente↔beneficiário. | BR-SEG-20 |
+| `GET/POST /insurance-portal/policies`, `GET/PATCH .../{id}`, `POST .../{id}/status` | BENEFICIARY_MGR, ADMIN | Apólices. | UC-SEG-03 |
+| `GET/POST /insurance-portal/plans`, `GET/PATCH .../{id}`, `POST .../{id}/status`, `POST .../{id}/new-version`, `GET/PUT .../{id}/coverages` | ADMIN (escrita); restantes R | Planos e coberturas. | UC-SEG-04 |
+| `GET/POST /insurance-portal/services`, `PATCH .../services/{id}` | ADMIN | Lista de serviços da seguradora. | BR-SEG-22 |
+| `GET/POST /insurance-portal/providers`, `GET/PATCH .../{id}`, `POST .../{id}/status`, `PUT .../{id}/services` | ADMIN (escrita) | Rede de prestadores, unidades, ligação à clínica. | UC-SEG-09 |
+| `GET /insurance-portal/authorizations`, `GET .../{id}`, `POST .../{id}/decide` (`APPROVE\|REJECT\|REQUEST_INFO\|CANCEL`) | AUTH_ANALYST (decide); ADMIN/CLAIMS/FINANCE R | Análise de autorizações. | UC-SEG-07 |
+| `GET /insurance-portal/expenses`, `GET .../{id}`, `POST .../{id}/decide` (`APPROVE\|REJECT\|RETURN`) | CLAIMS_MGR (decide); restantes R | Análise de despesas. | UC-SEG-12 |
+| `GET /insurance-portal/dashboard` | todos (conteúdo por papel) | Indicadores agregados no servidor. | UC-SEG-16 |
+| `GET /insurance-portal/audit` | ADMIN | Auditoria da seguradora (ver pendência de `audit.md`). | UC-SEG-17 |
+| `GET/POST/DELETE /insurance-portal/agents` (existente, ADR-021) | ADMIN | Alargar a criação de contas aos quatro papéis novos (campo `role`). | `authorization.md` §8.3 |
+
+### Portal da clínica (`/clinic-portal/insurers/*`; `CLINIC_ADMIN`/`CLINIC_MANAGER`)
+| Método e caminho | Descrição | UC / BR |
+|---|---|---|
+| `GET /clinic-portal/insurers` | Seguradoras a que a clínica está ligada (a do cartão apresentado — Q4 pendente). | BR-SEG-23 |
+| `POST /clinic-portal/insurers/{insurerId}/eligibility` | Validar (nº cartão, QR ou identificação, `serviceCode?`); resposta mínima; auditada; rate limit. | UC-SEG-05, BR-SEG-18 |
+| `GET /clinic-portal/insurers/{insurerId}/services` | Lista de serviços da seguradora. | BR-SEG-22 |
+| `POST /clinic-portal/insurers/{insurerId}/encounters` | Registar atendimento (sem diagnóstico). | UC-SEG-10 |
+| `POST/GET /clinic-portal/insurers/{insurerId}/authorizations`, `GET .../{id}`, `POST .../{id}/respond` (resposta a `INFO_REQUESTED`), `POST .../{id}/cancel` | Autorizações. | UC-SEG-06/08 |
+| `POST/GET /clinic-portal/insurers/{insurerId}/expenses`, `GET/PATCH .../{id}` (`PATCH` só em `RETURNED`) | Despesas. | UC-SEG-11/13 |
+| `POST .../authorizations/{id}/attachments`, `POST .../expenses/{id}/attachments` | Anexos (pendência de desenho, ADR-025). | `insurer_attachments` |
+
+### App do paciente (`/families/{familyId}/members/{memberId}/insurance/*`; `SELF`/`TUTOR_OF`)
+| Método e caminho | Descrição | UC / BR |
+|---|---|---|
+| `POST .../insurance/card-claims` | Reclamar o cartão (nº de apólice + código da seguradora) — consentimento. | BR-SEG-20 |
+| `DELETE .../insurance/card-claims/{id}` | Desligar. | BR-SEG-20 |
+| `GET .../insurance/cards` , `GET .../insurance/cards/{beneficiaryId}/qr` | Cartões digitais (um por seguradora) e QR rotativo. | UC-SEG-15 |
+| `GET .../insurance/cards/{beneficiaryId}/coverage-balance` | Plano, coberturas, limites e saldo. | UC-SEG-14 |
+| `GET .../insurance/cards/{beneficiaryId}/authorizations`, `.../expenses` | Histórico com valores comparticipados. | UC-SEG-15 |
+
+Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/`PATCH /admin/insurers/{id}` ganham `currency` e `operationalModuleEnabled`; `createReimbursementClaim` ganha `encounterId?` e passa a ler a moeda da seguradora (sem `EUR` fixo).
 
 ## Alerts
 
