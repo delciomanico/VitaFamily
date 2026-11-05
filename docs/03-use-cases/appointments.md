@@ -55,6 +55,12 @@
 - **Ator:** Gestor da clínica
 - **Resultado:** consultas confirmadas por dia; pode cancelar uma consulta confirmada com motivo (o titular/tutor é informado; horário fica livre).
 
+### UC-CLN-08 Marcar consulta presencial para um utilizador registado (D20, ADR-024)
+- **Ator:** Gestor/Admin da clínica · **BR:** CLN-10, CLN-03, APT-04/06
+- **Fluxo:** escolhe um horário `APPOINTMENT` livre da clínica → introduz o e-mail do paciente → vê o `displayName` devolvido (confirma presencialmente que é a pessoa) → confirma → consulta `SCHEDULED` na agenda da clínica e no membro `SELF` do utilizador; o paciente é avisado (OP-22).
+- **Alternativos:** 404 genérico (sem conta/suspenso/sem `SELF`: a clínica não sabe qual); horário ocupado/passado → `CONFLICT`; sobreposição com outra consulta do paciente → `CONFLICT`; rate limit → `RATE_LIMITED`.
+- **Pós-condição:** `walk_in=true`; gestão posterior só pela clínica (cancelar com motivo UC-CLN-06, completar, recomendações); auditoria `CLINIC_WALKIN_LOOKUP`/`CLINIC_WALKIN_BOOK`.
+
 ---
 
 ## Clínicas

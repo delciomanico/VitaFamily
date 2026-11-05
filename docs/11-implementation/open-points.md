@@ -25,6 +25,8 @@ Registo das pendências conhecidas depois das Fases 1 e 2. Nenhuma altera o cont
 | OP-19 | Apagar em `documents` um anexo de um pedido remove a associação em silêncio; o pedido pode ficar sem documentos. | Fase 4b | Integridade | Definir regra (bloquear ou aceitar). |
 | OP-20 | Exportação de dados não inclui apólices, pedidos nem cartões. | Fase 4b | RGPD: portabilidade | Incluir no `lifecycle`. |
 | OP-21 | Upload `INSURANCE_POLICY` para apólice inexistente deixa objeto órfão na quarentena (comportamento pré-existente de `documents`). | Fase 4b | Lixo em storage | Validar antes de gravar. |
+| OP-22 | Walk-in (ADR-024): alerta `APPOINTMENT_CONFIRMED` ao paciente depende do mecanismo de alertas de consulta, ainda não implementado (OP-07); quando existir, emitir `appointment.confirmed` na marcação presencial. | ADR-024 | Paciente só vê a consulta ao abrir a app | Implementar com OP-07 |
+| OP-23 | Walk-in: limites de rate limit são propostos (30/h por conta, 10 falhas/15 min, 60/h por IP); utilizador com vários membros SELF/famílias (assumido um SELF por utilizador); texto de aviso/consentimento ao paciente e AIPD (oráculo de existência de conta). | ADR-024 | Calibração | Proprietário confirma/ajusta |
 
 ## Resolvidos
 - CHECK `appointments_outcome_requires_clinic_account_check` quebrava o `ON DELETE SET NULL` da conta da clínica → corrigida na migração `0022` (ponto 6), 2026-11-04.

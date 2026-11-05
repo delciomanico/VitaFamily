@@ -3902,6 +3902,89 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/patient-lookup:
+    post:
+      tags: [Clinic Portal]
+      operationId: clinicPatientLookup
+      summary: "Pesquisar um utilizador Vita por e-mail exato (só nome de apresentação)."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). BR-CLN-10, ADR-024, UC-CLN-08. Devolve só displayName; 404 idêntico para inexistente/não ACTIVE/sem membro SELF. Rate limit por conta e por IP. Auditoria CLINIC_WALKIN_LOOKUP (sem e-mail)."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicPatientLookupRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicPatientLookupResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (genérico)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (e-mail inválido)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED (Retry-After)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/walk-in-appointments:
+    post:
+      tags: [Clinic Portal]
+      operationId: createClinicWalkInAppointment
+      summary: "Marcar uma consulta presencial (SCHEDULED) para um utilizador registado, num horário livre da própria clínica."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). BR-CLN-10, ADR-024, UC-CLN-08. O servidor re-resolve patientEmail; sem ids na API. Consulta nasce SCHEDULED no membro SELF, walk_in=true. Auditoria CLINIC_WALKIN_BOOK. Alerta APPOINTMENT_CONFIRMED quando existir (OP-22)."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicWalkInAppointmentRequest" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (horário de outra clínica/inexistente, ou paciente não resolvível; genérico)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (horário ocupado ou passado; sobreposição com consulta SCHEDULED do paciente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (e-mail inválido; horário kind=EXAM)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED (Retry-After)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /clinic-portal/exam-agenda:
     get:
       tags: [Clinic Portal]
@@ -7594,6 +7677,39 @@ components:
           nullable: true
         responseNote:
           type: string
+          nullable: true
+    ClinicPatientLookupRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: "E-mail exato (normalizado no servidor); nunca registado em logs/auditoria."
+    ClinicPatientLookupResult:
+      type: object
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          description: "Primeiro nome + inicial do último apelido (ex. 'Maria S.'). Nenhum id (BR-CLN-03, BR-CLN-10)."
+    ClinicWalkInAppointmentRequest:
+      type: object
+      additionalProperties: false
+      required: [patientEmail, slotId]
+      properties:
+        patientEmail:
+          type: string
+          format: email
+          maxLength: 254
+        slotId:
+          type: string
+          format: uuid
+        notes:
+          type: string
+          maxLength: 2000
           nullable: true
     ClinicRequestResponse:
       type: object

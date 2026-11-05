@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.4** — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.4** (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -870,6 +870,22 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **RESPONSE:** `200` `ClinicBooking`
 - **ERRORS:** `CONFLICT` (consulta não está `SCHEDULED` ou já passou da janela, ST4), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** BR-CLN-06, BR-RX-07: a receita (se incluída) é criada no módulo `prescriptions` com `issuedBy=CLINIC` e `appointmentId` de origem, e passa a aparecer no histórico do paciente; a clínica só pode completar a consulta em curso que a própria clínica está a atender.
+
+### `POST /clinic-portal/patient-lookup`  — clinicPatientLookup
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Pesquisar um utilizador por e-mail exato para marcação presencial (UC-CLN-08, ADR-024).
+- **REQUEST:** `{ email }` (e-mail válido, ≤254)
+- **RESPONSE:** `200` `{ displayName }` (ex. `"Maria S."`; nenhum id)
+- **ERRORS:** `NOT_FOUND` (genérico: inexistente, não `ACTIVE` ou sem membro `SELF`), `RATE_LIMITED`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-10, BR-CLN-03 (emenda D20). Só e-mail exato normalizado. Limites (propostos): 30 pedidos/h por conta (partilhado com o endpoint seguinte), 10 respostas 404/15 min por conta, 60/h por IP. Auditoria `CLINIC_WALKIN_LOOKUP`, sem e-mail.
+
+### `POST /clinic-portal/walk-in-appointments`  — createClinicWalkInAppointment
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Marcar uma consulta presencial `SCHEDULED` para o utilizador num horário `APPOINTMENT` livre da própria clínica (UC-CLN-08, ADR-024).
+- **REQUEST:** `{ patientEmail, slotId, notes? }` (`notes` ≤2000)
+- **RESPONSE:** `201` `ClinicBooking` (`status=SCHEDULED`; só o mínimo, BR-CLN-03)
+- **ERRORS:** `NOT_FOUND` (horário de outra clínica/inexistente; paciente não resolvível, mesma resposta genérica), `CONFLICT` (horário ocupado ou passado; sobreposição com consulta `SCHEDULED` do paciente), `VALIDATION_ERROR` (horário `kind=EXAM`; e-mail inválido), `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-10, BR-APT-04/06 (reserva o horário), BR-APT-03/07 (lembretes). Ordem de validação: horário da clínica → paciente → estado do horário → sobreposição. Auditoria `CLINIC_WALKIN_BOOK`. Alerta `APPOINTMENT_CONFIRMED` quando existir (OP-22).
 
 ### `GET /clinic-portal/exam-agenda`  — listClinicExamAgenda
 - **AUTHORIZATION:** CLINIC_ACCOUNT

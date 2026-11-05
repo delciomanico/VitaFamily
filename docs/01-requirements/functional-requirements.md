@@ -158,6 +158,7 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-ADM-03 | O Platform Admin lista, suspende e reativa as contas do portal de cada clínica parceira (sem criar/remover Gestores). | D19, ADR-023 |
 | FR-ADM-04 | O Platform Admin gere seguradoras parceiras (listar, criar, editar, suspender/reativar) e a conta raiz `INSURANCE_ADMIN`. | ADR-021, ADR-023 |
 | FR-CLN-01 | Existe um cadastro `Clinic`. Clínicas parceiras são criadas pelo Platform Admin; os utilizadores criam entradas privadas para clínicas não parceiras (R8). **D17:** clínicas parceiras têm contas de Gestor da clínica (criadas pelo Platform Admin) com acesso apenas às marcações na própria clínica; nenhuma clínica acede a dados de saúde. | D3, D17 |
+| FR-CLN-03 | A clínica parceira pode marcar uma consulta presencial a um utilizador registado, identificado por e-mail exato, sem obter identificadores (BR-CLN-10). | D20, ADR-024 |
 | FR-CLN-02 | A clínica parceira publica horários de consulta ou de exame (`kind`); os de exame têm um número de vagas (`capacity`, 1–50). | D19, ADR-023 |
 
 ---

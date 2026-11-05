@@ -112,13 +112,14 @@ Notas:
 | Ver agenda e ocupação por horário de **exames** da própria clínica (mínimo, BR-CLN-03); não há pedidos de exame por confirmar (ADR-023 revisto) | sim | sim |
 | Cancelar marcação de exame `SCHEDULED` futura, com motivo (liberta a vaga) | sim | sim |
 | Completar exame: carregar PDF (só metadados de volta, nunca download) e registar resultados (BR-CLN-08) | sim | sim |
+| Pesquisar utilizador por e-mail exato (só `displayName`) e marcar consulta presencial `SCHEDULED` num horário `APPOINTMENT` livre da própria clínica (BR-CLN-10, ADR-024); sujeito ao rate limit de BR-CLN-10 | sim | sim |
 | Criar e listar recomendações sobre consulta/exame da própria clínica (BR-CLN-09); **nunca** editar/eliminar | sim | sim |
 | Ver/gerir horários, pedidos, agenda, exames, documentos ou recomendações de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
 
 Não há ação do portal que leia dados fora do mínimo de BR-CLN-03 (nome do paciente, especialidade,
 profissional, data/hora, observações do pedido); nunca condições, alergias, medicação prévia,
 histórico de outras consultas, nem dados de família/tutela. A exceção de BR-CLN-06 (registar
-resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica está a atender; a de BR-CLN-08 (resultados/PDF) só ao exame `SCHEDULED` da própria clínica; a de BR-CLN-09 (recomendação) só a consulta/exame da própria clínica em `SCHEDULED`/`COMPLETED`. O portal **nunca** lê resultados, documentos ou recomendações do paciente além do que a própria clínica escreveu.
+resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica está a atender; a de BR-CLN-08 (resultados/PDF) só ao exame `SCHEDULED` da própria clínica; a de BR-CLN-09 (recomendação) só a consulta/exame da própria clínica em `SCHEDULED`/`COMPLETED`. Exceção D20 (BR-CLN-10): a pesquisa por e-mail devolve só `displayName`; a marcação re-resolve o e-mail no servidor e o portal nunca recebe `userId`/`familyId`/`memberId`. O portal **nunca** lê resultados, documentos ou recomendações do paciente além do que a própria clínica escreveu.
 
 ### 6.3 Hierarquia de contas (BR-CLN-05) — quem administra quem
 | Ação | Quem |
