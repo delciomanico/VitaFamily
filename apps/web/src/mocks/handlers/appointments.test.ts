@@ -131,7 +131,7 @@ describe('marcação com a clínica parceira (D17)', () => {
   it('publica horários (ignorando os passados) e só remove os livres', async () => {
     const created = await portal.publishClinicSlots(
       ADMIN,
-      { date: '2026-10-04', times: ['09:00', '18:00'], specialty: 'Ortopedia', durationMinutes: 30 },
+      { kind: 'APPOINTMENT', date: '2026-10-04', times: ['09:00', '18:00'], specialty: 'Ortopedia', durationMinutes: 30 },
       NOW,
     )
     expect(created).toHaveLength(1)

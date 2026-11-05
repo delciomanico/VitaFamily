@@ -1,9 +1,9 @@
 import { AppError } from '@/lib/errors'
 import type { Appointment, AppointmentItem } from '@/types/appointment'
-import type { AvailableSlot } from '@/types/clinic'
+import type { AvailableSlot, SlotKind } from '@/types/clinic'
 import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
-import { bookingOf, expireRequests } from '../bookings'
+import { bookingOf, examBookingsOf, expireRequests } from '../bookings'
 import { respond } from '../respond'
 import { visibleClinics } from './clinics'
 
@@ -88,7 +88,12 @@ export function getAppointment(familyId: string, userId: string, id: string, now
 }
 
 /** Horários livres e futuros das clínicas parceiras para uma especialidade, por ordem cronológica. */
-export function listAvailableSlots(familyId: string, specialty: string, now: Date = new Date()) {
+export function listAvailableSlots(
+  familyId: string,
+  specialty: string,
+  now: Date = new Date(),
+  kind: SlotKind = 'APPOINTMENT',
+) {
   return respond((): AvailableSlot[] => {
     expireRequests(now)
     const wanted = specialty.trim().toLocaleLowerCase('pt-PT')
@@ -100,13 +105,18 @@ export function listAvailableSlots(familyId: string, specialty: string, now: Dat
     return db.slots
       .filter(
         (slot) =>
+          slot.kind === kind &&
           partners.has(slot.clinicId) &&
-          slot.specialty.toLocaleLowerCase('pt-PT') === wanted &&
+          (!wanted || slot.specialty.toLocaleLowerCase('pt-PT') === wanted) &&
           Date.parse(slot.startsAt) > now.getTime() &&
-          !bookingOf(slot.id),
+          (kind === 'EXAM' ? examBookingsOf(slot.id).length < slot.capacity : !bookingOf(slot.id)),
       )
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
-      .map((slot) => ({ ...slot, clinicName: partners.get(slot.clinicId) ?? '' }))
+      .map((slot) => ({
+        ...slot,
+        clinicName: partners.get(slot.clinicId) ?? '',
+        remaining: kind === 'EXAM' ? slot.capacity - examBookingsOf(slot.id).length : 1,
+      }))
   })
 }
 
@@ -122,7 +132,9 @@ export function requestAppointment(
     expireRequests(now)
     const slot = db.slots.find((s) => s.id === input.slotId)
     const clinic = slot && visibleClinics(familyId).find((c) => c.id === slot.clinicId && c.type === 'PARTNER')
-    if (!slot || !clinic || Date.parse(slot.startsAt) <= now.getTime()) throw new AppError('NOT_FOUND')
+    if (!slot || !clinic || slot.kind !== 'APPOINTMENT' || Date.parse(slot.startsAt) <= now.getTime()) {
+      throw new AppError('NOT_FOUND')
+    }
     if (bookingOf(slot.id)) throw new AppError('CONFLICT')
     const appointment: Appointment = {
       id: newId('apt'),

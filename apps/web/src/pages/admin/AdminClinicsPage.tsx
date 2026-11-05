@@ -1,17 +1,18 @@
 import { useState } from 'react'
-import { Archive, ArchiveRestore, Building2, KeyRound, Pencil, Plus } from 'lucide-react'
+import { Archive, ArchiveRestore, Building2, KeyRound, Pencil, Plus, Unlock, Users } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
+import { Textarea } from '@/components/ui/Textarea'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState, ErrorState, FormError, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
 import { errorMessage } from '@/lib/errors'
-import { formatCount } from '@/lib/format'
+import { formatCount, formatWhen } from '@/lib/format'
 import { adminService } from '@/services/admin.service'
-import type { ClinicInput } from '@/types/admin'
+import type { AdminClinicAccount, ClinicInput } from '@/types/admin'
 import type { Clinic } from '@/types/clinic'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -143,12 +144,162 @@ function RootAccountForm({ clinic, onClose, onDone }: RootAccountFormProps) {
   )
 }
 
+/** `POST …/accounts/{id}/suspend`: motivo obrigatório; as sessões do portal são revogadas. */
+function SuspendAccountForm({
+  clinic,
+  account,
+  onClose,
+  onDone,
+}: {
+  clinic: Clinic
+  account: AdminClinicAccount
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function confirm() {
+    if (!reason.trim()) return setError('Indique o motivo da suspensão.')
+    setSaving(true)
+    try {
+      await adminService.suspendClinicAccount(clinic.id, account.id, reason)
+      onDone()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Suspender conta do portal?"
+      description={`${account.email} deixa de conseguir entrar; as sessões ativas são revogadas.`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Voltar
+          </Button>
+          <Button variant="danger" onClick={confirm} loading={saving}>
+            Suspender
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Textarea
+          label="Motivo"
+          value={reason}
+          onChange={(event) => {
+            setReason(event.target.value)
+            setError(null)
+          }}
+        />
+        <FormError message={error} />
+      </div>
+    </Modal>
+  )
+}
+
+/** `GET /admin/clinics/{id}/accounts`: contas do portal, com último login; suspender/reativar. */
+function AccountsModal({ clinic, onClose }: { clinic: Clinic; onClose: () => void }) {
+  const toast = useToast()
+  const { state, reload } = useAsync(() => adminService.listClinicAccounts(clinic.id), [clinic.id])
+  const [suspending, setSuspending] = useState<AdminClinicAccount | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  async function reactivate(account: AdminClinicAccount) {
+    setBusyId(account.id)
+    try {
+      await adminService.reactivateClinicAccount(clinic.id, account.id)
+      toast.show(`Conta ${account.email} reativada.`)
+      reload()
+    } catch (error) {
+      toast.show(errorMessage(error), 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <>
+      <Modal
+        open
+        onClose={onClose}
+        title="Contas do portal"
+        description={clinic.name}
+        footer={
+          <Button variant="secondary" onClick={onClose}>
+            Fechar
+          </Button>
+        }
+      >
+        {state.status === 'loading' && <LoadingState rows={2} />}
+        {state.status === 'error' && <ErrorState onRetry={reload} />}
+        {state.status === 'success' &&
+          (state.data.length > 0 ? (
+            <div className="divide-y divide-border">
+              {state.data.map((account) => (
+                <div key={account.id} className="flex items-center gap-2 py-2.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{account.email}</span>
+                    <span className="block truncate text-sm text-muted">
+                      {account.role === 'CLINIC_ADMIN' ? 'Admin' : 'Gestor'} ·{' '}
+                      {account.lastLoginAt ? `último acesso ${formatWhen(account.lastLoginAt)}` : 'nunca entrou'}
+                    </span>
+                  </span>
+                  <Badge tone={account.status === 'ACTIVE' ? 'success' : 'danger'} dot>
+                    {account.status === 'ACTIVE' ? 'Ativa' : 'Suspensa'}
+                  </Badge>
+                  {account.status === 'ACTIVE' ? (
+                    <Button variant="secondary" size="sm" onClick={() => setSuspending(account)}>
+                      Suspender
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={busyId === account.id}
+                      onClick={() => void reactivate(account)}
+                      icon={<Unlock className="size-4" aria-hidden />}
+                    >
+                      Reativar
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Esta clínica ainda não tem contas do portal.</p>
+          ))}
+      </Modal>
+      {suspending && (
+        <SuspendAccountForm
+          clinic={clinic}
+          account={suspending}
+          onClose={() => setSuspending(null)}
+          onDone={() => {
+            toast.show(`Conta ${suspending.email} suspensa.`)
+            setSuspending(null)
+            reload()
+          }}
+        />
+      )}
+    </>
+  )
+}
+
 /** Clínicas parceiras (`/admin/clinics`, R8): criar, editar, arquivar/reativar e geri a conta raiz. */
 export function AdminClinicsPage() {
   const toast = useToast()
   const { state, reload } = useAsync(() => adminService.listClinics(), [])
   const [editing, setEditing] = useState<Clinic | 'new' | null>(null)
   const [rootAccountFor, setRootAccountFor] = useState<Clinic | null>(null)
+  const [accountsFor, setAccountsFor] = useState<Clinic | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const clinics = state.status === 'success' ? state.data : []
@@ -193,6 +344,16 @@ export function AdminClinicsPage() {
                     </span>
                   </span>
                   {clinic.status === 'ARCHIVED' && <Badge tone="neutral">Arquivada</Badge>}
+                  {clinic.type === 'PARTNER' && (
+                    <button
+                      type="button"
+                      onClick={() => setAccountsFor(clinic)}
+                      aria-label={`Ver as contas do portal de ${clinic.name}`}
+                      className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-muted hover:text-foreground"
+                    >
+                      <Users className="size-4" aria-hidden />
+                    </button>
+                  )}
                   {clinic.type === 'PARTNER' && (
                     <button
                       type="button"
@@ -248,6 +409,8 @@ export function AdminClinicsPage() {
           }}
         />
       )}
+
+      {accountsFor && <AccountsModal clinic={accountsFor} onClose={() => setAccountsFor(null)} />}
 
       {rootAccountFor && (
         <RootAccountForm

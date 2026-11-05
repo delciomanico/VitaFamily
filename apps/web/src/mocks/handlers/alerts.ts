@@ -26,6 +26,8 @@ function source(alert: HealthAlert): Pick<AlertItem, 'sourceLabel' | 'sourceAt' 
       const examination = db.examinations.find((e) => e.id === alert.sourceId)
       return { sourceLabel: examination?.name ?? '', sourceAt: examination?.examDate, targetId: examination?.id }
     }
+    case 'RECOMMENDATION':
+      return { sourceLabel: '' }
   }
 }
 

@@ -112,6 +112,8 @@ export function alertTitle({
       return `Pedido de consulta recusado: ${sourceLabel}`
     case 'APPOINTMENT_CANCELLED':
       return `Consulta cancelada: ${sourceLabel}`
+    case 'RECOMMENDATION_ADDED':
+      return 'Recebeu uma nova recomendação de uma clínica.'
   }
 }
 
@@ -124,6 +126,7 @@ export const alertCategoryOf: Record<AlertType, AlertCategory> = {
   APPOINTMENT_CANCELLED: 'APPOINTMENTS',
   EXAM_REMINDER: 'EXAMS',
   APPOINTMENT_OUTCOME_REQUEST: 'FOLLOW_UP',
+  RECOMMENDATION_ADDED: 'FOLLOW_UP',
 }
 
 export const alertCategoryLabels: Record<AlertCategory, string> = {

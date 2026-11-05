@@ -3,16 +3,24 @@ import type { Appointment } from '@/types/appointment'
 import type {
   ClinicAccount,
   ClinicBooking,
+  ClinicCompleteExamInput,
   ClinicCompleteInput,
+  ClinicExamBooking,
   ClinicRequestDecision,
   ClinicSession,
   ClinicSlot,
   ClinicSlotView,
   PublishSlotsInput,
 } from '@/types/clinic'
-import { SLOT_DURATIONS } from '@/types/clinic'
+import type { ClinicRecommendation, RecommendationOrigin } from '@/types/recommendation'
+import { RECOMMENDATION_MAX_LENGTH } from '@/types/recommendation'
+import { MAX_SLOT_CAPACITY, SLOT_DURATIONS } from '@/types/clinic'
+import type { SlotKind } from '@/types/clinic'
+import type { Examination } from '@/types/examination'
+import type { DocumentUpload } from '@/types/document'
 import { memberName } from '../access'
-import { bookingOf, expireRequests, notifyResponse } from '../bookings'
+import { raiseAlerts } from '../alertRules'
+import { bookingOf, examBookingsOf, expireRequests, notifyResponse } from '../bookings'
 import { DEMO_PASSWORD } from '../data/users'
 import type { MockClinicAccountRecord } from '../data/clinicAccounts'
 import { db, newId } from '../db'
@@ -163,18 +171,34 @@ export function removeClinicStaff(clinicAccountId: string, targetId: string) {
 
 // --- Horários (`/clinic-portal/slots`, BR-CLN-04) ---
 
-/** `GET /clinic-portal/slots`: horários futuros da clínica, com o estado de cada um (UC-CLN-04). */
-export function listOwnClinicSlots(clinicAccountId: string, now: Date = new Date()) {
+/** Ocupação e estado de um horário (BR-APT-11): consulta FREE|REQUESTED|SCHEDULED, exame FREE|PARTIAL|FULL. */
+function toSlotView(slot: ClinicSlot): ClinicSlotView {
+  if (slot.kind === 'EXAM') {
+    const bookedCount = examBookingsOf(slot.id).length
+    const remaining = slot.capacity - bookedCount
+    return { ...slot, bookedCount, remaining, state: bookedCount === 0 ? 'FREE' : remaining === 0 ? 'FULL' : 'PARTIAL' }
+  }
+  const booking = bookingOf(slot.id)
+  return {
+    ...slot,
+    bookedCount: booking ? 1 : 0,
+    remaining: booking ? 0 : 1,
+    state: booking?.status === 'SCHEDULED' ? 'SCHEDULED' : booking ? 'REQUESTED' : 'FREE',
+  }
+}
+
+/** `GET /clinic-portal/slots?kind`: horários futuros da clínica, com a ocupação de cada um (UC-CLN-04). */
+export function listOwnClinicSlots(clinicAccountId: string, kind?: SlotKind, now: Date = new Date()) {
   return respond((): ClinicSlotView[] => {
     const { clinicId } = requireAccount(clinicAccountId)
     expireRequests(now)
     return db.slots
-      .filter((slot) => slot.clinicId === clinicId && Date.parse(slot.startsAt) > now.getTime())
+      .filter(
+        (slot) =>
+          slot.clinicId === clinicId && (!kind || slot.kind === kind) && Date.parse(slot.startsAt) > now.getTime(),
+      )
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.specialty.localeCompare(b.specialty))
-      .map((slot) => ({
-        ...slot,
-        state: bookingOf(slot.id)?.status === 'SCHEDULED' ? 'SCHEDULED' : bookingOf(slot.id) ? 'REQUESTED' : 'FREE',
-      }))
+      .map(toSlotView)
   })
 }
 
@@ -184,8 +208,12 @@ export function publishClinicSlots(clinicAccountId: string, input: PublishSlotsI
     const { clinicId } = requireAccount(clinicAccountId)
     const specialty = input.specialty.trim()
     const professionalName = input.professionalName?.trim() || undefined
+    const capacity = input.capacity ?? 1
     if (!specialty || input.times.length === 0) throw new AppError('VALIDATION_ERROR')
     if (!(SLOT_DURATIONS as readonly number[]).includes(input.durationMinutes)) throw new AppError('VALIDATION_ERROR')
+    // BR-APT-11: vagas 1–50, e só os horários de exame podem ter mais de uma.
+    if (!Number.isInteger(capacity) || capacity < 1 || capacity > MAX_SLOT_CAPACITY) throw new AppError('VALIDATION_ERROR')
+    if (input.kind === 'APPOINTMENT' && capacity > 1) throw new AppError('VALIDATION_ERROR')
 
     const created: ClinicSlot[] = []
     for (const time of input.times) {
@@ -195,12 +223,22 @@ export function publishClinicSlots(clinicAccountId: string, input: PublishSlotsI
       const duplicate = db.slots.some(
         (s) =>
           s.clinicId === clinicId &&
+          s.kind === input.kind &&
           s.startsAt === iso &&
           s.professionalName === professionalName &&
           s.specialty === specialty,
       )
       if (startsAt.getTime() <= now.getTime() || duplicate) continue
-      const slot = { id: newId('slot'), clinicId, specialty, professionalName, startsAt: iso, durationMinutes: input.durationMinutes }
+      const slot: ClinicSlot = {
+        id: newId('slot'),
+        clinicId,
+        kind: input.kind,
+        capacity,
+        specialty,
+        professionalName,
+        startsAt: iso,
+        durationMinutes: input.durationMinutes,
+      }
       db.slots.push(slot)
       created.push(slot)
     }
@@ -208,13 +246,28 @@ export function publishClinicSlots(clinicAccountId: string, input: PublishSlotsI
   })
 }
 
-/** `DELETE /clinic-portal/slots/{slotId}`: só horários livres (BR-CLN-04). */
+/** `PATCH /clinic-portal/slots/{slotId}`: altera as vagas de um horário de exame (BR-APT-11). */
+export function updateClinicSlotCapacity(clinicAccountId: string, slotId: string, capacity: number) {
+  return respond((): ClinicSlotView => {
+    const { clinicId } = requireAccount(clinicAccountId)
+    const slot = db.slots.find((s) => s.id === slotId && s.clinicId === clinicId)
+    if (!slot) throw new AppError('NOT_FOUND')
+    if (slot.kind !== 'EXAM' || !Number.isInteger(capacity) || capacity < 1 || capacity > MAX_SLOT_CAPACITY) {
+      throw new AppError('VALIDATION_ERROR')
+    }
+    if (capacity < examBookingsOf(slot.id).length) throw new AppError('CONFLICT')
+    slot.capacity = capacity
+    return toSlotView(slot)
+  })
+}
+
+/** `DELETE /clinic-portal/slots/{slotId}`: só horários sem marcação ativa (BR-CLN-04). */
 export function removeClinicSlot(clinicAccountId: string, slotId: string) {
   return respond(() => {
     const { clinicId } = requireAccount(clinicAccountId)
     const slot = db.slots.find((s) => s.id === slotId && s.clinicId === clinicId)
     if (!slot) throw new AppError('NOT_FOUND')
-    if (bookingOf(slot.id)) throw new AppError('CONFLICT')
+    if (bookingOf(slot.id) || examBookingsOf(slot.id).length > 0) throw new AppError('CONFLICT')
     db.slots = db.slots.filter((s) => s.id !== slotId)
   })
 }
@@ -341,5 +394,198 @@ export function completeClinicAppointment(
       db.appointmentOutcomes.push({ appointmentId, outcomeNote, recordedAt: now.toISOString() })
     }
     return toBooking(appointment)
+  })
+}
+
+// --- Agenda de exames (`/clinic-portal/exam-agenda`, ADR-023) ---
+
+/** `ClinicExamBooking`: mínimo necessário (BR-CLN-03); nunca os valores dos resultados. */
+function toExamBooking(exam: Examination): ClinicExamBooking {
+  const slot = db.slots.find((s) => s.id === exam.slotId)
+  const results = db.examResults.filter((r) => r.examinationId === exam.id)
+  return {
+    id: exam.id,
+    status: exam.status,
+    scheduledAt: slot?.startsAt ?? exam.examDate,
+    examType: exam.name,
+    patientName: memberName(exam.memberId),
+    notes: exam.notes,
+    responseNote: exam.responseNote,
+    resultsCount: results.length,
+    documents: db.documents
+      .filter((d) => d.resourceType === 'EXAMINATION' && d.resourceId === exam.id && d.uploadedByClinic)
+      .map((d) => ({ id: d.id, originalName: d.originalName, sizeBytes: d.sizeBytes, scanStatus: d.scanStatus ?? 'CLEAN' })),
+  }
+}
+
+/** Exame desta clínica marcado num dos seus horários; de outra → NOT_FOUND (sem enumeração). */
+function findExam(clinicId: string, id: string): Examination {
+  const exam = db.examinations.find((e) => e.id === id && e.slotId && e.clinicId === clinicId)
+  if (!exam) throw new AppError('NOT_FOUND')
+  return exam
+}
+
+const byExamTime = (a: ClinicExamBooking, b: ClinicExamBooking) => a.scheduledAt.localeCompare(b.scheduledAt)
+
+/** `GET /clinic-portal/exam-agenda`: exames marcados nos horários da clínica, por ordem cronológica. */
+export function listClinicExamAgenda(clinicAccountId: string) {
+  return respond((): ClinicExamBooking[] => {
+    const { clinicId } = requireAccount(clinicAccountId)
+    return db.examinations
+      .filter((e) => e.slotId && e.clinicId === clinicId)
+      .map(toExamBooking)
+      .sort(byExamTime)
+  })
+}
+
+/** `PUT /clinic-portal/exam-agenda/{id}/cancel`: exame SCHEDULED, com motivo; liberta a vaga. */
+export function cancelClinicExam(clinicAccountId: string, examinationId: string, note: string) {
+  return respond((): ClinicExamBooking => {
+    const { clinicId } = requireAccount(clinicAccountId)
+    const exam = findExam(clinicId, examinationId)
+    if (!note.trim()) throw new AppError('VALIDATION_ERROR')
+    if (exam.status !== 'SCHEDULED') throw new AppError('CONFLICT')
+    exam.status = 'CANCELLED'
+    exam.responseNote = note.trim()
+    return toExamBooking(exam)
+  })
+}
+
+/** `POST /clinic-portal/exam-agenda/{id}/documents`: PDF dos resultados (BR-CLN-08). */
+export function uploadClinicExamDocument(clinicAccountId: string, examinationId: string, upload: DocumentUpload) {
+  return respond((): ClinicExamBooking => {
+    const { clinicId } = requireAccount(clinicAccountId)
+    const exam = findExam(clinicId, examinationId)
+    if (exam.status === 'CANCELLED' || upload.mimeType !== 'application/pdf') throw new AppError('VALIDATION_ERROR')
+    db.documents.push({
+      ...upload,
+      id: newId('doc'),
+      familyId: exam.familyId,
+      memberId: exam.memberId,
+      resourceType: 'EXAMINATION',
+      resourceId: exam.id,
+      createdAt: new Date().toISOString(),
+      scanStatus: 'CLEAN',
+      uploadedByClinic: true,
+    })
+    return toExamBooking(exam)
+  })
+}
+
+/**
+ * `PUT /clinic-portal/exam-agenda/{id}/complete` (BR-CLN-08, D11): grava os parâmetros e passa o
+ * exame a COMPLETED; exige pelo menos um parâmetro ou um PDF já carregado. Sem interpretação.
+ */
+export function completeClinicExam(
+  clinicAccountId: string,
+  examinationId: string,
+  input: ClinicCompleteExamInput,
+  now: Date = new Date(),
+) {
+  return respond((): ClinicExamBooking => {
+    const { clinicId } = requireAccount(clinicAccountId)
+    const exam = findExam(clinicId, examinationId)
+    if (exam.status !== 'SCHEDULED') throw new AppError('CONFLICT')
+    const hasPdf = toExamBooking(exam).documents.length > 0
+    if (input.results.length === 0 && !hasPdf) throw new AppError('VALIDATION_ERROR')
+    for (const result of input.results) {
+      const hasValue = result.valueNumeric !== undefined || Boolean(result.valueText?.trim())
+      const { referenceMin: min, referenceMax: max } = result
+      if (!result.parameter.trim() || !hasValue || (min !== undefined && max !== undefined && min > max)) {
+        throw new AppError('VALIDATION_ERROR')
+      }
+      db.examResults.push({
+        id: newId('res'),
+        examinationId: exam.id,
+        parameter: result.parameter.trim(),
+        valueNumeric: result.valueNumeric,
+        valueText: result.valueText?.trim() || undefined,
+        unit: result.unit?.trim() || undefined,
+        referenceMin: min,
+        referenceMax: max,
+        createdAt: now.toISOString(),
+      })
+    }
+    exam.status = 'COMPLETED'
+    exam.responseNote = input.resultNote?.trim() || exam.responseNote
+    return toExamBooking(exam)
+  })
+}
+
+// --- Recomendações (`/clinic-portal/recommendations`, BR-CLN-09) ---
+
+/** `POST /clinic-portal/recommendations`: nota ligada a uma consulta (SCHEDULED/COMPLETED) ou exame (não cancelado) da clínica. */
+export function createClinicRecommendation(
+  clinicAccountId: string,
+  input: RecommendationOrigin & { text: string },
+  now: Date = new Date(),
+) {
+  return respond((): ClinicRecommendation => {
+    const { clinicId } = requireAccount(clinicAccountId)
+    const text = input.text.trim()
+    const appointmentId = 'appointmentId' in input ? input.appointmentId : undefined
+    const examinationId = 'examinationId' in input ? input.examinationId : undefined
+    if (!text || text.length > RECOMMENDATION_MAX_LENGTH || Boolean(appointmentId) === Boolean(examinationId)) {
+      throw new AppError('VALIDATION_ERROR')
+    }
+    const origin = appointmentId
+      ? db.appointments.find((a) => a.id === appointmentId && a.clinicId === clinicId)
+      : db.examinations.find((e) => e.id === examinationId && e.slotId && e.clinicId === clinicId)
+    if (!origin) throw new AppError('NOT_FOUND')
+    if (origin.status !== 'SCHEDULED' && origin.status !== 'COMPLETED') throw new AppError('CONFLICT')
+    const recommendation = {
+      id: newId('rec'),
+      familyId: origin.familyId,
+      memberId: origin.memberId,
+      appointmentId,
+      examinationId,
+      clinicId,
+      clinicName: origin.clinicName ?? clinicNameOf(clinicId) ?? 'Clínica',
+      text,
+      createdAt: now.toISOString(),
+    }
+    db.recommendations.push(recommendation)
+    // O paciente é avisado, sem o texto (BR-CLN-09).
+    raiseAlerts(db, [
+      {
+        familyId: origin.familyId,
+        memberId: origin.memberId,
+        type: 'RECOMMENDATION_ADDED',
+        ruleKey: 'recommendation.added',
+        sourceType: 'RECOMMENDATION',
+        sourceId: recommendation.id,
+        triggerAt: now.toISOString(),
+        occurrence: recommendation.id,
+      },
+    ])
+    return toClinicRecommendation(recommendation)
+  })
+}
+
+function toClinicRecommendation(r: (typeof db.recommendations)[number]): ClinicRecommendation {
+  return {
+    id: r.id,
+    appointmentId: r.appointmentId,
+    examinationId: r.examinationId,
+    patientName: memberName(r.memberId),
+    text: r.text,
+    createdAt: r.createdAt,
+  }
+}
+
+/** `GET /clinic-portal/recommendations`: só as da própria clínica, mais recentes primeiro. */
+export function listClinicRecommendations(clinicAccountId: string, origin?: Partial<RecommendationOrigin>) {
+  return respond((): ClinicRecommendation[] => {
+    const { clinicId } = requireAccount(clinicAccountId)
+    const o = origin as { appointmentId?: string; examinationId?: string } | undefined
+    return db.recommendations
+      .filter(
+        (r) =>
+          r.clinicId === clinicId &&
+          (!o?.appointmentId || r.appointmentId === o.appointmentId) &&
+          (!o?.examinationId || r.examinationId === o.examinationId),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(toClinicRecommendation)
   })
 }

@@ -42,10 +42,16 @@ export interface ClinicSession {
   clinicName?: string
 }
 
-/** Horário publicado por uma clínica parceira (D17, BR-CLN-04). */
+/** Tipo de horário (D19): consulta ou exame. */
+export type SlotKind = 'APPOINTMENT' | 'EXAM'
+
+/** Horário publicado por uma clínica parceira (D17, BR-CLN-04). Em exames, `specialty` é o tipo de exame. */
 export interface ClinicSlot {
   id: string
   clinicId: string
+  kind: SlotKind
+  /** Vagas do horário (BR-APT-11): sempre 1 em consultas. */
+  capacity: number
   specialty: string
   professionalName?: string
   /** ISO UTC. */
@@ -56,15 +62,22 @@ export interface ClinicSlot {
 /** Horário livre visto pela família ao marcar (com o nome da clínica). */
 export interface AvailableSlot extends ClinicSlot {
   clinicName: string
+  /** Vagas ainda livres. */
+  remaining: number
 }
 
-/** Horário na área da clínica: livre, pedido ou confirmado. */
+/** Horário na área da clínica. Consulta: FREE|REQUESTED|SCHEDULED; exame: FREE|PARTIAL|FULL. */
 export interface ClinicSlotView extends ClinicSlot {
-  state: 'FREE' | 'REQUESTED' | 'SCHEDULED'
+  state: 'FREE' | 'REQUESTED' | 'SCHEDULED' | 'PARTIAL' | 'FULL'
+  bookedCount: number
+  remaining: number
 }
 
 /** `ClinicSlotBatchInput` (openapi.yaml): publicar várias horas de um dia. */
 export interface PublishSlotsInput {
+  kind: SlotKind
+  /** Vagas por horário (1–50); só em exames. */
+  capacity?: number
   /** Dia local (yyyy-mm-dd). */
   date: string
   /** Horas locais HH:mm. */
@@ -121,4 +134,47 @@ export interface ClinicCompleteInput {
   outcomeNote?: string
   /** Receita opcional; se presente nasce com `issuedBy=CLINIC` (BR-RX-07). */
   prescription?: ClinicPrescriptionInput
+}
+
+/** Máximo de vagas por horário de exame (BR-APT-11). */
+export const MAX_SLOT_CAPACITY = 50
+
+/** Documento (PDF) de resultados carregado pela clínica, como a clínica o vê. */
+export interface ClinicDocument {
+  id: string
+  originalName: string
+  sizeBytes: number
+  scanStatus: 'PENDING' | 'CLEAN' | 'INFECTED'
+}
+
+/**
+ * Exame marcado numa vaga, visto pela clínica (`ClinicExamBooking`): mínimo necessário
+ * (BR-CLN-03) — nunca os valores dos resultados emitidos. O exame nasce SCHEDULED (ADR-023).
+ */
+export interface ClinicExamBooking {
+  id: string
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'
+  scheduledAt: string
+  examType?: string
+  patientName: string
+  notes?: string
+  responseNote?: string
+  resultsCount: number
+  documents: ClinicDocument[]
+}
+
+/** Parâmetro de resultado emitido pela clínica (`ExamResultInput`). */
+export interface ClinicExamResultInput {
+  parameter: string
+  valueNumeric?: number
+  valueText?: string
+  unit?: string
+  referenceMin?: number
+  referenceMax?: number
+}
+
+/** `ClinicCompleteExaminationRequest` (BR-CLN-08): parâmetros e/ou PDF já carregado; sem interpretação (D11). */
+export interface ClinicCompleteExamInput {
+  results: ClinicExamResultInput[]
+  resultNote?: string
 }

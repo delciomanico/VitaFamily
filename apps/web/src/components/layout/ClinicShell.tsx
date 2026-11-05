@@ -40,6 +40,7 @@ export function ClinicShell() {
   const tabs = [
     { to: paths.clinic, label: 'Pedidos', end: true },
     { to: paths.clinicAgenda, label: 'Agenda', end: false },
+    { to: paths.clinicExams, label: 'Exames', end: false },
     { to: paths.clinicSlots, label: 'Horários', end: false },
     ...(isAdmin ? [{ to: paths.clinicStaff, label: 'Contas', end: false }] : []),
   ]

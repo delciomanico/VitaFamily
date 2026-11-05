@@ -39,7 +39,8 @@ export async function clinicApiFetch<T>(
   if (!baseUrl) throw new Error('VITE_API_URL não está configurado.')
 
   const headers: Record<string, string> = {}
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+  const isForm = options.body instanceof FormData
+  if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (options.auth !== false && clinicAccessToken) headers.Authorization = `Bearer ${clinicAccessToken}`
 
   const res = await fetch(`${baseUrl}/clinic-portal${path}`, {
@@ -47,7 +48,7 @@ export async function clinicApiFetch<T>(
     headers,
     // Envia/recebe o cookie `clinic_refresh_token` (HttpOnly, caminho próprio do portal).
     credentials: 'include',
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: options.body === undefined ? undefined : isForm ? (options.body as FormData) : JSON.stringify(options.body),
   })
 
   if (res.status === 204) return undefined as T

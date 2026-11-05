@@ -5,6 +5,7 @@ import {
   CalendarX,
   ClipboardCheck,
   FlaskConical,
+  MessageSquareText,
   Pill,
   type LucideIcon,
 } from 'lucide-react'
@@ -21,6 +22,7 @@ const icons: Record<AlertType, LucideIcon> = {
   APPOINTMENT_CONFIRMED: CalendarCheck,
   APPOINTMENT_REJECTED: CalendarX,
   APPOINTMENT_CANCELLED: CalendarX,
+  RECOMMENDATION_ADDED: MessageSquareText,
 }
 
 /** Quando acontece a origem (“Amanhã · 09:30”; exames só têm dia); senão, quando disparou. */

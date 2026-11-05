@@ -302,6 +302,9 @@ export function NewExaminationPage() {
 
   return (
     <Page title="Adicionar exame" backTo={paths.examinations} backLabel="Exames">
+      <ButtonLink to={paths.examinationSchedule} variant="soft">
+        Agendar numa clínica parceira
+      </ButtonLink>
       {state.status === 'loading' && <LoadingState rows={4} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (

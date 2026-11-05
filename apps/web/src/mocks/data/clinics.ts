@@ -31,14 +31,43 @@ export const slotId = (days: number, time: string, specialty: string) =>
 
 /** Horários da Clínica Horizonte nos próximos dias (só os futuros). */
 export function seedSlots(now: Date = new Date()): ClinicSlot[] {
-  return Array.from({ length: SLOT_DAYS }, (_, days) => days).flatMap((days) =>
+  const appointmentSlots: ClinicSlot[] = Array.from({ length: SLOT_DAYS }, (_, days) => days).flatMap((days) =>
     HORIZONTE_SCHEDULE.flatMap(({ specialty, professionalName, times }) =>
       times
         .map((time) => ({
           id: slotId(days, time, specialty),
           clinicId: 'cln_horizonte',
+          kind: 'APPOINTMENT' as const,
+          capacity: 1,
           specialty,
           professionalName,
+          startsAt: at(days, time, now),
+          durationMinutes: 30,
+        }))
+        .filter((slot) => Date.parse(slot.startsAt) > now.getTime()),
+    ),
+  )
+  return [...appointmentSlots, ...seedExamSlots(now)]
+}
+
+/** Horários de exame (D19, BR-APT-11): vários utilizadores partilham um horário até esgotar as vagas. */
+const EXAM_SCHEDULE = [
+  { clinicId: 'cln_horizonte', specialty: 'Análises clínicas', times: ['08:00', '09:00'], capacity: 4 },
+  { clinicId: 'cln_horizonte', specialty: 'Ecografia', times: ['14:00', '15:00'], capacity: 1 },
+  { clinicId: 'cln_vidaplena', specialty: 'Análises clínicas', times: ['08:30', '10:00'], capacity: 6 },
+]
+
+function seedExamSlots(now: Date): ClinicSlot[] {
+  return Array.from({ length: SLOT_DAYS }, (_, days) => days).flatMap((days) =>
+    EXAM_SCHEDULE.flatMap(({ clinicId, specialty, times, capacity }) =>
+      times
+        .map((time) => ({
+          id: `${slotId(days, time, specialty)}_${clinicId.slice(4, 8)}_exam`,
+          clinicId,
+          kind: 'EXAM' as const,
+          capacity,
+          specialty,
+          professionalName: undefined,
           startsAt: at(days, time, now),
           durationMinutes: 30,
         }))

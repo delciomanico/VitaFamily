@@ -13,6 +13,10 @@ export interface Examination {
   status: ExaminationStatus
   clinicId?: string
   clinicName?: string
+  /** Horário de exame da clínica em que foi marcado (ADR-023); nasce SCHEDULED. */
+  slotId?: string
+  /** Nota da clínica (motivo de cancelamento ou nota do resultado); só a clínica a escreve. */
+  responseNote?: string
   notes?: string
 }
 

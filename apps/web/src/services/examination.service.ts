@@ -35,6 +35,7 @@ export interface ApiExamination {
   status: ExaminationStatus
   clinicId?: string | null
   clinicName?: string | null
+  slotId?: string | null
   notes?: string | null
   results: ApiResult[]
 }
@@ -51,6 +52,7 @@ export function toExamination(familyId: string, e: ApiExamination): Examination 
     status: e.status,
     clinicId: e.clinicId ?? undefined,
     clinicName: e.clinicName ?? undefined,
+    slotId: e.slotId ?? undefined,
     notes: e.notes ?? undefined,
   }
 }
@@ -93,6 +95,14 @@ async function apiGetExamination(familyId: string, id: string): Promise<Examinat
 
 async function apiCreateExamination(familyId: string, input: api.NewExaminationInput): Promise<Examination> {
   const base = examPath(familyId, input.memberId)
+  if (input.slotId) {
+    // Marcação direta num horário com vagas (ADR-023): nasce SCHEDULED; nome, data e clínica vêm do horário.
+    const booked = await apiFetch<ApiExamination>(base, {
+      method: 'POST',
+      body: { name: input.name.trim(), examDate: input.examDate, slotId: input.slotId, notes: input.notes?.trim() || null },
+    })
+    return toExamination(familyId, booked)
+  }
   const clinicName = input.clinicName?.trim()
   const clinic = clinicName
     ? (await clinicService.listClinics(familyId)).find(

@@ -76,12 +76,25 @@ export async function apiFetch<T>(
   if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (options.auth !== false && accessToken) headers.Authorization = `Bearer ${accessToken}`
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  let res = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? 'GET',
     headers,
     credentials: 'include',
     body: options.body === undefined ? undefined : isForm ? (options.body as FormData) : JSON.stringify(options.body),
   })
+
+  if (res.status === 401 && options.auth !== false && !path.startsWith('/auth/')) {
+    const newToken = await refreshAccessToken()
+    if (newToken) {
+      headers.Authorization = `Bearer ${newToken}`
+      res = await fetch(`${API_BASE_URL}${path}`, {
+        method: options.method ?? 'GET',
+        headers,
+        credentials: 'include',
+        body: options.body === undefined ? undefined : isForm ? (options.body as FormData) : JSON.stringify(options.body),
+      })
+    }
+  }
 
   if (res.status === 204) return undefined as T
 

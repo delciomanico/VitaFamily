@@ -1,3 +1,4 @@
+import { RecommendationsSection } from '@/components/domain/RecommendationsSection'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ChartLine } from 'lucide-react'
@@ -107,6 +108,8 @@ function ExaminationContent({ detail, selfMemberId, onComplete, onCancel, comple
           <p className="text-sm text-muted">Nenhum documento anexado.</p>
         )}
       </DetailSection>
+
+      <RecommendationsSection memberId={examination.memberId} origin={{ examinationId: examination.id }} />
 
       {examination.notes && (
         <DetailSection title="Observações">

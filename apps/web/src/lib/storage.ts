@@ -11,6 +11,7 @@ const SESSION_KEY = 'vf.session.userId'
  * clínica do backend simulado — na API real a sessão vive no cookie `clinic_refresh_token`.
  */
 const CLINIC_SESSION_KEY = 'vf.clinic.session.accountId'
+const INSURANCE_SESSION_KEY = 'vf.insurance.session.accountId'
 const ONBOARDING_KEY = 'vf.onboarding.seen'
 
 function read(storage: () => Storage, key: string): string | null {
@@ -41,6 +42,11 @@ export const sessionStore = {
 export const clinicSessionStore = {
   getAccountId: () => read(session, CLINIC_SESSION_KEY),
   setAccountId: (clinicAccountId: string | null) => write(session, CLINIC_SESSION_KEY, clinicAccountId),
+}
+
+export const insuranceSessionStore = {
+  getAccountId: () => read(session, INSURANCE_SESSION_KEY),
+  setAccountId: (insuranceAccountId: string | null) => write(session, INSURANCE_SESSION_KEY, insuranceAccountId),
 }
 
 export const preferences = {

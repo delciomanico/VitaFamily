@@ -1,5 +1,5 @@
 /** Documento anexado — docs/04-domain/entities.md → Document (sem armazenamento real nos mocks). */
-export type DocumentResourceType = 'PRESCRIPTION' | 'EXAMINATION'
+export type DocumentResourceType = 'PRESCRIPTION' | 'EXAMINATION' | 'INSURANCE_POLICY'
 
 export interface DocumentInfo {
   id: string
@@ -13,6 +13,8 @@ export interface DocumentInfo {
   createdAt: string
   /** Análise antivírus (API real, BR-DOC-02); ausente nos mocks. */
   scanStatus?: 'PENDING' | 'CLEAN' | 'INFECTED'
+  /** Carregado pela clínica (BR-CLN-08): a família descarrega, a clínica só vê metadados. */
+  uploadedByClinic?: boolean
 }
 
 /** Metadados de um documento enviado (os mocks não guardam o ficheiro). */

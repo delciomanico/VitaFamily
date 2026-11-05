@@ -50,3 +50,9 @@ export async function apiListDocuments(
 export function apiDownloadDocument(document: DocumentInfo): Promise<Blob> {
   return apiFetchBlob(`${base(document.familyId, document.memberId)}/${document.id}/download`)
 }
+
+/** `GET …/documents` sem filtros: todos os documentos do membro que posso ler (anexos de pedidos, BR-INS-04). */
+export async function apiListMemberDocuments(familyId: string, memberId: string): Promise<DocumentInfo[]> {
+  const list = await apiFetch<ApiDocument[]>(base(familyId, memberId))
+  return list.map((d) => ({ ...d, familyId, memberId }))
+}

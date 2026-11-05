@@ -7,6 +7,7 @@ export type AlertType =
   | 'APPOINTMENT_CONFIRMED'
   | 'APPOINTMENT_REJECTED'
   | 'APPOINTMENT_CANCELLED'
+  | 'RECOMMENDATION_ADDED'
 
 /** Regra que gerou o alerta (Evento → Regra → Alerta, UC-ALR-01). */
 export type AlertRuleKey =
@@ -19,6 +20,7 @@ export type AlertRuleKey =
   | 'appointment.confirmed'
   | 'appointment.rejected'
   | 'appointment.cancelled'
+  | 'recommendation.added'
 
 export interface HealthAlert {
   id: string
@@ -27,7 +29,7 @@ export interface HealthAlert {
   memberId: string
   type: AlertType
   ruleKey: AlertRuleKey
-  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION'
+  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION' | 'RECOMMENDATION'
   sourceId: string
   triggerAt: string
   readAt?: string

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { Clock, Pencil } from 'lucide-react'
 import { NO_CLINIC, SpecialtyField } from '@/components/domain/AppointmentFields'
+import { RecommendationsSection } from '@/components/domain/RecommendationsSection'
 import { Page } from '@/components/layout/Page'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -148,6 +149,8 @@ function AppointmentView({ item: { appointment, memberName }, selfMemberId, onCa
           </Card>
         </DetailSection>
       )}
+
+      <RecommendationsSection memberId={appointment.memberId} origin={{ appointmentId: appointment.id }} />
 
       {needsOutcome(appointment) && (
         <DetailSection title="Como correu?">

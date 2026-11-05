@@ -22,6 +22,7 @@ export const paths = {
   medication: (id: string) => `/app/health/medications/${id}`,
   examinations: '/app/health/examinations',
   examinationNew: '/app/health/examinations/new',
+  examinationSchedule: '/app/health/examinations/schedule',
   examination: (id: string) => `/app/health/examinations/${id}`,
   examinationHistory: (id: string) => `/app/health/examinations/${id}/history`,
   medicalHistory: '/app/health/history',
@@ -32,6 +33,7 @@ export const paths = {
 
   family: '/app/family',
   familyMember: (id: string) => `/app/family/${id}`,
+  familyMemberInsurance: (id: string) => `/app/family/${id}/insurance`,
   familyMemberHistory: (id: string) => `/app/family/${id}/history`,
 
   alerts: '/app/alerts',
@@ -54,9 +56,16 @@ export const paths = {
   clinic: '/clinic',
   clinicAgenda: '/clinic/agenda',
   clinicSlots: '/clinic/slots',
+  clinicExams: '/clinic/exams',
   clinicStaff: '/clinic/staff',
+
+  // Portal da seguradora (ADR-021): terceiro espaço de identidade, login e sessão próprios.
+  insuranceLogin: '/insurance/login',
+  insurance: '/insurance',
+  insuranceAgents: '/insurance/agents',
 
   // Área do Platform Admin: mesma conta/login de `User` (platformRole), mas sem família.
   admin: '/admin',
   adminClinics: '/admin/clinics',
+  adminInsurers: '/admin/insurers',
 } as const

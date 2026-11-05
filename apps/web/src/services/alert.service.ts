@@ -5,12 +5,12 @@ import type { AlertItem, AlertRuleKey, AlertType } from '@/types/alert'
 /** `Alert` (openapi.yaml components.schemas.Alert). */
 export interface ApiAlert {
   id: string
-  type: 'MEDICATION_DUE' | 'APPOINTMENT_REMINDER' | 'EXAM_REMINDER' | 'APPOINTMENT_OUTCOME_REQUEST'
+  type: AlertType
   familyId: string
   memberId: string
   memberName: string
   message: string
-  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION'
+  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION' | 'RECOMMENDATION'
   sourceId: string
   triggerAt: string
   readAt?: string | null
@@ -27,6 +27,7 @@ const ruleKeyOf: Record<AlertType, AlertRuleKey> = {
   APPOINTMENT_CONFIRMED: 'appointment.confirmed',
   APPOINTMENT_REJECTED: 'appointment.rejected',
   APPOINTMENT_CANCELLED: 'appointment.cancelled',
+  RECOMMENDATION_ADDED: 'recommendation.added',
 }
 
 export function toAlertItem(alert: ApiAlert): AlertItem {
@@ -43,7 +44,7 @@ export function toAlertItem(alert: ApiAlert): AlertItem {
     readAt: alert.readAt ?? undefined,
     message: alert.message,
     sourceLabel: '',
-    targetId: alert.sourceId,
+    targetId: alert.sourceType === 'RECOMMENDATION' ? undefined : alert.sourceId,
   }
 }
 

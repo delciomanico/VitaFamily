@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { FullScreenLoader } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicAuth } from '@/contexts/ClinicAuthContext'
+import { useInsuranceAuth } from '@/contexts/InsuranceAuthContext'
 import { paths } from './paths'
 
 interface FromState {
@@ -64,6 +65,33 @@ export function ClinicGuestOnly() {
   const from = (useLocation().state as FromState | null)?.from
   if (status === 'loading') return <FullScreenLoader />
   if (session) return <Navigate to={from?.startsWith(paths.clinic) ? from : paths.clinic} replace />
+  return <Outlet />
+}
+
+/** Portal da seguradora (ADR-021): exige uma sessão de `InsuranceAccount`, nunca a de `User` nem a da clínica. */
+export function RequireInsuranceAccount() {
+  const { status, session } = useInsuranceAuth()
+  const location = useLocation()
+  if (status === 'loading') return <FullScreenLoader />
+  if (!session) {
+    return <Navigate to={paths.insuranceLogin} replace state={{ from: location.pathname } satisfies FromState} />
+  }
+  return <Outlet />
+}
+
+/** Gestão de agentes: só o Admin da seguradora (BR-INS-06). */
+export function RequireInsuranceAdmin() {
+  const { isAdmin } = useInsuranceAuth()
+  if (!isAdmin) return <Navigate to={paths.insurance} replace />
+  return <Outlet />
+}
+
+/** Login do portal: com sessão já iniciada, segue para os pedidos. */
+export function InsuranceGuestOnly() {
+  const { status, session } = useInsuranceAuth()
+  const from = (useLocation().state as FromState | null)?.from
+  if (status === 'loading') return <FullScreenLoader />
+  if (session) return <Navigate to={from?.startsWith(paths.insurance) ? from : paths.insurance} replace />
   return <Outlet />
 }
 

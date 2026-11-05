@@ -2,7 +2,7 @@ import * as api from '@/mocks/handlers/appointments'
 import { apiFetch, hasApiBackend } from '@/lib/apiClient'
 import { AppError } from '@/lib/errors'
 import type { Appointment, AppointmentItem } from '@/types/appointment'
-import type { AvailableSlot } from '@/types/clinic'
+import type { AvailableSlot, SlotKind } from '@/types/clinic'
 import { collectPerMember, findPerMember } from './apiMembers'
 import { clinicService } from './clinic.service'
 
@@ -109,6 +109,9 @@ interface ApiAvailableSlot {
   id: string
   clinicId: string
   clinicName: string
+  kind: SlotKind
+  capacity: number
+  remaining: number
   specialty: string
   professionalName?: string | null
   startsAt: string
@@ -120,9 +123,13 @@ interface ApiAvailableSlot {
  * parceira ativa, para a especialidade escolhida. O contrato é **por clínica** — a UI mostra as
  * parceiras com vagas lado a lado, por isso pergunta a cada uma (mesmo padrão de `apiMembers`).
  */
-async function apiListAvailableSlots(familyId: string, specialty: string): Promise<AvailableSlot[]> {
+async function apiListAvailableSlots(
+  familyId: string,
+  specialty: string,
+  kind: SlotKind = 'APPOINTMENT',
+): Promise<AvailableSlot[]> {
   const clinics = (await clinicService.listClinics(familyId)).filter((c) => c.type === 'PARTNER')
-  const query = specialty.trim() ? `?specialty=${encodeURIComponent(specialty.trim())}` : ''
+  const query = `?kind=${kind}${specialty.trim() ? `&specialty=${encodeURIComponent(specialty.trim())}` : ''}`
   const perClinic = await Promise.all(
     clinics.map(async (clinic) => {
       try {
@@ -139,6 +146,9 @@ async function apiListAvailableSlots(familyId: string, specialty: string): Promi
       id: slot.id,
       clinicId: slot.clinicId,
       clinicName: slot.clinicName,
+      kind: slot.kind,
+      capacity: slot.capacity,
+      remaining: slot.remaining,
       specialty: slot.specialty,
       professionalName: slot.professionalName ?? undefined,
       startsAt: slot.startsAt,
@@ -202,7 +212,8 @@ export const appointmentService = hasApiBackend()
   : {
       listAppointments: api.listAppointments,
       getAppointment: api.getAppointment,
-      listAvailableSlots: (familyId: string, specialty: string) => api.listAvailableSlots(familyId, specialty),
+      listAvailableSlots: (familyId: string, specialty: string, kind: SlotKind = 'APPOINTMENT') =>
+        api.listAvailableSlots(familyId, specialty, new Date(), kind),
       // O backend simulado resolve a clínica pelo próprio horário; `slot` é ignorado.
       requestAppointment: (
         familyId: string,

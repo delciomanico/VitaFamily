@@ -37,6 +37,8 @@ function targetOf(alert: AlertItem): string | undefined {
       return paths.appointment(alert.targetId)
     case 'EXAMINATION':
       return paths.examination(alert.targetId)
+    case 'RECOMMENDATION':
+      return undefined
   }
 }
 

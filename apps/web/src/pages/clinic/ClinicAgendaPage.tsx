@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CalendarDays } from 'lucide-react'
 import { ClinicBookingList } from '@/components/domain/ClinicBookingList'
+import { RecommendationModal } from '@/components/domain/RecommendationModal'
 import { DateStrip, nextDays } from '@/components/domain/DatePickers'
 import { Button } from '@/components/ui/Button'
 import { DetailSection } from '@/components/ui/InfoList'
@@ -31,6 +32,7 @@ export function ClinicAgendaPage() {
   const [day, setDay] = useState<string | null>(todayISO())
   const [cancelling, setCancelling] = useState<ClinicBooking | null>(null)
   const [completing, setCompleting] = useState<ClinicBooking | null>(null)
+  const [recommending, setRecommending] = useState<ClinicBooking | null>(null)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | undefined>()
   const [saving, setSaving] = useState(false)
@@ -76,18 +78,22 @@ export function ClinicAgendaPage() {
               items={shown}
               showStatus
               actions={(booking) =>
-                booking.status === 'SCHEDULED' && (
+                (booking.status === 'SCHEDULED' || booking.status === 'COMPLETED') && (
                   <>
-                    {/* A consulta em curso (hora já passada) é a que se completa (ST4). */}
-                    {Date.parse(booking.scheduledAt) <= Date.now() ? (
-                      <Button size="sm" className="flex-1 sm:flex-none" onClick={() => setCompleting(booking)}>
-                        Completar consulta
-                      </Button>
-                    ) : (
-                      <Button variant="danger-ghost" size="sm" onClick={() => setCancelling(booking)}>
-                        Cancelar consulta
-                      </Button>
-                    )}
+                    <Button variant="ghost" size="sm" onClick={() => setRecommending(booking)}>
+                      Recomendação
+                    </Button>
+                    {booking.status === 'SCHEDULED' &&
+                      /* A consulta em curso (hora já passada) é a que se completa (ST4). */
+                      (Date.parse(booking.scheduledAt) <= Date.now() ? (
+                        <Button size="sm" className="flex-1 sm:flex-none" onClick={() => setCompleting(booking)}>
+                          Completar consulta
+                        </Button>
+                      ) : (
+                        <Button variant="danger-ghost" size="sm" onClick={() => setCancelling(booking)}>
+                          Cancelar consulta
+                        </Button>
+                      ))}
                   </>
                 )
               }
@@ -124,6 +130,18 @@ export function ClinicAgendaPage() {
           }}
         />
       </Modal>
+
+      {recommending && (
+        <RecommendationModal
+          origin={{ appointmentId: recommending.id }}
+          patientName={recommending.patientName}
+          onClose={() => setRecommending(null)}
+          onSent={() => {
+            setRecommending(null)
+            toast.show('Recomendação enviada.')
+          }}
+        />
+      )}
 
       {completing && (
         <CompleteConsultationForm

@@ -4,9 +4,36 @@ import type { UserStatus } from './user'
 export interface AdminUser {
   id: string
   email: string
+  name: string
   status: UserStatus
   createdAt: string
 }
+
+/** `AdminUserDetail` (openapi.yaml): detalhe operacional; `familiesCount` é só um número (R10). */
+export interface AdminUserDetail extends AdminUser {
+  platformRole: 'NONE' | 'PLATFORM_ADMIN'
+  emailVerifiedAt: string | null
+  suspendedAt: string | null
+  suspensionReason: string | null
+  familiesCount: number
+  activeSessionsCount: number
+  lastSessionUsedAt: string | null
+}
+
+/** `AdminClinicAccount` (openapi.yaml): conta do portal de uma clínica, com último login. */
+export interface AdminClinicAccount {
+  id: string
+  clinicId: string
+  email: string
+  role: 'CLINIC_ADMIN' | 'CLINIC_MANAGER'
+  status: 'ACTIVE' | 'SUSPENDED'
+  createdAt: string
+  lastLoginAt: string | null
+  suspendedAt: string | null
+}
+
+/** Pesquisa `q` aceite pela API: 2 ou mais caracteres. */
+export const ADMIN_SEARCH_MIN = 2
 
 /** `GET /admin/users` (openapi.yaml): página com cursor para "carregar mais". */
 export interface AdminUserPage {

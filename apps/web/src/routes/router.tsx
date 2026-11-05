@@ -3,6 +3,7 @@ import { createBrowserRouter, type RouteObject } from 'react-router-dom'
 import { AdminShell } from '@/components/layout/AdminShell'
 import { AppShell } from '@/components/layout/AppShell'
 import { ClinicPortalRoot, ClinicShell } from '@/components/layout/ClinicShell'
+import { InsurancePortalRoot, InsuranceShell } from '@/components/layout/InsuranceShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { HomePage } from '@/pages/home/HomePage'
 import { ForgotPasswordPage } from '@/pages/public/ForgotPasswordPage'
@@ -18,6 +19,9 @@ import { SetupMembersPage } from '@/pages/setup/SetupMembersPage'
 import { FullScreenLoader } from '@/components/ui/states'
 import {
   ClinicGuestOnly,
+  InsuranceGuestOnly,
+  RequireInsuranceAccount,
+  RequireInsuranceAdmin,
   GuestOnly,
   RequireAuth,
   RequireClinicAccount,
@@ -120,6 +124,10 @@ export const routes: RouteObject[] = [
                 ...page(() => import('@/pages/examinations/NewExaminationPage'), 'NewExaminationPage'),
               },
               {
+                path: 'health/examinations/schedule',
+                ...page(() => import('@/pages/examinations/ScheduleExaminationPage'), 'ScheduleExaminationPage'),
+              },
+              {
                 path: 'health/examinations/:id',
                 ...page(() => import('@/pages/examinations/ExaminationDetailPage'), 'ExaminationDetailPage'),
               },
@@ -140,6 +148,10 @@ export const routes: RouteObject[] = [
                 ...page(() => import('@/pages/appointments/AppointmentDetailPage'), 'AppointmentDetailPage'),
               },
               { path: 'family', ...page(() => import('@/pages/family/FamilyPage'), 'FamilyPage') },
+              {
+                path: 'family/:id/insurance',
+                ...page(() => import('@/pages/family/MemberInsurancePage'), 'MemberInsurancePage'),
+              },
               { path: 'family/:id', ...page(() => import('@/pages/family/MemberProfilePage'), 'MemberProfilePage') },
               {
                 path: 'family/:id/history',
@@ -200,6 +212,38 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, ...page(() => import('@/pages/admin/AdminUsersPage'), 'AdminUsersPage') },
               { path: 'clinics', ...page(() => import('@/pages/admin/AdminClinicsPage'), 'AdminClinicsPage') },
+              { path: 'insurers', ...page(() => import('@/pages/admin/AdminInsurersPage'), 'AdminInsurersPage') },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    /*
+     * Portal da seguradora (ADR-021): árvore de rotas disjunta da app e do portal da clínica,
+     * com sessão de `InsuranceAccount` (`InsurancePortalRoot` monta o seu provider) e login próprio.
+     */
+    path: paths.insurance,
+    element: <InsurancePortalRoot />,
+    children: [
+      {
+        element: <InsuranceGuestOnly />,
+        children: [{ path: 'login', ...page(() => import('@/pages/insurance/InsuranceLoginPage'), 'InsuranceLoginPage') }],
+      },
+      {
+        element: <RequireInsuranceAccount />,
+        children: [
+          {
+            element: <InsuranceShell />,
+            children: [
+              { index: true, ...page(() => import('@/pages/insurance/InsuranceClaimsPage'), 'InsuranceClaimsPage') },
+              {
+                element: <RequireInsuranceAdmin />,
+                children: [
+                  { path: 'agents', ...page(() => import('@/pages/insurance/InsuranceAgentsPage'), 'InsuranceAgentsPage') },
+                ],
+              },
             ],
           },
         ],
@@ -227,6 +271,7 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, ...page(() => import('@/pages/clinic/ClinicRequestsPage'), 'ClinicRequestsPage') },
               { path: 'agenda', ...page(() => import('@/pages/clinic/ClinicAgendaPage'), 'ClinicAgendaPage') },
+              { path: 'exams', ...page(() => import('@/pages/clinic/ClinicExamsPage'), 'ClinicExamsPage') },
               { path: 'slots', ...page(() => import('@/pages/clinic/ClinicSlotsPage'), 'ClinicSlotsPage') },
               {
                 element: <RequireClinicAdmin />,

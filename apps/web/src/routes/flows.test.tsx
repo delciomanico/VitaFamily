@@ -243,7 +243,8 @@ describe('fluxos de autenticação', () => {
       id: 'apt_curso',
       familyId: 'fam_monarca',
       memberId: 'mem_maria',
-      scheduledAt: new Date(Date.now() - 60 * 60_000).toISOString(),
+      // Hora passada mas sempre no dia de hoje (senão, logo após a meia-noite, cairia em “ontem”).
+      scheduledAt: new Date(Math.max(Date.now() - 60 * 60_000, new Date().setHours(0, 0, 1, 0))).toISOString(),
       status: 'SCHEDULED',
       slotId: 'slot_curso',
       specialty: 'Dermatologia',

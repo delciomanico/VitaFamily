@@ -13,7 +13,9 @@ import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
 import { attachDocuments, documentsOf, validateUploads } from '../documents'
 import { respond } from '../respond'
+import { examBookingsOf } from '../bookings'
 import { visibleClinics } from './clinics'
+import { localDay } from '@/lib/appointment'
 
 /** Resultado estruturado (BR-EXM-01): valor numérico ou texto livre, referência opcional do utilizador. */
 export interface ExamResultInput {
@@ -31,6 +33,8 @@ export interface NewExaminationInput {
   examDate: string
   clinicName?: string
   notes?: string
+  /** Horário de exame de uma clínica parceira (ADR-023): o exame nasce SCHEDULED, sem confirmação. */
+  slotId?: string
   results: ExamResultInput[]
   documents: DocumentUpload[]
 }
@@ -108,6 +112,7 @@ export function createExamination(
 ) {
   return respond((): Examination => {
     findVisibleMember(familyId, userId, input.memberId)
+    if (input.slotId) return bookExamSlot(familyId, input, now)
     const status = input.examDate > todayISO(now) ? 'SCHEDULED' : 'COMPLETED'
     if (!input.name.trim() || !input.examDate) throw new AppError('VALIDATION_ERROR')
     if (status === 'SCHEDULED' && input.results.length > 0) throw new AppError('VALIDATION_ERROR')
@@ -146,6 +151,35 @@ export function createExamination(
     )
     return examination
   })
+}
+
+/**
+ * Agenda diretamente num horário de exame com vagas (BR-APT-11, ADR-023): sem pedido nem
+ * confirmação. CONFLICT se o horário está cheio ou o membro já ocupa uma vaga nele.
+ */
+function bookExamSlot(familyId: string, input: NewExaminationInput, now: Date): Examination {
+  const slot = db.slots.find((s) => s.id === input.slotId)
+  const clinic = slot && visibleClinics(familyId).find((c) => c.id === slot.clinicId && c.type === 'PARTNER')
+  if (!slot || !clinic || slot.kind !== 'EXAM') throw new AppError('VALIDATION_ERROR')
+  if (Date.parse(slot.startsAt) <= now.getTime()) throw new AppError('CONFLICT')
+  const booked = examBookingsOf(slot.id)
+  if (booked.length >= slot.capacity || booked.some((e) => e.memberId === input.memberId)) {
+    throw new AppError('CONFLICT')
+  }
+  const examination: Examination = {
+    id: newId('exm'),
+    familyId,
+    memberId: input.memberId,
+    name: slot.specialty,
+    examDate: localDay(slot.startsAt),
+    status: 'SCHEDULED',
+    clinicId: clinic.id,
+    clinicName: clinic.name,
+    slotId: slot.id,
+    notes: input.notes?.trim() || undefined,
+  }
+  db.examinations.push(examination)
+  return examination
 }
 
 /** Marcar um exame agendado como realizado ou cancelá-lo (UC-EXM-06). */

@@ -14,6 +14,11 @@ export function bookingOf(slotId: string): Appointment | undefined {
   return db.appointments.find((a) => a.slotId === slotId && HOLDS_SLOT.includes(a.status))
 }
 
+/** Exames `SCHEDULED` num horário de exame: só estes ocupam vaga (BR-APT-11). */
+export function examBookingsOf(slotId: string) {
+  return db.examinations.filter((e) => e.slotId === slotId && e.status === 'SCHEDULED')
+}
+
 export const NO_RESPONSE_NOTE = 'Sem resposta da clínica até à hora marcada.'
 
 /**

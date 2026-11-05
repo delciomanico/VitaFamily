@@ -11,13 +11,18 @@ import { clinicSessionStore } from '@/lib/storage'
 import type {
   ClinicAccount,
   ClinicBooking,
+  ClinicCompleteExamInput,
   ClinicCompleteInput,
+  ClinicExamBooking,
   ClinicRequestDecision,
   ClinicSession,
   ClinicSlot,
   ClinicSlotView,
   PublishSlotsInput,
+  SlotKind,
 } from '@/types/clinic'
+import type { DocumentUpload } from '@/types/document'
+import type { ClinicRecommendation, RecommendationOrigin } from '@/types/recommendation'
 
 /**
  * Portal da clínica parceira (`/clinic-portal/*`, D17/D18, ADR-020).
@@ -43,6 +48,8 @@ interface ApiClinicAccount {
 interface ApiClinicSlot {
   id: string
   clinicId: string
+  kind: SlotKind
+  capacity: number
   specialty: string
   professionalName?: string | null
   startsAt: string
@@ -51,6 +58,20 @@ interface ApiClinicSlot {
 
 interface ApiClinicSlotView extends ApiClinicSlot {
   state: ClinicSlotView['state']
+  bookedCount: number
+  remaining: number
+}
+
+interface ApiClinicExamBooking {
+  id: string
+  status: ClinicExamBooking['status']
+  scheduledAt: string
+  examType?: string | null
+  patientName: string
+  notes?: string | null
+  responseNote?: string | null
+  resultsCount?: number
+  documents?: ClinicExamBooking['documents']
 }
 
 interface ApiClinicBooking {
@@ -67,13 +88,49 @@ interface ApiClinicBooking {
 const toSlot = (slot: ApiClinicSlot): ClinicSlot => ({
   id: slot.id,
   clinicId: slot.clinicId,
+  kind: slot.kind,
+  capacity: slot.capacity,
   specialty: slot.specialty,
   professionalName: slot.professionalName ?? undefined,
   startsAt: slot.startsAt,
   durationMinutes: slot.durationMinutes,
 })
 
-const toSlotView = (slot: ApiClinicSlotView): ClinicSlotView => ({ ...toSlot(slot), state: slot.state })
+const toSlotView = (slot: ApiClinicSlotView): ClinicSlotView => ({
+  ...toSlot(slot),
+  state: slot.state,
+  bookedCount: slot.bookedCount,
+  remaining: slot.remaining,
+})
+
+const toExamBooking = (exam: ApiClinicExamBooking): ClinicExamBooking => ({
+  id: exam.id,
+  status: exam.status,
+  scheduledAt: exam.scheduledAt,
+  examType: exam.examType ?? undefined,
+  patientName: exam.patientName,
+  notes: exam.notes ?? undefined,
+  responseNote: exam.responseNote ?? undefined,
+  resultsCount: exam.resultsCount ?? 0,
+  documents: exam.documents ?? [],
+})
+
+const byExamTime = (a: ClinicExamBooking, b: ClinicExamBooking) => a.scheduledAt.localeCompare(b.scheduledAt)
+
+/** `ClinicCompleteExaminationRequest` (openapi.yaml): parâmetros estruturados, sem interpretação (D11). */
+function completeExamBody(input: ClinicCompleteExamInput) {
+  return {
+    results: input.results.map((r) => ({
+      parameter: r.parameter.trim(),
+      valueNumeric: r.valueNumeric ?? null,
+      valueText: r.valueText?.trim() || null,
+      unit: r.unit?.trim() || null,
+      referenceMin: r.referenceMin ?? null,
+      referenceMax: r.referenceMax ?? null,
+    })),
+    resultNote: input.resultNote?.trim() || null,
+  }
+}
 
 const toBooking = (booking: ApiClinicBooking): ClinicBooking => ({
   id: booking.id,
@@ -127,6 +184,24 @@ function completeBody(input: ClinicCompleteInput) {
   }
 }
 
+interface ApiClinicRecommendation {
+  id: string
+  appointmentId?: string | null
+  examinationId?: string | null
+  patientName: string
+  text: string
+  createdAt: string
+}
+
+const toRecommendation = (r: ApiClinicRecommendation): ClinicRecommendation => ({
+  id: r.id,
+  appointmentId: r.appointmentId ?? undefined,
+  examinationId: r.examinationId ?? undefined,
+  patientName: r.patientName,
+  text: r.text,
+  createdAt: r.createdAt,
+})
+
 const apiImpl = {
   async login(email: string, password: string): Promise<ClinicSession> {
     const tokens = await clinicApiFetch<ClinicTokenResponse>('/auth/login', {
@@ -166,14 +241,17 @@ const apiImpl = {
     return clinicApiFetch<void>(`/staff/${clinicAccountId}`, { method: 'DELETE' })
   },
 
-  async listSlots(): Promise<ClinicSlotView[]> {
-    return (await clinicApiFetch<ApiClinicSlotView[]>('/slots')).map(toSlotView)
+  async listSlots(kind?: SlotKind): Promise<ClinicSlotView[]> {
+    const query = kind ? `?kind=${kind}` : ''
+    return (await clinicApiFetch<ApiClinicSlotView[]>(`/slots${query}`)).map(toSlotView)
   },
 
   async publishSlots(input: PublishSlotsInput): Promise<ClinicSlot[]> {
     const created = await clinicApiFetch<ApiClinicSlot[]>('/slots', {
       method: 'POST',
       body: {
+        kind: input.kind,
+        capacity: input.kind === 'EXAM' ? (input.capacity ?? 1) : 1,
         date: input.date,
         times: input.times,
         specialty: input.specialty.trim(),
@@ -186,6 +264,60 @@ const apiImpl = {
 
   removeSlot(slotId: string): Promise<void> {
     return clinicApiFetch<void>(`/slots/${slotId}`, { method: 'DELETE' })
+  },
+
+  async updateSlotCapacity(slotId: string, capacity: number): Promise<ClinicSlotView> {
+    return toSlotView(
+      await clinicApiFetch<ApiClinicSlotView>(`/slots/${slotId}`, { method: 'PATCH', body: { capacity } }),
+    )
+  },
+
+  async createRecommendation(origin: RecommendationOrigin, text: string): Promise<ClinicRecommendation> {
+    return toRecommendation(
+      await clinicApiFetch<ApiClinicRecommendation>('/recommendations', {
+        method: 'POST',
+        body: {
+          appointmentId: 'appointmentId' in origin ? origin.appointmentId : null,
+          examinationId: 'examinationId' in origin ? origin.examinationId : null,
+          text: text.trim(),
+        },
+      }),
+    )
+  },
+
+  async listRecommendations(origin: RecommendationOrigin): Promise<ClinicRecommendation[]> {
+    const params = new URLSearchParams(origin as Record<string, string>)
+    return (await clinicApiFetch<ApiClinicRecommendation[]>(`/recommendations?${params}`)).map(toRecommendation)
+  },
+
+  async listExamAgenda(): Promise<ClinicExamBooking[]> {
+    return (await clinicApiFetch<ApiClinicExamBooking[]>('/exam-agenda')).map(toExamBooking).sort(byExamTime)
+  },
+
+  async cancelExam(examinationId: string, note: string): Promise<ClinicExamBooking> {
+    return toExamBooking(
+      await clinicApiFetch<ApiClinicExamBooking>(`/exam-agenda/${examinationId}/cancel`, {
+        method: 'PUT',
+        body: { note: note.trim() },
+      }),
+    )
+  },
+
+  /** `POST …/documents` (multipart): PDF dos resultados; a análise antivírus corre no servidor. */
+  async uploadExamDocument(examinationId: string, upload: DocumentUpload): Promise<void> {
+    if (!upload.file) return
+    const form = new FormData()
+    form.append('file', upload.file, upload.originalName)
+    await clinicApiFetch<unknown>(`/exam-agenda/${examinationId}/documents`, { method: 'POST', body: form })
+  },
+
+  async completeExam(examinationId: string, input: ClinicCompleteExamInput): Promise<ClinicExamBooking> {
+    return toExamBooking(
+      await clinicApiFetch<ApiClinicExamBooking>(`/exam-agenda/${examinationId}/complete`, {
+        method: 'PUT',
+        body: completeExamBody(input),
+      }),
+    )
   },
 
   async listRequests(): Promise<ClinicBooking[]> {
@@ -259,9 +391,23 @@ const mockImpl = {
   createStaff: (email: string) => mock.createClinicStaff(mockAccountId(), email),
   removeStaff: (clinicAccountId: string) => mock.removeClinicStaff(mockAccountId(), clinicAccountId),
 
-  listSlots: () => mock.listOwnClinicSlots(mockAccountId()),
+  listSlots: (kind?: SlotKind) => mock.listOwnClinicSlots(mockAccountId(), kind),
   publishSlots: (input: PublishSlotsInput) => mock.publishClinicSlots(mockAccountId(), input),
   removeSlot: (slotId: string) => mock.removeClinicSlot(mockAccountId(), slotId),
+  updateSlotCapacity: (slotId: string, capacity: number) =>
+    mock.updateClinicSlotCapacity(mockAccountId(), slotId, capacity),
+
+  createRecommendation: (origin: RecommendationOrigin, text: string) =>
+    mock.createClinicRecommendation(mockAccountId(), { ...origin, text }),
+  listRecommendations: (origin: RecommendationOrigin) => mock.listClinicRecommendations(mockAccountId(), origin),
+
+  listExamAgenda: () => mock.listClinicExamAgenda(mockAccountId()),
+  cancelExam: (examinationId: string, note: string) => mock.cancelClinicExam(mockAccountId(), examinationId, note),
+  async uploadExamDocument(examinationId: string, upload: DocumentUpload): Promise<void> {
+    await mock.uploadClinicExamDocument(mockAccountId(), examinationId, upload)
+  },
+  completeExam: (examinationId: string, input: ClinicCompleteExamInput) =>
+    mock.completeClinicExam(mockAccountId(), examinationId, input),
 
   listRequests: () => mock.listClinicRequests(mockAccountId()),
   respondRequest: (appointmentId: string, decision: ClinicRequestDecision, note?: string) =>
