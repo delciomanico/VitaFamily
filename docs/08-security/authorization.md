@@ -1,6 +1,6 @@
 # Vita Family — Autorização (Fase 14)
 
-> Estado: **v0.3** — acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
+> Estado: **v0.4** — exames, resultados e recomendações da clínica e administração de contas (ADR-023, D19: §3 nota, §4, §6.2–6.4, novo §7); v0.3 acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
 
 ## 1. Entradas e saída da decisão
 
@@ -15,7 +15,7 @@ target = { família, categoria?, sujeito (memberId)?, recurso }
 **Três tipos de ator (D18/ADR-020, ADR-021):** `AccessPolicy` (secções 2–6) decide **só** sobre o ator de
 User/família (`ActorInfo`, ADR-008). As rotas `/clinic-portal/*` usam um **segundo ator**,
 `ClinicActorInfo { clinicAccountId, clinicId, role, sessionId }` (ADR-020), autorizado por uma
-verificação própria e mais simples (§7) — nunca pelo `AccessPolicy` de família. As rotas
+verificação própria e mais simples (§6) — nunca pelo `AccessPolicy` de família. As rotas
 `/insurance-portal/*` usam um **terceiro ator**, `InsuranceActorInfo { insuranceAccountId, insurerId,
 role, sessionId }` (ADR-021), com a sua própria verificação (§8), mirror exata da do portal da clínica.
 As três árvores de rotas nunca partilham contexto de pedido entre si. Um `ClinicAccount` ou uma
@@ -52,6 +52,7 @@ Notas:
 - Um tutor que também é Admin usa a relação `TUTOR_OF` (não a de Admin).
 - Um adulto com conta que é dependente (N3) é tratado como qualquer dependente com conta: os tutores têm `TUTOR_OF` e o próprio tem `DEPENDENT_SELF` (acesso limitado, N2). Como se marcou dependente por vontade própria (Q7), pode deixar de o ser a qualquer momento (`PUT .../dependent` com `isDependent=false`), recuperando `SELF` completo.
 - `DEPENDENT_SELF` aplica-se a **qualquer idade**: o que o define é ser dependente, não ser menor.
+- `Recommendation` (ADR-023) **não** é categoria nova: herda a da origem — consulta ⇒ `APPOINTMENTS`, exame ⇒ `EXAMS`. Leitura: SELF/TUTOR_OF; `DEPENDENT_SELF` só as de consulta (N2); `OTHER` só com `SharingGrant` da categoria da origem. Nunca escrita por utilizadores de família (só a clínica cria). Listas filtram, não anulam (§5.3). Documentos emitidos pela clínica seguem `EXAMS` (BR-DOC-04/BR-CLN-08).
 - `InsurancePolicy`/`ReimbursementClaim` (ADR-021) **não** são uma categoria desta matriz: não têm
   `SharingGrant`, logo não há acesso de `OTHER` nesta versão. Só `SELF`/`TUTOR_OF` leem/criam/editam
   (mesma regra de leitura/escrita que as restantes categorias para estas duas relações); `OTHER` e
@@ -75,6 +76,9 @@ Notas:
 | Clínicas privadas | Criar: adulto da família; editar/arquivar/eliminar: criador ou FAMILY_ADMIN. |
 | Criar clínica parceira, ver/suspender a clínica | PLATFORM_ADMIN. |
 | Contas do portal da clínica (`CLINIC_ADMIN`/`CLINIC_MANAGER`) | Fora de `AccessPolicy` — ver §6 (ADR-020). |
+| Marcar exame num horário de clínica parceira (nasce `SCHEDULED` se houver vaga) | WRITE(EXAMS): SELF ou TUTOR_OF (UC-EXM-08, BR-APT-11). |
+| Ler recomendações | READ da categoria da origem (APPOINTMENTS/EXAMS), ver §3. |
+| Pesquisar/ver utilizador, repor acesso, listar/suspender contas de clínica, gerir seguradoras | PLATFORM_ADMIN — ver §7 (nunca dados de saúde). |
 | Criar/ver apólice (`InsurancePolicy`), criar/submeter pedido de reembolso (`ReimbursementClaim`) | SELF (adulto) ou TUTOR_OF (dependente); ADR-021. |
 | Criar seguradora parceira, ver/suspender a seguradora | PLATFORM_ADMIN. |
 | Contas do portal da seguradora (`INSURANCE_ADMIN`/`INSURANCE_AGENT`) | Fora de `AccessPolicy` — ver §8 (ADR-021). |
@@ -104,12 +108,17 @@ Notas:
 | Confirmar/recusar pedido (`REQUESTED → SCHEDULED\|REJECTED`) | sim | sim |
 | Cancelar consulta confirmada, com motivo | sim | sim |
 | Completar consulta: registar resultado e emitir receita (BR-CLN-06, BR-RX-07) | sim | sim |
-| Ver/gerir horários, pedidos ou agenda de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
+| Publicar/remover horários `kind=EXAM` e alterar a `capacity` (BR-CLN-07, BR-APT-10/11) | sim | sim |
+| Ver agenda e ocupação por horário de **exames** da própria clínica (mínimo, BR-CLN-03); não há pedidos de exame por confirmar (ADR-023 revisto) | sim | sim |
+| Cancelar marcação de exame `SCHEDULED` futura, com motivo (liberta a vaga) | sim | sim |
+| Completar exame: carregar PDF (só metadados de volta, nunca download) e registar resultados (BR-CLN-08) | sim | sim |
+| Criar e listar recomendações sobre consulta/exame da própria clínica (BR-CLN-09); **nunca** editar/eliminar | sim | sim |
+| Ver/gerir horários, pedidos, agenda, exames, documentos ou recomendações de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
 
 Não há ação do portal que leia dados fora do mínimo de BR-CLN-03 (nome do paciente, especialidade,
 profissional, data/hora, observações do pedido); nunca condições, alergias, medicação prévia,
 histórico de outras consultas, nem dados de família/tutela. A exceção de BR-CLN-06 (registar
-resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica está a atender.
+resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica está a atender; a de BR-CLN-08 (resultados/PDF) só ao exame `SCHEDULED` da própria clínica; a de BR-CLN-09 (recomendação) só a consulta/exame da própria clínica em `SCHEDULED`/`COMPLETED`. O portal **nunca** lê resultados, documentos ou recomendações do paciente além do que a própria clínica escreveu.
 
 ### 6.3 Hierarquia de contas (BR-CLN-05) — quem administra quem
 | Ação | Quem |
@@ -117,6 +126,19 @@ resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica
 | Ver/suspender a clínica (inteira) | PLATFORM_ADMIN |
 | Criar/repor a conta `CLINIC_ADMIN` raiz de uma clínica parceira | PLATFORM_ADMIN (`POST /admin/clinics/{id}/root-account`) |
 | Criar/listar/remover contas `CLINIC_MANAGER` da própria clínica | `CLINIC_ADMIN` da clínica (self-service, nunca o Platform Admin diretamente) |
+| **Listar** as contas do portal de uma clínica; **suspender/reativar** cada uma (revoga `clinic_sessions`) — ADR-023, BR-ADM-03/04 | PLATFORM_ADMIN (`GET /admin/clinics/{id}/accounts`, `POST .../accounts/{accountId}/suspend\|reactivate`); não cria nem remove |
+
+## 7. Administração da plataforma (`PLATFORM_ADMIN`, ADR-023)
+
+Segue §2.2: só ações `ADMIN_*`; **nunca** dados de saúde (BR-PRV-07, BR-ADM-01); `admin` não importa módulos de saúde.
+| Ação | Quem | Notas |
+|---|---|---|
+| Listar/pesquisar utilizadores (`q`, `status`) e ver detalhe operacional | PLATFORM_ADMIN | Sem famílias/membros/saúde (BR-ADM-01). |
+| Suspender/reativar utilizador | PLATFORM_ADMIN | BR-ACC-05. |
+| Repor acesso de utilizador (`reset-access`) | PLATFORM_ADMIN | Revoga sessões + e-mail de recuperação; nunca vê palavra-passe/token; não a si próprio (BR-ADM-02). |
+| Listar contas de clínica; suspender/reativar | PLATFORM_ADMIN | BR-ADM-03/04; `CLINIC_ADMIN` só reativável se não houver outro ativo. |
+| Seguradoras: listar, criar, editar, suspender/reativar; conta raiz | PLATFORM_ADMIN | BR-ADM-05/06; sem eliminação. |
+Um token de `ClinicAccount`/`InsuranceAccount` nunca autoriza rotas `/admin/*`.
 
 ## 8. Portal da seguradora (`InsuranceAccount`, ADR-021)
 
@@ -146,9 +168,9 @@ família/tutela do membro (ADR-021).
 ### 8.3 Hierarquia de contas (ADR-021, mirror de §6.3) — quem administra quem
 | Ação | Quem |
 |---|---|
-| Ver/suspender a seguradora (inteira) | PLATFORM_ADMIN |
+| Ver/editar/suspender a seguradora (inteira) | PLATFORM_ADMIN |
 | Criar/repor a conta `INSURANCE_ADMIN` raiz de uma seguradora parceira | PLATFORM_ADMIN |
 | Criar/listar/remover contas `INSURANCE_AGENT` da própria seguradora | `INSURANCE_ADMIN` da seguradora (self-service, nunca o Platform Admin diretamente) |
 
 ## 9. Testes
-Os testes de autorização são **gerados a partir da matriz** acima: para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. As matrizes §6.2 (clínica) e §8.2 (seguradora) seguem a mesma regra: geradas a partir da tabela, com casos próprios `TC-AZ-CLN-*`/`TC-AZ-INS-*`.
+Os testes de autorização são **gerados a partir da matriz** acima (incl. §7: `TC-AZ-ADM-*`): para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. As matrizes §6.2 (clínica) e §8.2 (seguradora) seguem a mesma regra: geradas a partir da tabela, com casos próprios `TC-AZ-CLN-*`/`TC-AZ-INS-*`.

@@ -1,6 +1,6 @@
 # Vita Family — Entidades (Fase 9)
 
-> Estado: **v0.2** — acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
+> Estado: **v0.4** — `ClinicSlot.capacity` e exame marcado diretamente (`SCHEDULED`, sem pedido/recusa; ADR-023 revisto 2026-11-04); v0.3: `ClinicSlot.kind`, `Examination` emitido pela clínica, `Recommendation`, `InsurancePolicy.insurerId` (ADR-023, D19); v0.2 acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
 > Convenções: `id` UUID; `createdAt`/`updatedAt` em UTC em todas, salvo indicação; `?` = opcional.
 > **Categoria** indica a categoria de privacidade (C2–C6) dos registos de saúde.
 
@@ -71,21 +71,26 @@ Tem 1+ MedicationPlan e 0..5 Documents.
 `scheduledAt` (UTC) · `status` (REQUESTED | SCHEDULED | REJECTED | COMPLETED | NO_SHOW | CANCELLED) · `professionalName?` · `specialty?` · `clinicId?` · `clinicName?` (texto de reserva, BR-CLN-02) · `slotId?` (horário da clínica parceira, D17) · `responseNote?` (motivo da clínica ao recusar/cancelar, D17) · `reason?` · `notes?` · `outcomeRequestedAt?`
 
 ### Examination — categoria C6
-`name` · `examDate` (date) · `status` (SCHEDULED | COMPLETED | CANCELLED) · `clinicId?` · `clinicName?` · `notes?`
+`name` · `examDate` (date) · `scheduledAt?` (UTC; só em exame de horário da clínica, D19) · `status` (SCHEDULED | COMPLETED | CANCELLED; `REQUESTED`/`REJECTED` obsoletos, só no enum de BD, state-machines.md) · `clinicId?` · `clinicName?` · `slotId?` (horário `EXAM` de origem, D19) · `responseNote?` (motivo da clínica ao cancelar) · `notes?` · `issuedBy` (FAMILY | CLINIC, default FAMILY) · `issuedByClinicAccountId?` · `resultsIssuedAt?` · `clinicResultNote?` (nota livre da clínica ao completar)
+**Regras:** BR-CLN-07/08, BR-EXM-05..08. `issuedBy=CLINIC` ⇔ `issuedByClinicAccountId` preenchido (espelho de BR-RX-07).
 
 ### ExamResult — categoria C6
 `examinationId` · `parameter` · `valueNumeric?` · `valueText?` · `unit?` · `referenceMin?` · `referenceMax?` (informados pelo utilizador). Pelo menos um de `valueNumeric`/`valueText`.
 
+### Recommendation — categoria da origem (APPOINTMENTS ou EXAMS) — D19, ADR-023
+`familyId` · `memberId` · `clinicId?` · `clinicName` (texto de reserva) · `clinicAccountId?` (autor, rastreabilidade) · `appointmentId?` · `examinationId?` (exatamente um) · `text` (1–2000 caracteres; dado de saúde, BR-HLT-05) · `createdAt`
+**Regras:** BR-CLN-09. Só a clínica da origem a cria (origem `SCHEDULED`/`COMPLETED`); imutável; cascata com a origem. Lida segundo a categoria da origem.
+
 ### Document — categoria do recurso associado
-`familyId` · `memberId` · `resourceType` (PRESCRIPTION | EXAMINATION | INSURANCE_POLICY, ADR-021) · `resourceId` · `storageKey` · `originalName` · `mimeType` · `sizeBytes` · `checksumSha256` · `scanStatus` (PENDING | CLEAN | INFECTED) · `uploadedBy`
+`familyId` · `memberId` · `resourceType` (PRESCRIPTION | EXAMINATION | INSURANCE_POLICY, ADR-021) · `resourceId` · `storageKey` · `originalName` · `mimeType` · `sizeBytes` · `checksumSha256` · `scanStatus` (PENDING | CLEAN | INFECTED) · `uploadedBy?` (User) · `uploadedByClinic` (bool, marca permanente de PDF emitido pela clínica, BR-CLN-08) · `uploadedByClinicAccountId?` (autor; nulo se a conta for removida; nunca em simultâneo com `uploadedBy`)
 Máx. 5 por recurso e 100 MB por família (Q10). `INSURANCE_POLICY` reaproveita o upload existente para a foto do cartão (ADR-021) — sem porta/endpoint de upload novo.
 
 ### Clinic
 `type` (PARTNER | PRIVATE) · `familyId?` (obrigatório se PRIVATE, nulo se PARTNER) · `name` · `address?` · `phone?` · `email?` · `status` (ACTIVE | ARCHIVED) · `createdBy`
 
 ### ClinicSlot — horário publicado por uma clínica parceira (D17)
-`clinicId` (PARTNER) · `specialty` · `professionalName?` · `startsAt` (UTC) · `durationMinutes`
-**Regras:** BR-APT-06, BR-CLN-04. Livre = sem consulta PEDIDA ou AGENDADA associada.
+`clinicId` (PARTNER) · `kind` (APPOINTMENT | EXAM, default APPOINTMENT; D19) · `specialty` (em `EXAM`: tipo de exame) · `professionalName?` · `startsAt` (UTC) · `durationMinutes` · `capacity` (1–50, default 1; só `EXAM` pode ser > 1; BR-APT-11)
+**Regras:** BR-APT-06/10/11, BR-CLN-04. `APPOINTMENT`: livre = sem consulta PEDIDA/AGENDADA. `EXAM`: `bookedCount` = exames `SCHEDULED` com este `slotId`; `remaining = capacity − bookedCount`; cheio quando `remaining = 0`.
 
 ### ClinicAccount — conta do portal da clínica (D18, ADR-020)
 **Correção (ADR-021):** esta secção referia-se antes a `ClinicStaff(userId, clinicId, role)`, suposição
@@ -96,7 +101,7 @@ Sem FK para `users` nem `family_members`: não é membro de nenhuma família por
 ## Seguros (ADR-021 — sem categoria de partilha; só SELF/TUTOR_OF)
 
 ### InsurancePolicy — sem categoria de partilha (ADR-021)
-`familyId` · `memberId` · `insurerName` (texto livre, não exige seguradora parceira) · `policyNumber` · `holderName` · `validUntil?` (date) · `cardDocumentId?` (referência a `Document`, `resourceType=INSURANCE_POLICY`)
+`familyId` · `memberId` · `insurerId?` (seguradora parceira `InsurerAccount`, BR-INS-09) · `insurerName` (texto livre, não exige seguradora parceira) · `policyNumber` · `holderName` · `validUntil?` (date) · `cardDocumentId?` (referência a `Document`, `resourceType=INSURANCE_POLICY`)
 **Regras:** BR-INS-01/02. Criado/editado/visto só por `SELF` (adulto) ou `TUTOR_OF`; sem `SharingGrant`, sem acesso de `OTHER` nesta versão.
 
 ### ReimbursementClaim — só existe sobre uma apólice de seguradora parceira (ADR-021)
@@ -113,7 +118,7 @@ Sem FK para `users` nem `family_members`.
 ## Alertas
 
 ### Alert
-`recipientUserId` · `familyId` · `memberId` (sujeito) · `type` (MEDICATION_DUE | APPOINTMENT_REMINDER | EXAM_REMINDER | APPOINTMENT_OUTCOME_REQUEST | APPOINTMENT_CONFIRMED | APPOINTMENT_REJECTED | APPOINTMENT_CANCELLED) · `sourceType` (DOSE | APPOINTMENT | EXAMINATION) · `sourceId` · `ruleKey` (ex.: `dose.due`, `dose.repeat`, `appointment.24h`, `appointment.2h`, `exam.24h`, `appointment.outcome`, `appointment.confirmed`, `appointment.rejected`, `appointment.cancelled` — respostas da clínica parceira, D17/FR-APT-07) · `dedupeKey` (único) · `triggerAt` · `readAt?`
+`recipientUserId` · `familyId` · `memberId` (sujeito) · `type` (MEDICATION_DUE | APPOINTMENT_REMINDER | EXAM_REMINDER | APPOINTMENT_OUTCOME_REQUEST | APPOINTMENT_CONFIRMED | APPOINTMENT_REJECTED | APPOINTMENT_CANCELLED | EXAM_CANCELLED | EXAM_RESULTS_AVAILABLE | RECOMMENDATION_ADDED) · `sourceType` (DOSE | APPOINTMENT | EXAMINATION | RECOMMENDATION) · `sourceId` · `ruleKey` (ex.: `dose.due`, `dose.repeat`, `appointment.24h`, `appointment.2h`, `exam.24h`, `appointment.outcome`, `appointment.confirmed`, `appointment.rejected`, `appointment.cancelled` — respostas da clínica parceira, D17/FR-APT-07; `exam.cancelled`, `exam.results`, `recommendation.added`, D19/FR-EXM-09) · `dedupeKey` (único) · `triggerAt` · `readAt?`
 
 ### Notification
 Entrega de um Alert num canal. `alertId` · `channel` (PUSH | EMAIL) · `status` (PENDING | SENT | FAILED | SKIPPED) · `attempts` · `nextAttemptAt?` · `lastErrorCode?` · `sentAt?`
@@ -121,7 +126,7 @@ Entrega de um Alert num canal. `alertId` · `channel` (PUSH | EMAIL) · `status`
 ## Transversal
 
 ### AuditLog
-`occurredAt` · `actorType` (USER | SYSTEM | PLATFORM_ADMIN) · `actorUserId?` · `action` · `resourceType` · `resourceId?` · `familyId?` · `subjectMemberId?` · `result` (SUCCESS | DENIED | FAILURE) · `ip?` · `userAgent?` · `requestId` · `metadata?` (sem dados de saúde)
+`occurredAt` · `actorType` (USER | SYSTEM | PLATFORM_ADMIN | CLINIC_ACCOUNT | INSURANCE_ACCOUNT) · `actorClinicAccountId?` · `actorUserId?` · `action` · `resourceType` · `resourceId?` · `familyId?` · `subjectMemberId?` · `result` (SUCCESS | DENIED | FAILURE) · `ip?` · `userAgent?` · `requestId` · `metadata?` (sem dados de saúde)
 
 ### DataExport
 `requestedByUserId` · `subjectMemberId?` (dependente) · `reason` (USER_REQUEST | LEAVE_FAMILY | REMOVED_BY_ADMIN) · `status` (PENDING | READY | EXPIRED | FAILED) · `storageKey?` · `expiresAt?`

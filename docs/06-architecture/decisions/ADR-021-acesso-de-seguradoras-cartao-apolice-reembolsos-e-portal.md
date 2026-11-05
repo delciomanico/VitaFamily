@@ -78,3 +78,6 @@ seguradora decide ao rever o pedido, sem integração externa.
     `CLAIM_DECIDE`, etc.) — nota: o catálogo **nunca chegou a listar** as ações do portal da clínica (D17/D18)
     também; pendência pré-existente, não fechada por esta revisão, assinalada aqui para o dono do módulo.
   - Detalhe fino de tarefas do milestone (ver `plan.md`), a decidir no arranque.
+
+## Adenda (ADR-023, 2026-11-04, decisão do proprietário)
+Lacunas de contrato fechadas: `PATCH /admin/insurers/{insurerId}`; `InsurancePolicy.insurerId?` (ligação opcional a seguradora parceira) + `GET /families/{familyId}/insurers`; CHECK corrigida de `reimbursement_claims`; seguradora suspensa revoga sessões e bloqueia novos pedidos (BR-INS-09/10); casos de uso em `03-use-cases/insurance.md`. Ver ADR-023.

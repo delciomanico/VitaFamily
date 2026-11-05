@@ -40,10 +40,13 @@ Monorepo `apps/api` (Node.js/TypeScript) · `apps/web` (futuro) · `deploy/` · 
 | **M8** | **Alertas e notificações** | `alerts` (scanner, regras, destinatários), `notifications` (push + e-mail, preferências, subscrições, retry), idempotência | FR-ALR, BR-ALR | M6, M7 |
 | **M9** | **Relatórios e ciclo de vida** | `reports`, `lifecycle`: exportação, sair/remover com pacote, maioridade (avisos), bloqueio/apagamento 90 dias, eliminação de conta/família, `admin` (contas) | FR-RPT, FR-PRIV-05, R4, P4, Q7 | M6–M8 |
 | **M10** | **Endurecimento e lançamento** | Carga (N9), segurança (suite completa, revisão), restauro de backup, monitorização/alertas, runbooks, AIPD e textos legais, checklist de release | NFR-*, privacidade | M0–M9 |
+| **M7b** | **Exames da clínica e resultados** (ADR-023, fase 1) | `ClinicSlot.kind` + `capacity` (BR-APT-11); `Examination.slotId` com marcação direta (`SCHEDULED`) sob bloqueio do horário; `/clinic-portal/slots` (`PATCH` capacidade), `exam-agenda` (cancel, complete com resultados + PDF via `documents`, upload/remoção de PDF); alertas `EXAM_CANCELLED/RESULTS_AVAILABLE`; migrações `0018`–`0021` + **`0022`** (revisão 2026-11-04: remove `exam-requests`, `REQUESTED`/`REJECTED`, job de expiração e o índice único por `slot_id`; corrige CHECK `issued_by`; `documents.uploaded_by_clinic`); matriz `TC-AZ-CLN` e isolamento entre clínicas | FR-EXM-07..09, FR-CLN-02, BR-CLN-07/08, BR-EXM-05/06/08, BR-APT-10/11 | M5, M7, M8 |
+| **M7c** | **Recomendações** (ADR-023, fase 2) | Módulo `recommendations`: `POST/GET /clinic-portal/recommendations`, `GET /families/{f}/members/{m}/recommendations`; alerta `RECOMMENDATION_ADDED`; auditoria | FR-REC-01, BR-CLN-09 | M7b (exames) e M7 (consultas), M8 |
 | **M11** | **Seguradoras e portal da seguradora** | `insurance` (`InsurancePolicy`, `ReimbursementClaim`, reaproveita `documents`), **`insurance-portal`** (ADR-021: `InsuranceAccount`/`insurance_sessions` separados de `users`/`ClinicAccount`; hierarquia `INSURANCE_ADMIN`/`INSURANCE_AGENT`; listar/decidir pedidos) | BR-INS (ADR-021) | M3, M5 |
 | **M12** | **"Resumo com IA" em `reports`** | Extensão do módulo `reports` existente (ADR-022): consentimento opt-in (SELF/tutor, separado de `SharingGrant`), chamada ao fornecedor externo de IA com dados minimizados (BR-RPT-06), filtro de saída que bloqueia aconselhamento/diagnóstico (BR-RPT-07) antes de o resultado chegar ao utilizador, aviso obrigatório sempre ao lado dos dados em bruto (BR-RPT-04), auditoria sem dados de saúde (`AI_SUMMARY_GENERATE`) | BR-RPT-03..09 (ADR-022) | M9 (`reports`) |
+| **M13** | **Administração de contas** (ADR-023, fase 3) | `admin`: pesquisa (`q`) e detalhe de utilizadores, `reset-access`; `GET /admin/clinics/{id}/accounts` + suspender/reativar (revoga `clinic_sessions`); `PATCH /admin/insurers/{id}`; auditoria `ADMIN_*` | FR-ADM-02..04, BR-ADM-01..07 | M9 (`admin`), M7 (`clinics`), M11 (seguradoras) |
 
-**M11 (ADR-021, acrescentado 2026-10-16):** funcionalidade aprovada depois do plano original (M0–M10) estar
+**M11 (ADR-021, acrescentado 2026-10-16; completado por ADR-023, 2026-11-04):** inclui agora `InsurancePolicy.insurerId`, `GET /families/{f}/insurers`, `PATCH /admin/insurers/{id}`, BR-INS-09/10 e `03-use-cases/insurance.md` (fase 4 do plano de ADR-023). funcionalidade aprovada depois do plano original (M0–M10) estar
 fechado; por isso aparece depois de M10 nesta tabela, mas as suas dependências reais são só M3 (`access`) e
 M5 (`documents`) — pode ser agendado antes de M10 se a capacidade o permitir. Se for implementado antes de
 M10, os gates de M10 (segurança, carga) devem cobrir também `insurance`/`insurance-portal`.
@@ -75,7 +78,10 @@ sem essas duas condições. Contrato (`openapi.yaml`), schema de consentimento e
 | FR-ALR, BR-ALR | M8 |
 | FR-RPT, FR-PRIV-05, saída/remoção, maioridade, bloqueio, eliminações, FR-ADM-01 (contas) | M9 |
 | NFR-PERF/AVL/OPS/SEC (verificação final) | M10 |
-| BR-INS (ADR-021: apólice, pedidos de reembolso, portal da seguradora) | M11 |
+| BR-INS (ADR-021/ADR-023: apólice, pedidos de reembolso, portal da seguradora) | M11 |
+| BR-CLN-07/08, BR-EXM-05/06/08, BR-APT-10/11 (exames da clínica com vagas, ADR-023 rev. 2026-11-04; BR-EXM-07 obsoleta) | M7b |
+| BR-CLN-09 (recomendações, ADR-023) | M7c |
+| BR-ADM (administração de contas, ADR-023) | M13 |
 | BR-RPT-04..09 ("Resumo com IA", ADR-022) — gate de lançamento ligado à AIPD/DPA (M10) | M12 |
 
 ## 6. Riscos de implementação e mitigação
@@ -96,3 +102,5 @@ sem essas duas condições. Contrato (`openapi.yaml`), schema de consentimento e
 1. **Aprovação** para iniciar a implementação (M0) — dada; stack confirmada em ADR-014/ADR-015 (Node.js/TypeScript + pnpm, Clean Architecture).
 2. **Decisões operacionais** (não alteram a especificação): fornecedor de alojamento UE; fornecedor SMTP UE; nome/domínio da API; entidade legal responsável pelo tratamento.
 3. ~~Confirmar o nome do repositório/projeto e o gestor de pacotes~~ — confirmado: Node LTS + pnpm (ADR-014).
+
+**M7b/M7c/M13 (ADR-023, acrescentado 2026-11-04):** funcionalidades aprovadas depois de M7/M9 concluídos; cada fase é entregue e validada por commits separados (`pnpm gen && pnpm lint && pnpm test && pnpm build`, conformidade OpenAPI e teste de arquitetura verdes). Ordem recomendada: M7b → M7c → M13 → M11 (fase 4). Os gates de M10 (segurança, AIPD) devem cobrir também os resultados/recomendações emitidos pela clínica (dados de saúde de terceiro).

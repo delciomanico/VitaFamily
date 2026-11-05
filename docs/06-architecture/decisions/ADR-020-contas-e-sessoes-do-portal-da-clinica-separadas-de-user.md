@@ -31,3 +31,8 @@ mundos.
 - O protótipo de frontend (`apps/web/src/mocks/handlers/clinicPortal.ts`, `apps/web/src/types/clinic.ts`) modelou o login como se fosse um `User` com `ClinicStaff(userId, clinicId, role)` — **divergente** desta decisão; fica como nota para a fase de frontend (fora do âmbito desta revisão de documentação, que só cobre `docs/`).
 - `08-security/authorization.md`, `07-database/schema.md` e `05-api/openapi.yaml`/`endpoints.md` refletem `ClinicAccount`/`clinic_sessions`/`/clinic-portal/*` (D18).
 - Auditoria: eventos do portal da clínica usam `actor_type` próprio (ver `audit.md`/`schema.md` `actor_type` enum — acrescentar `CLINIC_ACCOUNT` por change control futuro se `audit.md` precisar, não decidido aqui).
+
+## Adenda (ADR-023, 2026-11-04, decisão do proprietário)
+- O Platform Admin passa a **listar** as contas do portal de uma clínica (`CLINIC_ADMIN` + `CLINIC_MANAGER`) e a **suspender/reativar** cada uma (revoga `clinic_sessions`); continua a **não** criar nem remover Gestores (BR-CLN-05). Isto emenda a linha "não lista nem edita `CLINIC_MANAGER` individualmente" das Consequências (BR-ADM-03/04).
+- "Exatamente uma conta `CLINIC_ADMIN` ativa" passa a "**no máximo uma**" (suspensão do Admin pelo Platform Admin; reposição por `root-account`).
+- Prefixo `/clinic-portal/*` ganha `exam-agenda` e `recommendations` (`exam-requests` foi retirada em 2026-11-04, ver ADR-023 revisto); a clínica passa também a gerir **exames** e a **emitir resultados e recomendações** (BR-CLN-07/08/09). A exceção de BR-CLN-03/06 estende-se ao exame em curso (`SCHEDULED`) da própria clínica.

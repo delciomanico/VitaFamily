@@ -15,8 +15,8 @@
   │                        ├── 0..N MedicalCondition
   │                        ├── 0..N Prescription ── 1..N MedicationPlan ── 0..N DoseOccurrence
   │                        ├── 0..N MedicationPlan (avulso, sem Prescription)
-  │                        ├── 0..N Appointment ── 0..1 Clinic ; ── 0..1 ClinicSlot (D17)
-  │                        ├── 0..N Examination ── 0..N ExamResult ; ── 0..1 Clinic
+  │                        ├── 0..N Appointment ── 0..1 Clinic ; ── 0..1 ClinicSlot (D17) ; ── 0..N Recommendation (D19)
+  │                        ├── 0..N Examination ── 0..N ExamResult ; ── 0..1 Clinic ; ── 0..1 ClinicSlot (D19) ; ── 0..N Recommendation (D19)
   │                        ├── 0..N Document (→ Prescription | Examination | InsurancePolicy)
   │                        └── 0..N InsurancePolicy ── 0..N ReimbursementClaim (ADR-021)
   │
@@ -43,6 +43,10 @@
 | Prescription → MedicationPlan | 1 : 1..N | Uma receita prescreve medicamentos; cada um é um plano (M2). | Eliminar receita apaga planos, doses e documentos (BR-RX-06). |
 | MedicationPlan → DoseOccurrence | 1 : N | Histórico de tomas (D7). | Cascata. |
 | Appointment/Examination → Clinic | N : 0..1 | Clinica parceira ou privada (R8). `clinicName` guarda texto de reserva. | `ON DELETE SET NULL`; o nome persiste. |
+| Examination → ClinicSlot | N : 0..1 | Exame marcado diretamente num horário `EXAM` com vagas (D19 revisto, BR-APT-11); um horário aceita até `capacity` exames `SCHEDULED` (consulta: uma). | `ON DELETE SET NULL`. |
+| Appointment/Examination → Recommendation | 1 : N | Nota clínica da clínica sobre a origem (D19, BR-CLN-09). | Cascata (apaga com a origem/membro). |
+| ClinicAccount → Recommendation / Examination (emissão) / Document (upload) | 0..1 : N | Rastreabilidade de quem emitiu (BR-CLN-08/09, espelho de BR-RX-07). | `ON DELETE SET NULL`. |
+| InsurancePolicy → InsurerAccount | N : 0..1 | Ligação opcional a seguradora parceira (BR-INS-09). | `ON DELETE SET NULL`. |
 | Examination → ExamResult | 1 : N | Resultados estruturados (D8). | Cascata. |
 | Document → Prescription ou Examination | N : 1 (polimórfico) | Anexos (M5). Integridade garantida por colunas separadas `prescription_id`/`examination_id` em `schema.md`. | Eliminar recurso apaga documentos e enfileira `FileDeletion`. |
 | Clinic(PRIVATE) → Family | N : 1 | Cadastro privado da família (R8). | Cascata com a família. |

@@ -1,0 +1,30 @@
+# Pontos em aberto — clínica, exames e recomendações (ADR-023)
+
+Registo das pendências conhecidas depois das Fases 1 e 2. Nenhuma altera o contrato aprovado; cada uma precisa de decisão do proprietário (change control) antes de avançar. Atualizado em 2026-11-05.
+
+| # | Ponto | Origem | Impacto | Decisão necessária |
+|---|-------|--------|---------|--------------------|
+| OP-01 | `limit` ignorado em listagens de outros módulos (p. ex. `examinations/interface/router.ts`): o validador OpenAPI converte `limit` para número e esses routers só aceitam `string`. Corrigido apenas em `recommendations`. | Fase 2 (API) | Paginação por `limit` não funciona nessas listagens | Corrigir em todos os routers de listagem (tarefa de manutenção) |
+| OP-02 | Recomendações não entram na exportação de dados (lifecycle) nem nos relatórios (`reports`). | Fase 2 | RGPD: portabilidade incompleta; relatórios sem as notas | Incluir ou excluir explicitamente (ADR/BR) |
+| OP-03 | O alerta `RECOMMENDATION_ADDED` só traz o id da recomendação; o clique não abre a consulta/exame de origem. | Fase 2 | UX | Acrescentar ao contrato o id/tipo da origem no `Alert`, ou aceitar |
+| OP-04 | `ClinicExamBooking.slotId?` e `professionalName?` (opcionais no contrato) não são devolvidos pela API. | Fase 1 (API) | A vista da clínica só tem os campos mínimos | Implementar ou retirar do contrato |
+| OP-05 | Falta teste HTTP de `PATCH /clinic-portal/slots/{slotId}` e `GET /clinic-portal/slots` (só há testes de use case e integração). | Fase 1 (API) | Conformidade OpenAPI não verificada nessas rotas | `vita-qa-security` valida contra o openapi |
+| OP-06 | O pg-boss guarda na BD o `schedule` do job removido `examinations.expire-requests`. | Fase 1 (operações) | Schedule órfão em ambientes onde o worker já correu | Executar uma vez `boss.unschedule("examinations.expire-requests")` (ou limpar `pgboss.schedule`) no deploy |
+| OP-07 | Alertas de consulta (`APPOINTMENT_CONFIRMED/REJECTED/CANCELLED`) e job de expiração de pedidos (BR-APT-08) não implementados. | Fase 0 (fora de âmbito) | Família não é avisada da resposta da clínica a consultas | Decidir se entram numa fase própria |
+| OP-08 | `tsc --noEmit` acusa 3 erros em testes pré-existentes (`clamav-client.test.ts`, `member.test.ts`, `clinic-slot.test.ts`); o `build` exclui testes. | Fase 1 | Só higiene de tipos nos testes | Corrigir quando conveniente |
+| OP-09 | `pnpm lint` falha com 8 erros em `auth/interface/cookies.ts` e `clinics/interface/clinic-portal-cookies.ts` (alterações do utilizador, anteriores às fases). | Pré-existente | Lint vermelho | O proprietário conclui/corrige essas alterações |
+| OP-10 | Alertas da clínica ao cancelar um exame/consulta e `responseNote` de exames: o cancelamento pela clínica não gera alerta ao paciente (alertas `EXAM_*` retirados na revisão). | Fase 1 | Paciente só vê o cancelamento ao abrir a app | Decidir se se cria alerta de cancelamento |
+| OP-11 | O motivo da suspensão de uma conta de clínica (`POST /admin/clinics/{id}/accounts/{id}/suspend`) é exigido mas não é guardado nem auditado (`clinic_accounts` não tem coluna; texto livre pode ter PII, BR-ADM-07). | Fase 3 | O admin não vê depois porquê | Decidir se se guarda (migração 0024) ou se o campo passa a opcional no contrato. |
+| OP-12 | `POST /admin/users/{id}/suspend` não revoga explicitamente as sessões (o openapi diz que revoga); só conta o bloqueio por estado a cada pedido (access token vale até 15 min). | Fase 3 | Janela curta de acesso | Revogar sessões no caso de uso ou ajustar o texto do contrato. |
+| OP-13 | `audit.md` §3 não lista as ações de auditoria do portal da seguradora (`INSURANCE_ACCOUNT_LOGIN/LOGIN_FAILED/LOGOUT/REFRESH_REUSE_DETECTED`, `INSURANCE_AGENT_CREATE/REMOVE`, `ADMIN_INSURER_CREATE/UPDATE/STATUS`). | Fase 4a | Documentação incompleta | Ratificar os nomes e documentá-los. |
+| OP-14 | Dois `POST/PATCH /admin/insurers` concorrentes com o mesmo NIF: a BD deixa passar um, mas o outro receberia 500 em vez de 422 (não testado). | Fase 4a | Erro feio num caso raro | Traduzir a violação UNIQUE em 422. |
+| OP-15 | O contrato do portal da seguradora não tem suspender/reativar agentes (só criar/remover). | Fase 4a | Gestão de staff mais pobre que a da clínica | Decidir se se acrescenta a rota (a coluna `suspended_at` já existe). |
+| OP-16 | O portal da seguradora só recebe `documentIds` dos pedidos: não há rota para descarregar os anexos. | Fase 4b | A seguradora não abre os documentos | Definir rota (p. ex. `GET /insurance-portal/claims/{id}/documents/{docId}`) e as regras de minimização. |
+| OP-17 | Sem alertas/notificações de pedidos de reembolso (tipos de alerta não estão no contrato): o titular não é avisado da decisão. | Fase 4b | UX | Acrescentar ao contrato e implementar. |
+| OP-18 | Divergências doc: openapi dá 404 para apólice sem seguradora parceira (AC-INS-01 diz 422, seguiu-se o AC); 409 de seguradora suspensa não declarado; `audit.md` sem as novas ações; `authorization.md` sem `MANAGE_INSURANCE`. | Fase 4b | Docs desalinhadas | Atualizar docs. |
+| OP-19 | Apagar em `documents` um anexo de um pedido remove a associação em silêncio; o pedido pode ficar sem documentos. | Fase 4b | Integridade | Definir regra (bloquear ou aceitar). |
+| OP-20 | Exportação de dados não inclui apólices, pedidos nem cartões. | Fase 4b | RGPD: portabilidade | Incluir no `lifecycle`. |
+| OP-21 | Upload `INSURANCE_POLICY` para apólice inexistente deixa objeto órfão na quarentena (comportamento pré-existente de `documents`). | Fase 4b | Lixo em storage | Validar antes de gravar. |
+
+## Resolvidos
+- CHECK `appointments_outcome_requires_clinic_account_check` quebrava o `ON DELETE SET NULL` da conta da clínica → corrigida na migração `0022` (ponto 6), 2026-11-04.

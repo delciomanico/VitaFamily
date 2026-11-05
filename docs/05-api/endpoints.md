@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.3** — acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.4** — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -696,11 +696,11 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 ### `GET /families/{familyId}/clinics/{clinicId}/slots`  — listAvailableSlots
 - **AUTHORIZATION:** FAM_MEMBER
 - **DESCRIPTION:** Listar horários livres e futuros de uma clínica parceira, para escolher ao marcar (D17).
-- **QUERY:** `specialty` (string), `from` (datetime), `to` (datetime)
+- **QUERY:** `kind` (`APPOINTMENT`\|`EXAM`, default `APPOINTMENT`, BR-APT-10), `specialty` (string; em `EXAM` é o tipo de exame), `from` (datetime), `to` (datetime)
 - **REQUEST:** —
 - **RESPONSE:** `200` `[AvailableSlot]`
 - **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** BR-APT-06: só horários sem marcação ativa (`REQUESTED`/`SCHEDULED`).
+- **BUSINESS RULES:** BR-APT-06/BR-APT-11: `kind=APPOINTMENT` só horários sem marcação ativa (`REQUESTED`/`SCHEDULED`); `kind=EXAM` só horários com vagas (`remaining ≥ 1`, i.e. exames `SCHEDULED` < `capacity`). `AvailableSlot` traz `capacity` e `remaining`.
 
 ## Clinics
 
@@ -799,8 +799,8 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 ### `GET /clinic-portal/slots`  — listOwnClinicSlots
 - **AUTHORIZATION:** CLINIC_ACCOUNT
-- **DESCRIPTION:** Listar horários (livres, pedidos ou confirmados) da própria clínica (UC-CLN-04).
-- **QUERY:** `from` (datetime), `to` (datetime)
+- **DESCRIPTION:** Listar horários da própria clínica com a ocupação (UC-CLN-04/07). D19: filtra por `kind`. Cada `ClinicSlotView` traz `capacity`, `bookedCount`, `remaining` e `state`.
+- **QUERY:** `kind` (`APPOINTMENT`\|`EXAM`, opcional), `from` (datetime), `to` (datetime)
 - **REQUEST:** —
 - **RESPONSE:** `200` `[ClinicSlotView]`
 - **ERRORS:** `UNAUTHENTICATED`
@@ -812,15 +812,23 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **REQUEST:** `ClinicSlotBatchInput`
 - **RESPONSE:** `201` `[ClinicSlot]`
 - **ERRORS:** `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** BR-CLN-04; ignora horas passadas e duplicadas (mesma hora, especialidade e profissional).
+- **BUSINESS RULES:** BR-CLN-04; ignora horas passadas e duplicadas (mesma hora, `kind`, especialidade e profissional). D19: `kind=EXAM` publica horários de exame (UC-CLN-07) com `capacity` vagas (1–50, default 1; em `APPOINTMENT` só 1, BR-APT-11).
+
+### `PATCH /clinic-portal/slots/{slotId}`  — updateClinicSlot
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Alterar a capacidade de um horário de exame (ADR-023, revisto 2026-11-04).
+- **REQUEST:** `ClinicSlotPatch`
+- **RESPONSE:** `200` `ClinicSlotView`
+- **ERRORS:** `CONFLICT` (`capacity` inferior às marcações ativas), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR` (`capacity` fora de 1–50; horário `kind=APPOINTMENT`)
+- **BUSINESS RULES:** BR-APT-11: só `kind=EXAM`; serializado com as marcações por bloqueio da linha do horário (sem overbooking sob concorrência); auditado (`CLINIC_SLOT_UPDATE`).
 
 ### `DELETE /clinic-portal/slots/{slotId}`  — removeClinicSlot
 - **AUTHORIZATION:** CLINIC_ACCOUNT
 - **DESCRIPTION:** Remover um horário livre.
 - **REQUEST:** —
 - **RESPONSE:** `204` sem corpo
-- **ERRORS:** `CONFLICT` (horário com marcação ativa), `NOT_FOUND`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** BR-CLN-04: só remove horários **livres**.
+- **ERRORS:** `CONFLICT` (horário com marcações ativas), `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-04/BR-APT-11: só remove horários sem marcações ativas (consulta `REQUESTED`/`SCHEDULED`; exame `SCHEDULED`).
 
 ### `GET /clinic-portal/requests`  — listClinicRequests
 - **AUTHORIZATION:** CLINIC_ACCOUNT
@@ -863,6 +871,64 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `CONFLICT` (consulta não está `SCHEDULED` ou já passou da janela, ST4), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** BR-CLN-06, BR-RX-07: a receita (se incluída) é criada no módulo `prescriptions` com `issuedBy=CLINIC` e `appointmentId` de origem, e passa a aparecer no histórico do paciente; a clínica só pode completar a consulta em curso que a própria clínica está a atender.
 
+### `GET /clinic-portal/exam-agenda`  — listClinicExamAgenda
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Listar a agenda de exames (`SCHEDULED`/`COMPLETED`/`CANCELLED`) da própria clínica, por ordem cronológica (UC-CLN-09). Os exames nascem `SCHEDULED` (marcação direta da família); não há pedidos por confirmar.
+- **QUERY:** `from` (datetime), `to` (datetime)
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ClinicExamBooking]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-03.
+
+### `PUT /clinic-portal/exam-agenda/{examinationId}/cancel`  — cancelClinicExamination
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Cancelar uma marcação de exame futura (`SCHEDULED`), com motivo obrigatório (UC-CLN-09).
+- **REQUEST:** `ClinicCancelRequest`
+- **RESPONSE:** `200` `ClinicExamBooking`
+- **ERRORS:** `CONFLICT`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** `SCHEDULED → CANCELLED`; liberta uma vaga do horário (BR-APT-11); dispara `exam.cancelled`.
+
+### `PUT /clinic-portal/exam-agenda/{examinationId}/complete`  — completeClinicExamination
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Completar o exame em curso: registar resultados estruturados (e/ou usar os PDF já carregados) (UC-CLN-10).
+- **REQUEST:** `ClinicCompleteExaminationRequest`
+- **RESPONSE:** `200` `ClinicExamBooking`
+- **ERRORS:** `CONFLICT` (exame não está `SCHEDULED`), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR` (sem resultados nem PDF)
+- **BUSINESS RULES:** BR-CLN-08: `SCHEDULED → COMPLETED` atómico com os `ExamResult`; `issuedBy=CLINIC`, `issuedByClinicAccountId`, `resultsIssuedAt`; sem interpretação nem alertas por valor (D11); dispara `exam.results`; só exame da própria clínica.
+
+### `POST /clinic-portal/exam-agenda/{examinationId}/documents`  — uploadClinicExamDocument
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Carregar um PDF de resultados num exame `SCHEDULED` da própria clínica (multipart).
+- **REQUEST:** `ClinicExamDocumentUploadRequest` (multipart)
+- **RESPONSE:** `201` `ClinicDocumentView`
+- **ERRORS:** `CONFLICT` (exame não `SCHEDULED`; quota da família — sem detalhe), `DOCUMENT_LIMIT_EXCEEDED`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED` (só PDF), `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-08, BR-DOC-01..04: quarentena + antivírus; a clínica nunca descarrega (só metadados); o paciente só vê o documento com o exame `COMPLETED`; auditado (`EXAM_DOCUMENT_UPLOAD`); `documents.uploaded_by_clinic_account_id`.
+
+### `DELETE /clinic-portal/exam-agenda/{examinationId}/documents/{documentId}`  — deleteClinicExamDocument
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Remover um PDF carregado pela própria clínica enquanto o exame está `SCHEDULED`.
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `CONFLICT` (exame já `COMPLETED`), `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-08; remoção definitiva (outbox de ficheiros).
+
+### `GET /clinic-portal/recommendations`  — listClinicRecommendations
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Listar as recomendações emitidas pela própria clínica (UC-REC-02).
+- **QUERY:** `appointmentId` (uuid), `examinationId` (uuid)
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ClinicRecommendation]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-09: só as da própria clínica.
+
+### `POST /clinic-portal/recommendations`  — createClinicRecommendation
+- **AUTHORIZATION:** CLINIC_ACCOUNT
+- **DESCRIPTION:** Emitir uma recomendação (nota de texto) sobre uma consulta ou um exame da própria clínica (UC-REC-01).
+- **REQUEST:** `ClinicRecommendationInput`
+- **RESPONSE:** `201` `ClinicRecommendation`
+- **ERRORS:** `CONFLICT` (origem noutro estado), `NOT_FOUND` (origem de outra clínica/inexistente), `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-09: origem `SCHEDULED`/`COMPLETED`; 1–2000 caracteres; imutável (sem PUT/PATCH/DELETE); dispara `recommendation.added` (texto genérico); auditado (`RECOMMENDATION_CREATE`, sem o texto).
+
 ## Examinations
 
 ### `GET /families/{familyId}/members/{memberId}/examinations`  — listExaminations
@@ -876,11 +942,11 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 ### `POST /families/{familyId}/members/{memberId}/examinations`  — createExamination
 - **AUTHORIZATION:** WRITE(EXAMS)
-- **DESCRIPTION:** Registar exame.
+- **DESCRIPTION:** Registar exame privado/sem clínica (nasce `SCHEDULED`, ou `COMPLETED` se a data é passada). Para marcar num horário de clínica parceira, usar `slotId` em vez de `clinicId`/`clinicName`: havendo vaga, nasce `SCHEDULED` de imediato (BR-EXM-05, ADR-023 revisto 2026-11-04).
 - **REQUEST:** `ExaminationInput`
 - **RESPONSE:** `201` `Examination`
-- **ERRORS:** `FORBIDDEN`, `MEMBER_BLOCKED`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** ST5: data passada nasce COMPLETED; futura nasce SCHEDULED com lembrete 24 h.
+- **ERRORS:** `CONFLICT` (`slotId` sem vagas, removido, ou o membro já tem marcação ativa nesse horário), `FORBIDDEN`, `MEMBER_BLOCKED`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR` (inclui horário de `kind` errado, BR-APT-10)
+- **BUSINESS RULES:** ST5: data passada nasce COMPLETED; futura nasce SCHEDULED com lembrete 24 h; com `slotId` nasce `SCHEDULED` (BR-EXM-05) com lembrete 24 h (BR-EXM-06; data/hora vêm do horário, exige `startsAt` futuro); a vaga é reservada atomicamente sob bloqueio do horário (BR-APT-11); o utilizador é avisado da minimização (BR-CLN-03) antes de enviar.
 
 ### `GET /families/{familyId}/members/{memberId}/examinations/{examinationId}`  — getExamination
 - **AUTHORIZATION:** READ(EXAMS)
@@ -908,7 +974,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 ### `PUT /families/{familyId}/members/{memberId}/examinations/{examinationId}/status`  — setExaminationStatus
 - **AUTHORIZATION:** WRITE(EXAMS)
-- **DESCRIPTION:** Marcar realizado, cancelado ou reagendar.
+- **DESCRIPTION:** Marcar realizado, cancelado ou reagendar. `CANCELLED` num exame com `slotId` liberta a vaga (BR-APT-11); exame com `slotId` cancelado não se reagenda (`INVALID_STATE_TRANSITION`, BR-EXM-08). Não existem `REQUESTED`/`REJECTED` na API.
 - **REQUEST:** `ExamStatusRequest`
 - **RESPONSE:** `200` `Examination`
 - **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION`, `NOT_FOUND`, `UNAUTHENTICATED`
@@ -920,7 +986,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **REQUEST:** `ExamResultInput`
 - **RESPONSE:** `201` `ExamResult`
 - **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** D8, Q9, D11: sem interpretação nem alertas; só em exames COMPLETED.
+- **BUSINESS RULES:** D8, Q9, D11: sem interpretação nem alertas; só em exames COMPLETED (a clínica grava os seus resultados no ato de completar, BR-CLN-08).
 
 ### `PATCH /families/{familyId}/members/{memberId}/examinations/{examinationId}/results/{resultId}`  — updateExamResult
 - **AUTHORIZATION:** WRITE(EXAMS)
@@ -946,6 +1012,17 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **RESPONSE:** `200` `[ExamResultHistoryItem]`
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** UC-EXM-04: devolve valores por data, sem gráficos nem interpretação.
+
+## Recommendations (ADR-023)
+
+### `GET /families/{familyId}/members/{memberId}/recommendations`  — listRecommendations
+- **AUTHORIZATION:** READ(APPOINTMENTS) para as de consulta e READ(EXAMS) para as de exame (a lista **omite** as não permitidas)
+- **DESCRIPTION:** Listar as recomendações recebidas de clínicas (UC-REC-03).
+- **QUERY:** `appointmentId` (uuid), `examinationId` (uuid), `limit` (int), `cursor` (string)
+- **REQUEST:** —
+- **RESPONSE:** `200` `{ items: [Recommendation], nextCursor }`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-09; dependente com conta só lê as de consulta (N2); leitura por quem não é o titular é auditada (`RECOMMENDATION_VIEW`); sem rota para escrever (só a clínica cria).
 
 ## Documents
 
@@ -991,6 +1068,14 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **BUSINESS RULES:** Apaga ficheiro via outbox.
 
 ## Insurance (ADR-021)
+
+### `GET /families/{familyId}/insurers`  — listPartnerInsurers
+- **AUTHORIZATION:** FAM_MEMBER
+- **DESCRIPTION:** Listar as seguradoras parceiras `ACTIVE` (só id e nome), para escolher ao registar uma apólice (BR-INS-09).
+- **REQUEST:** —
+- **RESPONSE:** `200` `[PartnerInsurer]`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** ADR-023 (fecha lacuna de ADR-021): sem NIF nem contas.
 
 ### `GET /families/{familyId}/members/{memberId}/insurance-policies`  — listInsurancePolicies
 - **AUTHORIZATION:** SELF/TUTOR_OF (seguro)
@@ -1201,11 +1286,27 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 ### `GET /admin/users`  — adminListUsers
 - **AUTHORIZATION:** PLATFORM_ADMIN
 - **DESCRIPTION:** Listar contas.
-- **QUERY:** `status` (string), `limit` (int), `cursor` (string)
+- **QUERY:** `q` (string, mín. 2; e-mail ou nome, BR-ADM-01), `status` (string), `limit` (int), `cursor` (string)
 - **REQUEST:** —
 - **RESPONSE:** `200` `{ items: [AdminUser], nextCursor }`
 - **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** D4/R10: nunca devolve dados de saúde.
+
+### `GET /admin/users/{userId}`  — adminGetUser
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Detalhe operacional de um utilizador (UC-ADM-04).
+- **REQUEST:** —
+- **RESPONSE:** `200` `AdminUserDetail`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-ADM-01, D4/R10: nunca dados de saúde, famílias ou membros.
+
+### `POST /admin/users/{userId}/reset-access`  — adminResetUserAccess
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Repor o acesso: revoga todas as sessões e envia ao utilizador o e-mail de recuperação (UC-ADM-05).
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `FORBIDDEN` (inclui a si próprio), `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-ADM-02: token de uso único (1 h) nunca devolvido; `PENDING_VERIFICATION` recebe nova verificação; auditado (`ADMIN_USER_RESET_ACCESS`).
 
 ### `POST /admin/users/{userId}/suspend`  — adminSuspendUser
 - **AUTHORIZATION:** PLATFORM_ADMIN
@@ -1255,6 +1356,30 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** BR: arquivar não apaga consultas existentes.
 
+### `GET /admin/clinics/{clinicId}/accounts`  — adminListClinicAccounts
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Listar as contas do portal de uma clínica parceira (UC-ADM-06).
+- **REQUEST:** —
+- **RESPONSE:** `200` `[AdminClinicAccount]`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-ADM-03 (emenda ADR-020): só identificação e estado; não cria nem remove Gestores (BR-CLN-05).
+
+### `POST /admin/clinics/{clinicId}/accounts/{clinicAccountId}/suspend`  — adminSuspendClinicAccount
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Suspender uma conta do portal da clínica.
+- **REQUEST:** `SuspendRequest`
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-ADM-04: revoga `clinic_sessions` de imediato; login ⇒ `ACCOUNT_SUSPENDED`; auditado (`ADMIN_CLINIC_ACCOUNT_SUSPEND`).
+
+### `POST /admin/clinics/{clinicId}/accounts/{clinicAccountId}/reactivate`  — adminReactivateClinicAccount
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Reativar uma conta do portal da clínica.
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `CONFLICT` (já existe `CLINIC_ADMIN` ativo), `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-ADM-04; auditado (`ADMIN_CLINIC_ACCOUNT_REACTIVATE`).
+
 ### `POST /admin/clinics/{clinicId}/root-account`  — adminCreateOrResetClinicRootAccount
 - **AUTHORIZATION:** PLATFORM_ADMIN
 - **DESCRIPTION:** Criar a conta `CLINIC_ADMIN` raiz de uma clínica parceira (ao criar a clínica) ou repor as suas credenciais (perda de acesso, D18).
@@ -1279,13 +1404,21 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** ADR-021.
 
+### `PATCH /admin/insurers/{insurerId}`  — adminUpdateInsurer
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Editar seguradora parceira (nome e/ou NIF).
+- **REQUEST:** `InsurerPatch`
+- **RESPONSE:** `200` `Insurer`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR` (inclui NIF duplicado)
+- **BUSINESS RULES:** BR-ADM-05 (completa ADR-021); auditado (`ADMIN_INSURER_UPDATE`); sem eliminação.
+
 ### `PUT /admin/insurers/{insurerId}/status`  — adminSetInsurerStatus
 - **AUTHORIZATION:** PLATFORM_ADMIN
 - **DESCRIPTION:** Suspender/reativar seguradora parceira.
 - **REQUEST:** `InsurerStatusRequest`
 - **RESPONSE:** `200` `Insurer`
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** ADR-021 (mirror de `adminSetClinicStatus`).
+- **BUSINESS RULES:** ADR-021 (mirror de `adminSetClinicStatus`); BR-INS-10: suspender revoga `insurance_sessions` e bloqueia novos pedidos.
 
 ### `POST /admin/insurers/{insurerId}/root-account`  — adminCreateOrResetInsurerRootAccount
 - **AUTHORIZATION:** PLATFORM_ADMIN
@@ -1441,7 +1574,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **AppointmentStatusRequest** — `status`: SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED (a família nunca define `REQUESTED`/`REJECTED`, nem confirma `REQUESTED → SCHEDULED` — exclusivo do portal da clínica, D17)
 
-**AvailableSlot** — `id`: uuid, `clinicId`: uuid, `clinicName`: string, `specialty`: string, `professionalName?`: string, `startsAt`: datetime, `durationMinutes`: int
+**AvailableSlot** — `id`: uuid, `clinicId`: uuid, `clinicName`: string, `kind`: APPOINTMENT|EXAM, `specialty`: string (em `EXAM`, tipo de exame), `professionalName?`: string, `startsAt`: datetime, `durationMinutes`: int, `capacity`: int (1–50; 1 em APPOINTMENT), `remaining`: int (≥ 1 nas listagens, BR-APT-11)
 
 **Clinic** — `id`: uuid, `name`: string, `address?`: string, `phone?`: string, `email?`: string, `type`: PARTNER|PRIVATE, `status`: ACTIVE|ARCHIVED
 
@@ -1465,11 +1598,13 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **ClinicStaffInput** — `email`: string (a conta criada é sempre `CLINIC_MANAGER`, BR-CLN-05; a palavra-passe inicial é enviada por e-mail)
 
-**ClinicSlot** — `id`: uuid, `clinicId`: uuid, `specialty`: string, `professionalName?`: string, `startsAt`: datetime, `durationMinutes`: int
+**ClinicSlot** — `id`: uuid, `clinicId`: uuid, `kind`: APPOINTMENT|EXAM (BR-APT-10), `specialty`: string, `professionalName?`: string, `startsAt`: datetime, `durationMinutes`: int, `capacity`: int (BR-APT-11; 1–50, sempre 1 em APPOINTMENT)
 
-**ClinicSlotView** — campos de `ClinicSlot` + `state`: FREE|REQUESTED|SCHEDULED
+**ClinicSlotView** — campos de `ClinicSlot` + `bookedCount`: int (marcações ativas: exames `SCHEDULED`; consulta `REQUESTED`/`SCHEDULED`), `remaining`: int (`capacity − bookedCount`), `state`: FREE|REQUESTED|SCHEDULED|PARTIAL|FULL (APPOINTMENT: FREE|REQUESTED|SCHEDULED; EXAM: FREE se `bookedCount=0`, PARTIAL, FULL se `remaining=0`)
 
-**ClinicSlotBatchInput** — `date`: date (dia local), `times`: [string] (HH:mm locais), `specialty`: string, `professionalName?`: string, `durationMinutes`: int (15|20|30|45|60, BR-CLN-04)
+**ClinicSlotPatch** — `capacity`: int (1–50; só `kind=EXAM`; não inferior a `bookedCount`)
+
+**ClinicSlotBatchInput** — `kind?`: APPOINTMENT|EXAM (default APPOINTMENT), `capacity?`: int (1–50, default 1; > 1 só com `kind=EXAM`, BR-APT-11), `date`: date (dia local), `times`: [string] (HH:mm locais), `specialty`: string, `professionalName?`: string, `durationMinutes`: int (15|20|30|45|60, BR-CLN-04)
 
 **ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família)
 
@@ -1479,25 +1614,39 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **ClinicCompleteAppointmentRequest** — `outcomeNote?`: string (resultado da consulta, BR-CLN-06), `prescription?`: `PrescriptionInput` (opcional; se presente, cria a receita com `issuedBy=CLINIC`, BR-RX-07)
 
+**ClinicExamBooking** — `id`: uuid, `status`: SCHEDULED|COMPLETED|CANCELLED, `slotId?`: uuid, `scheduledAt`: datetime, `examType?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string, `resultsCount?`: int, `documents?`: [ClinicDocumentView], `resultsIssuedAt?`: datetime (mínimo necessário, BR-CLN-03; nunca os valores dos resultados)
+
+**ClinicDocumentView** — `id`: uuid, `originalName`: string, `sizeBytes`: int, `scanStatus`: PENDING|CLEAN|INFECTED, `createdAt`: datetime (só metadados, BR-CLN-08)
+
+**ClinicExamDocumentUploadRequest** — `file`: binary (só PDF)
+
+**ClinicCompleteExaminationRequest** — `results?`: [ExamResultInput] (0–50), `resultNote?`: string (≤2000); pelo menos um resultado ou um PDF carregado (BR-CLN-08)
+
+**ClinicRecommendationInput** — `appointmentId?`: uuid, `examinationId?`: uuid (exatamente um, BR-CLN-09), `text`: string (1–2000)
+
+**ClinicRecommendation** — `id`: uuid, `appointmentId?`: uuid, `examinationId?`: uuid, `patientName`: string, `text`: string, `createdAt`: datetime
+
+**Recommendation** — `id`: uuid, `memberId`: uuid, `appointmentId?`: uuid, `examinationId?`: uuid, `clinicName`: string, `text`: string, `createdAt`: datetime (ADR-023)
+
 **ExamResultInput** — `parameter`: string, `valueNumeric?`: number, `valueText?`: string, `unit?`: string, `referenceMin?`: number, `referenceMax?`: number
 
 **ExamResultPatch** — `parameter?`: string, `valueNumeric?`: number, `valueText?`: string, `unit?`: string, `referenceMin?`: number, `referenceMax?`: number
 
 **ExamResultHistoryItem** — `examinationId`: uuid, `examDate`: date, `valueNumeric?`: number, `valueText?`: string, `unit?`: string, `referenceMin?`: number, `referenceMax?`: number
 
-**Examination** — `id`: uuid, `memberId`: uuid, `name`: string, `examDate`: date, `status`: SCHEDULED|COMPLETED|CANCELLED, `clinicId?`: uuid, `clinicName?`: string, `notes?`: string, `results`: [ExamResult], `documentIds`: [uuid]
+**Examination** — `id`: uuid, `memberId`: uuid, `name`: string, `examDate`: date, `status`: SCHEDULED|COMPLETED|CANCELLED, `scheduledAt?`: datetime, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid, `responseNote?`: string, `notes?`: string, `issuedBy`: FAMILY|CLINIC, `issuedByClinicAccountId?`: uuid, `resultsIssuedAt?`: datetime, `clinicResultNote?`: string, `results`: [ExamResult], `documentIds`: [uuid]
 
-**ExaminationInput** — `name`: string, `examDate`: date, `clinicId?`: uuid, `clinicName?`: string, `notes?`: string
+**ExaminationInput** — `name`: string, `examDate`: date, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (marcação num horário `EXAM` com vaga; nasce SCHEDULED e name/examDate/clínica são os do horário, BR-EXM-05), `notes?`: string
 
 **ExaminationPatch** — `name?`: string, `examDate?`: date, `clinicId?`: uuid, `clinicName?`: string, `notes?`: string
 
-**ExamStatusRequest** — `status`: SCHEDULED|COMPLETED|CANCELLED
+**ExamStatusRequest** — `status`: SCHEDULED|COMPLETED|CANCELLED (`REQUESTED`/`REJECTED` já não existem na API, ADR-023 revisto)
 
 **UploadDocumentRequest** — `file`: binary, `resourceType`: PRESCRIPTION|EXAMINATION|INSURANCE_POLICY (ADR-021), `resourceId`: uuid
 
 **Document** — `id`: uuid, `resourceType`: PRESCRIPTION|EXAMINATION|INSURANCE_POLICY (ADR-021), `resourceId`: uuid, `originalName`: string, `mimeType`: string, `sizeBytes`: int, `scanStatus`: PENDING|CLEAN|INFECTED, `createdAt`: datetime
 
-**Alert** — `id`: uuid, `type`: MEDICATION_DUE|APPOINTMENT_REMINDER|EXAM_REMINDER|APPOINTMENT_OUTCOME_REQUEST, `familyId`: uuid, `memberId`: uuid, `memberName`: string, `message`: string, `sourceType`: DOSE|APPOINTMENT|EXAMINATION, `sourceId`: uuid, `triggerAt`: datetime, `readAt?`: datetime
+**Alert** — `id`: uuid, `type`: MEDICATION_DUE|APPOINTMENT_REMINDER|EXAM_REMINDER|APPOINTMENT_OUTCOME_REQUEST|APPOINTMENT_CONFIRMED|APPOINTMENT_REJECTED|APPOINTMENT_CANCELLED|EXAM_CANCELLED|EXAM_RESULTS_AVAILABLE|RECOMMENDATION_ADDED, `familyId`: uuid, `memberId`: uuid, `memberName`: string, `message`: string, `sourceType`: DOSE|APPOINTMENT|EXAMINATION|RECOMMENDATION, `sourceId`: uuid, `triggerAt`: datetime, `readAt?`: datetime
 
 **AdherenceItem** — `planId`: uuid, `medicationName`: string, `taken`: int, `notTaken`: int, `unconfirmed`: int, `pending`: int
 
@@ -1509,15 +1658,19 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **FamilyReport** — `generatedAt`: datetime, `members`: [FamilyReportMember]
 
-**AdminUser** — `id`: uuid, `email`: email, `status`: PENDING_VERIFICATION|ACTIVE|SUSPENDED, `createdAt`: datetime
+**AdminUserDetail** — `id`: uuid, `email`: email, `name`: string, `status`: PENDING_VERIFICATION|ACTIVE|SUSPENDED, `platformRole`: NONE|PLATFORM_ADMIN, `emailVerifiedAt?`: datetime, `createdAt`: datetime, `suspendedAt?`: datetime, `suspensionReason?`: string, `familiesCount`: int, `activeSessionsCount`: int, `lastSessionUsedAt?`: datetime (BR-ADM-01; nunca saúde)
+
+**AdminClinicAccount** — `id`: uuid, `clinicId`: uuid, `email`: email, `role`: CLINIC_ADMIN|CLINIC_MANAGER, `status`: ACTIVE|SUSPENDED, `createdAt`: datetime, `lastLoginAt?`: datetime, `suspendedAt?`: datetime (BR-ADM-03)
+
+**AdminUser** — `id`: uuid, `email`: email, `name?`: string, `status`: PENDING_VERIFICATION|ACTIVE|SUSPENDED, `createdAt`: datetime
 
 **SuspendRequest** — `reason`: string
 
-**InsurancePolicy** — `id`: uuid, `insurerName`: string, `policyNumber`: string, `holderName`: string, `validUntil?`: date, `cardDocumentId?`: uuid, `createdAt`: datetime (ADR-021)
+**InsurancePolicy** — `id`: uuid, `insurerId?`: uuid (seguradora parceira, BR-INS-09), `insurerName`: string, `policyNumber`: string, `holderName`: string, `validUntil?`: date, `cardDocumentId?`: uuid, `createdAt`: datetime (ADR-021)
 
-**InsurancePolicyInput** — `insurerName`: string, `policyNumber`: string, `holderName`: string, `validUntil?`: date, `cardDocumentId?`: uuid
+**InsurancePolicyInput** — `insurerId?`: uuid (de `GET /families/{id}/insurers`), `insurerName`: string, `policyNumber`: string, `holderName`: string, `validUntil?`: date, `cardDocumentId?`: uuid
 
-**InsurancePolicyPatch** — `insurerName?`: string, `policyNumber?`: string, `holderName?`: string, `validUntil?`: date, `cardDocumentId?`: uuid
+**InsurancePolicyPatch** — `insurerId?`: uuid, `insurerName?`: string, `policyNumber?`: string, `holderName?`: string, `validUntil?`: date, `cardDocumentId?`: uuid
 
 **ReimbursementClaim** — `id`: uuid, `policyId`: uuid, `amount`: number, `currency`: string, `status`: SUBMITTED|APPROVED|REJECTED|PAID, `decisionNote?`: string, `documentIds`: [uuid], `createdAt`: datetime (ADR-021)
 
@@ -1537,6 +1690,10 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **Insurer** — `id`: uuid, `name`: string, `taxId`: string, `status`: ACTIVE|SUSPENDED
 
+**PartnerInsurer** — `id`: uuid, `name`: string (BR-INS-09)
+
+**InsurerPatch** — `name?`: string, `taxId?`: string (BR-ADM-05)
+
 **InsurerInput** — `name`: string, `taxId`: string
 
 **InsurerStatusRequest** — `status`: ACTIVE|SUSPENDED
@@ -1546,4 +1703,4 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 **HealthStatus** — `status`: string
 
 
-> Total: 115 operações, 86 schemas.
+> Total: 170 operações, 125 schemas (revisto em 2026-11-04; a contagem anterior estava desatualizada).

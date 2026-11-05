@@ -44,7 +44,8 @@
 
 ### UC-CLN-04 Publicar e remover horários
 - **Ator:** Gestor da clínica · **FR:** APT-06
-- **Fluxo:** escolhe dia(s), horas, especialidade, profissional (opcional) e duração → publica. Remove só horários livres (BR-CLN-04).
+- **D19:** cada horário tem `kind` (`APPOINTMENT` por defeito ou `EXAM`, UC-CLN-07; BR-APT-10).
+- **Fluxo:** escolhe dia(s), horas, especialidade, profissional (opcional) e duração → publica. Remove só horários sem marcações ativas (BR-CLN-04). Em `EXAM` define também as vagas (`capacity`, BR-APT-11); `APPOINTMENT` tem sempre 1 vaga e mantém o fluxo UC-CLN-05.
 
 ### UC-CLN-05 Confirmar ou recusar pedidos
 - **Ator:** Gestor da clínica · **FR:** APT-06, APT-07
@@ -86,3 +87,19 @@
 - **Ator:** Platform Admin · **FR:** ADM-01
 - **Efeito:** conta suspensa não faz login, sessões terminadas, notificações pausadas `[PROPOSTO]`; os dados ficam intactos.
 - **Auditoria:** quem, quando, motivo.
+
+### UC-ADM-04 Pesquisar utilizadores e ver detalhe (ADR-023)
+- **Ator:** Platform Admin · **FR:** ADM-02 · **BR:** BR-ADM-01
+- **Fluxo:** pesquisa por `q` (e-mail/nome) e estado → abre o detalhe operacional. **Nunca** dados de saúde, famílias ou membros.
+
+### UC-ADM-05 Repor o acesso de um utilizador (ADR-023)
+- **Ator:** Platform Admin · **FR:** ADM-02 · **BR:** BR-ADM-02
+- **Fluxo:** pede `reset-access` → sessões revogadas → o utilizador recebe o e-mail de recuperação (ou nova verificação se `PENDING_VERIFICATION`). Auditado; o Admin nunca vê palavra-passe/token.
+
+### UC-ADM-06 Gerir contas do portal de uma clínica (ADR-023)
+- **Ator:** Platform Admin · **FR:** ADM-03 · **BR:** BR-ADM-03/04
+- **Fluxo:** abre a clínica → lista as contas (`CLINIC_ADMIN` + `CLINIC_MANAGER`) → suspende (motivo) ou reativa uma conta; suspender revoga `clinic_sessions`. Não cria nem remove Gestores (BR-CLN-05); reposição da raiz por UC-ADM-03/`root-account`.
+
+### UC-ADM-07 Gerir seguradoras parceiras (ADR-021/ADR-023)
+- **Ator:** Platform Admin · **FR:** ADM-04 · **BR:** BR-ADM-05/06, BR-INS-06/10
+- **Fluxo:** lista, cria (nome, NIF único), edita, suspende/reativa; cria/repõe a conta `INSURANCE_ADMIN` raiz. Sem eliminação.

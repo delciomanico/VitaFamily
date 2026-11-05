@@ -28,7 +28,8 @@ Exemplo: `User 123 · VIEW · Examination · 456 · 2026-10-04 10:32 · SUCCESS`
 | Documentos | `DOCUMENT_UPLOAD`, `DOCUMENT_SCAN_CLEAN`, `DOCUMENT_SCAN_INFECTED`, `DOCUMENT_DOWNLOAD`, `DOCUMENT_DELETE` |
 | Clínicas (M7, extensão do catálogo mínimo — não são "dados de saúde" por categoria, mas toda escrita é auditada, `conventions.md` §2) | `CLINIC_CREATE/UPDATE/STATUS/DELETE` (privadas) |
 | Relatórios | `REPORT_VIEW` (quando inclui outro titular), `AI_SUMMARY_GENERATE` (ADR-022: quem pediu, quando, tipo de resumo — nunca os dados de saúde enviados ao fornecedor nem a resposta da IA, mesmo critério da regra 2) |
-| Plataforma | `ADMIN_USER_SUSPEND`, `ADMIN_USER_REACTIVATE`, `ADMIN_CLINIC_CREATE/UPDATE/STATUS` (M7: implementadas em `clinics`, sem módulo `admin` próprio ainda — ver `modules.md` §3 nota 12) |
+| Exames e recomendações da clínica (D19; `actor_type=CLINIC_ACCOUNT`, sem `family_id`/`subject_member_id` no portal — ADR-020) | `EXAM_CREATE` (família; `metadata.slotId` quando marcado em horário da clínica), `CLINIC_SLOT_UPDATE` (alteração de `capacity`), `EXAM_CLINIC_CANCEL`, `EXAM_CLINIC_COMPLETE`, `EXAM_DOCUMENT_UPLOAD`, `RECOMMENDATION_CREATE`, `RECOMMENDATION_VIEW` (leitura por quem não é o titular); `metadata` **nunca** com o texto da recomendação nem os resultados |
+| Plataforma | `ADMIN_USER_RESET_ACCESS`, `ADMIN_CLINIC_ACCOUNT_SUSPEND/REACTIVATE`, `ADMIN_INSURER_CREATE/UPDATE/STATUS`, `ADMIN_INSURER_ROOT_ACCOUNT`, `ADMIN_CLINIC_ROOT_ACCOUNT`, `ADMIN_USER_SUSPEND`, `ADMIN_USER_REACTIVATE`, `ADMIN_CLINIC_CREATE/UPDATE/STATUS` (M7: implementadas em `clinics`, sem módulo `admin` próprio ainda — ver `modules.md` §3 nota 12) |
 | Acesso negado | `ACCESS_DENIED` (com ação tentada em `metadata.action`) |
 
 **Não** se audita a leitura do titular sobre os seus próprios dados (volume e ruído), mas **sim** qualquer leitura por quem não é o titular, e **todo** download de documento.

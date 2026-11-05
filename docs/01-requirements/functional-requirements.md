@@ -110,6 +110,10 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-EXM-04 | O sistema guarda o histórico de exames e resultados por membro. | scope §2 |
 | FR-EXM-05 | O sistema **não** interpreta resultados nem gera alertas por valores fora do intervalo no MVP. | D11 |
 | FR-EXM-06 | Podem existir exames agendados (futuros) que geram lembretes. | scope §2 (alertas de exame) |
+| FR-EXM-07 | Numa clínica parceira, o utilizador marca diretamente um horário `EXAM` com vagas publicado pela clínica e o exame nasce `SCHEDULED`; a clínica vê a agenda e a ocupação, pode cancelar com motivo e completar com resultados (sem passo de confirmação/recusa). Noutras clínicas ou sem clínica, registo direto. | D19, ADR-023 |
+| FR-EXM-08 | A clínica parceira, ao completar um exame seu, emite resultados estruturados e/ou PDF (quarentena + antivírus), sem interpretação; fica rastreável quem emitiu. | D19, ADR-023 |
+| FR-EXM-09 | O titular/tutor é informado quando a clínica cancela um exame ou disponibiliza resultados (alertas `EXAM_CANCELLED`/`EXAM_RESULTS_AVAILABLE`). | D19, ADR-023 |
+| FR-REC-01 | A clínica parceira pode deixar uma recomendação (nota de texto) numa consulta ou exame seu; o paciente/tutor lê-a segundo a categoria da origem e é notificado. | D19, ADR-023 |
 
 ## 10. Documentos (DOC)
 
@@ -150,7 +154,11 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-AUD-02 | São auditadas pelo menos: login, visualização/download de documentos e exames, receitas, alterações de permissões/membros, eliminações. Lista final: Fase 14. | prompt §20 |
 | FR-AUD-03 | Ao eliminar dados de um User, os logs são anonimizados. | D15 |
 | FR-ADM-01 | O Platform Admin pode listar, suspender e reativar contas, e gerir o cadastro de clínicas parceiras (R8), sem acesso a dados de saúde. | D4 |
+| FR-ADM-02 | O Platform Admin pesquisa utilizadores e vê o detalhe operacional, e repõe o acesso (e-mail de recuperação + sessões revogadas), sem dados de saúde. | D19, ADR-023 |
+| FR-ADM-03 | O Platform Admin lista, suspende e reativa as contas do portal de cada clínica parceira (sem criar/remover Gestores). | D19, ADR-023 |
+| FR-ADM-04 | O Platform Admin gere seguradoras parceiras (listar, criar, editar, suspender/reativar) e a conta raiz `INSURANCE_ADMIN`. | ADR-021, ADR-023 |
 | FR-CLN-01 | Existe um cadastro `Clinic`. Clínicas parceiras são criadas pelo Platform Admin; os utilizadores criam entradas privadas para clínicas não parceiras (R8). **D17:** clínicas parceiras têm contas de Gestor da clínica (criadas pelo Platform Admin) com acesso apenas às marcações na própria clínica; nenhuma clínica acede a dados de saúde. | D3, D17 |
+| FR-CLN-02 | A clínica parceira publica horários de consulta ou de exame (`kind`); os de exame têm um número de vagas (`capacity`, 1–50). | D19, ADR-023 |
 
 ---
 

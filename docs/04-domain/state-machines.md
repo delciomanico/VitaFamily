@@ -1,6 +1,6 @@
 # Vita Family — Estados e transições (Fase 10)
 
-> Estado: **v0.2 — acrescenta `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
+> Estado: **v0.4 — `Examination` com marcação direta (nasce `SCHEDULED`), sem `REQUESTED`/`REJECTED` (ADR-023 revisto 2026-11-04); v0.3 introduzira-os; v0.2 acrescentou `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
 > Notação: `A → B [quem / condição]`. Transições não listadas são **proibidas** e devolvem `INVALID_STATE_TRANSITION` (409).
 
 ## User
@@ -68,11 +68,18 @@ Consulta de clínica parceira nasce REQUESTED; privada/sem clínica nasce SCHEDU
 
 ## Examination
 ```text
-SCHEDULED → COMPLETED   [titular/tutor]
-SCHEDULED → CANCELLED   [titular/tutor]
-CANCELLED → SCHEDULED   [titular/tutor]
+(início)  → SCHEDULED   [marcação direta num horário EXAM com vaga; ou registo privado futuro]  ← ADR-023 revisto
+SCHEDULED → CANCELLED   [conta da clínica, com motivo — só exames da clínica; liberta a vaga] ← D19
+SCHEDULED → COMPLETED   [titular/tutor; ou conta da clínica com resultados/PDF — BR-CLN-08]
+SCHEDULED → CANCELLED   [titular/tutor; liberta a vaga se tiver slotId]
+CANCELLED → SCHEDULED   [titular/tutor — só exames sem slotId; com slotId: pedir novo horário, BR-EXM-08]
 ```
-Exame criado com `examDate` passada nasce COMPLETED; resultados só se adicionam a exames COMPLETED.   ← ST5
+Exame de clínica parceira (`slotId`) **nasce SCHEDULED** se o horário tem vaga (BR-EXM-05, BR-APT-11); privado/sem clínica nasce SCHEDULED ou COMPLETED (data passada) como antes. **`REQUESTED` e `REJECTED` foram retirados do fluxo** (ADR-023 revisto): os valores permanecem no enum de BD `exam_status` **apenas por compatibilidade** (PostgreSQL não remove valores de enum sem recriar o tipo), são proibidos por CHECK em `examinations` (migração 0022), nunca são produzidos pela aplicação nem expostos na API (`Examination.status` ∈ SCHEDULED|COMPLETED|CANCELLED).
+Exame criado com `examDate` passada nasce COMPLETED; resultados só se adicionam a exames COMPLETED — **exceção atómica:** a clínica completa (`SCHEDULED → COMPLETED`) e grava os resultados na mesma transação (BR-CLN-08).   ← ST5, D19
+Lembretes (24 h) só em SCHEDULED (BR-EXM-06). Vaga ocupada ⇔ `SCHEDULED` com `slotId`; `CANCELLED` (por quem for) liberta-a. Não há expiração por falta de resposta (BR-EXM-07 obsoleta).
+
+## Recommendation
+Sem máquina de estados: criada, imutável pela clínica, eliminada em cascata com a origem (BR-CLN-09).
 
 ## Document (scanStatus)
 ```text
@@ -119,5 +126,5 @@ PENDING → FAILED            [retry manual: novo pedido]
 | ST2 | Janela de correção de uma toma | **7 dias**. |
 | ST3 | Confirmar tomas futuras | **Não** (só até 1 h antes do horário). |
 | ST4 | COMPLETED/NO_SHOW corrigíveis entre si | **Sim**. |
-| ST5 | Resultados só em exames COMPLETED | **Sim**. |
+| ST5 | Resultados só em exames COMPLETED | **Sim** (exceção: completar pela clínica grava-os atomicamente, ADR-023). |
 | ST6 | Retry de notificações | **5 tentativas** com backoff crescente. |

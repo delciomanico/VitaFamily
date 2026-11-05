@@ -70,6 +70,16 @@
 | TC-EXM-01 | Exame futuro/passado (ST5); resultados só em COMPLETED; valores numérico/texto (Q9) | A |
 | TC-EXM-02 | Valor fora do intervalo informado não gera alerta nem marca | A |
 | TC-EXM-03 | Histórico de um parâmetro ordenado por data | A |
+| TC-EXM-04 | Marcar em horário `EXAM`: nasce SCHEDULED com lembrete; `capacity` N ⇒ N marcações, a N+1 ⇒ CONFLICT; mesmo membro 2× ⇒ CONFLICT; `kind` trocado ⇒ VALIDATION_ERROR (BR-APT-10/11) (AC-EXM-03) | A |
+| TC-EXM-05 | Transições SCHEDULED→CANCELLED/COMPLETED; CANCELLED com `slotId` não reagenda (BR-EXM-08); valores `REQUESTED`/`REJECTED` rejeitados pela CHECK e inexistentes na API (AC-EXM-03/04) | U + I |
+| TC-EXM-06 | Clínica: lista horários com ocupação, `PATCH` de `capacity` (abaixo das marcações ⇒ CONFLICT; em APPOINTMENT ⇒ VALIDATION_ERROR), remove horário com marcações ⇒ CONFLICT, cancela marcação (motivo obrigatório, vaga libertada, `EXAM_CANCELLED`); `exam-requests` ⇒ 404 (AC-EXM-04) | A |
+| TC-EXM-07 | Completar exame com resultados e/ou PDF (atómico); sem nenhum ⇒ VALIDATION_ERROR; `issuedBy=CLINIC`; sem alertas por valor (AC-EXM-05) | A |
+| TC-EXM-08 | PDF da clínica: quarentena + EICAR; só PDF; 6.º ficheiro; invisível ao paciente antes de COMPLETED, também depois de a conta da clínica ser removida; clínica nunca descarrega (AC-EXM-06) | I + A + S |
+| TC-EXM-09 | **Concorrência:** `capacity+1` marcações simultâneas no mesmo horário ⇒ exatamente `capacity` sucessos (bloqueio do horário); marcação vs `PATCH capacity`/`DELETE` simultâneos sem overbooking nem marcações órfãs (AC-EXM-03); cancelar liberta vaga (AC-EXM-04) | I |
+| TC-EXM-10 | Migração `0022`: linhas `REQUESTED`/`REJECTED` convertidas em CANCELLED; remover conta de clínica com exame/receita/PDF emitidos não viola CHECK; `uploaded_by_clinic` preenchido (AC-EXM-06/07) | I |
+| TC-REC-01 | Criar recomendação só em origem própria SCHEDULED/COMPLETED; validação 1–2000; imutável (sem PUT/PATCH/DELETE); texto fora de logs/notificações (AC-REC-01) | A + S |
+| TC-REC-02 | Leitura por categoria: titular/tutor, dependente (só consulta), OTHER com/sem partilha; retirada imediata (AC-REC-02) | A |
+| TC-CLN-02 | Isolamento entre clínicas em todas as rotas `/clinic-portal/exam-agenda*`, `slots` (incl. `PATCH`) e `recommendations` ⇒ NOT_FOUND; token de User/seguradora rejeitado (e vice-versa) (AC-EXM-04, AC-REC-01) | S |
 
 > **Nota M7 (change control, mesmo padrão da nota M6 em TC-AUTH-12):** TC-APT-01 (metade "lembretes 24h/2h recalculados") e TC-APT-02 (metade "pedido de desfecho 24h depois") descrevem o scanner de `alerts`, que só existia em M8 (`modules.md` §2: `alerts` depende de `appointments`, nunca o inverso — `plan.md` §4 confirma `FR-ALR` em M8). Implementado em M7: os dados de que `alerts` vai precisar (`scheduledAt`, `status`, `outcomeRequestedAt`) ficam corretos, e nenhum processo deste módulo muda o estado por si só — caso coberto em `appointments/application/appointments.test.ts` ("AC-APT-02: nunca muda de estado por si só"). TC-APT-03 (ST4), TC-CLN-01 e TC-EXM-01/02/03 estão cobertos nos testes de `appointments`/`clinics`/`examinations` (`application/*.test.ts`).
 >
@@ -118,6 +128,16 @@
 | TC-CON-01 | OpenAPI do código = repositório; respostas validam o schema | A |
 | TC-MIG-01 | Sem *drift* entre migrações e esquema; constraints críticas violáveis só com erro | I |
 | TC-OPS-01 | Health e readiness; degradação com Redis/BD em baixo | A |
+
+## 8b. Administração e seguradoras (TC-ADM / TC-INS, ADR-023)
+| ID | Caso | Nível | Liga a |
+|---|---|---|---|
+| TC-ADM-01 | `GET /admin/users?q=` e detalhe: sem dados de saúde; não-admin ⇒ 403; imports de `admin` verificados | A + arquitetura | AC-ADM-01 |
+| TC-ADM-02 | `reset-access`: sessões revogadas, e-mail enviado, sem token na resposta, auditado, não a si próprio | A + S | AC-ADM-02 |
+| TC-ADM-03 | Contas de clínica: listar, suspender (revoga `clinic_sessions`, ≤60 s), reativar; CONFLICT em `CLINIC_ADMIN` duplicado; `TC-AZ-ADM-*` (token de clínica/seguradora nunca autoriza `/admin/*`) | A + S | AC-ADM-03 |
+| TC-ADM-04 | Seguradoras: criar, editar, suspender/reativar, NIF único, sem DELETE | A | AC-ADM-04 |
+| TC-INS-01 | Apólice com/sem seguradora parceira; reembolso: SUBMITTED/VALIDATION_ERROR/CONFLICT (suspensa); CHECK de `reimbursement_claims` aceita SUBMITTED | A + I | AC-INS-01 |
+| TC-INS-02 | Portal da seguradora: decidir com/sem motivo; isolamento entre seguradoras; só documentos listados; `TC-AZ-INS-*` | A + S | AC-INS-02 |
 
 ## 9. Segurança adicional (TC-SEC)
 Cabeçalhos de segurança · CORS restrito · rejeição de campos desconhecidos (whitelist) · limites de corpo · injeção em texto livre · enumeração (registo/recuperação/convites) · SSRF em endpoints push · refresh sem cabeçalho CSRF recusado · cookie com flags corretas.

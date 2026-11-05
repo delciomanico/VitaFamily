@@ -379,6 +379,19 @@ Cada decisão segue o formato: contexto → opções → recomendação → impa
 - Resultado da consulta: desenho mínimo em `schema.md` (colunas em `appointments` ou tabela dedicada), decisão de desenho concreta deixada ao contrato (schema.md), não repetida aqui.
 - **Já preenchido por esta decisão:** `05-api/openapi.yaml`, `endpoints.md`, `07-database/schema.md` e `08-security/authorization.md` — a pendência de D17 fica resolvida.
 
+#### D19 — Portal da clínica: exames, resultados, recomendações; administração de contas (proprietário, 2026-11-04)
+
+**Amplia D17/D18 (ADR-020) e completa ADR-021.** Detalhe em `06-architecture/decisions/ADR-023-clinica-exames-resultados-recomendacoes-e-admin-de-contas.md`.
+
+| Pergunta | Escolha do proprietário |
+|---|---|
+| Como se marcam exames na clínica? | **Revisto 2026-11-04 (ver ADR-023):** `ClinicSlot.kind` (`APPOINTMENT`\|`EXAM`) com `capacity` (vagas) nos de exame; a família agenda diretamente e, havendo vaga, o exame nasce `SCHEDULED`; a clínica cancela com motivo (vaga libertada) e completa. *(Versão inicial: pedido `REQUESTED` + confirmar/recusar — substituída.)* |
+| Como emite a clínica resultados? | **Parâmetros estruturados** (sem interpretação, D11) e/ou **PDF** pelo módulo `documents` (quarentena + antivírus; download mediado só pelo paciente); `issuedByClinicAccountId` rastreável (espelho de BR-RX-07). |
+| Recomendações? | Nova entidade `Recommendation` (nota de texto ligada a consulta ou exame da própria clínica), sem interpretação nem alertas automáticos; notifica o paciente; auditada; lida pelo paciente/tutor conforme a categoria. |
+| Admin? | Detalhe/pesquisa de utilizadores e reposição de acesso (sem dados de saúde); listar/suspender/reativar contas do portal de clínica; CRUD de seguradoras + conta `INSURANCE_ADMIN` raiz. |
+
+**Consequências:** BR-CLN-07/08/09, BR-EXM-05..08, BR-APT-10, BR-INS-09/10, BR-ADM-01..07; `openapi.yaml`/`endpoints.md`/`schema.md`/`authorization.md` atualizados; BR-CLN-03 (minimização) mantida; plano M7b/M13 (`plan.md`).
+
 ### Pontos que ficam em aberto (derivados das decisões)
 
 - **[NEEDS DECISION] Maioridade/menores (D1+D13):** idade a partir da qual um membro é considerado adulto (RGPD/PT: consentimento digital aos 13 anos; maioridade civil aos 18). Decidir na Fase 5.
