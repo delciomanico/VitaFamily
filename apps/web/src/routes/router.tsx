@@ -157,6 +157,15 @@ export const routes: RouteObject[] = [
                 path: 'family/:id/history',
                 ...page(() => import('@/pages/family/MemberHistoryPage'), 'MemberHistoryPage'),
               },
+              { path: 'watch', ...page(() => import('@/pages/wearables/WatchPage'), 'WatchPage') },
+              {
+                path: 'watch/connect',
+                ...page(() => import('@/pages/wearables/ConnectWatchPage'), 'ConnectWatchPage'),
+              },
+              {
+                path: 'watch/:metric',
+                ...page(() => import('@/pages/wearables/WatchMetricPage'), 'WatchMetricPage'),
+              },
               { path: 'alerts', ...page(() => import('@/pages/alerts/AlertsPage'), 'AlertsPage') },
               { path: 'reports/family', ...page(() => import('@/pages/reports/FamilyReportPage'), 'FamilyReportPage') },
               {
