@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { FileText, FlaskConical } from 'lucide-react'
 import { RecommendationModal } from '@/components/domain/RecommendationModal'
-import { DateStrip, nextDays } from '@/components/domain/DatePickers'
+import { DaySelector } from '@/components/clinic/DaySelector'
+import { nextDays } from '@/components/domain/DatePickers'
 import { Badge, type Tone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -67,7 +68,9 @@ export function ClinicExamsPage() {
   return (
     <>
       <h1 className="text-xl font-semibold">Exames agendados</h1>
-      <DateStrip
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start lg:gap-6">
+        <div className="lg:sticky lg:top-6">
+      <DaySelector
         days={nextDays(AGENDA_DAYS)}
         value={day}
         onChange={setDay}
@@ -75,6 +78,8 @@ export function ClinicExamsPage() {
         label="Escolher dia"
         allowClear
       />
+        </div>
+        <div className="flex min-w-0 flex-col gap-5">
       {state.status === 'loading' && <LoadingState rows={3} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
@@ -84,8 +89,8 @@ export function ClinicExamsPage() {
               {shown.map((exam) => {
                 const status = statuses[exam.status]
                 return (
-                  <div key={exam.id} className="flex flex-col gap-3 py-3">
-                    <div className="flex items-start gap-3">
+                  <div key={exam.id} className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:gap-6">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
                       <span className="w-14 shrink-0 rounded-md bg-primary-soft py-2 text-center text-sm font-semibold text-primary tabular-nums">
                         {formatTime(exam.scheduledAt)}
                       </span>
@@ -108,7 +113,7 @@ export function ClinicExamsPage() {
                       </div>
                     </div>
                     {(exam.status === 'SCHEDULED' || exam.status === 'COMPLETED') && (
-                      <div className="flex gap-2 sm:justify-end">
+                      <div className="flex shrink-0 gap-2 sm:justify-end">
                         <Button variant="ghost" size="sm" onClick={() => setRecommending(exam)}>
                           Recomendação
                         </Button>
@@ -132,6 +137,8 @@ export function ClinicExamsPage() {
           )}
         </DetailSection>
       )}
+        </div>
+      </div>
 
       <Modal
         open={cancelling !== null}

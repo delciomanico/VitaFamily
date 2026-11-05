@@ -202,6 +202,13 @@ const toRecommendation = (r: ApiClinicRecommendation): ClinicRecommendation => (
   createdAt: r.createdAt,
 })
 
+/** `ClinicWalkInAppointmentRequest` (openapi.yaml, ADR-024). */
+export interface WalkInInput {
+  patientEmail: string
+  slotId: string
+  notes?: string
+}
+
 const apiImpl = {
   async login(email: string, password: string): Promise<ClinicSession> {
     const tokens = await clinicApiFetch<ClinicTokenResponse>('/auth/login', {
@@ -333,6 +340,25 @@ const apiImpl = {
     )
   },
 
+  lookupPatient: (email: string) =>
+    clinicApiFetch<{ displayName: string }>('/patient-lookup', {
+      method: 'POST',
+      body: { email: email.trim().toLowerCase() },
+    }),
+
+  async createWalkIn(input: WalkInInput): Promise<ClinicBooking> {
+    return toBooking(
+      await clinicApiFetch<ApiClinicBooking>('/walk-in-appointments', {
+        method: 'POST',
+        body: {
+          patientEmail: input.patientEmail.trim().toLowerCase(),
+          slotId: input.slotId,
+          notes: input.notes?.trim() || null,
+        },
+      }),
+    )
+  },
+
   async listAgenda(): Promise<ClinicBooking[]> {
     return (await clinicApiFetch<ApiClinicBooking[]>('/agenda')).map(toBooking).sort(byScheduledAt)
   },
@@ -412,6 +438,9 @@ const mockImpl = {
   listRequests: () => mock.listClinicRequests(mockAccountId()),
   respondRequest: (appointmentId: string, decision: ClinicRequestDecision, note?: string) =>
     mock.respondClinicRequest(mockAccountId(), appointmentId, decision, note),
+
+  lookupPatient: (email: string) => mock.lookupClinicPatient(mockAccountId(), email),
+  createWalkIn: (input: WalkInInput) => mock.createClinicWalkIn(mockAccountId(), input),
 
   listAgenda: () => mock.listClinicAgenda(mockAccountId()),
   cancelAppointment: (appointmentId: string, note: string) =>

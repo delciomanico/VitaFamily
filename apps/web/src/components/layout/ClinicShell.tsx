@@ -1,5 +1,8 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
+import { ClinicSidebar } from '@/components/clinic/ClinicSidebar'
+import { ClinicStatsBar } from '@/components/clinic/ClinicStatsBar'
+import { clinicNav } from '@/components/clinic/clinicNav'
 import { ClinicAuthProvider, useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { cn } from '@/lib/cn'
@@ -21,7 +24,7 @@ export function ClinicPortalRoot() {
   )
 }
 
-/** Pedidos por responder (contador no separador); atualiza a cada navegação. */
+/** Pedidos por responder (contador na navegação); atualiza a cada navegação. */
 function usePendingRequests(): number {
   const { pathname } = useLocation()
   const { state } = useAsync(() => clinicPortalService.listRequests(), [pathname])
@@ -29,21 +32,15 @@ function usePendingRequests(): number {
 }
 
 /**
- * Portal da clínica parceira (D17/D18): faixa com a conta em sessão e Sair, e separadores
- * Pedidos / Agenda / Horários (+ Contas, só para o Admin da clínica). Igual no mobile e desktop.
+ * Portal da clínica parceira (D17/D18). Telemóvel: faixa com a conta e Sair, e separadores.
+ * Desktop (`lg`): barra lateral fixa, faixa de resumo do dia e área de trabalho larga, onde cada
+ * página usa o espaço em colunas em vez de uma só coluna estreita.
  */
 export function ClinicShell() {
   const { session, isAdmin, logout } = useClinicAuth()
   const navigate = useNavigate()
   const pending = usePendingRequests()
-
-  const tabs = [
-    { to: paths.clinic, label: 'Pedidos', end: true },
-    { to: paths.clinicAgenda, label: 'Agenda', end: false },
-    { to: paths.clinicExams, label: 'Exames', end: false },
-    { to: paths.clinicSlots, label: 'Horários', end: false },
-    ...(isAdmin ? [{ to: paths.clinicStaff, label: 'Contas', end: false }] : []),
-  ]
+  const tabs = clinicNav.filter((item) => isAdmin || !item.adminOnly)
 
   async function signOut() {
     await logout()
@@ -52,8 +49,10 @@ export function ClinicShell() {
 
   return (
     <div className="min-h-dvh">
-      <header className="bg-brand pt-safe text-white">
-        <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4 lg:px-8">
+      <ClinicSidebar session={session} isAdmin={isAdmin} pending={pending} onSignOut={() => void signOut()} />
+
+      <header className="bg-brand pt-safe text-white lg:hidden">
+        <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
           <LogoMark tone="inverse" className="size-8 shrink-0" />
           <div className="min-w-0 flex-1">
             {/* O contrato do portal não expõe o nome da clínica (ClinicTokenResponse só tem
@@ -71,7 +70,7 @@ export function ClinicShell() {
           </button>
         </div>
       </header>
-      <nav aria-label="Portal da clínica" className="mx-auto max-w-3xl px-4 pt-4 lg:px-8">
+      <nav aria-label="Portal da clínica" className="mx-auto max-w-3xl px-4 pt-4 lg:hidden">
         <div className="flex gap-1 rounded-full bg-surface-muted p-1">
           {tabs.map((tab) => (
             <NavLink
@@ -86,7 +85,7 @@ export function ClinicShell() {
               }
             >
               {tab.label}
-              {tab.to === paths.clinic && pending > 0 && (
+              {tab.pending && pending > 0 && (
                 <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-primary-foreground tabular-nums">
                   {pending}
                   <span className="sr-only"> por responder</span>
@@ -98,8 +97,9 @@ export function ClinicShell() {
       </nav>
       <main
         id="conteudo"
-        className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-5 pb-[max(2rem,env(safe-area-inset-bottom))] lg:px-8"
+        className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-5 pb-[max(2rem,env(safe-area-inset-bottom))] lg:mx-0 lg:max-w-[calc(16rem+84rem)] lg:gap-6 lg:py-8 lg:pr-10 lg:pl-[calc(16rem+2.5rem)]"
       >
+        <ClinicStatsBar />
         <Outlet />
       </main>
     </div>

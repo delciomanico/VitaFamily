@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { CalendarClock, Pencil, Plus, Trash2 } from 'lucide-react'
 import { SpecialtyField } from '@/components/domain/AppointmentFields'
-import { DateStrip, nextDays } from '@/components/domain/DatePickers'
+import { DaySelector } from '@/components/clinic/DaySelector'
+import { nextDays } from '@/components/domain/DatePickers'
 import { Badge, type Tone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -230,7 +231,11 @@ export function ClinicSlotsPage() {
           </button>
         ))}
       </div>
-      <DateStrip days={nextDays(SLOT_DAYS)} value={day} onChange={setDay} marked={marked} label="Escolher dia" />
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start lg:gap-6">
+        <div className="lg:sticky lg:top-6">
+          <DaySelector days={nextDays(SLOT_DAYS)} value={day} onChange={setDay} marked={marked} label="Escolher dia" />
+        </div>
+        <div className="flex min-w-0 flex-col gap-5">
       {state.status === 'loading' && <LoadingState rows={3} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
@@ -288,6 +293,8 @@ export function ClinicSlotsPage() {
           )}
         </section>
       )}
+        </div>
+      </div>
 
       {publishing && (
         <PublishForm

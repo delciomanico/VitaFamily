@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, UserPlus } from 'lucide-react'
 import { ClinicBookingList } from '@/components/domain/ClinicBookingList'
 import { RecommendationModal } from '@/components/domain/RecommendationModal'
-import { DateStrip, nextDays } from '@/components/domain/DatePickers'
+import { WalkInBookingModal } from '@/components/clinic/WalkInBookingModal'
+import { DaySelector } from '@/components/clinic/DaySelector'
+import { nextDays } from '@/components/domain/DatePickers'
 import { Button } from '@/components/ui/Button'
 import { DetailSection } from '@/components/ui/InfoList'
 import { Modal } from '@/components/ui/Modal'
@@ -33,6 +35,7 @@ export function ClinicAgendaPage() {
   const [cancelling, setCancelling] = useState<ClinicBooking | null>(null)
   const [completing, setCompleting] = useState<ClinicBooking | null>(null)
   const [recommending, setRecommending] = useState<ClinicBooking | null>(null)
+  const [walkIn, setWalkIn] = useState(false)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | undefined>()
   const [saving, setSaving] = useState(false)
@@ -60,8 +63,15 @@ export function ClinicAgendaPage() {
 
   return (
     <>
-      <h1 className="text-xl font-semibold">Agenda da clínica</h1>
-      <DateStrip
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">Agenda da clínica</h1>
+        <Button size="sm" onClick={() => setWalkIn(true)} icon={<UserPlus className="size-4" aria-hidden />}>
+          Consulta presencial
+        </Button>
+      </div>
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start lg:gap-6">
+      <div className="lg:sticky lg:top-6">
+      <DaySelector
         days={nextDays(AGENDA_DAYS)}
         value={day}
         onChange={setDay}
@@ -69,6 +79,8 @@ export function ClinicAgendaPage() {
         label="Escolher dia"
         allowClear
       />
+      </div>
+      <div className="flex min-w-0 flex-col gap-5">
       {state.status === 'loading' && <LoadingState rows={3} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
@@ -102,6 +114,20 @@ export function ClinicAgendaPage() {
             <EmptyState icon={CalendarDays} title="Sem consultas neste dia." />
           )}
         </DetailSection>
+      )}
+      </div>
+      </div>
+
+      {walkIn && (
+        <WalkInBookingModal
+          onClose={() => setWalkIn(false)}
+          onBooked={(booking) => {
+            setWalkIn(false)
+            setDay(localDay(booking.scheduledAt))
+            toast.show('Consulta marcada.')
+            reload()
+          }}
+        />
       )}
 
       <Modal

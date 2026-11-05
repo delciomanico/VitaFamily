@@ -589,3 +589,75 @@ export function listClinicRecommendations(clinicAccountId: string, origin?: Part
       .map(toClinicRecommendation)
   })
 }
+
+// --- Marcação presencial (`/clinic-portal/patient-lookup` e `/walk-in-appointments`, ADR-024) ---
+
+/** Primeiro nome + inicial do último apelido (“Maria S.”): o mínimo para o gestor confirmar a pessoa. */
+function displayNameOf(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/)
+  const last = parts.length > 1 ? parts[parts.length - 1] : undefined
+  return last ? `${parts[0]} ${last[0]?.toUpperCase()}.` : (parts[0] ?? '')
+}
+
+/**
+ * Resolve o utilizador pelo e-mail exato. Inexistente, suspenso ou sem membro próprio (o membro ligado à sua conta) dão a mesma
+ * resposta (NOT_FOUND) para não revelar que contas existem (BR-CLN-10).
+ */
+function resolveWalkInPatient(email: string) {
+  const address = email.trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address) || address.length > 254) throw new AppError('VALIDATION_ERROR')
+  const user = db.users.find((u) => u.email.toLowerCase() === address && u.status === 'ACTIVE')
+  const member = user && db.members.find((m) => m.userId === user.id && m.status === 'ACTIVE')
+  if (!member) throw new AppError('NOT_FOUND')
+  return member
+}
+
+/** `POST /clinic-portal/patient-lookup`: só o nome de apresentação, nunca ids. */
+export function lookupClinicPatient(clinicAccountId: string, email: string) {
+  return respond((): { displayName: string } => {
+    requireAccount(clinicAccountId)
+    return { displayName: displayNameOf(resolveWalkInPatient(email).name) }
+  })
+}
+
+/** `POST /clinic-portal/walk-in-appointments`: consulta SCHEDULED num horário livre da própria clínica. */
+export function createClinicWalkIn(
+  clinicAccountId: string,
+  input: { patientEmail: string; slotId: string; notes?: string },
+  now: Date = new Date(),
+) {
+  return respond((): ClinicBooking => {
+    const { clinicId } = requireAccount(clinicAccountId)
+    expireRequests(now)
+    const slot = db.slots.find((s) => s.id === input.slotId && s.clinicId === clinicId)
+    if (!slot) throw new AppError('NOT_FOUND')
+    const member = resolveWalkInPatient(input.patientEmail)
+    if (slot.kind !== 'APPOINTMENT') throw new AppError('VALIDATION_ERROR')
+    if (bookingOf(slot.id) || Date.parse(slot.startsAt) <= now.getTime()) throw new AppError('CONFLICT')
+    const end = Date.parse(slot.startsAt) + slot.durationMinutes * 60_000
+    const overlaps = db.appointments.some(
+      (a) =>
+        a.memberId === member.id &&
+        a.status === 'SCHEDULED' &&
+        Date.parse(a.scheduledAt) < end &&
+        Date.parse(a.scheduledAt) + 30 * 60_000 > Date.parse(slot.startsAt),
+    )
+    if (overlaps) throw new AppError('CONFLICT')
+    const clinic = db.clinics.find((c) => c.id === clinicId)
+    const appointment: Appointment = {
+      id: newId('apt'),
+      familyId: member.familyId,
+      memberId: member.id,
+      status: 'SCHEDULED',
+      scheduledAt: slot.startsAt,
+      slotId: slot.id,
+      specialty: slot.specialty,
+      professionalName: slot.professionalName,
+      clinicId,
+      clinicName: clinic?.name,
+      notes: input.notes?.trim() || undefined,
+    }
+    db.appointments.push(appointment)
+    return toBooking(appointment)
+  })
+}

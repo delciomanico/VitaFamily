@@ -21,8 +21,8 @@ export function ClinicBookingList({ items, actions, showStatus = false }: Clinic
         const { day, month } = dateBlock(booking.scheduledAt)
         const status = appointmentStatus[booking.status]
         return (
-          <div key={booking.id} className="flex flex-col gap-3 py-3">
-            <div className="flex items-start gap-3">
+          <div key={booking.id} className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:gap-6">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
               <span className="flex w-14 shrink-0 flex-col items-center rounded-md bg-primary-soft py-1.5 text-primary">
                 <span className="text-[0.6875rem] font-semibold tracking-wide">{month}</span>
                 <span className="text-lg leading-tight font-semibold">{day}</span>
@@ -44,7 +44,7 @@ export function ClinicBookingList({ items, actions, showStatus = false }: Clinic
                 {booking.responseNote && <p className="text-sm text-muted">Motivo: {booking.responseNote}</p>}
               </div>
             </div>
-            {actions && <div className="flex gap-2 sm:justify-end">{actions(booking)}</div>}
+            {actions && <div className="flex shrink-0 gap-2 sm:justify-end">{actions(booking)}</div>}
           </div>
         )
       })}
