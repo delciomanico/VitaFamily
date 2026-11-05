@@ -29,6 +29,7 @@ export const HEALTH_MODULES = [
   "appointments",
   "examinations",
   "documents",
+  "recommendations",
 ];
 
 /** Dependências por módulo (API pública) — modules.md §2. `platform` = "common" nessa tabela. */
@@ -51,7 +52,13 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   // (CLINIC_*/ADMIN_CLINIC_*) precisa de auditoria na mesma transação (conventions.md §2), mesmo
   // critério já usado em "access -> audit" (nota 8).
   clinics: ["access", "audit"],
+  // ADR-021 (modules.md §2): `insurance` depende de `access`, `documents`, `audit`. O portal vive no
+  // mesmo módulo mas a identidade do portal nunca importa auth/families/clinics (`insurance/application`
+  // só usa `access`/`documents` por portas no lado do titular).
+  insurance: ["access", "documents", "audit"],
   examinations: ["access", "clinics", "documents", "audit"],
+  // ADR-023 (modules.md §2): lê a origem (consulta/exame) pelas raízes de `appointments`/`examinations`.
+  recommendations: ["access", "appointments", "examinations", "audit"],
   documents: ["access", "audit"],
   // alerts -> notifications (modules.md §3 nota 15): a orquestração do pipeline
   // Evento→Regra→Alerta→Notificação fica em `alerts`, que chama `notifications` pela raiz para
@@ -69,7 +76,7 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
     "documents",
   ],
   lifecycle: ["families", "documents", "notifications", "audit"],
-  admin: ["users", "clinics", "audit"],
+  admin: ["users", "clinics", "auth", "audit"],
 };
 
 /**

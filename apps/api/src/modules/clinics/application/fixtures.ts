@@ -202,6 +202,14 @@ export class FakeClinicAccountRepository implements ClinicAccountRepository<Fake
     return Promise.resolve([...this.byId.values()].filter((account) => account.clinicId === clinicId && (!role || account.role === role)));
   }
 
+  /** Preparado por testes (o fake não conhece as sessões): último login por conta. */
+  readonly lastLogins = new Map<string, Date>();
+
+  async listByClinicWithLastLogin(trx: FakeTrx, clinicId: string): Promise<{ account: ClinicAccount; lastLoginAt: Date | null }[]> {
+    const accounts = await this.listByClinic(trx, clinicId);
+    return accounts.map((account) => ({ account, lastLoginAt: this.lastLogins.get(account.id) ?? null }));
+  }
+
   async delete(_trx: FakeTrx, id: string): Promise<void> {
     this.byId.delete(id);
     return Promise.resolve();
@@ -212,6 +220,22 @@ export class FakeClinicAccountRepository implements ClinicAccountRepository<Fake
   }
 }
 
+/** Simula a ocupação de horários por consultas/exames ativos (BR-CLN-04). */
+export class FakeSlotOccupancy {
+  /** `slotId` -> marcações ativas por estado. */
+  readonly counts = new Map<string, { requested: number; scheduled: number }>();
+
+  /** Atalho dos testes: uma marcação `SCHEDULED` (ou `REQUESTED`) no horário. */
+  book(slotId: string, state: "requested" | "scheduled" = "scheduled", times = 1): void {
+    const current = this.counts.get(slotId) ?? { requested: 0, scheduled: 0 };
+    this.counts.set(slotId, { ...current, [state]: current[state] + times });
+  }
+
+  async countActiveBySlot(_trx: FakeTrx, slotIds: string[]): Promise<{ slotId: string; requested: number; scheduled: number }[]> {
+    return Promise.resolve(slotIds.flatMap((slotId) => (this.counts.has(slotId) ? [{ slotId, ...(this.counts.get(slotId) ?? { requested: 0, scheduled: 0 }) }] : [])));
+  }
+}
+
 export class FakeClinicSlotsRepository implements ClinicSlotsRepository<FakeTrx> {
   readonly byId = new Map<string, ClinicSlot>();
 
@@ -219,14 +243,28 @@ export class FakeClinicSlotsRepository implements ClinicSlotsRepository<FakeTrx>
     const slot: ClinicSlot = {
       id: record.id,
       clinicId: record.clinicId,
+      kind: record.kind,
       specialty: record.specialty,
       startsAt: record.startsAt,
       durationMinutes: record.durationMinutes,
+      capacity: record.capacity,
       createdAt: record.createdAt,
       ...(record.professionalName !== undefined ? { professionalName: record.professionalName } : {}),
     };
     this.byId.set(slot.id, slot);
     return Promise.resolve(slot);
+  }
+
+  async lockById(_trx: FakeTrx, slotId: string): Promise<ClinicSlot | null> {
+    return Promise.resolve(this.byId.get(slotId) ?? null);
+  }
+
+  async updateCapacity(_trx: FakeTrx, slotId: string, capacity: number): Promise<ClinicSlot> {
+    const slot = this.byId.get(slotId);
+    if (!slot) throw new Error("horário inexistente no fake");
+    const updated = { ...slot, capacity };
+    this.byId.set(slotId, updated);
+    return Promise.resolve(updated);
   }
 
   async findById(_trx: FakeTrx, slotId: string): Promise<ClinicSlot | null> {
@@ -237,6 +275,7 @@ export class FakeClinicSlotsRepository implements ClinicSlotsRepository<FakeTrx>
     return Promise.resolve(
       [...this.byId.values()]
         .filter((slot) => slot.clinicId === clinicId)
+        .filter((slot) => !filter.kind || slot.kind === filter.kind)
         .filter((slot) => !filter.from || slot.startsAt.getTime() >= filter.from.getTime())
         .filter((slot) => !filter.to || slot.startsAt.getTime() <= filter.to.getTime())
         .filter((slot) => !filter.specialty || slot.specialty === filter.specialty)
@@ -249,6 +288,7 @@ export class FakeClinicSlotsRepository implements ClinicSlotsRepository<FakeTrx>
       [...this.byId.values()].some(
         (existing) =>
           existing.clinicId === clinicId &&
+          existing.kind === slot.kind &&
           existing.startsAt.getTime() === slot.startsAt.getTime() &&
           existing.specialty === slot.specialty &&
           (existing.professionalName ?? null) === (slot.professionalName ?? null),
@@ -292,6 +332,15 @@ export class FakeClinicSessionRepository implements ClinicSessionRepository<Fake
     return Promise.resolve();
   }
 
+  async revokeAllForAccount(_trx: FakeTrx, clinicAccountId: string, revokedAt: Date): Promise<void> {
+    for (const session of this.sessions.values()) {
+      if (session.clinicAccountId === clinicAccountId && !session.revokedAt) {
+        this.sessions.set(session.id, { ...session, revokedAt });
+      }
+    }
+    return Promise.resolve();
+  }
+
   async revokeChain(_trx: FakeTrx, tokenChainId: string, revokedAt: Date): Promise<void> {
     for (const session of this.sessions.values()) {
       if (session.tokenChainId === tokenChainId && !session.revokedAt) {
@@ -328,6 +377,7 @@ export interface ClinicsFixtures {
   clinicAccountRepo: FakeClinicAccountRepository;
   clinicSessionRepo: FakeClinicSessionRepository;
   clinicSlotsRepo: FakeClinicSlotsRepository;
+  slotOccupancy: FakeSlotOccupancy;
   clinicMailer: FakeClinicMailer;
   clinicLogger: FakeClinicLogger;
 }
@@ -339,6 +389,7 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
   const clinicAccountRepo = new FakeClinicAccountRepository();
   const clinicSessionRepo = new FakeClinicSessionRepository();
   const clinicSlotsRepo = new FakeClinicSlotsRepository();
+  const slotOccupancy = new FakeSlotOccupancy();
   const clinicMailer = new FakeClinicMailer();
   const clinicLogger = new FakeClinicLogger();
   const deps: ClinicsDeps<FakeTrx> = {
@@ -351,6 +402,7 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
     clinicAccountRepo,
     clinicSessionRepo,
     clinicSlotsRepo,
+    slotOccupancy,
     clinicMailer,
     logger: clinicLogger as unknown as Logger,
     clinicRateLimiter: new ClinicInMemoryRateLimiter(clock),
@@ -358,5 +410,5 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
     clinicAccessTtlSeconds: 900,
     clinicRefreshTtlMs: 30 * 24 * 60 * 60 * 1000,
   };
-  return { deps, clinicsRepo, access, audit, clinicAccountRepo, clinicSessionRepo, clinicSlotsRepo, clinicMailer, clinicLogger };
+  return { deps, clinicsRepo, access, audit, clinicAccountRepo, clinicSessionRepo, clinicSlotsRepo, slotOccupancy, clinicMailer, clinicLogger };
 }

@@ -10,7 +10,7 @@ import type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "../d
 import type { ClinicSigningKey } from "../domain/clinic-jwt.js";
 import type { ClinicInMemoryRateLimiter } from "../domain/clinic-rate-limiter.js";
 import type { ClinicSession } from "../domain/clinic-session.js";
-import type { ClinicSlot } from "../domain/clinic-slot.js";
+import type { ClinicSlot, ClinicSlotKind, SlotBookingCounts } from "../domain/clinic-slot.js";
 
 export interface ActorIdentity {
   userId: string;
@@ -124,6 +124,8 @@ export interface ClinicAccountRepository<Trx> {
   updateStatus(trx: Trx, id: string, status: ClinicAccountStatus, now: Date): Promise<ClinicAccount>;
   /** BR-CLN-05 (Fase C): contas da própria clínica, filtradas por papel (`listClinicStaff`). */
   listByClinic(trx: Trx, clinicId: string, role?: ClinicAccountRole): Promise<ClinicAccount[]>;
+  /** BR-ADM-03: contas da clínica com o último login (início da cadeia de refresh mais recente). */
+  listByClinicWithLastLogin(trx: Trx, clinicId: string): Promise<{ account: ClinicAccount; lastLoginAt: Date | null }[]>;
   /** `removeClinicStaff` (Fase C) — quem chama já validou com `assertRemovableStaffTarget`. */
   delete(trx: Trx, id: string): Promise<void>;
 }
@@ -145,6 +147,8 @@ export interface ClinicSessionRepository<Trx> {
   findByRefreshTokenHash(trx: Trx, refreshTokenHash: string): Promise<ClinicSession | null>;
   revoke(trx: Trx, id: string, revokedAt: Date): Promise<void>;
   revokeChain(trx: Trx, tokenChainId: string, revokedAt: Date): Promise<void>;
+  /** BR-ADM-04: revoga de imediato todas as sessões da conta (suspensão). */
+  revokeAllForAccount(trx: Trx, clinicAccountId: string, revokedAt: Date): Promise<void>;
 }
 
 export interface ClinicSentEmail {
@@ -163,20 +167,24 @@ export interface ClinicMailer {
 export interface NewClinicSlotRecord {
   id: string;
   clinicId: string;
+  kind: ClinicSlotKind;
   specialty: string;
   professionalName?: string;
   startsAt: Date;
   durationMinutes: number;
+  capacity: number;
   createdAt: Date;
 }
 
 export interface ClinicSlotListFilter {
+  kind?: ClinicSlotKind;
   from?: Date;
   to?: Date;
   specialty?: string;
 }
 
 export interface ClinicSlotDuplicateCheck {
+  kind: ClinicSlotKind;
   startsAt: Date;
   specialty: string;
   professionalName?: string;
@@ -191,6 +199,19 @@ export interface ClinicSlotsRepository<Trx> {
   /** BR-CLN-04: ignora duplicadas (mesma hora, especialidade, profissional) ao publicar. */
   existsDuplicate(trx: Trx, clinicId: string, slot: ClinicSlotDuplicateCheck): Promise<boolean>;
   delete(trx: Trx, slotId: string): Promise<void>;
+  /** BR-APT-11: `SELECT … FOR UPDATE` da linha do horário — serializa marcação, `PATCH` e `DELETE`. */
+  lockById(trx: Trx, slotId: string): Promise<ClinicSlot | null>;
+  updateCapacity(trx: Trx, slotId: string, capacity: number): Promise<ClinicSlot>;
+}
+
+/** Marcações ativas de um horário (consultas `REQUESTED`/`SCHEDULED`, exames `SCHEDULED`). */
+export interface SlotBookingCountRow extends SlotBookingCounts {
+  slotId: string;
+}
+
+/** Ocupação de horários por marcações ativas de consultas e exames (somada no composition root). */
+export interface SlotOccupancyPort<Trx> {
+  countActiveBySlot(trx: Trx, slotIds: string[]): Promise<SlotBookingCountRow[]>;
 }
 
 export interface ClinicsDeps<Trx> {
@@ -213,9 +234,12 @@ export interface ClinicsDeps<Trx> {
   clinicRefreshTtlMs: number;
   /** `ClinicSlot` (Fase C) — usado por `manage-clinic-staff.ts`/`clinic-slots.ts`. */
   clinicSlotsRepo: ClinicSlotsRepository<Trx>;
+  /** BR-CLN-04/BR-APT-06: quais dos horários têm marcação ativa (consulta OU exame). Ligada no
+   * composition root a `appointments`/`examinations` (que dependem de `clinics`, nunca o inverso). */
+  slotOccupancy: SlotOccupancyPort<Trx>;
 }
 
 export type { Clinic, ClinicStatus, ClinicType } from "../domain/clinic.js";
 export type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "../domain/clinic-account.js";
 export type { ClinicSession } from "../domain/clinic-session.js";
-export type { ClinicSlot, ClinicSlotState } from "../domain/clinic-slot.js";
+export type { ClinicSlot, ClinicSlotKind, ClinicSlotState, SlotBookingCounts, SlotOccupancy } from "../domain/clinic-slot.js";

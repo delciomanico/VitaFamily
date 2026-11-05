@@ -24,9 +24,10 @@ import type {
   ResolvedMemberInvitation,
   SentEmail,
   SessionRepository,
+  SessionStats,
   UsersPort,
 } from "./ports.js";
-import type { Session } from "../domain/session.js";
+import { isSessionUsable, type Session } from "../domain/session.js";
 import { InMemoryRateLimiter } from "../domain/rate-limiter.js";
 
 /** Marcador opaco: os fakes não têm transações reais, só executam a função recebida. */
@@ -217,6 +218,12 @@ export class FakeSessionRepository implements SessionRepository<FakeTrx> {
       }
     }
     return Promise.resolve();
+  }
+
+  async stats(_trx: FakeTrx, userId: string, now: Date): Promise<SessionStats> {
+    const own = [...this.sessions.values()].filter((session) => session.userId === userId);
+    const lastUsed = own.reduce<Date | null>((max, session) => (!max || session.lastUsedAt > max ? session.lastUsedAt : max), null);
+    return Promise.resolve({ activeCount: own.filter((session) => isSessionUsable(session, now)).length, lastUsedAt: lastUsed });
   }
 
   async revokeAllForUserExcept(

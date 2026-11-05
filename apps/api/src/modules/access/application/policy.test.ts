@@ -133,4 +133,19 @@ describe("AccessPolicy.can (authorization.md §2/§3/§4)", () => {
       policy.can({}, { userId: "u1", platformAdmin: false, familyId: FAMILY_ID, action: "READ", category: "MEDICATION" }),
     ).rejects.toBeInstanceOf(DomainError);
   });
+
+  it("BR-INS-02: MANAGE_INSURANCE só para SELF (adulto) e TUTOR_OF; nunca OTHER (mesmo com partilha) nem dependente com conta", async () => {
+    const fixtures = createAccessFixtures(new FixedClock(NOW));
+    fixtures.familiesPort.seedMember({ id: "m1", familyId: FAMILY_ID, userId: "u1", name: "M", isDependent: false, status: "ACTIVE" });
+    fixtures.familiesPort.seedMember({ id: "n1", familyId: FAMILY_ID, userId: "u2", name: "N", isDependent: false, status: "ACTIVE" });
+    fixtures.familiesPort.seedMember({ id: "d1", familyId: FAMILY_ID, userId: "u3", name: "D", isDependent: true, status: "ACTIVE" });
+    fixtures.sharingGrantsRepo.seed({ id: "g1", familyId: FAMILY_ID, ownerMemberId: "m1", granteeMemberId: "n1", category: "EXAMS", createdAt: NOW });
+    const policy = createAccessPolicy(fixtures.deps);
+    const input = (userId: string, subjectMemberId: string) => ({ userId, platformAdmin: false, familyId: FAMILY_ID, action: "MANAGE_INSURANCE" as const, subjectMemberId });
+
+    await expect(policy.can({}, input("u1", "m1"))).resolves.toMatchObject({ relation: "SELF" });
+    await expect(policy.can({}, input("u2", "m1"))).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(policy.can({}, input("u3", "d1"))).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(policy.can({}, { ...input("u1", "m1"), platformAdmin: true })).rejects.toBeInstanceOf(ForbiddenError);
+  });
 });

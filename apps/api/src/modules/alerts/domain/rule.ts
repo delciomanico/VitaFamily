@@ -2,11 +2,47 @@
 // função devolve o instante UTC em que a regra fica satisfeita, a partir de valores fixos (R9,
 // BR-APT-05) — nenhuma regra é configurável em BD (ADR-009 "Justificação"). Sem I/O.
 
-export type AlertType = "MEDICATION_DUE" | "APPOINTMENT_REMINDER" | "EXAM_REMINDER" | "APPOINTMENT_OUTCOME_REQUEST";
-export type AlertSourceType = "DOSE" | "APPOINTMENT" | "EXAMINATION";
+export type AlertType =
+  | "MEDICATION_DUE"
+  | "APPOINTMENT_REMINDER"
+  | "EXAM_REMINDER"
+  | "APPOINTMENT_OUTCOME_REQUEST"
+  // D19/ADR-023 (revisto 2026-11-04): exame cancelado pela clínica e resultados emitidos (texto sempre genérico, BR-ALR-08).
+  | "EXAM_CANCELLED"
+  | "EXAM_RESULTS_AVAILABLE"
+  // D19/ADR-023 (BR-CLN-09): nova recomendação da clínica (texto sempre genérico, nunca o conteúdo).
+  | "RECOMMENDATION_ADDED";
+export type AlertSourceType = "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION";
 
 /** entities.md "Alert": `ruleKey` fixo por regra. */
-export type RuleKey = "dose.due" | "dose.repeat" | "appointment.24h" | "appointment.2h" | "appointment.outcome" | "exam.24h";
+export type RuleKey =
+  | "dose.due"
+  | "dose.repeat"
+  | "appointment.24h"
+  | "appointment.2h"
+  | "appointment.outcome"
+  | "exam.24h"
+  | "exam.cancelled"
+  | "exam.results"
+  | "recommendation.added";
+
+/** Alertas de evento de exame (D19): disparados no momento da resposta/emissão, não por relógio. */
+export type ExamEventAlertType = "EXAM_CANCELLED" | "EXAM_RESULTS_AVAILABLE";
+
+const EXAM_EVENT_RULE_KEY: Record<ExamEventAlertType, RuleKey> = {
+  EXAM_CANCELLED: "exam.cancelled",
+  EXAM_RESULTS_AVAILABLE: "exam.results",
+};
+
+/** ADR-023: a regra de um evento de exame vence no próprio instante do evento. */
+export function examEventRule(type: ExamEventAlertType, occurredAt: Date): Rule {
+  return { ruleKey: EXAM_EVENT_RULE_KEY[type], type, triggerAt: occurredAt };
+}
+
+/** ADR-023 (BR-CLN-09): a regra de uma recomendação nova vence no próprio instante da emissão. */
+export function recommendationAddedRule(occurredAt: Date): Rule {
+  return { ruleKey: "recommendation.added", type: "RECOMMENDATION_ADDED", triggerAt: occurredAt };
+}
 
 export interface Rule {
   ruleKey: RuleKey;
@@ -55,6 +91,11 @@ export function appointmentOutcomeRule(scheduledAt: Date): Rule {
  * lê-se aqui como "à meia-noite local do dia anterior ao exame" (decisão registada em README.md). */
 export function examReminderRule(examMidnightUtc: Date): Rule {
   return { ruleKey: "exam.24h", type: "EXAM_REMINDER", triggerAt: new Date(examMidnightUtc.getTime() - EXAM_REMINDER_24H_MS) };
+}
+
+/** BR-EXM-03/BR-EXM-05: exame de clínica parceira tem hora exata (`scheduledAt`) — lembrete 24h antes dessa hora. */
+export function examReminderRuleAt(scheduledAt: Date): Rule {
+  return { ruleKey: "exam.24h", type: "EXAM_REMINDER", triggerAt: new Date(scheduledAt.getTime() - EXAM_REMINDER_24H_MS) };
 }
 
 /**

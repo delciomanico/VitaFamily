@@ -2,7 +2,7 @@
 // openapi.yaml). `outcomeRequestedAt` não é exposto (não faz parte do contrato — campo interno
 // para `alerts`, M8, ver `domain/appointment.ts`).
 import type { ClinicAppointmentView } from "../application/clinic-appointments.js";
-import type { Appointment, ClinicSlotLite, CursorPage } from "../application/ports.js";
+import type { Appointment, AvailableSlotItem, CursorPage } from "../application/ports.js";
 
 export function toAppointmentResponse(appointment: Appointment) {
   return {
@@ -27,19 +27,22 @@ export function toAppointmentPage(page: CursorPage<Appointment>) {
 
 /** `components.schemas.AvailableSlot` (openapi.yaml, D17): `clinicName` vem do pedido (já
  * validado por `getBookableClinic` em `list-available-slots.ts`), não do próprio `ClinicSlotLite`. */
-export function toAvailableSlotResponse(slot: ClinicSlotLite, clinicName: string) {
+export function toAvailableSlotResponse(slot: AvailableSlotItem, clinicName: string) {
   return {
     id: slot.id,
     clinicId: slot.clinicId,
     clinicName,
+    kind: slot.kind,
     specialty: slot.specialty,
     professionalName: slot.professionalName ?? null,
     startsAt: slot.startsAt.toISOString(),
     durationMinutes: slot.durationMinutes,
+    capacity: slot.capacity,
+    remaining: slot.remaining,
   };
 }
 
-export function toAvailableSlotListResponse(slots: ClinicSlotLite[], clinicName: string) {
+export function toAvailableSlotListResponse(slots: AvailableSlotItem[], clinicName: string) {
   return slots.map((slot) => toAvailableSlotResponse(slot, clinicName));
 }
 

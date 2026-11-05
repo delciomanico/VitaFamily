@@ -57,3 +57,26 @@ export function runWithClinicActor<T>(actor: ClinicActorInfo, fn: () => T): T {
 export function getClinicActor(): ClinicActorInfo | undefined {
   return clinicActorStorage.getStore();
 }
+
+/**
+ * Terceiro ator, do portal da seguradora parceira (ADR-021): `InsuranceAccount`, separado de `User`
+ * e de `ClinicAccount`, com `AsyncLocalStorage` próprio (mesmo critério do ADR-020).
+ */
+export interface InsuranceActorInfo {
+  insuranceAccountId: string;
+  insurerId: string;
+  role: "INSURANCE_ADMIN" | "INSURANCE_AGENT";
+  sessionId: string;
+}
+
+const insuranceActorStorage = new AsyncLocalStorage<InsuranceActorInfo>();
+
+/** Equivalente a `runWithActor`, mas para o ator do portal da seguradora (ADR-021). */
+export function runWithInsuranceActor<T>(actor: InsuranceActorInfo, fn: () => T): T {
+  return insuranceActorStorage.run(actor, fn);
+}
+
+/** Devolve o ator do portal da seguradora do pedido atual, ou `undefined` fora de `/insurance-portal/*`. */
+export function getInsuranceActor(): InsuranceActorInfo | undefined {
+  return insuranceActorStorage.getStore();
+}

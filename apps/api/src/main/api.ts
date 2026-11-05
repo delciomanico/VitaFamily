@@ -25,13 +25,15 @@ import { ClamAvScanner, createDocumentsModule, type DocumentsModule } from "../m
 import { createMedicationsModule } from "../modules/medications/index.js";
 import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
 import { ClinicSmtpMailer, createClinicsModule, parseClinicSigningKeys } from "../modules/clinics/index.js";
-import { createAppointmentsModule } from "../modules/appointments/index.js";
-import { createExaminationsModule } from "../modules/examinations/index.js";
+import { createAppointmentsModule, type AppointmentsModule } from "../modules/appointments/index.js";
+import { createExaminationsModule, type ExaminationsModule } from "../modules/examinations/index.js";
 import { createLifecycleModule, type LifecycleModule } from "../modules/lifecycle/index.js";
 import { createAdminModule } from "../modules/admin/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsModule } from "../modules/alerts/index.js";
+import { createInsuranceModule, parseInsuranceSigningKeys } from "../modules/insurance/index.js";
+import { createRecommendationsModule } from "../modules/recommendations/index.js";
 
 /**
  * Sobe a partir deste ficheiro até encontrar `relativePath`. Não usa um número fixo de "..": em
@@ -101,7 +103,7 @@ export function main(): void {
   // da criação do User.
   // `families` precisa de `documents` (ficheiros) e `lifecycle` (pacote de dados), que dependem dele:
   // a porta `memberData` resolve-os tardiamente (atribuídos mais abaixo, antes de o servidor ouvir).
-  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule } = {};
+  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule } = {};
   const required = <T>(module: T | undefined, name: string): T => {
     if (!module) throw new Error(`${name} ainda não inicializado`);
     return module;
@@ -165,6 +167,9 @@ export function main(): void {
     boss,
     maxFileSizeBytes: config.UPLOAD_MAX_BYTES,
     maxFamilyStorageBytes: config.FAMILY_STORAGE_QUOTA_BYTES,
+    // BR-CLN-08 (D19): PDF da clínica só visível ao paciente com o exame COMPLETED; `examinations`
+    // depende de `documents`, por isso a porta resolve-se tardiamente (como `memberData`).
+    releaseGate: { isReleased: (trx, document) => required(late.examinations, "examinations").releaseGate.isReleased(trx, document) },
   });
 
   late.documents = documents;
@@ -190,22 +195,33 @@ export function main(): void {
     clinicAccessTtlSeconds: Math.round(parseDurationMs(config.JWT_ACCESS_TTL) / 1000),
     clinicRefreshTtlMs: parseDurationMs(config.REFRESH_TTL),
     cookieDomain: config.COOKIE_DOMAIN,
+    // BR-CLN-04: `appointments`/`examinations` dependem de `clinics`, por isso a ocupação resolve-se tardiamente.
+    slotOccupancy: {
+      countActiveBySlot: async (trx, slotIds) => [
+        ...(await required(late.appointments, "appointments").countActiveBySlot(trx, slotIds)),
+        ...(await required(late.examinations, "examinations").countScheduledBySlot(trx, slotIds)).map(({ slotId, count }) => ({ slotId, requested: 0, scheduled: count })),
+      ],
+    },
   });
-  // D18 (BR-CLN-06/BR-RX-07): `appointments` liga-se a `prescriptions` só aqui, pela sua API
-  // pública (`issuePrescriptionForClinic`) — nenhuma aresta nova no grafo de módulos (modules.md
-  // §3 notas 16/20; `appointments/application/ports.ts#PrescriptionsPort`).
-  const appointments = createAppointmentsModule({
+  // M11 (ADR-021, Fase 4a): seguradoras + identidade do portal da seguradora (terceiro ator),
+  // separada de `User`/`ClinicAccount`; reutiliza o mesmo SMTP, com porta e parser de chaves próprios.
+  const insurance = createInsuranceModule({
     db,
     audit,
     access,
-    clinics,
-    prescriptions: { issuePrescriptionForClinic: prescriptions.issuePrescriptionForClinic },
+    documents,
     clock,
+    logger,
+    insuranceMailer: new ClinicSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
+    insuranceSigningKeys: parseInsuranceSigningKeys(config.JWT_SIGNING_KEYS),
+    insuranceAccessTtlSeconds: Math.round(parseDurationMs(config.JWT_ACCESS_TTL) / 1000),
+    insuranceRefreshTtlMs: parseDurationMs(config.REFRESH_TTL),
+    cookieDomain: config.COOKIE_DOMAIN,
   });
-  const examinations = createExaminationsModule({ db, audit, access, clinics, documents, clock });
-
   // M8 (plan.md §4): `notifications` antes de `alerts` — `alerts` depende de `notifications`
-  // pela raiz (modules.md §3 nota 15), nunca o inverso.
+  // pela raiz (modules.md §3 nota 15), nunca o inverso. D19: ambos vêm antes de `examinations`,
+  // que dispara `exam.confirmed|rejected|cancelled|results` por uma porta ligada aqui (`alerts`
+  // depende de `examinations` só por tipos/consulta — nenhuma aresta nova no grafo).
   const notifications = createNotificationsModule({
     db,
     users,
@@ -214,6 +230,36 @@ export function main(): void {
     pushSender: new WebPushSender({ publicKey: config.VAPID_PUBLIC_KEY, privateKey: config.VAPID_PRIVATE_KEY, subject: config.VAPID_SUBJECT }),
   });
   const alerts = createAlertsModule({ db, families, notifications, clock });
+
+  const examinations = createExaminationsModule({ db, audit, access, clinics, documents, alerts: { raiseExamEvent: alerts.raiseExamEvent }, clock });
+  late.examinations = examinations;
+
+  // D18 (BR-CLN-06/BR-RX-07): `appointments` liga-se a `prescriptions` só aqui, pela sua API
+  // pública (`issuePrescriptionForClinic`) — nenhuma aresta nova no grafo de módulos (modules.md
+  // §3 notas 16/20; `appointments/application/ports.ts#PrescriptionsPort`). D19: idem para a
+  // ocupação de horários `EXAM` (`examinations.countScheduledBySlot`).
+  const appointments = createAppointmentsModule({
+    db,
+    audit,
+    access,
+    clinics,
+    examSlotOccupancy: { countScheduledBySlot: examinations.countScheduledBySlot },
+    prescriptions: { issuePrescriptionForClinic: prescriptions.issuePrescriptionForClinic },
+    clock,
+  });
+  late.appointments = appointments;
+
+  // D19/ADR-023 (M7c): `recommendations` lê a origem pelas APIs públicas de `appointments`/`examinations`
+  // e dispara `recommendation.added` por uma porta ligada à API pública de `alerts`.
+  const recommendations = createRecommendationsModule({
+    db,
+    audit,
+    access,
+    appointments,
+    examinations,
+    alerts: { raiseRecommendationAdded: (trx, input) => alerts.raiseRecommendationEvent(trx, input) },
+    clock,
+  });
 
   // M9 (plan.md §4): `reports` lê pelas APIs públicas dos módulos dono (modules.md §2); cada
   // leitura aplica a sua `AccessPolicy` e auditoria, por isso reports não decide permissões.
@@ -233,7 +279,15 @@ export function main(): void {
     },
   });
 
-  const admin = createAdminModule({ db, users, audit, clock });
+  const admin = createAdminModule({
+    db,
+    users,
+    auth,
+    clinics,
+    families: { countFamiliesOfUser: families.countFamiliesOfUser },
+    audit,
+    clock,
+  });
 
   // M9: `lifecycle` (exportação de dados) lê pelas mesmas APIs públicas; o pacote vai para o
   // bucket de exportações (`S3_BUCKET_EXPORTS`), à parte dos documentos.
@@ -317,14 +371,20 @@ export function main(): void {
         next(err);
         return;
       }
-      clinics.clinicActorContextMiddleware(req, res, next);
+      clinics.clinicActorContextMiddleware(req, res, (clinicErr?: unknown) => {
+        if (clinicErr) {
+          next(clinicErr);
+          return;
+        }
+        insurance.insuranceActorContextMiddleware(req, res, next);
+      });
     });
   };
 
   const app = createApp({
     openApiSpecPath: OPENAPI_SPEC_PATH,
     logger,
-    securityHandlers: { ...auth.securityHandlers, ...clinics.clinicSecurityHandlers },
+    securityHandlers: { ...auth.securityHandlers, ...clinics.clinicSecurityHandlers, ...insurance.insuranceSecurityHandlers },
     actorContextMiddleware,
     metrics: { middleware: metrics.httpMiddleware, handler: metrics.handler },
     registerHealthRoutes,
@@ -340,9 +400,15 @@ export function main(): void {
       router.use(clinics.router);
       router.use(clinics.adminRouter);
       router.use(clinics.clinicPortalRouter);
+      router.use(insurance.router);
+      router.use(insurance.adminRouter);
+      router.use(insurance.insurancePortalRouter);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);
+      router.use(examinations.clinicPortalRouter);
+      router.use(recommendations.router);
+      router.use(recommendations.clinicPortalRouter);
       router.use(notifications.router);
       router.use(alerts.router);
       router.use(reports.router);

@@ -21,6 +21,7 @@ function pendingDoc(overrides: Partial<Document> = {}): Document {
     sizeBytes: PDF_BYTES.length,
     checksumSha256: "abc",
     scanStatus: "PENDING",
+    uploadedByClinic: false,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     ...overrides,
   };

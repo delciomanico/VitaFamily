@@ -216,14 +216,16 @@ describe("deleteAppointment (UC-APT-06)", () => {
 const CLINIC_ID = "clinic-1";
 const CLINIC_ACTOR = { clinicAccountId: "clinic-account-1", clinicId: CLINIC_ID };
 
-function seedFreeSlot(fixtures: ReturnType<typeof createAppointmentsFixtures>, id: string, overrides: Partial<{ specialty: string; startsAt: Date; durationMinutes: number; professionalName?: string }> = {}) {
+function seedFreeSlot(fixtures: ReturnType<typeof createAppointmentsFixtures>, id: string, overrides: Partial<{ kind: "APPOINTMENT" | "EXAM"; specialty: string; startsAt: Date; durationMinutes: number; capacity: number; professionalName?: string }> = {}) {
   fixtures.clinics.seed(CLINIC_ID, "Clínica Sol", FAMILY_ID);
   fixtures.clinics.seedSlot({
     id,
     clinicId: CLINIC_ID,
+    kind: overrides.kind ?? "APPOINTMENT",
     specialty: overrides.specialty ?? "Cardiologia",
     startsAt: overrides.startsAt ?? new Date("2026-02-01T09:00:00.000Z"),
     durationMinutes: overrides.durationMinutes ?? 30,
+    capacity: overrides.capacity ?? 1,
     ...(overrides.professionalName ? { professionalName: overrides.professionalName } : {}),
   });
 }
@@ -460,5 +462,45 @@ describe("completeClinicAppointment (D18, BR-CLN-06/BR-RX-07)", () => {
     const complete = createCompleteClinicAppointmentUseCase(fixtures.deps);
 
     await expect(complete({ clinicAccountId: "other", clinicId: "other-clinic" }, created.id, {}, CTX)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("BR-APT-10 (D19): kind do horário", () => {
+  it("marcar uma consulta num horário EXAM -> VALIDATION_ERROR", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-exam", { kind: "EXAM", specialty: "Ecografia" });
+    const createAppointment = createCreateAppointmentUseCase(fixtures.deps);
+    await expect(createAppointment(ACTOR, FAMILY_ID, MEMBER_ID, { scheduledAt: "x", clinicId: CLINIC_ID, slotId: "slot-exam" }, CTX)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+
+  it("listAvailableSlots filtra por kind (default APPOINTMENT) e usa a ocupação de exames para kind=EXAM", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-consulta");
+    seedFreeSlot(fixtures, "slot-exame-livre", { kind: "EXAM", specialty: "Ecografia" });
+    seedFreeSlot(fixtures, "slot-exame-ocupado", { kind: "EXAM", specialty: "Ecografia" });
+    fixtures.examSlotOccupancy.booked.set("slot-exame-ocupado", 1);
+    const listAvailableSlots = createListAvailableSlotsUseCase(fixtures.deps);
+
+    expect((await listAvailableSlots(ACTOR, FAMILY_ID, CLINIC_ID, {})).items.map((s) => s.id)).toEqual(["slot-consulta"]);
+    expect((await listAvailableSlots(ACTOR, FAMILY_ID, CLINIC_ID, { kind: "EXAM" })).items.map((s) => s.id)).toEqual(["slot-exame-livre"]);
+  });
+
+  it("BR-APT-11: kind=EXAM só devolve horários com remaining >= 1 e traz capacity/remaining", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-parcial", { kind: "EXAM", specialty: "Análises", capacity: 3 });
+    seedFreeSlot(fixtures, "slot-cheio", { kind: "EXAM", specialty: "Análises", capacity: 2 });
+    fixtures.examSlotOccupancy.booked.set("slot-parcial", 2);
+    fixtures.examSlotOccupancy.booked.set("slot-cheio", 2);
+    const listAvailableSlots = createListAvailableSlotsUseCase(fixtures.deps);
+
+    const { items } = await listAvailableSlots(ACTOR, FAMILY_ID, CLINIC_ID, { kind: "EXAM" });
+    expect(items.map((s) => [s.id, s.capacity, s.remaining])).toEqual([["slot-parcial", 3, 1]]);
+  });
+
+  it("consulta livre devolve capacity 1 e remaining 1", async () => {
+    const fixtures = createAppointmentsFixtures(new FixedClock(NOW));
+    seedFreeSlot(fixtures, "slot-consulta");
+    const { items } = await createListAvailableSlotsUseCase(fixtures.deps)(ACTOR, FAMILY_ID, CLINIC_ID, {});
+    expect(items.map((s) => [s.capacity, s.remaining])).toEqual([[1, 1]]);
   });
 });

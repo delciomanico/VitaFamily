@@ -22,6 +22,10 @@ const MESSAGE_BY_TYPE: Record<AlertType, string> = {
   APPOINTMENT_REMINDER: "Lembrete de consulta agendada.",
   EXAM_REMINDER: "Lembrete de exame agendado.",
   APPOINTMENT_OUTCOME_REQUEST: "Confirme o desfecho de uma consulta.",
+  // D19/ADR-023: texto genérico, sem nome de clínica nem resultados (BR-ALR-08).
+  EXAM_CANCELLED: "Um exame foi cancelado.",
+  EXAM_RESULTS_AVAILABLE: "Há resultados de exame disponíveis.",
+  RECOMMENDATION_ADDED: "Recebeu uma nova recomendação de uma clínica.",
 };
 
 export function createListAlertsUseCase<Trx>(deps: AlertsApiDeps<Trx>) {

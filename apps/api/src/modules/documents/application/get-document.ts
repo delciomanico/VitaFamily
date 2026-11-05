@@ -6,7 +6,7 @@
 import { NotFoundError } from "../../../platform/errors/index.js";
 import type { Document } from "../domain/document.js";
 import type { ActorIdentity, DocumentsDeps } from "./ports.js";
-import { categoryForResourceType } from "./support.js";
+import { accessInputFor, isVisibleToPatient } from "./support.js";
 
 export function createGetDocumentUseCase<Trx>(deps: DocumentsDeps<Trx>) {
   return async function getDocument(
@@ -25,10 +25,14 @@ export function createGetDocumentUseCase<Trx>(deps: DocumentsDeps<Trx>) {
         userId: actor.userId,
         platformAdmin: actor.platformAdmin,
         familyId,
-        action: "READ",
         subjectMemberId: memberId,
-        category: categoryForResourceType(document.resourceType),
+        ...accessInputFor(document.resourceType, "READ"),
       });
+
+      // BR-CLN-08: PDF da clínica ainda não libertado -> como se não existisse.
+      if (!(await isVisibleToPatient(deps, trx, document))) {
+        throw new NotFoundError({ detail: "Documento não encontrado." });
+      }
 
       return document;
     });

@@ -7,7 +7,7 @@ import { DomainError, NotFoundError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { Document } from "../domain/document.js";
 import type { ActorIdentity, DocumentsDeps, DownloadStream, RequestContext } from "./ports.js";
-import { categoryForResourceType } from "./support.js";
+import { accessInputFor, isVisibleToPatient } from "./support.js";
 
 export interface DownloadDocumentResult {
   document: Document;
@@ -32,10 +32,14 @@ export function createDownloadDocumentUseCase<Trx>(deps: DocumentsDeps<Trx>) {
         userId: actor.userId,
         platformAdmin: actor.platformAdmin,
         familyId,
-        action: "READ",
         subjectMemberId: memberId,
-        category: categoryForResourceType(found.resourceType),
+        ...accessInputFor(found.resourceType, "READ"),
       });
+
+      // BR-CLN-08: PDF da clínica só é descarregável com o exame COMPLETED.
+      if (!(await isVisibleToPatient(deps, trx, found))) {
+        throw new NotFoundError({ detail: "Documento não encontrado." });
+      }
 
       // AC-DOC-01: só depois de CLEAN pode ser descarregado (BR-DOC-02: positivo -> eliminado).
       if (found.scanStatus !== "CLEAN") {

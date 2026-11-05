@@ -32,7 +32,7 @@ DELETE /families/{familyId}/members/{memberId}/examinations/{id}
 ```
 
 ## Camadas presentes
-- `domain/examination.ts` — `assertValidExaminationTransition` (state-machines.md "Examination": `SCHEDULED↔{COMPLETED,CANCELLED}`, `CANCELLED→SCHEDULED`; `COMPLETED` é final), `deriveInitialExaminationStatus` (ST5), `assertValidExaminationName`, `assertValidExamDate`.
+- `domain/examination.ts` — `assertValidExaminationTransition` (state-machines.md "Examination": `SCHEDULED→{COMPLETED,CANCELLED}`, `CANCELLED→SCHEDULED` só sem `slotId`; `COMPLETED` é final), `deriveInitialExaminationStatus` (ST5), `assertValidExaminationName`, `assertValidExamDate`.
 - `domain/exam-result.ts` — `assertHasValue` (BR-EXM-01: pelo menos numérico ou texto), `assertValidReferenceRange` (schema.md CHECK), `assertValidParameter`.
 - `application/` — `examination-view.ts` (junta `results`+`documentIds`, mesmo critério de `prescriptions/application/prescription-view.ts`); `support.ts` (`auditViewIfNotSelf`; `resolveClinicSnapshot`, duplicado de `appointments/application/support.ts` — mesma forma, módulos só se importam pela raiz); um ficheiro por caso de uso de exame e de resultado; `exam-result-history.ts` (UC-EXM-04, join com `examinations` na `infrastructure`).
 - `infrastructure/` — `KyselyExaminationsRepository` + `KyselyExamResultsRepository` (duas tabelas, um módulo).
@@ -40,3 +40,23 @@ DELETE /families/{familyId}/members/{memberId}/examinations/{id}
 
 ## Migração
 `db/migrations/0008_clinics_appointments_examinations.sql`: `examinations`/`exam_results` + `ALTER TABLE documents ADD CONSTRAINT documents_examination_fk ...` (Fase 2 do esquema de `documents`, prevista em `migrations.md`/`0006_documents.sql`).
+
+## Marcação direta com vagas e portal da clínica — exames (ADR-023 revisto 2026-11-04, M7b)
+Sem `REQUESTED`/`REJECTED`, sem rota de pedidos e sem job de expiração (BR-EXM-07 obsoleta; `examinations.expire-requests` removido; os valores ficam só no enum de BD, `0022` impõe `CHECK status NOT IN ('REQUESTED','REJECTED')`).
+```text
+POST /families/{f}/members/{m}/examinations  { slotId }
+  → application/create-examination.ts (bookExamInSlot), UMA transação:
+    policy.can(CREATE/EXAMS) → clinics.lockSlot (SELECT … FOR UPDATE do clinic_slot)
+    → valida kind=EXAM (422), horário existente e futuro (409), clínica ativa
+    → existsScheduledForMember (409) → countScheduledBySlot < capacity (senão 409)
+    → examinationsRepo.insert(status SCHEDULED, name/data/clínica do horário) → audit EXAM_CREATE {slotId}
+PUT /clinic-portal/exam-agenda/{id}/cancel → clinic-examinations.ts: SCHEDULED futuro → CANCELLED + motivo (liberta a vaga, sem lock) + EXAM_CANCELLED
+POST /clinic-portal/exam-agenda/{id}/documents → clinic-examinations.ts (upload) → documents.uploadClinicExamDocument
+  (resolveTarget corre na transação de `documents`: exame da clínica e SCHEDULED; só PDF; quarentena + ClamAV)
+PUT  /clinic-portal/exam-agenda/{id}/complete → clinic-examinations.ts (complete): SCHEDULED→COMPLETED + ≤50 ExamResult na mesma transação
+```
+- Vagas: a contagem é de exames `SCHEDULED` com o `slotId` (`COMPLETED`/`CANCELLED` não ocupam). Rede de segurança: UNIQUE parcial `(slot_id, member_id) WHERE status='SCHEDULED'` (mesmo membro não ocupa 2 vagas) → o repositório traduz a violação em `CONFLICT`. Não há UNIQUE por horário (N vagas): a garantia anti-overbooking é o bloqueio da linha do horário.
+- `update-examination.ts`/`set-examination-status.ts` aplicam BR-EXM-08 (só `notes`; `CANCELLED→SCHEDULED` com `slotId` ⇒ `INVALID_STATE_TRANSITION`).
+- Consultas da clínica só devolvem exames com `scheduled_at` (nascidos de um horário); a vista (`ClinicExamView`) nunca inclui valores dos resultados (só `resultsCount`) nem metadados de PDF que não sejam da clínica (`documents.uploadedByClinic`, BR-CLN-03/08). `ClinicExamBooking.slotId`/`professionalName` (opcionais no contrato) ainda não são devolvidos.
+- API pública para outros módulos: `countScheduledBySlot` (ocupação de horários `EXAM`, usada por `appointments`/`clinics` via composition root) e `releaseGate` (PDF da clínica só visível ao paciente com o exame `COMPLETED`, usada por `documents`).
+- Migrações: `0019` (estados, agora obsoletos), `0020` (tipos de alerta), `0021` (colunas/constraints/índices), `0022` (capacity, fim do fluxo de pedidos, índices de contagem, CHECK `issued_by` corrigida, `documents.uploaded_by_clinic`).

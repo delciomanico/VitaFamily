@@ -4,6 +4,7 @@
 // conventions.md §3.4).
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
+import { NotFoundError } from "../../../platform/errors/index.js";
 import type { Document, ResourceType, ScanStatus } from "../domain/document.js";
 import type { DocumentsRepository, FileDeletionsRepository, NewDocumentRecord, PendingFileDeletion } from "../application/ports.js";
 import "./schema.js";
@@ -14,6 +15,7 @@ interface DocumentRow {
   member_id: string;
   prescription_id: string | null;
   examination_id: string | null;
+  insurance_policy_id: string | null;
   storage_key: string;
   original_name: string;
   mime_type: string;
@@ -21,6 +23,8 @@ interface DocumentRow {
   checksum_sha256: string;
   scan_status: ScanStatus;
   uploaded_by: string | null;
+  uploaded_by_clinic_account_id: string | null;
+  uploaded_by_clinic: boolean;
   created_at: Date;
 }
 
@@ -30,6 +34,7 @@ const DOCUMENT_COLUMNS = [
   "member_id",
   "prescription_id",
   "examination_id",
+  "insurance_policy_id",
   "storage_key",
   "original_name",
   "mime_type",
@@ -37,13 +42,15 @@ const DOCUMENT_COLUMNS = [
   "checksum_sha256",
   "scan_status",
   "uploaded_by",
+  "uploaded_by_clinic_account_id",
+  "uploaded_by_clinic",
   "created_at",
 ] as const;
 
-/** `prescription_id`/`examination_id` (schema.md §3: `num_nonnulls = 1`) <-> `resourceType`/`resourceId`. */
+/** `prescription_id`/`examination_id`/`insurance_policy_id` (schema.md §3: `num_nonnulls = 1`) <-> `resourceType`/`resourceId`. */
 function toDocument(row: DocumentRow): Document {
-  const resourceType: ResourceType = row.prescription_id !== null ? "PRESCRIPTION" : "EXAMINATION";
-  const resourceId = row.prescription_id ?? row.examination_id;
+  const resourceType: ResourceType = row.prescription_id !== null ? "PRESCRIPTION" : row.insurance_policy_id !== null ? "INSURANCE_POLICY" : "EXAMINATION";
+  const resourceId = row.prescription_id ?? row.insurance_policy_id ?? row.examination_id;
   if (resourceId === null) {
     throw new Error(`documento sem recurso associado (CHECK num_nonnulls violado?): ${row.id}`);
   }
@@ -59,22 +66,45 @@ function toDocument(row: DocumentRow): Document {
     sizeBytes: Number(row.size_bytes),
     checksumSha256: row.checksum_sha256,
     scanStatus: row.scan_status,
+    uploadedByClinic: row.uploaded_by_clinic,
     createdAt: row.created_at,
   };
   if (row.uploaded_by !== null) {
     document.uploadedBy = row.uploaded_by;
   }
+  if (row.uploaded_by_clinic_account_id !== null) {
+    document.uploadedByClinicAccountId = row.uploaded_by_clinic_account_id;
+  }
   return document;
 }
 
-function resourceColumns(resourceType: ResourceType, resourceId: string): { prescription_id: string | null; examination_id: string | null } {
-  return resourceType === "PRESCRIPTION"
-    ? { prescription_id: resourceId, examination_id: null }
-    : { prescription_id: null, examination_id: resourceId };
+type ResourceColumn = "prescription_id" | "examination_id" | "insurance_policy_id";
+
+const RESOURCE_COLUMN: Record<ResourceType, ResourceColumn> = {
+  PRESCRIPTION: "prescription_id",
+  EXAMINATION: "examination_id",
+  INSURANCE_POLICY: "insurance_policy_id",
+};
+
+function resourceColumns(resourceType: ResourceType, resourceId: string): { prescription_id: string | null; examination_id: string | null; insurance_policy_id: string | null } {
+  return { prescription_id: null, examination_id: null, insurance_policy_id: null, [RESOURCE_COLUMN[resourceType]]: resourceId };
 }
 
 export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Database>> {
   async insert(trx: Kysely<Database>, record: NewDocumentRecord): Promise<Document> {
+    try {
+      return await this.insertRow(trx, record);
+    } catch (error) {
+      // FK composta `documents_insurance_policy_fk` (0025): apólice inexistente OU de outro membro/família.
+      const pg = error as { code?: string; constraint?: string } | null;
+      if (pg?.code === "23503" && pg.constraint === "documents_insurance_policy_fk") {
+        throw new NotFoundError({ detail: "Apólice não encontrada." });
+      }
+      throw error;
+    }
+  }
+
+  private async insertRow(trx: Kysely<Database>, record: NewDocumentRecord): Promise<Document> {
     const row = await trx
       .insertInto("documents")
       .values({
@@ -88,6 +118,8 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
         size_bytes: record.sizeBytes,
         checksum_sha256: record.checksumSha256,
         uploaded_by: record.uploadedBy ?? null,
+        uploaded_by_clinic_account_id: record.uploadedByClinicAccountId ?? null,
+        uploaded_by_clinic: record.uploadedByClinic ?? false,
         created_at: record.createdAt,
       })
       .returning(DOCUMENT_COLUMNS)
@@ -116,6 +148,20 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
     return rows.map((r) => r.storage_key);
   }
 
+  async listByIds(trx: Kysely<Database>, familyId: string, memberId: string, documentIds: string[]): Promise<Document[]> {
+    if (documentIds.length === 0) {
+      return [];
+    }
+    const rows = await trx
+      .selectFrom("documents")
+      .select(DOCUMENT_COLUMNS)
+      .where("family_id", "=", familyId)
+      .where("member_id", "=", memberId)
+      .where("id", "in", documentIds)
+      .execute();
+    return rows.map(toDocument);
+  }
+
   async findByIdForFamily(trx: Kysely<Database>, familyId: string, documentId: string): Promise<Document | null> {
     const row = await trx
       .selectFrom("documents")
@@ -133,7 +179,7 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
     resourceType: ResourceType,
     resourceId: string,
   ): Promise<Document[]> {
-    const column = resourceType === "PRESCRIPTION" ? "prescription_id" : "examination_id";
+    const column = RESOURCE_COLUMN[resourceType];
     const rows = await trx
       .selectFrom("documents")
       .select(DOCUMENT_COLUMNS)
@@ -152,7 +198,7 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
     resourceType: ResourceType,
     resourceId: string,
   ): Promise<number> {
-    const column = resourceType === "PRESCRIPTION" ? "prescription_id" : "examination_id";
+    const column = RESOURCE_COLUMN[resourceType];
     const row = await trx
       .selectFrom("documents")
       .select(sql<string>`count(*)`.as("count"))

@@ -70,6 +70,13 @@ export interface SessionRepository<Trx> {
   revokeChain(trx: Trx, tokenChainId: string, revokedAt: Date): Promise<void>;
   revokeAllForUser(trx: Trx, userId: string, revokedAt: Date): Promise<void>;
   revokeAllForUserExcept(trx: Trx, userId: string, exceptSessionId: string, revokedAt: Date): Promise<void>;
+  /** BR-ADM-01: contagem de sessões ativas (não revogadas, não expiradas) e último uso (qualquer sessão). */
+  stats(trx: Trx, userId: string, now: Date): Promise<SessionStats>;
+}
+
+export interface SessionStats {
+  activeCount: number;
+  lastUsedAt: Date | null;
 }
 
 export interface AuditPort<Trx> {

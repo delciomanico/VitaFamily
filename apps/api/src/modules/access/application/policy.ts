@@ -16,7 +16,7 @@ import type { DataCategory } from "../domain/sharing-grant.js";
 import type { AccessDeps, MemberFacts } from "./ports.js";
 
 /** authorization.md §1 (ações sobre dados de saúde) + §4 (partilha) + VIEW_SHARED_WITH_ME (UC-PRV-02). */
-export type Action = HealthAction | "MANAGE_SHARING" | "VIEW_SHARED_WITH_ME";
+export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_INSURANCE" | "VIEW_SHARED_WITH_ME";
 
 export interface CanInput {
   userId: string;
@@ -40,7 +40,7 @@ export interface AccessContext {
 }
 
 function isHealthAction(action: Action): action is HealthAction {
-  return action !== "MANAGE_SHARING" && action !== "VIEW_SHARED_WITH_ME";
+  return action !== "MANAGE_SHARING" && action !== "MANAGE_INSURANCE" && action !== "VIEW_SHARED_WITH_ME";
 }
 
 export interface AccessPolicy<Trx> {
@@ -100,6 +100,15 @@ export function createAccessPolicy<Trx>(deps: Pick<AccessDeps<Trx>, "familiesPor
         return { actor, subject, relation };
       }
       throw new ForbiddenError({ detail: "Sem permissão para gerir a partilha deste membro." });
+    }
+
+    if (input.action === "MANAGE_INSURANCE") {
+      // ADR-021/BR-INS-02, authorization.md §3 (nota) e §4: apólices/reembolsos NÃO são categoria
+      // (sem SharingGrant): só SELF (adulto) ou TUTOR_OF, para ler E escrever; nunca OTHER nem DEPENDENT_SELF.
+      if (relation === "SELF" || relation === "TUTOR_OF") {
+        return { actor, subject, relation };
+      }
+      throw new ForbiddenError({ detail: "Sem permissão sobre os seguros deste membro." });
     }
 
     if (!input.category) {

@@ -1,6 +1,6 @@
 // Controllers HTTP de `/clinic-portal/*` (openapi.yaml operationIds: clinicLogin,
 // clinicRefreshToken, clinicLogout, listClinicStaff, createClinicStaff, removeClinicStaff,
-// listOwnClinicSlots, publishClinicSlots, removeClinicSlot — tag "Clinic Portal", ADR-020/Fase C).
+// listOwnClinicSlots, publishClinicSlots, updateClinicSlot, removeClinicSlot — tag "Clinic Portal", ADR-020/Fase C).
 import { Router } from "express";
 import { asyncHandler, buildRequestContext, requireParam, type RequestContext } from "../../../platform/http/index.js";
 import { getClinicActor } from "../../../platform/actor/index.js";
@@ -8,11 +8,12 @@ import { UnauthenticatedError, ValidationError } from "../../../platform/errors/
 import type { CreateClinicStaffInput } from "../application/manage-clinic-staff.js";
 import type { ClinicLoginInput, ClinicLoginResult } from "../application/clinic-login.js";
 import type { ClinicRefreshInput } from "../application/clinic-refresh.js";
-import type { ClinicSlotListQuery, PublishClinicSlotsInput } from "../application/clinic-slots.js";
+import type { ClinicSlotListQuery, ClinicSlotView, PublishClinicSlotsInput, UpdateClinicSlotInput } from "../application/clinic-slots.js";
 import type { ClinicAccount, ClinicPortalActor, ClinicSlot } from "../application/ports.js";
+import { assertValidSlotKind } from "../domain/clinic-slot.js";
 import { CLINIC_REFRESH_TOKEN_COOKIE, parseClinicCookieHeader } from "../domain/clinic-cookie.js";
 import { clearClinicRefreshCookie, setClinicRefreshCookie } from "./clinic-portal-cookies.js";
-import { toClinicAccountListResponse, toClinicAccountResponse, toClinicSlotListResponse, toClinicSlotViewListResponse } from "./dto.js";
+import { toClinicAccountListResponse, toClinicAccountResponse, toClinicSlotListResponse, toClinicSlotViewListResponse, toClinicSlotViewResponse } from "./dto.js";
 
 export interface ClinicPortalController {
   clinicLogin: (input: ClinicLoginInput, ctx: RequestContext) => Promise<ClinicLoginResult>;
@@ -23,8 +24,9 @@ export interface ClinicPortalController {
   createClinicStaff: (actor: ClinicPortalActor, input: CreateClinicStaffInput, ctx: RequestContext) => Promise<ClinicAccount>;
   removeClinicStaff: (actor: ClinicPortalActor, clinicAccountId: string, ctx: RequestContext) => Promise<void>;
   // Horários (Fase C, BR-CLN-04):
-  listOwnClinicSlots: (actor: ClinicPortalActor, query: ClinicSlotListQuery) => Promise<ClinicSlot[]>;
+  listOwnClinicSlots: (actor: ClinicPortalActor, query: ClinicSlotListQuery) => Promise<ClinicSlotView[]>;
   publishClinicSlots: (actor: ClinicPortalActor, input: PublishClinicSlotsInput, ctx: RequestContext) => Promise<ClinicSlot[]>;
+  updateClinicSlot: (actor: ClinicPortalActor, slotId: string, input: UpdateClinicSlotInput, ctx: RequestContext) => Promise<ClinicSlotView>;
   removeClinicSlot: (actor: ClinicPortalActor, slotId: string, ctx: RequestContext) => Promise<void>;
 }
 
@@ -141,6 +143,8 @@ export function createClinicPortalRouter(controller: ClinicPortalController, coo
     "/clinic-portal/slots",
     asyncHandler(async (req, res) => {
       const query: ClinicSlotListQuery = {};
+      const kind = queryString(req, "kind");
+      if (kind !== undefined) query.kind = assertValidSlotKind(kind);
       const from = parseDateQuery(queryString(req, "from"), "from");
       const to = parseDateQuery(queryString(req, "to"), "to");
       if (from) query.from = from;
@@ -155,6 +159,15 @@ export function createClinicPortalRouter(controller: ClinicPortalController, coo
     asyncHandler(async (req, res) => {
       const result = await controller.publishClinicSlots(requireClinicPortalActor(), req.body as PublishClinicSlotsInput, buildRequestContext(req));
       res.status(201).json(toClinicSlotListResponse(result));
+    }),
+  );
+
+  router.patch(
+    "/clinic-portal/slots/:slotId",
+    asyncHandler(async (req, res) => {
+      const body = req.body as UpdateClinicSlotInput;
+      const result = await controller.updateClinicSlot(requireClinicPortalActor(), requireParam(req, "slotId"), body, buildRequestContext(req));
+      res.json(toClinicSlotViewResponse(result));
     }),
   );
 

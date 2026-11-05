@@ -52,10 +52,19 @@ export interface MemberNamesPort<Trx> {
 export interface ClinicSlotLite {
   id: string;
   clinicId: string;
+  /** BR-APT-10 (D19): uma consulta só se marca em `APPOINTMENT`; em `EXAM`, `specialty` é o tipo de exame. */
+  kind: "APPOINTMENT" | "EXAM";
   specialty: string;
   professionalName?: string;
   startsAt: Date;
   durationMinutes: number;
+  /** BR-APT-11: vagas do horário (1 em `APPOINTMENT`). */
+  capacity: number;
+}
+
+/** `AvailableSlot` (openapi): horário + vagas restantes (`remaining` ≥ 1 nas listagens, BR-APT-11). */
+export interface AvailableSlotItem extends ClinicSlotLite {
+  remaining: number;
 }
 
 /** Subconjunto da API pública de `clinics` (modules.md §2: `ClinicLookup`) — resolve o nome
@@ -66,8 +75,24 @@ export interface ClinicSlotLite {
  * único de `clinic_slots`/`appointments.slot_id` como rede de segurança final contra corrida). */
 export interface ClinicsPort<Trx> {
   getBookableClinic(trx: Trx, familyId: string, clinicId: string): Promise<{ id: string; name: string } | null>;
-  listFreeSlots(clinicId: string, specialty?: string): Promise<ClinicSlotLite[]>;
+  listFreeSlots(clinicId: string, specialty?: string, kind?: "APPOINTMENT" | "EXAM"): Promise<ClinicSlotLite[]>;
   findSlot(clinicId: string, slotId: string): Promise<ClinicSlotLite | null>;
+}
+
+/**
+ * BR-APT-10/11: a ocupação de um horário `EXAM` é o número de `Examination` `SCHEDULED` com esse
+ * `slotId` (tabela de `examinations`). `appointments` não depende de `examinations` (modules.md §2):
+ * a porta é ligada no composition root à função pública de `examinations`.
+ */
+export interface ExamSlotOccupancyPort<Trx> {
+  countScheduledBySlot(trx: Trx, slotIds: string[]): Promise<{ slotId: string; count: number }[]>;
+}
+
+/** Marcações ativas de consulta de um horário (para a ocupação do portal da clínica, `clinics`). */
+export interface AppointmentSlotBookingCount {
+  slotId: string;
+  requested: number;
+  scheduled: number;
 }
 
 export interface AuditPort<Trx> {
@@ -202,6 +227,8 @@ export interface AppointmentsRepository<Trx> {
   /** `listAvailableSlots` (D17, endpoints.md): de entre os horários publicados devolvidos por
    * `clinics.listFreeSlots`, quais já têm marcação ativa (REQUESTED/SCHEDULED) — BR-APT-06. */
   listActiveSlotIds(trx: Trx, slotIds: string[]): Promise<string[]>;
+  /** BR-APT-11 (`clinics`, `ClinicSlotView`): consultas `REQUESTED`/`SCHEDULED` por horário. */
+  countActiveBySlot(trx: Trx, slotIds: string[]): Promise<AppointmentSlotBookingCount[]>;
   /** Portal da clínica (D17, authorization.md §6.1 passo 2): só devolve a consulta se for da
    * própria clínica (`clinicId` do ator) — nunca a de outra (quem chama decide `NOT_FOUND`, mesmo
    * critério de não enumerar recursos de outra família). */
@@ -223,6 +250,8 @@ export interface AppointmentsDeps<Trx> {
   membership: MembershipPort<Trx>;
   memberNames: MemberNamesPort<Trx>;
   clinics: ClinicsPort<Trx>;
+  /** D19 (BR-APT-10/11): ocupação de horários `EXAM` (exames `SCHEDULED`) — ver `ExamSlotOccupancyPort`. */
+  examSlotOccupancy: ExamSlotOccupancyPort<Trx>;
   /** D18 (BR-CLN-06/BR-RX-07) — ver `PrescriptionsPort` acima. */
   prescriptions: PrescriptionsPort<Trx>;
   audit: AuditPort<Trx>;

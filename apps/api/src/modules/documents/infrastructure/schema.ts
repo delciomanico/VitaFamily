@@ -9,6 +9,8 @@ export interface DocumentsTable {
   member_id: string;
   prescription_id: string | null;
   examination_id: string | null;
+  /** ADR-021 (`0025`): foto do cartão da apólice. */
+  insurance_policy_id: string | null;
   storage_key: string;
   original_name: string;
   mime_type: string;
@@ -17,6 +19,10 @@ export interface DocumentsTable {
   // DEFAULT 'PENDING' (db/migrations/0006_documents.sql) — nunca definido no insert (upload-document.ts).
   scan_status: ColumnType<"PENDING" | "CLEAN" | "INFECTED", ("PENDING" | "CLEAN" | "INFECTED") | undefined, "PENDING" | "CLEAN" | "INFECTED">;
   uploaded_by: string | null;
+  /** Marca permanente do PDF emitido pela clínica (BR-CLN-08) — `0022`; nunca anulada por SET NULL. */
+  uploaded_by_clinic: ColumnType<boolean, boolean | undefined, never>;
+  /** Autor (rastreabilidade) — `0021`; pode ficar nulo se a conta for removida. */
+  uploaded_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

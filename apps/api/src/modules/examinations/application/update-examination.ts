@@ -49,6 +49,23 @@ export function createUpdateExaminationUseCase<Trx>(deps: ExaminationsDeps<Trx>)
         throw new NotFoundError({ detail: "Exame não encontrado." });
       }
 
+      // BR-EXM-08 (D19): exame de clínica parceira (originado de um `slotId`) só tem as observações
+      // editáveis — mudar data/hora é cancelar e pedir outro horário (UC-EXM-08).
+      if (existing.slotId) {
+        const restrictedFields: [string, unknown][] = [
+          ["name", input.name],
+          ["examDate", input.examDate],
+          ["clinicId", input.clinicId],
+          ["clinicName", input.clinicName],
+        ];
+        const offending = restrictedFields.find(([, value]) => value !== undefined);
+        if (offending) {
+          throw new ValidationError([{ field: offending[0], message: "não editável num exame de clínica parceira" }], {
+            detail: "Num exame de clínica parceira só as observações são editáveis (BR-EXM-08).",
+          });
+        }
+      }
+
       const changes: ExaminationChanges = {
         ...(name !== undefined ? { name } : {}),
         ...(input.examDate ? { examDate: input.examDate } : {}),

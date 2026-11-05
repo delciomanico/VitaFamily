@@ -79,7 +79,7 @@ function requireBodyString(body: unknown, field: string): string {
 }
 
 function isResourceType(value: string): value is ResourceType {
-  return value === "PRESCRIPTION" || value === "EXAMINATION";
+  return value === "PRESCRIPTION" || value === "EXAMINATION" || value === "INSURANCE_POLICY";
 }
 
 export function createDocumentsRouter(controller: DocumentsController): Router {
@@ -91,7 +91,7 @@ export function createDocumentsRouter(controller: DocumentsController): Router {
       const file = requireUploadedFile(req);
       const resourceTypeRaw = requireBodyString(req.body, "resourceType");
       if (!isResourceType(resourceTypeRaw)) {
-        throw new ValidationError([{ field: "resourceType", message: "PRESCRIPTION ou EXAMINATION" }], {
+        throw new ValidationError([{ field: "resourceType", message: "PRESCRIPTION, EXAMINATION ou INSURANCE_POLICY" }], {
           detail: "Dados inválidos.",
         });
       }

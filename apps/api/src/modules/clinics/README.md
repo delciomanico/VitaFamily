@@ -86,16 +86,23 @@ D17). `clinics/index.ts` expõe pela raiz `listFreeClinicSlots(clinicId, special
 `findClinicSlot(clinicId, slotId)` — desde a Fase D consumidas por `appointments`
 (`application/ports.ts#ClinicsPort`/`support.ts#resolveSlotBooking`) para resolver/validar pedidos
 num horário (UC-APT-07) e para `GET /families/{familyId}/clinics/{clinicId}/slots`
-(`appointments/application/list-available-slots.ts`). **Limitação que permanece** (fora do âmbito
-da Fase D, só toca `appointments`+`clinics` pela raiz): `listOwnClinicSlots`
-(`GET /clinic-portal/slots`, a vista da própria clínica) continua a devolver sempre
-`state: "FREE"` e `removeClinicSlot` continua a remover sem verificar ocupação — `clinics` não
-pode importar `appointments` (modules.md §2) para calcular o estado real aqui; resolver isto
-exigiria uma porta nova (ex.: callback injetado pelo composition root) fora do âmbito desta fase.
+(`appointments/application/list-available-slots.ts`). **Ocupação e vagas (ADR-023 revisto 2026-11-04, BR-APT-11):** `ClinicSlot.capacity` (1–50; só `kind=EXAM`
+pode ser > 1, CHECK `kind='EXAM' OR capacity=1`). A ocupação é calculada em consulta, nunca guardada: a
+porta `SlotOccupancyPort.countActiveBySlot` (ligada em `main/api.ts` a `appointments.countActiveBySlot` +
+`examinations.countScheduledBySlot`) dá as marcações ativas e `domain/clinic-slot.ts#computeSlotOccupancy`
+produz `bookedCount`/`remaining`/`state` (`APPOINTMENT`: FREE|REQUESTED|SCHEDULED; `EXAM`:
+FREE|PARTIAL|FULL). `GET /clinic-portal/slots` devolve `ClinicSlotView` completo; `PATCH
+/clinic-portal/slots/{slotId}` (`updateClinicSlot`) altera `capacity` (só `EXAM`; `CONFLICT` abaixo das
+marcações ativas; audita `CLINIC_SLOT_UPDATE`); `DELETE` dá `CONFLICT` com marcação ativa. **Concorrência:**
+`PATCH`, `DELETE` e a marcação de exame (`examinations/application/create-examination.ts`) fazem
+`SELECT … FOR UPDATE` à linha do horário (`ClinicSlotsRepository.lockById`; para `examinations` exposto pela
+raiz como `lockClinicSlot(trx, slotId)`, na transação do chamador) antes de contar — é este bloqueio que
+impede overbooking (teste com Postgres real em `tests/integration/clinic-exams.integration.test.ts`).
+`CONFLICT` é a resposta a horário cheio, mesmo membro já marcado, ou horário removido.
 
 ### Migração
 `db/migrations/0013_clinic_slots.sql`: tabela `clinic_slots` (schema.md §3 v0.2), sem FK de
-`appointments` (essa liga-se só na Fase D).
+`appointments` (essa liga-se só na Fase D). `0021` acrescenta `kind`; `0022` acrescenta `capacity` (default 1).
 
 ### Mapa de um pedido típico (publicar horários)
 ```

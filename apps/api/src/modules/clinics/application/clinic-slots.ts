@@ -1,25 +1,38 @@
-// Casos de uso de `ClinicSlot` (BR-CLN-04, UC-CLN-04, endpoints.md `/clinic-portal/slots/*`):
-// publicar, listar e remover (só livres) os horários da própria clínica. `createListFreeClinicSlotsUseCase`/
-// `createFindClinicSlotUseCase` são também expostos pela raiz do módulo (`clinics/index.ts`) e
-// desde a Fase D (D17) consumidos por `appointments` (`application/ports.ts#ClinicsPort`), que é
-// quem decide "livre" cruzando com `appointments.slot_id` (`appointments` depende de `clinics`,
-// nunca o inverso — por isso esta função continua a devolver só os horários publicados, sem noção
-// de ocupação). `listOwnClinicSlots` (`ClinicSlotView.state`), usado pelo próprio portal da
-// clínica, continua a devolver sempre `FREE` (não ligado a `appointments`, ver `clinics/README.md`
-// "Decisão desta fase sobre 'livre'" — limitação conhecida, fora do âmbito da Fase D).
+// Casos de uso de `ClinicSlot` (BR-CLN-04, BR-APT-11, UC-CLN-04/07, endpoints.md `/clinic-portal/slots/*`):
+// publicar, listar (com ocupação), alterar `capacity` e remover (só sem marcações ativas) os
+// horários da própria clínica. A ocupação vem da porta `slotOccupancy` (ligada no composition root a
+// `appointments`+`examinations`, que dependem de `clinics`, nunca o inverso). Reserva de vaga,
+// `PATCH` e `DELETE` serializam-se pelo mesmo bloqueio da linha do horário (`SELECT … FOR UPDATE`).
+// `createListFreeClinicSlotsUseCase`/`createFindClinicSlotUseCase`/`createFindClinicSlotByIdUseCase`
+// são também expostos pela raiz do módulo e consumidos por `appointments`/`examinations`.
 import { newId } from "../../../platform/ids/index.js";
-import { NotFoundError, ValidationError } from "../../../platform/errors/index.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
-import { assertValidDurationMinutes, assertValidSpecialty, type ClinicSlot } from "../domain/clinic-slot.js";
+import {
+  assertCapacityAllowedForKind,
+  assertValidCapacity,
+  assertValidDurationMinutes,
+  assertValidSlotKind,
+  assertValidSpecialty,
+  computeSlotOccupancy,
+  type ClinicSlot,
+  type ClinicSlotKind,
+  type SlotBookingCounts,
+  type SlotOccupancy,
+} from "../domain/clinic-slot.js";
 import { parseLocalDate, parseLocalTime, zonedTimeToUtc } from "../domain/clinic-slot-time.js";
 import type { ClinicPortalActor, ClinicsDeps, RequestContext } from "./ports.js";
 
 export interface PublishClinicSlotsInput {
+  /** BR-APT-10 (D19): omitido = `APPOINTMENT`. */
+  kind?: string | null;
   date: string;
   times: string[];
   specialty: string;
   professionalName?: string | null;
   durationMinutes: number;
+  /** BR-APT-11: 1–50, omitido = 1; > 1 só com `kind=EXAM`. */
+  capacity?: number | null;
 }
 
 /** `POST /clinic-portal/slots` (`ClinicSlotBatchInput`): publica um horário por cada hora de
@@ -27,8 +40,11 @@ export interface PublishClinicSlotsInput {
  * passadas e duplicadas (mesma hora, especialidade, profissional) — nunca falha o lote por isso. */
 export function createPublishClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
   return async function publishClinicSlots(actor: ClinicPortalActor, input: PublishClinicSlotsInput, context: RequestContext): Promise<ClinicSlot[]> {
+    const kind = assertValidSlotKind(input.kind);
     const specialty = assertValidSpecialty(input.specialty);
     const durationMinutes = assertValidDurationMinutes(input.durationMinutes);
+    const capacity = assertValidCapacity(input.capacity);
+    assertCapacityAllowedForKind(kind, capacity);
     const professionalName = input.professionalName?.trim() ? input.professionalName.trim() : undefined;
     const date = parseLocalDate(input.date);
 
@@ -50,12 +66,13 @@ export function createPublishClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
           continue;
         }
         const duplicateInBatch = published.some(
-          (slot) => slot.startsAt.getTime() === startsAt.getTime() && slot.specialty === specialty && (slot.professionalName ?? null) === (professionalName ?? null),
+          (slot) => slot.startsAt.getTime() === startsAt.getTime() && slot.kind === kind && slot.specialty === specialty && (slot.professionalName ?? null) === (professionalName ?? null),
         );
         if (duplicateInBatch) {
           continue;
         }
         const duplicateInRepo = await deps.clinicSlotsRepo.existsDuplicate(trx, actor.clinicId, {
+          kind,
           startsAt,
           specialty,
           ...(professionalName ? { professionalName } : {}),
@@ -67,9 +84,11 @@ export function createPublishClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
         const slot = await deps.clinicSlotsRepo.insert(trx, {
           id: newId(),
           clinicId: actor.clinicId,
+          kind,
           specialty,
           startsAt,
           durationMinutes,
+          capacity,
           createdAt: now,
           ...(professionalName ? { professionalName } : {}),
         });
@@ -97,29 +116,101 @@ export function createPublishClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
 }
 
 export interface ClinicSlotListQuery {
+  /** BR-APT-10: sem `kind` devolve todos (portal). */
+  kind?: ClinicSlotKind;
   from?: Date;
   to?: Date;
 }
 
-/** `GET /clinic-portal/slots` (UC-CLN-04): horários (livres/pedidos/confirmados, `ClinicSlotView`)
- * da própria clínica. Nesta fase todos vêm `state: "FREE"` (interface/dto.ts) — a composição com
- * `appointments` fica para a Fase D. */
+/** `ClinicSlotView` (openapi.yaml): horário + `bookedCount`/`remaining`/`state` (BR-APT-11). */
+export type ClinicSlotView = ClinicSlot & SlotOccupancy;
+
+async function countsBySlot<Trx>(deps: ClinicsDeps<Trx>, trx: Trx, slotIds: string[]): Promise<Map<string, SlotBookingCounts>> {
+  const rows = slotIds.length === 0 ? [] : await deps.slotOccupancy.countActiveBySlot(trx, slotIds);
+  const bySlot = new Map<string, SlotBookingCounts>();
+  for (const row of rows) {
+    const current = bySlot.get(row.slotId) ?? { requested: 0, scheduled: 0 };
+    bySlot.set(row.slotId, { requested: current.requested + row.requested, scheduled: current.scheduled + row.scheduled });
+  }
+  return bySlot;
+}
+
+function toView(slot: ClinicSlot, counts: SlotBookingCounts | undefined): ClinicSlotView {
+  return { ...slot, ...computeSlotOccupancy(slot, counts ?? { requested: 0, scheduled: 0 }) };
+}
+
+/** `GET /clinic-portal/slots` (UC-CLN-04/08): horários da própria clínica com a ocupação calculada. */
 export function createListOwnClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
-  return async function listOwnClinicSlots(actor: ClinicPortalActor, query: ClinicSlotListQuery): Promise<ClinicSlot[]> {
-    return deps.withTransaction((trx) => deps.clinicSlotsRepo.listByClinic(trx, actor.clinicId, { ...query }));
+  return async function listOwnClinicSlots(actor: ClinicPortalActor, query: ClinicSlotListQuery): Promise<ClinicSlotView[]> {
+    return deps.withTransaction(async (trx) => {
+      const slots = await deps.clinicSlotsRepo.listByClinic(trx, actor.clinicId, { ...query });
+      const counts = await countsBySlot(deps, trx, slots.map((slot) => slot.id));
+      return slots.map((slot) => toView(slot, counts.get(slot.id)));
+    });
   };
 }
 
-/** `DELETE /clinic-portal/slots/{slotId}` (BR-CLN-04): só remove horários da própria clínica. Nesta
- * fase todo o horário publicado está livre (sem `appointments.slot_id`, Fase D) — quando essa
- * ligação existir, o caso de uso passa a verificar aqui se há pedido/consulta ativa antes de
- * remover (`CONFLICT`, endpoints.md `removeClinicSlot`). */
+export interface UpdateClinicSlotInput {
+  capacity: number;
+}
+
+/** `PATCH /clinic-portal/slots/{slotId}` (BR-APT-11): altera `capacity` de um horário `EXAM` da
+ * própria clínica. `CONFLICT` se ficar abaixo das marcações ativas — a contagem e a escrita correm
+ * sob o bloqueio da linha do horário (o mesmo da marcação), logo não há corrida. */
+export function createUpdateClinicSlotUseCase<Trx>(deps: ClinicsDeps<Trx>) {
+  return async function updateClinicSlot(actor: ClinicPortalActor, slotId: string, input: UpdateClinicSlotInput, context: RequestContext): Promise<ClinicSlotView> {
+    if (typeof input.capacity !== "number") {
+      throw new ValidationError([{ field: "capacity", message: "obrigatório" }], { detail: "Número de vagas inválido." });
+    }
+    const capacity = assertValidCapacity(input.capacity);
+    return deps.withTransaction(async (trx) => {
+      const slot = await deps.clinicSlotsRepo.lockById(trx, slotId);
+      if (slot?.clinicId !== actor.clinicId) {
+        throw new NotFoundError({ detail: "Horário não encontrado." });
+      }
+      if (slot.kind !== "EXAM") {
+        throw new ValidationError([{ field: "capacity", message: "só horários de exame têm vagas editáveis" }], { detail: "Horário de consulta tem sempre uma vaga." });
+      }
+      const counts = (await countsBySlot(deps, trx, [slotId])).get(slotId);
+      const { bookedCount } = computeSlotOccupancy(slot, counts ?? { requested: 0, scheduled: 0 });
+      if (capacity < bookedCount) {
+        throw new ConflictError({ detail: "O número de vagas é inferior às marcações ativas." });
+      }
+
+      const updated = await deps.clinicSlotsRepo.updateCapacity(trx, slotId, capacity);
+
+      await deps.audit.record(trx, {
+        occurredAt: deps.clock.now(),
+        actorType: "CLINIC_ACCOUNT",
+        actorClinicAccountId: actor.clinicAccountId,
+        action: "CLINIC_SLOT_UPDATE",
+        resourceType: "ClinicSlot",
+        resourceId: slotId,
+        result: "SUCCESS",
+        requestId: context.requestId,
+        ...auditContextFields(context),
+        metadata: { capacityFrom: slot.capacity, capacityTo: capacity },
+      });
+
+      return toView(updated, counts);
+    });
+  };
+}
+
+/** `DELETE /clinic-portal/slots/{slotId}` (BR-CLN-04/BR-APT-11): só remove horários da própria clínica
+ * sem marcações ativas (`CONFLICT` com consulta `REQUESTED`/`SCHEDULED` ou exame `SCHEDULED`); a
+ * contagem e a remoção correm sob o bloqueio da linha do horário. */
 export function createRemoveClinicSlotUseCase<Trx>(deps: ClinicsDeps<Trx>) {
   return async function removeClinicSlot(actor: ClinicPortalActor, slotId: string, context: RequestContext): Promise<void> {
     await deps.withTransaction(async (trx) => {
-      const slot = await deps.clinicSlotsRepo.findById(trx, slotId);
+      const slot = await deps.clinicSlotsRepo.lockById(trx, slotId);
       if (slot?.clinicId !== actor.clinicId) {
         throw new NotFoundError({ detail: "Horário não encontrado." });
+      }
+
+      const counts = (await countsBySlot(deps, trx, [slotId])).get(slotId);
+      if (computeSlotOccupancy(slot, counts ?? { requested: 0, scheduled: 0 }).bookedCount > 0) {
+        throw new ConflictError({ detail: "O horário tem uma marcação ativa." });
       }
 
       await deps.clinicSlotsRepo.delete(trx, slotId);
@@ -147,8 +238,9 @@ export function createRemoveClinicSlotUseCase<Trx>(deps: ClinicsDeps<Trx>) {
  * cruzando com `appointments.slot_id` (`clinics` não pode importar `appointments`).
  */
 export function createListFreeClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
-  return async function listFreeClinicSlots(clinicId: string, specialty?: string): Promise<ClinicSlot[]> {
-    return deps.withTransaction((trx) => deps.clinicSlotsRepo.listByClinic(trx, clinicId, specialty ? { specialty } : {}));
+  return async function listFreeClinicSlots(clinicId: string, specialty?: string, kind: ClinicSlotKind = "APPOINTMENT"): Promise<ClinicSlot[]> {
+    // BR-APT-10: a listagem pública filtra por `kind` (default APPOINTMENT).
+    return deps.withTransaction((trx) => deps.clinicSlotsRepo.listByClinic(trx, clinicId, { kind, ...(specialty ? { specialty } : {}) }));
   };
 }
 
@@ -165,5 +257,27 @@ export function createFindClinicSlotUseCase<Trx>(deps: ClinicsDeps<Trx>) {
       const slot = await deps.clinicSlotsRepo.findById(trx, slotId);
       return slot?.clinicId === clinicId ? slot : null;
     });
+  };
+}
+
+/**
+ * API pela raiz (`clinics/index.ts`), consumida por `examinations` (D19, UC-EXM-08): o pedido de
+ * exame traz só `slotId` (`ExaminationInput` não tem `clinicId`, openapi), por isso o horário
+ * resolve-se pelo id. Devolve o horário publicado; quem chama valida `kind`, clínica e ocupação.
+ */
+export function createFindClinicSlotByIdUseCase<Trx>(deps: ClinicsDeps<Trx>) {
+  return async function findClinicSlotById(slotId: string): Promise<ClinicSlot | null> {
+    return deps.withTransaction((trx) => deps.clinicSlotsRepo.findById(trx, slotId));
+  };
+}
+
+/**
+ * API pela raiz (`clinics/index.ts`), consumida por `examinations` (BR-APT-11): bloqueia a linha do
+ * horário (`SELECT … FOR UPDATE`) NA TRANSAÇÃO DO CHAMADOR e devolve-a. É o ponto de serialização
+ * que impede overbooking: quem reserva vaga conta as marcações e insere só depois deste bloqueio.
+ */
+export function createLockClinicSlotUseCase<Trx>(deps: ClinicsDeps<Trx>) {
+  return async function lockClinicSlot(trx: Trx, slotId: string): Promise<ClinicSlot | null> {
+    return deps.clinicSlotsRepo.lockById(trx, slotId);
   };
 }

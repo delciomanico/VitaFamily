@@ -9,7 +9,7 @@ import type { Document, ResourceType } from "../domain/document.js";
 import { detectFileKind, mimeTypeForFileKind } from "../domain/file-type.js";
 import { quarantineStorageKey } from "../domain/storage-key.js";
 import type { ActorIdentity, DocumentsDeps, NewDocumentRecord, RequestContext } from "./ports.js";
-import { categoryForResourceType } from "./support.js";
+import { accessInputFor } from "./support.js";
 
 /** "20 uploads/hora" (openapi.yaml `uploadDocument`) — por utilizador que carrega, não por família. */
 const UPLOAD_RATE_LIMIT = { max: 20, windowMs: 60 * 60 * 1000 };
@@ -52,16 +52,13 @@ export function createUploadDocumentUseCase<Trx>(deps: DocumentsDeps<Trx>) {
       throw new DomainError("FILE_TOO_LARGE", { detail: "Ficheiro acima do limite permitido (10 MB)." });
     }
 
-    const category = categoryForResourceType(input.resourceType);
-
     const document = await deps.withTransaction(async (trx) => {
       await deps.policy.can(trx, {
         userId: actor.userId,
         platformAdmin: actor.platformAdmin,
         familyId,
-        action: "CREATE",
         subjectMemberId: memberId,
-        category,
+        ...accessInputFor(input.resourceType, "CREATE"),
       });
 
       // BR-DOC-03/Q10: 5 ficheiros por recurso, 100 MB por família.

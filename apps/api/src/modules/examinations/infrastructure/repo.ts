@@ -4,10 +4,13 @@
 // `examination` primeiro (ver casos de uso), nunca desta infra isolada.
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
+import { ConflictError } from "../../../platform/errors/index.js";
 import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
 import type { ExamResult } from "../domain/exam-result.js";
 import type { Examination, ExaminationStatus } from "../domain/examination.js";
 import type {
+  ClinicExamCompletion,
+  ClinicExamStatusChange,
   CursorPage,
   ExaminationChanges,
   ExaminationListFilter,
@@ -30,6 +33,13 @@ interface ExaminationRow {
   clinic_id: string | null;
   clinic_name: string | null;
   notes: string | null;
+  scheduled_at: Date | null;
+  slot_id: string | null;
+  response_note: string | null;
+  issued_by: "FAMILY" | "CLINIC";
+  issued_by_clinic_account_id: string | null;
+  results_issued_at: Date | null;
+  clinic_result_note: string | null;
   created_at: Date;
 }
 
@@ -41,35 +51,77 @@ function toExamination(row: ExaminationRow): Examination {
     name: row.name,
     examDate: row.exam_date,
     status: row.status,
+    issuedBy: row.issued_by,
     createdAt: row.created_at,
   };
   if (row.clinic_id !== null) examination.clinicId = row.clinic_id;
   if (row.clinic_name !== null) examination.clinicName = row.clinic_name;
   if (row.notes !== null) examination.notes = row.notes;
+  if (row.scheduled_at !== null) examination.scheduledAt = row.scheduled_at;
+  if (row.slot_id !== null) examination.slotId = row.slot_id;
+  if (row.response_note !== null) examination.responseNote = row.response_note;
+  if (row.issued_by_clinic_account_id !== null) examination.issuedByClinicAccountId = row.issued_by_clinic_account_id;
+  if (row.results_issued_at !== null) examination.resultsIssuedAt = row.results_issued_at;
+  if (row.clinic_result_note !== null) examination.clinicResultNote = row.clinic_result_note;
   return examination;
 }
 
-const EXAMINATION_COLUMNS = ["id", "family_id", "member_id", "name", "exam_date", "status", "clinic_id", "clinic_name", "notes", "created_at"] as const;
+const EXAMINATION_COLUMNS = [
+  "id",
+  "family_id",
+  "member_id",
+  "name",
+  "exam_date",
+  "status",
+  "clinic_id",
+  "clinic_name",
+  "notes",
+  "scheduled_at",
+  "slot_id",
+  "response_note",
+  "issued_by",
+  "issued_by_clinic_account_id",
+  "results_issued_at",
+  "clinic_result_note",
+  "created_at",
+] as const;
+
+const SLOT_MEMBER_BOOKING_INDEX = "examinations_slot_member_scheduled_uq";
+
+/** BR-APT-11: a UNIQUE parcial `(slot_id, member_id)` é a rede de segurança contra o mesmo membro ocupar duas vagas do horário. */
+function isSlotBookingConflict(error: unknown): boolean {
+  const pgError = error as { code?: string; constraint?: string } | null;
+  return pgError?.code === "23505" && pgError.constraint === SLOT_MEMBER_BOOKING_INDEX;
+}
 
 export class KyselyExaminationsRepository implements ExaminationsRepository<Kysely<Database>> {
   async insert(trx: Kysely<Database>, record: NewExaminationRecord): Promise<Examination> {
-    const row = await trx
-      .insertInto("examinations")
-      .values({
-        id: record.id,
-        family_id: record.familyId,
-        member_id: record.memberId,
-        name: record.name,
-        exam_date: record.examDate,
-        status: record.status,
-        clinic_id: record.clinicId ?? null,
-        clinic_name: record.clinicName ?? null,
-        notes: record.notes ?? null,
-        created_at: record.createdAt,
-      })
-      .returning(EXAMINATION_COLUMNS)
-      .executeTakeFirstOrThrow();
-    return toExamination(row);
+    try {
+      const row = await trx
+        .insertInto("examinations")
+        .values({
+          id: record.id,
+          family_id: record.familyId,
+          member_id: record.memberId,
+          name: record.name,
+          exam_date: record.examDate,
+          status: record.status,
+          clinic_id: record.clinicId ?? null,
+          clinic_name: record.clinicName ?? null,
+          slot_id: record.slotId ?? null,
+          scheduled_at: record.scheduledAt ?? null,
+          notes: record.notes ?? null,
+          created_at: record.createdAt,
+        })
+        .returning(EXAMINATION_COLUMNS)
+        .executeTakeFirstOrThrow();
+      return toExamination(row);
+    } catch (error) {
+      if (isSlotBookingConflict(error)) {
+        throw new ConflictError({ detail: "Este membro já tem uma marcação nesse horário." });
+      }
+      throw error;
+    }
   }
 
   async findById(trx: Kysely<Database>, familyId: string, memberId: string, examinationId: string): Promise<Examination | null> {
@@ -158,6 +210,95 @@ export class KyselyExaminationsRepository implements ExaminationsRepository<Kyse
       .limit(limit)
       .execute();
     return rows.map(toExamination);
+  }
+
+  async countScheduledBySlot(trx: Kysely<Database>, slotIds: string[]): Promise<{ slotId: string; count: number }[]> {
+    if (slotIds.length === 0) {
+      return [];
+    }
+    const rows = await trx
+      .selectFrom("examinations")
+      .select(["slot_id", sql<string>`count(*)`.as("total")])
+      .where("slot_id", "in", slotIds)
+      .where("status", "=", "SCHEDULED")
+      .groupBy("slot_id")
+      .execute();
+    return rows.flatMap((row) => (row.slot_id === null ? [] : [{ slotId: row.slot_id, count: Number(row.total) }]));
+  }
+
+  async existsScheduledForMember(trx: Kysely<Database>, slotId: string, memberId: string): Promise<boolean> {
+    const row = await trx.selectFrom("examinations").select("id").where("slot_id", "=", slotId).where("member_id", "=", memberId).where("status", "=", "SCHEDULED").executeTakeFirst();
+    return row !== undefined;
+  }
+
+  async findByClinicId(trx: Kysely<Database>, clinicId: string, examinationId: string): Promise<Examination | null> {
+    const row = await trx
+      .selectFrom("examinations")
+      .select(EXAMINATION_COLUMNS)
+      .where("clinic_id", "=", clinicId)
+      .where("scheduled_at", "is not", null)
+      .where("id", "=", examinationId)
+      .executeTakeFirst();
+    return row ? toExamination(row) : null;
+  }
+
+  async listByClinicAndStatus(trx: Kysely<Database>, clinicId: string, statuses: ExaminationStatus[], filter: { from?: Date; to?: Date }): Promise<Examination[]> {
+    let query = trx
+      .selectFrom("examinations")
+      .select(EXAMINATION_COLUMNS)
+      .where("clinic_id", "=", clinicId)
+      .where("scheduled_at", "is not", null)
+      .where("status", "in", statuses);
+    if (filter.from) {
+      query = query.where("scheduled_at", ">=", filter.from);
+    }
+    if (filter.to) {
+      query = query.where("scheduled_at", "<=", filter.to);
+    }
+    const rows = await query.orderBy("scheduled_at", "asc").execute();
+    return rows.map(toExamination);
+  }
+
+  async updateStatusByClinic(trx: Kysely<Database>, examinationId: string, change: ClinicExamStatusChange): Promise<Examination> {
+    const row = await trx
+      .updateTable("examinations")
+      .set({
+        status: change.status,
+        ...(change.responseNote !== undefined ? { response_note: change.responseNote } : {}),
+        updated_at: sql`now()`,
+      })
+      .where("id", "=", examinationId)
+      .returning(EXAMINATION_COLUMNS)
+      .executeTakeFirstOrThrow();
+    return toExamination(row);
+  }
+
+  async completeByClinic(trx: Kysely<Database>, examinationId: string, completion: ClinicExamCompletion): Promise<Examination> {
+    const row = await trx
+      .updateTable("examinations")
+      .set({
+        status: "COMPLETED",
+        issued_by: "CLINIC",
+        issued_by_clinic_account_id: completion.clinicAccountId,
+        results_issued_at: completion.issuedAt,
+        clinic_result_note: completion.resultNote ?? null,
+        updated_at: sql`now()`,
+      })
+      .where("id", "=", examinationId)
+      .returning(EXAMINATION_COLUMNS)
+      .executeTakeFirstOrThrow();
+    return toExamination(row);
+  }
+
+  async isCompleted(trx: Kysely<Database>, familyId: string, memberId: string, examinationId: string): Promise<boolean> {
+    const row = await trx
+      .selectFrom("examinations")
+      .select("status")
+      .where("family_id", "=", familyId)
+      .where("member_id", "=", memberId)
+      .where("id", "=", examinationId)
+      .executeTakeFirst();
+    return row?.status === "COMPLETED";
   }
 }
 

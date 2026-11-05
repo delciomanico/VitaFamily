@@ -161,6 +161,11 @@ export class KyselyUsersRepository implements UsersRepository<Kysely<Database>> 
   async listAll(trx: Kysely<Database>, filter: AccountListFilter): Promise<AccountPage> {
     let query = trx.selectFrom("users").select(SELECT_COLUMNS);
     if (filter.status) query = query.where("status", "=", filter.status);
+    if (filter.q) {
+      // Escapa os metacaracteres do LIKE para que `q` seja sempre texto literal.
+      const pattern = `%${filter.q.replace(/[\\%_]/g, "\\$&")}%`;
+      query = query.where((eb) => eb.or([eb("email", "ilike", pattern), eb("name", "ilike", pattern)]));
+    }
     if (filter.cursor) {
       const after = new Date(decodeCursor(filter.cursor).createdAt);
       const afterId = decodeCursor(filter.cursor).id;

@@ -58,6 +58,15 @@ describe("uploadDocument", () => {
     expect(fixtures.policy.calls[1]).toMatchObject({ action: "CREATE", category: "EXAMS" });
   });
 
+  it("ADR-021: INSURANCE_POLICY (foto do cartão) autoriza por MANAGE_INSURANCE, sem categoria nem SharingGrant", async () => {
+    const useCase = createUploadDocumentUseCase(fixtures.deps);
+    const document = await useCase(ACTOR, "family-1", "member-1", input({ resourceType: "INSURANCE_POLICY", resourceId: "policy-1" }), CONTEXT);
+
+    expect(document).toMatchObject({ resourceType: "INSURANCE_POLICY", resourceId: "policy-1", scanStatus: "PENDING" });
+    expect(fixtures.policy.calls[0]).toMatchObject({ action: "MANAGE_INSURANCE", subjectMemberId: "member-1" });
+    expect(fixtures.policy.calls[0]).not.toHaveProperty("category");
+  });
+
   it("AC-DOC-03: recusa tipo não suportado (FILE_TYPE_NOT_ALLOWED)", async () => {
     const useCase = createUploadDocumentUseCase(fixtures.deps);
     const exe = Buffer.from([0x4d, 0x5a, 0x90, 0x00]);

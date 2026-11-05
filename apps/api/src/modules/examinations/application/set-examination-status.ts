@@ -32,7 +32,7 @@ export function createSetExaminationStatusUseCase<Trx>(deps: ExaminationsDeps<Tr
       if (!existing) {
         throw new NotFoundError({ detail: "Exame não encontrado." });
       }
-      assertValidExaminationTransition(existing.status, input.status);
+      assertValidExaminationTransition(existing.status, input.status, { hasSlot: existing.slotId !== undefined });
 
       const examination = await deps.examinationsRepo.updateStatus(trx, familyId, memberId, examinationId, input.status);
 

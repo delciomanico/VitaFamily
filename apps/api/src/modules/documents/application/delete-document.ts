@@ -4,7 +4,7 @@
 import { NotFoundError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { ActorIdentity, DocumentsDeps, RequestContext } from "./ports.js";
-import { categoryForResourceType } from "./support.js";
+import { accessInputFor, isVisibleToPatient } from "./support.js";
 
 export function createDeleteDocumentUseCase<Trx>(deps: DocumentsDeps<Trx>) {
   return async function deleteDocument(
@@ -24,10 +24,13 @@ export function createDeleteDocumentUseCase<Trx>(deps: DocumentsDeps<Trx>) {
         userId: actor.userId,
         platformAdmin: actor.platformAdmin,
         familyId,
-        action: "DELETE",
         subjectMemberId: memberId,
-        category: categoryForResourceType(document.resourceType),
+        ...accessInputFor(document.resourceType, "DELETE"),
       });
+
+      if (!(await isVisibleToPatient(deps, trx, document))) {
+        throw new NotFoundError({ detail: "Documento não encontrado." });
+      }
 
       await deps.fileDeletionsRepo.enqueue(trx, document.storageKey);
       await deps.documentsRepo.delete(trx, familyId, memberId, documentId);

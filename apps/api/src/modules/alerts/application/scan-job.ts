@@ -11,6 +11,7 @@ import {
   buildDedupeKey,
   doseRules,
   examReminderRule,
+  examReminderRuleAt,
   type Rule,
 } from "../domain/rule.js";
 import { localMidnightUtc } from "../domain/timezone.js";
@@ -118,14 +119,21 @@ export function createScanJobUseCase<Trx>(deps: AlertsWorkerDeps<Trx>) {
       const windowEnd = new Date(now.getTime() + EXAM_DATE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
       const examinations = await deps.examinations.listReminderCandidates(trx, toDateOnly(windowStart), toDateOnly(windowEnd), BATCH_SIZE);
       for (const examination of examinations) {
-        const timeZone = await deps.families.getEffectiveTimezone(trx, examination.familyId, examination.memberId);
-        const midnightUtc = localMidnightUtc(examination.examDate, timeZone);
+        // D19/BR-EXM-05: exame de clínica parceira tem hora exata -> 24h antes dessa hora; os
+        // restantes só têm data -> meia-noite local do dia anterior (README).
+        let rule;
+        if (examination.scheduledAt) {
+          rule = examReminderRuleAt(examination.scheduledAt);
+        } else {
+          const timeZone = await deps.families.getEffectiveTimezone(trx, examination.familyId, examination.memberId);
+          rule = examReminderRule(localMidnightUtc(examination.examDate, timeZone));
+        }
         alertsCreated += await processCandidate(trx, now, {
           familyId: examination.familyId,
           memberId: examination.memberId,
           sourceType: "EXAMINATION",
           sourceId: examination.id,
-          rules: [examReminderRule(midnightUtc)],
+          rules: [rule],
         });
       }
     });

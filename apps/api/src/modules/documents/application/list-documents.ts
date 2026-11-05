@@ -4,7 +4,7 @@
 import type { Document, ResourceType } from "../domain/document.js";
 import { ValidationError } from "../../../platform/errors/index.js";
 import type { ActorIdentity, DocumentsDeps } from "./ports.js";
-import { categoryForResourceType } from "./support.js";
+import { accessInputFor, isVisibleToPatient } from "./support.js";
 
 export interface ListDocumentsQuery {
   resourceType?: ResourceType;
@@ -34,12 +34,19 @@ export function createListDocumentsUseCase<Trx>(deps: DocumentsDeps<Trx>) {
         userId: actor.userId,
         platformAdmin: actor.platformAdmin,
         familyId,
-        action: "READ",
         subjectMemberId: memberId,
-        category: categoryForResourceType(resourceType),
+        ...accessInputFor(resourceType, "READ"),
       });
 
-      return deps.documentsRepo.listByResource(trx, familyId, memberId, resourceType, resourceId);
+      const documents = await deps.documentsRepo.listByResource(trx, familyId, memberId, resourceType, resourceId);
+      // BR-CLN-08: omite (não nega) os PDF da clínica ainda não libertados.
+      const visible: Document[] = [];
+      for (const document of documents) {
+        if (await isVisibleToPatient(deps, trx, document)) {
+          visible.push(document);
+        }
+      }
+      return visible;
     });
   };
 }

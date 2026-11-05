@@ -156,6 +156,9 @@ export interface FamiliesModule {
   // `guardianships`/`family_members` diretamente (conventions.md §3.5). Só devolve tutores com
   // `userId` (todos, por `isEligibleGuardian`, mas a verificação fica aqui, não em `alerts`).
   listGuardianUserIds: (trx: Kysely<Database>, familyId: string, dependentId: string) => Promise<string[]>;
+  // Contagem (sem nomes nem ids) para o detalhe operacional do Platform Admin (BR-ADM-01, D4/R10);
+  // ligada a `admin` por porta no composition root.
+  countFamiliesOfUser: (trx: Kysely<Database>, userId: string) => Promise<number>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -234,6 +237,7 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
       const invitation = await invitationsRepo.findByTokenHash(trx, hashOpaqueToken(token));
       return invitation?.type ?? null;
     },
+    countFamiliesOfUser: async (trx, userId) => (await membersRepo.listFamilyIdsForUser(trx, userId)).length,
     findMemberByUserId: (trx, familyId, userId) => membersRepo.findByUserId(trx, familyId, userId),
     findMemberById: (trx, familyId, memberId) => membersRepo.findById(trx, familyId, memberId),
     isGuardianOf: async (trx, familyId, dependentId, guardianId) =>

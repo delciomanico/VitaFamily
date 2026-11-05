@@ -11,6 +11,7 @@ import type { Logger } from "../../platform/logger/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { FamiliesModule } from "../families/index.js";
 import type { UsersModule } from "../users/index.js";
+import { createGetSessionStatsUseCase, createResetUserAccessUseCase } from "./application/admin-access.js";
 import { createChangePasswordUseCase } from "./application/change-password.js";
 import { createForgotPasswordUseCase } from "./application/forgot-password.js";
 import { createLoginUseCase } from "./application/login.js";
@@ -67,6 +68,9 @@ export interface AuthModule {
   actorContextMiddleware: ReturnType<typeof createActorContextMiddleware>;
   /** Confirmação forte (UC-ACC-05): a palavra-passe pertence à conta indicada? */
   verifyPassword: (userId: string, password: string) => Promise<boolean>;
+  /** Para `admin` (BR-ADM-01/02): repor acesso (revoga sessões + e-mail; nunca devolve o token) e estatísticas de sessões. */
+  resetUserAccess: ReturnType<typeof createResetUserAccessUseCase<Kysely<Database>>>;
+  getSessionStats: ReturnType<typeof createGetSessionStatsUseCase<Kysely<Database>>>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -131,6 +135,8 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
 
   return {
     router,
+    resetUserAccess: createResetUserAccessUseCase(authDeps),
+    getSessionStats: createGetSessionStatsUseCase(authDeps),
     verifyPassword: async (userId, password) => {
       const user = await deps.users.byId(deps.db, userId);
       return user ? verifyPassword(user.passwordHash, password) : false;

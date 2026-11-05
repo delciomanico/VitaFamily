@@ -14,7 +14,9 @@ import type {
   AuditPort,
   ClinicOutcomeChange,
   ClinicPrescriptionInput,
+  AppointmentSlotBookingCount,
   ClinicSlotLite,
+  ExamSlotOccupancyPort,
   ClinicStatusChange,
   ClinicsPort,
   CursorPage,
@@ -73,8 +75,8 @@ export class FakeClinicsPort implements ClinicsPort<FakeTrx> {
     return Promise.resolve({ id: clinic.id, name: clinic.name });
   }
 
-  async listFreeSlots(clinicId: string, specialty?: string): Promise<ClinicSlotLite[]> {
-    return Promise.resolve([...this.slots.values()].filter((slot) => slot.clinicId === clinicId && (!specialty || slot.specialty === specialty)));
+  async listFreeSlots(clinicId: string, specialty?: string, kind: "APPOINTMENT" | "EXAM" = "APPOINTMENT"): Promise<ClinicSlotLite[]> {
+    return Promise.resolve([...this.slots.values()].filter((slot) => slot.clinicId === clinicId && slot.kind === kind && (!specialty || slot.specialty === specialty)));
   }
 
   async findSlot(clinicId: string, slotId: string): Promise<ClinicSlotLite | null> {
@@ -88,6 +90,15 @@ export class FakeClinicsPort implements ClinicsPort<FakeTrx> {
 
   seedSlot(slot: ClinicSlotLite): void {
     this.slots.set(slot.id, slot);
+  }
+}
+
+export class FakeExamSlotOccupancyPort implements ExamSlotOccupancyPort<FakeTrx> {
+  /** `slotId` -> exames `SCHEDULED` nesse horário. */
+  readonly booked = new Map<string, number>();
+
+  async countScheduledBySlot(_trx: FakeTrx, slotIds: string[]): Promise<{ slotId: string; count: number }[]> {
+    return Promise.resolve(slotIds.filter((id) => (this.booked.get(id) ?? 0) > 0).map((slotId) => ({ slotId, count: this.booked.get(slotId) ?? 0 })));
   }
 }
 
@@ -268,6 +279,20 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     return Promise.resolve(result);
   }
 
+  async countActiveBySlot(_trx: FakeTrx, slotIds: string[]): Promise<AppointmentSlotBookingCount[]> {
+    const bySlot = new Map<string, AppointmentSlotBookingCount>();
+    for (const appointment of this.byId.values()) {
+      const { slotId } = appointment;
+      if (slotId === undefined || !slotIds.includes(slotId)) continue;
+      if (appointment.status !== "REQUESTED" && appointment.status !== "SCHEDULED") continue;
+      const entry = bySlot.get(slotId) ?? { slotId, requested: 0, scheduled: 0 };
+      if (appointment.status === "REQUESTED") entry.requested += 1;
+      else entry.scheduled += 1;
+      bySlot.set(slotId, entry);
+    }
+    return Promise.resolve([...bySlot.values()]);
+  }
+
   async findByClinicId(_trx: FakeTrx, clinicId: string, appointmentId: string): Promise<Appointment | null> {
     const appointment = this.byId.get(appointmentId);
     return Promise.resolve(appointment?.clinicId === clinicId ? appointment : null);
@@ -335,6 +360,7 @@ export interface AppointmentsFixtures {
   membership: FakeMembershipPort;
   memberNames: FakeMemberNamesPort;
   clinics: FakeClinicsPort;
+  examSlotOccupancy: FakeExamSlotOccupancyPort;
   prescriptions: FakePrescriptionsPort;
   audit: FakeAuditPort;
 }
@@ -345,6 +371,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const membership = new FakeMembershipPort();
   const memberNames = new FakeMemberNamesPort();
   const clinics = new FakeClinicsPort();
+  const examSlotOccupancy = new FakeExamSlotOccupancyPort();
   const prescriptions = new FakePrescriptionsPort();
   const audit = new FakeAuditPort();
   const deps: AppointmentsDeps<FakeTrx> = {
@@ -353,11 +380,12 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     membership,
     memberNames,
     clinics,
+    examSlotOccupancy,
     prescriptions,
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, prescriptions, audit };
+  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, audit };
 }

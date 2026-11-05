@@ -1,17 +1,19 @@
 // Implementação Kysely/pg da porta `ClinicSlotsRepository` (application/ports.ts, Fase C).
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
 import type { ClinicSlotDuplicateCheck, ClinicSlotListFilter, ClinicSlotsRepository, NewClinicSlotRecord } from "../application/ports.js";
-import type { ClinicSlot } from "../domain/clinic-slot.js";
+import type { ClinicSlot, ClinicSlotKind } from "../domain/clinic-slot.js";
 import "./clinic-slots-schema.js";
 
 interface ClinicSlotRow {
   id: string;
   clinic_id: string;
+  kind: ClinicSlotKind;
   specialty: string;
   professional_name: string | null;
   starts_at: Date;
   duration_minutes: number;
+  capacity: number;
   created_at: Date;
 }
 
@@ -19,9 +21,11 @@ function toClinicSlot(row: ClinicSlotRow): ClinicSlot {
   const slot: ClinicSlot = {
     id: row.id,
     clinicId: row.clinic_id,
+    kind: row.kind,
     specialty: row.specialty,
     startsAt: row.starts_at,
     durationMinutes: row.duration_minutes,
+    capacity: row.capacity,
     createdAt: row.created_at,
   };
   if (row.professional_name !== null) {
@@ -30,7 +34,7 @@ function toClinicSlot(row: ClinicSlotRow): ClinicSlot {
   return slot;
 }
 
-const CLINIC_SLOT_COLUMNS = ["id", "clinic_id", "specialty", "professional_name", "starts_at", "duration_minutes", "created_at"] as const;
+const CLINIC_SLOT_COLUMNS = ["id", "clinic_id", "kind", "specialty", "professional_name", "starts_at", "duration_minutes", "capacity", "created_at"] as const;
 
 export class KyselyClinicSlotsRepository implements ClinicSlotsRepository<Kysely<Database>> {
   async insert(trx: Kysely<Database>, record: NewClinicSlotRecord): Promise<ClinicSlot> {
@@ -39,10 +43,12 @@ export class KyselyClinicSlotsRepository implements ClinicSlotsRepository<Kysely
       .values({
         id: record.id,
         clinic_id: record.clinicId,
+        kind: record.kind,
         specialty: record.specialty,
         professional_name: record.professionalName ?? null,
         starts_at: record.startsAt,
         duration_minutes: record.durationMinutes,
+        capacity: record.capacity,
         created_at: record.createdAt,
       })
       .returning(CLINIC_SLOT_COLUMNS)
@@ -63,6 +69,9 @@ export class KyselyClinicSlotsRepository implements ClinicSlotsRepository<Kysely
     if (filter.to) {
       query = query.where("starts_at", "<=", filter.to);
     }
+    if (filter.kind) {
+      query = query.where("kind", "=", filter.kind);
+    }
     if (filter.specialty) {
       query = query.where("specialty", "=", filter.specialty);
     }
@@ -75,11 +84,22 @@ export class KyselyClinicSlotsRepository implements ClinicSlotsRepository<Kysely
       .selectFrom("clinic_slots")
       .select("id")
       .where("clinic_id", "=", clinicId)
+      .where("kind", "=", slot.kind)
       .where("starts_at", "=", slot.startsAt)
       .where("specialty", "=", slot.specialty);
     query = slot.professionalName ? query.where("professional_name", "=", slot.professionalName) : query.where("professional_name", "is", null);
     const row = await query.executeTakeFirst();
     return row !== undefined;
+  }
+
+  async lockById(trx: Kysely<Database>, slotId: string): Promise<ClinicSlot | null> {
+    const row = await trx.selectFrom("clinic_slots").select(CLINIC_SLOT_COLUMNS).where("id", "=", slotId).forUpdate().executeTakeFirst();
+    return row ? toClinicSlot(row) : null;
+  }
+
+  async updateCapacity(trx: Kysely<Database>, slotId: string, capacity: number): Promise<ClinicSlot> {
+    const row = await trx.updateTable("clinic_slots").set({ capacity, updated_at: sql`now()` }).where("id", "=", slotId).returning(CLINIC_SLOT_COLUMNS).executeTakeFirstOrThrow();
+    return toClinicSlot(row);
   }
 
   async delete(trx: Kysely<Database>, slotId: string): Promise<void> {

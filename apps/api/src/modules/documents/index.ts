@@ -21,13 +21,14 @@ import { withTransaction } from "../../platform/db/index.js";
 import type { Storage } from "../../platform/storage/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
+import { createDeleteClinicExamDocumentUseCase, createUploadClinicExamDocumentUseCase } from "./application/clinic-documents.js";
 import { createDeleteDocumentUseCase } from "./application/delete-document.js";
 import { createDownloadDocumentUseCase } from "./application/download-document.js";
-import { createDeleteAllForResourceUseCase, createListForResourceUseCase } from "./application/for-resource.js";
+import { createDeleteAllForResourceUseCase, createListAttachableUseCase, createListForResourceUseCase } from "./application/for-resource.js";
 import { createGetDocumentUseCase } from "./application/get-document.js";
 import { createPurgeFilesUseCases } from "./application/purge-files.js";
 import { createListDocumentsUseCase } from "./application/list-documents.js";
-import type { DocumentsDeps, ScanDocumentDeps, VirusScanner } from "./application/ports.js";
+import type { DocumentsDeps, ReleaseGatePort, ScanDocumentDeps, VirusScanner } from "./application/ports.js";
 import { createDeleteFilesUseCase } from "./application/delete-files.js";
 import { createScanDocumentUseCase } from "./application/scan-document.js";
 import { createUploadDocumentUseCase } from "./application/upload-document.js";
@@ -38,7 +39,8 @@ import { toDocumentResponse } from "./interface/dto.js";
 import { createDocumentsRouter, type DocumentsController } from "./interface/router.js";
 
 export type { Document, ResourceType, ScanStatus } from "./domain/document.js";
-export type { VirusScanner } from "./application/ports.js";
+export type { ReleaseGatePort, VirusScanner } from "./application/ports.js";
+export type { ClinicDocumentTarget } from "./application/clinic-documents.js";
 export { ClamAvScanner } from "./infrastructure/clamav-client.js";
 export { MinioStorage, InMemoryStorage } from "../../platform/storage/index.js";
 
@@ -56,6 +58,8 @@ export interface DocumentsModuleDeps {
   maxFileSizeBytes: number;
   /** `FAMILY_STORAGE_QUOTA_BYTES` (environment.md §2). */
   maxFamilyStorageBytes: number;
+  /** BR-CLN-08 (D19): ligada no composition root a `examinations` (exame `COMPLETED` liberta os PDF da clínica). */
+  releaseGate?: ReleaseGatePort<Kysely<Database>>;
   /** BR-DOC-03/Q10 — 5 por desenho, não configurável por ambiente (regra de negócio, não operação). */
   maxFilesPerResource?: number;
 }
@@ -70,7 +74,13 @@ export interface DocumentsModule {
   /** API pública para M6/M7 (ver README.md: documentos de receitas/exames). */
   listForResource: ReturnType<typeof createListForResourceUseCase<Kysely<Database>>>;
   deleteAllForResource: ReturnType<typeof createDeleteAllForResourceUseCase<Kysely<Database>>>;
+  /** ADR-021 (`insurance`): documentos do membro que podem acompanhar um pedido de reembolso (CLEAN e visíveis ao paciente). */
+  listAttachable: ReturnType<typeof createListAttachableUseCase<Kysely<Database>>>;
   /** Para `families`/`lifecycle` (R2/R4/BR-ACC-07): enfileiram os ficheiros na MESMA transação do apagamento dos dados. */
+  /** BR-CLN-08 (D19): upload/remoção de PDF pelo portal da clínica — autorização do portal (não
+   * `AccessPolicy`), com `resolveTarget` a verificar o exame dentro da transação (ver `application/clinic-documents.ts`). */
+  uploadClinicExamDocument: ReturnType<typeof createUploadClinicExamDocumentUseCase<Kysely<Database>>>;
+  deleteClinicExamDocument: ReturnType<typeof createDeleteClinicExamDocumentUseCase<Kysely<Database>>>;
   purgeMemberFiles: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<void>;
   purgeFamilyFiles: (trx: Kysely<Database>, familyId: string) => Promise<void>;
 }
@@ -89,6 +99,7 @@ export function createDocumentsModule(deps: DocumentsModuleDeps): DocumentsModul
     storage: deps.storage,
     virusScanner: deps.virusScanner,
     scanQueue,
+    ...(deps.releaseGate ? { releaseGate: deps.releaseGate } : {}),
     rateLimiter: new InMemoryRateLimiter(deps.clock),
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
@@ -117,6 +128,9 @@ export function createDocumentsModule(deps: DocumentsModuleDeps): DocumentsModul
     },
     listForResource: createListForResourceUseCase(documentsDeps),
     deleteAllForResource: createDeleteAllForResourceUseCase(documentsDeps),
+    listAttachable: createListAttachableUseCase(documentsDeps),
+    uploadClinicExamDocument: createUploadClinicExamDocumentUseCase(documentsDeps),
+    deleteClinicExamDocument: createDeleteClinicExamDocumentUseCase(documentsDeps),
     ...createPurgeFilesUseCases(documentsDeps),
   };
 }

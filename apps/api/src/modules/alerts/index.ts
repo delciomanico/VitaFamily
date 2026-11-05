@@ -25,6 +25,8 @@ import { createListAlertsUseCase } from "./application/list-alerts.js";
 import { createMarkAlertReadUseCase } from "./application/mark-alert-read.js";
 import { createMarkAllAlertsReadUseCase } from "./application/mark-all-alerts-read.js";
 import type { AlertsApiDeps, AlertsWorkerDeps } from "./application/ports.js";
+import { createRaiseExamEventUseCase, type RaiseExamEventInput } from "./application/raise-exam-event.js";
+import { createRaiseRecommendationEventUseCase, type RaiseRecommendationEventInput } from "./application/raise-recommendation-event.js";
 import { createScanJobUseCase } from "./application/scan-job.js";
 import { registerScanWorker } from "./infrastructure/jobs.js";
 import { KyselyAlertsRepository } from "./infrastructure/repo.js";
@@ -41,7 +43,14 @@ export interface AlertsModuleDeps {
 
 export interface AlertsModule {
   router: Router;
+  /** D19/ADR-023: alerta de evento de exame na transação do chamador (ligado no composition root a `examinations`). */
+  raiseExamEvent: (trx: Kysely<Database>, input: RaiseExamEventInput) => Promise<number>;
+  /** D19/ADR-023 (BR-CLN-09): alerta `recommendation.added` na transação do chamador (ligado no composition root a `recommendations`). */
+  raiseRecommendationEvent: (trx: Kysely<Database>, input: RaiseRecommendationEventInput) => Promise<number>;
 }
+
+export type { RaiseRecommendationEventInput } from "./application/raise-recommendation-event.js";
+export type { RaiseExamEventInput } from "./application/raise-exam-event.js";
 
 /** Composition root do processo "api" (main/api.ts). */
 export function createAlertsModule(deps: AlertsModuleDeps): AlertsModule {
@@ -69,7 +78,11 @@ export function createAlertsModule(deps: AlertsModuleDeps): AlertsModule {
     markAllAlertsRead: createMarkAllAlertsReadUseCase(alertsDeps),
   };
 
-  return { router: createAlertsRouter(controller) };
+  return {
+    router: createAlertsRouter(controller),
+    raiseExamEvent: createRaiseExamEventUseCase(alertsDeps),
+    raiseRecommendationEvent: createRaiseRecommendationEventUseCase(alertsDeps),
+  };
 }
 
 export interface AlertsWorkerModuleDeps {
@@ -86,6 +99,8 @@ export interface AlertsWorkerModuleDeps {
 export interface AlertsWorkerModule {
   /** Regista `alerts.scan` (1 min, modules.md §5). */
   registerWorkers: () => Promise<string[]>;
+  /** D19/BR-EXM-07: o job de expiração de pedidos (processo worker) também avisa a família. */
+  raiseExamEvent: (trx: Kysely<Database>, input: RaiseExamEventInput) => Promise<number>;
 }
 
 /** Composition root do processo "worker" (main/worker.ts). */
@@ -113,5 +128,6 @@ export function createAlertsWorkerModule(deps: AlertsWorkerModuleDeps): AlertsWo
 
   return {
     registerWorkers: async () => [await registerScanWorker(deps.boss, scanJob)],
+    raiseExamEvent: createRaiseExamEventUseCase(alertsDeps),
   };
 }

@@ -5,7 +5,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
 import type { Document } from "../domain/document.js";
-import { createDeleteAllForResourceUseCase, createListForResourceUseCase } from "./for-resource.js";
+import { createDeleteAllForResourceUseCase, createListAttachableUseCase, createListForResourceUseCase } from "./for-resource.js";
 import { createDocumentsFixtures, type DocumentsFixtures } from "./fixtures.js";
 
 function doc(overrides: Partial<Document> = {}): Document {
@@ -21,6 +21,7 @@ function doc(overrides: Partial<Document> = {}): Document {
     sizeBytes: 10,
     checksumSha256: "abc",
     scanStatus: "CLEAN",
+    uploadedByClinic: false,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     ...overrides,
   };
@@ -55,5 +56,19 @@ describe("listForResource / deleteAllForResource (API pública para M6/M7)", () 
     expect(fixtures.documentsRepo.byId.has("doc-1")).toBe(false);
     expect(fixtures.documentsRepo.byId.has("doc-2")).toBe(false);
     expect(fixtures.documentsRepo.byId.has("doc-3")).toBe(true);
+  });
+
+  it("listAttachable (ADR-021): só CLEAN, só do membro, e PDF da clínica só se libertado (BR-CLN-08)", async () => {
+    fixtures.documentsRepo.seed(doc({ id: "ok" }));
+    fixtures.documentsRepo.seed(doc({ id: "pending", scanStatus: "PENDING" }));
+    fixtures.documentsRepo.seed(doc({ id: "infected", scanStatus: "INFECTED" }));
+    fixtures.documentsRepo.seed(doc({ id: "other-member", memberId: "member-2" }));
+    fixtures.documentsRepo.seed(doc({ id: "other-family", familyId: "family-2" }));
+    fixtures.documentsRepo.seed(doc({ id: "clinic", resourceType: "EXAMINATION", resourceId: "e1", uploadedByClinic: true }));
+
+    const listAttachable = createListAttachableUseCase(fixtures.deps);
+    const ids = ["ok", "pending", "infected", "other-member", "other-family", "clinic", "ghost"];
+
+    expect((await listAttachable(fixtures.deps.db, "family-1", "member-1", ids)).map((d) => d.id)).toEqual(["ok"]);
   });
 });

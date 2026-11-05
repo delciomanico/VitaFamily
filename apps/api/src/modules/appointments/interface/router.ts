@@ -4,7 +4,7 @@
 import { Router } from "express";
 import { asyncHandler, buildRequestContext, requireParam } from "../../../platform/http/index.js";
 import { getActor } from "../../../platform/actor/index.js";
-import { UnauthenticatedError } from "../../../platform/errors/index.js";
+import { UnauthenticatedError, ValidationError } from "../../../platform/errors/index.js";
 import type { AvailableSlotsResult, ListAvailableSlotsQuery } from "../application/list-available-slots.js";
 import type { CreateAppointmentInput } from "../application/create-appointment.js";
 import type { ListAppointmentsQuery } from "../application/list-appointments.js";
@@ -41,6 +41,17 @@ function requireActor(): ActorIdentity {
 function queryString(req: { query: Record<string, unknown> }, name: string): string | undefined {
   const value = req.query[name];
   return typeof value === "string" ? value : undefined;
+}
+
+function parseDateQuery(value: string | undefined, field: string): Date | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new ValidationError([{ field, message: "data/hora inválida" }], { detail: "Filtro de período inválido." });
+  }
+  return date;
 }
 
 export function createAppointmentsRouter(controller: AppointmentsController): Router {
@@ -131,7 +142,18 @@ export function createAppointmentsRouter(controller: AppointmentsController): Ro
     "/families/:familyId/clinics/:clinicId/slots",
     asyncHandler(async (req, res) => {
       const specialty = queryString(req, "specialty");
-      const query: ListAvailableSlotsQuery = specialty !== undefined ? { specialty } : {};
+      const kind = queryString(req, "kind");
+      if (kind !== undefined && kind !== "APPOINTMENT" && kind !== "EXAM") {
+        throw new ValidationError([{ field: "kind", message: "tem de ser APPOINTMENT ou EXAM" }], { detail: "Tipo de horário inválido." });
+      }
+      const from = parseDateQuery(queryString(req, "from"), "from");
+      const to = parseDateQuery(queryString(req, "to"), "to");
+      const query: ListAvailableSlotsQuery = {
+        ...(specialty !== undefined ? { specialty } : {}),
+        ...(kind !== undefined ? { kind } : {}),
+        ...(from ? { from } : {}),
+        ...(to ? { to } : {}),
+      };
       const result = await controller.listAvailableSlots(requireActor(), requireParam(req, "familyId"), requireParam(req, "clinicId"), query);
       res.json(toAvailableSlotListResponse(result.items, result.clinicName));
     }),

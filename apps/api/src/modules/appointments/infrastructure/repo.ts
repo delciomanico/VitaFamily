@@ -6,6 +6,7 @@ import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
 import type { Appointment, AppointmentStatus } from "../domain/appointment.js";
 import type {
   AppointmentChanges,
+  AppointmentSlotBookingCount,
   AppointmentListFilter,
   AppointmentsRepository,
   ClinicOutcomeChange,
@@ -226,6 +227,28 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
       .where("status", "in", ["REQUESTED", "SCHEDULED"])
       .execute();
     return rows.map((row) => row.slot_id).filter((id): id is string => id !== null);
+  }
+
+  async countActiveBySlot(trx: Kysely<Database>, slotIds: string[]): Promise<AppointmentSlotBookingCount[]> {
+    if (slotIds.length === 0) {
+      return [];
+    }
+    const rows = await trx
+      .selectFrom("appointments")
+      .select(["slot_id", "status", sql<string>`count(*)`.as("total")])
+      .where("slot_id", "in", slotIds)
+      .where("status", "in", ["REQUESTED", "SCHEDULED"])
+      .groupBy(["slot_id", "status"])
+      .execute();
+    const bySlot = new Map<string, AppointmentSlotBookingCount>();
+    for (const row of rows) {
+      if (row.slot_id === null) continue;
+      const entry = bySlot.get(row.slot_id) ?? { slotId: row.slot_id, requested: 0, scheduled: 0 };
+      if (row.status === "REQUESTED") entry.requested += Number(row.total);
+      else entry.scheduled += Number(row.total);
+      bySlot.set(row.slot_id, entry);
+    }
+    return [...bySlot.values()];
   }
 
   async findByClinicId(trx: Kysely<Database>, clinicId: string, appointmentId: string): Promise<Appointment | null> {

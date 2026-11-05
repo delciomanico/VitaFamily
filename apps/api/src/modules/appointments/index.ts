@@ -57,6 +57,9 @@ export interface AppointmentsModuleDeps {
   audit: AuditModule;
   access: AccessModule;
   clinics: ClinicsModule;
+  /** D19: ocupação de horários `EXAM` — ligada à API pública de `examinations` no composition root
+   * (BR-APT-06/10; `appointments` não importa `examinations`). */
+  examSlotOccupancy: { countScheduledBySlot: (trx: Kysely<Database>, slotIds: string[]) => Promise<{ slotId: string; count: number }[]> };
   /** Composition root liga à API pública de `prescriptions` (modules.md §3 notas 16/20: nenhuma
    * aresta nova no grafo — `appointments` continua a não importar `modules/prescriptions`). */
   prescriptions: AppointmentsPrescriptionsDeps;
@@ -70,6 +73,18 @@ export interface AppointmentsModule {
   clinicPortalRouter: Router;
   /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
   reads: { appointments: MemberPageRead };
+  /** BR-CLN-04/BR-APT-11 (`clinics`, ligado no composition root): consultas `REQUESTED`/`SCHEDULED` por horário. */
+  countActiveBySlot: (trx: Kysely<Database>, slotIds: string[]) => Promise<{ slotId: string; requested: number; scheduled: number }[]>;
+  /** BR-CLN-09 (`recommendations`, ligado no composition root): "esta consulta pertence à clínica X e está no estado Y". */
+  findClinicOrigin: (trx: Kysely<Database>, clinicId: string, appointmentId: string) => Promise<ClinicOrigin | null>;
+}
+
+/** Facto mínimo de uma origem de recomendação (modules.md §3 nota 22): nunca o registo completo. */
+export interface ClinicOrigin {
+  familyId: string;
+  memberId: string;
+  status: string;
+  clinicName?: string;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -86,6 +101,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
       listFreeSlots: deps.clinics.listFreeClinicSlots,
       findSlot: deps.clinics.findClinicSlot,
     },
+    examSlotOccupancy: deps.examSlotOccupancy,
     prescriptions: { issueForClinic: deps.prescriptions.issuePrescriptionForClinic },
     audit: deps.audit,
     db: deps.db,
@@ -114,6 +130,13 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
   return {
     router: createAppointmentsRouter(controller),
     clinicPortalRouter: createAppointmentsClinicPortalRouter(clinicPortalController),
+    countActiveBySlot: (trx, slotIds) => appointmentsRepo.countActiveBySlot(trx, slotIds),
+    findClinicOrigin: async (trx, clinicId, appointmentId) => {
+      const appointment = await appointmentsRepo.findByClinicId(trx, clinicId, appointmentId);
+      return appointment
+        ? { familyId: appointment.familyId, memberId: appointment.memberId, status: appointment.status, ...(appointment.clinicName ? { clinicName: appointment.clinicName } : {}) }
+        : null;
+    },
     reads: {
       appointments: async (actor, familyId, memberId, query, context) => toAppointmentPage(await controller.listAppointments(actor, familyId, memberId, query, context)),
     },

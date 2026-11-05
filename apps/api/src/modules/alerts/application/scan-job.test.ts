@@ -46,6 +46,7 @@ function examination(overrides: Partial<Examination> = {}): Examination {
     name: "x",
     examDate: "2026-10-11",
     status: "SCHEDULED",
+    issuedBy: "FAMILY",
     createdAt: NOW,
     ...overrides,
   };
@@ -181,5 +182,20 @@ describe("alerts.scan", () => {
     expect(alert?.ruleKey).toBe("exam.24h");
     // meia-noite local de 2026-10-11 (UTC) - 24h == 2026-10-10T00:00:00Z <= NOW (08:00) ⇒ já devido.
     expect(alert?.triggerAt.toISOString()).toBe("2026-10-10T00:00:00.000Z");
+  });
+  it("D19/BR-EXM-05: exame de clínica parceira (scheduledAt) -> lembrete 24h antes da hora exata", async () => {
+    fx.examinations.examinations = [examination({ examDate: "2026-10-11", scheduledAt: new Date("2026-10-11T07:30:00Z") })];
+    const scan = createScanJobUseCase(fx.deps);
+    const result = await scan();
+    expect(result.alertsCreated).toBe(1);
+    const alert = [...fx.alertsRepo.byId.values()][0];
+    expect(alert?.ruleKey).toBe("exam.24h");
+    expect(alert?.triggerAt.toISOString()).toBe("2026-10-10T07:30:00.000Z");
+  });
+
+  it("BR-EXM-06: o scanner só recebe exames SCHEDULED (um CANCELLED nunca gera lembrete)", async () => {
+    fx.examinations.examinations = [examination({ status: "CANCELLED", examDate: "2026-10-11", scheduledAt: new Date("2026-10-11T09:30:00Z") })];
+    const result = await createScanJobUseCase(fx.deps)();
+    expect(result.alertsCreated).toBe(0);
   });
 });

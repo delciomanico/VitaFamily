@@ -80,6 +80,13 @@ export type AuditAction =
   | "EXAM_RESULT_CREATE"
   | "EXAM_RESULT_UPDATE"
   | "EXAM_RESULT_DELETE"
+  // Exames de clínica parceira (D19/ADR-023, audit.md §3): marcação da família (`EXAM_CREATE` com `metadata.slotId`) e ações da conta da clínica.
+  | "EXAM_CLINIC_CANCEL"
+  | "EXAM_CLINIC_COMPLETE"
+  | "EXAM_DOCUMENT_UPLOAD"
+  // Recomendações da clínica (D19/ADR-023, BR-CLN-09): `metadata` nunca com o texto (BR-HLT-05).
+  | "RECOMMENDATION_CREATE"
+  | "RECOMMENDATION_VIEW"
   | "CLINIC_CREATE"
   | "CLINIC_UPDATE"
   | "CLINIC_STATUS"
@@ -90,6 +97,10 @@ export type AuditAction =
   // `admin` (M9 — FR-ADM-01, audit.md §3): contas de utilizador.
   | "ADMIN_USER_SUSPEND"
   | "ADMIN_USER_REACTIVATE"
+  | "ADMIN_USER_RESET_ACCESS"
+  // Contas do portal da clínica (BR-ADM-04, ADR-023): sem motivo/PII no metadata.
+  | "ADMIN_CLINIC_ACCOUNT_SUSPEND"
+  | "ADMIN_CLINIC_ACCOUNT_REACTIVATE"
   | "ADMIN_PLATFORM_ADMIN_CREATE"
   // `lifecycle` (M9 — UC-MEM-10, BR-MEM-10/11): maioridade e apagamento de perfis bloqueados.
   | "MEMBER_COMING_OF_AGE"
@@ -106,9 +117,28 @@ export type AuditAction =
   | "CLINIC_STAFF_CREATE"
   | "CLINIC_STAFF_REMOVE"
   | "CLINIC_SLOT_PUBLISH"
-  | "CLINIC_SLOT_REMOVE";
+  | "CLINIC_SLOT_UPDATE"
+  | "CLINIC_SLOT_REMOVE"
+  // Seguradoras e portal da seguradora (ADR-021/ADR-023, BR-ADM-05/06, BR-INS-06): sem PII no metadata.
+  | "ADMIN_INSURER_CREATE"
+  | "ADMIN_INSURER_UPDATE"
+  | "ADMIN_INSURER_STATUS"
+  | "ADMIN_INSURER_ROOT_ACCOUNT"
+  | "INSURANCE_ACCOUNT_LOGIN"
+  | "INSURANCE_ACCOUNT_LOGIN_FAILED"
+  | "INSURANCE_ACCOUNT_LOGOUT"
+  | "INSURANCE_ACCOUNT_REFRESH_REUSE_DETECTED"
+  | "INSURANCE_AGENT_CREATE"
+  | "INSURANCE_AGENT_REMOVE"
+  // Apólices e pedidos de reembolso (Fase 4b, ADR-021): `metadata` nunca com valores/identificadores de apólice (BR-HLT-05).
+  | "INSURANCE_POLICY_CREATE"
+  | "INSURANCE_POLICY_UPDATE"
+  | "INSURANCE_POLICY_DELETE"
+  | "CLAIM_SUBMIT"
+  | "CLAIM_DECIDE"
+  | "CLAIM_PAID";
 
-export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT";
+export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT";
 
 export type AuditResult = "SUCCESS" | "DENIED" | "FAILURE";
 
@@ -125,6 +155,8 @@ export interface AuditEvent {
   actorUserId?: string;
   /** D18: preenchido só quando `actorType==='CLINIC_ACCOUNT'` (schema.md §5). */
   actorClinicAccountId?: string;
+  /** ADR-021: preenchido só quando `actorType==='INSURANCE_ACCOUNT'` (schema.md §5). */
+  actorInsuranceAccountId?: string;
   action: AuditAction;
   resourceType: string;
   resourceId?: string;

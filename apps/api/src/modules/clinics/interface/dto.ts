@@ -1,5 +1,6 @@
 // Mapeamento de `Clinic`/`ClinicAccount`/`ClinicSlot` (application) -> forma da API
 // (components.schemas, openapi.yaml).
+import type { ClinicSlotView } from "../application/clinic-slots.js";
 import type { Clinic, ClinicAccount, ClinicSlot } from "../application/ports.js";
 
 export function toClinicResponse(clinic: Clinic) {
@@ -38,10 +39,12 @@ export function toClinicSlotResponse(slot: ClinicSlot) {
   return {
     id: slot.id,
     clinicId: slot.clinicId,
+    kind: slot.kind,
     specialty: slot.specialty,
     professionalName: slot.professionalName ?? null,
     startsAt: slot.startsAt.toISOString(),
     durationMinutes: slot.durationMinutes,
+    capacity: slot.capacity,
   };
 }
 
@@ -49,12 +52,11 @@ export function toClinicSlotListResponse(slots: ClinicSlot[]) {
   return slots.map(toClinicSlotResponse);
 }
 
-/** `components.schemas.ClinicSlotView`: `state` sempre `FREE` nesta fase (sem ligação a
- * `appointments.slot_id`, Fase D — ver `clinic-slots.ts`). */
-export function toClinicSlotViewResponse(slot: ClinicSlot) {
-  return { ...toClinicSlotResponse(slot), state: "FREE" as const };
+/** `components.schemas.ClinicSlotView` (BR-APT-11): `ClinicSlot` + `bookedCount`/`remaining`/`state`. */
+export function toClinicSlotViewResponse(slot: ClinicSlotView) {
+  return { ...toClinicSlotResponse(slot), bookedCount: slot.bookedCount, remaining: slot.remaining, state: slot.state };
 }
 
-export function toClinicSlotViewListResponse(slots: ClinicSlot[]) {
+export function toClinicSlotViewListResponse(slots: ClinicSlotView[]) {
   return slots.map(toClinicSlotViewResponse);
 }

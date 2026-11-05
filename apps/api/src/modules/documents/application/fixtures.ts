@@ -14,6 +14,7 @@ import type {
   FileDeletionsRepository,
   NewDocumentRecord,
   PendingFileDeletion,
+  ReleaseGatePort,
   ScanQueuePort,
   VirusScanner,
 } from "./ports.js";
@@ -70,8 +71,10 @@ export class FakeDocumentsRepository implements DocumentsRepository<FakeTrx> {
       sizeBytes: record.sizeBytes,
       checksumSha256: record.checksumSha256,
       scanStatus: "PENDING",
+      uploadedByClinic: record.uploadedByClinic ?? false,
       createdAt: record.createdAt,
       ...(record.uploadedBy !== undefined ? { uploadedBy: record.uploadedBy } : {}),
+      ...(record.uploadedByClinicAccountId !== undefined ? { uploadedByClinicAccountId: record.uploadedByClinicAccountId } : {}),
     };
     this.byId.set(document.id, document);
     return Promise.resolve(document);
@@ -105,6 +108,10 @@ export class FakeDocumentsRepository implements DocumentsRepository<FakeTrx> {
           d.resourceId === resourceId,
       ),
     );
+  }
+
+  async listByIds(_trx: FakeTrx, familyId: string, memberId: string, documentIds: string[]): Promise<Document[]> {
+    return Promise.resolve([...this.byId.values()].filter((d) => d.familyId === familyId && d.memberId === memberId && documentIds.includes(d.id)));
   }
 
   async countByResource(
@@ -203,6 +210,15 @@ export class FakeScanQueue implements ScanQueuePort {
   }
 }
 
+/** Simula `examinations.isExaminationCompleted` (BR-CLN-08): nada libertado por defeito. */
+export class FakeReleaseGate implements ReleaseGatePort<FakeTrx> {
+  readonly released = new Set<string>();
+
+  async isReleased(_trx: FakeTrx, document: { resourceId: string }): Promise<boolean> {
+    return Promise.resolve(this.released.has(document.resourceId));
+  }
+}
+
 export interface DocumentsFixtures {
   deps: DocumentsDeps<FakeTrx>;
   documentsRepo: FakeDocumentsRepository;
@@ -212,6 +228,7 @@ export interface DocumentsFixtures {
   storage: InMemoryStorage;
   virusScanner: FakeVirusScanner;
   scanQueue: FakeScanQueue;
+  releaseGate: FakeReleaseGate;
 }
 
 export function createDocumentsFixtures(clock: Clock): DocumentsFixtures {
@@ -222,6 +239,7 @@ export function createDocumentsFixtures(clock: Clock): DocumentsFixtures {
   const storage = new InMemoryStorage();
   const virusScanner = new FakeVirusScanner();
   const scanQueue = new FakeScanQueue();
+  const releaseGate = new FakeReleaseGate();
   const deps: DocumentsDeps<FakeTrx> = {
     documentsRepo,
     fileDeletionsRepo,
@@ -230,6 +248,7 @@ export function createDocumentsFixtures(clock: Clock): DocumentsFixtures {
     storage,
     virusScanner,
     scanQueue,
+    releaseGate,
     rateLimiter: new InMemoryRateLimiter(clock),
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
@@ -238,5 +257,5 @@ export function createDocumentsFixtures(clock: Clock): DocumentsFixtures {
     maxFilesPerResource: 5,
     maxFamilyStorageBytes: 104_857_600,
   };
-  return { deps, documentsRepo, fileDeletionsRepo, policy, audit, storage, virusScanner, scanQueue };
+  return { deps, documentsRepo, fileDeletionsRepo, policy, audit, storage, virusScanner, scanQueue, releaseGate };
 }

@@ -165,3 +165,7 @@ precisa; `DocumentsDeps` continua estruturalmente compatível (sobreconjunto), p
   proporcionalidade usado em M3/M4 para outra infraestrutura externa; se se quiser cobertura contra
   o daemon real, é um teste `*.integration.test.ts` com testcontainers a acrescentar depois, sem
   alterar `clamav-client.ts`.
+
+## PDF emitido pela clínica (D19/ADR-023, BR-CLN-08)
+- `application/clinic-documents.ts` (`uploadClinicExamDocument`/`deleteClinicExamDocument`, expostas pela raiz): autorização do **portal** (não `AccessPolicy`) — quem chama passa `resolveTarget`, que corre na transação deste módulo e verifica o exame (da clínica, `SCHEDULED`). Só PDF (por conteúdo), ≤10 MB, 5 por exame, 20 uploads/hora por conta; quota da família excedida ⇒ `CONFLICT` genérico. Nasce `PENDING` em quarentena (mesmo `documents.scan`/ClamAV); `Document.uploadedByClinic` é a marca PERMANENTE (visibilidade "só com o exame `COMPLETED`", `isVisibleToPatient`; sobrevive à remoção da conta, `0022`) e `uploadedByClinicAccountId` só rastreia o autor (pode ficar nulo por `SET NULL`); audita `EXAM_DOCUMENT_UPLOAD` (`CLINIC_ACCOUNT`, sem família).
+- A clínica nunca descarrega. Para o paciente, `ReleaseGatePort` (ligada no composition root a `examinations`) esconde (`NOT_FOUND`/omite) os PDF da clínica até o exame estar `COMPLETED`; sem porta ligada, falha fechada.

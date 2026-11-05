@@ -10,9 +10,14 @@ import type { Examination, ExaminationStatus } from "../domain/examination.js";
 import type {
   AccessPolicyPort,
   AuditPort,
+  ClinicExamCompletion,
+  ClinicExamStatusChange,
+  ClinicSlotLite,
   ClinicsPort,
   CursorPage,
   DocumentsPort,
+  ExamAlertsPort,
+  MemberNamesPort,
   ExaminationChanges,
   ExaminationListFilter,
   ExaminationsDeps,
@@ -71,14 +76,85 @@ export class FakeClinicsPort implements ClinicsPort<FakeTrx> {
     return Promise.resolve({ id: clinic.id, name: clinic.name });
   }
 
+  readonly slots = new Map<string, ClinicSlotLite>();
+
+  async lockSlot(_trx: FakeTrx, slotId: string): Promise<ClinicSlotLite | null> {
+    return Promise.resolve(this.slots.get(slotId) ?? null);
+  }
+
   seed(id: string, name: string, familyId: string, active = true): void {
     this.clinics.set(id, { id, name, familyId, active });
+  }
+
+  seedSlot(slot: ClinicSlotLite): void {
+    this.slots.set(slot.id, slot);
+  }
+}
+
+export class FakeMemberNamesPort implements MemberNamesPort<FakeTrx> {
+  readonly names = new Map<string, string>();
+
+  async getMemberName(_trx: FakeTrx, familyId: string, memberId: string): Promise<string | null> {
+    return Promise.resolve(this.names.get(`${familyId}:${memberId}`) ?? null);
+  }
+}
+
+export class FakeExamAlertsPort implements ExamAlertsPort<FakeTrx> {
+  readonly events: { type: string; examinationId: string; familyId: string; memberId: string }[] = [];
+
+  async raiseExamEvent(_trx: FakeTrx, input: { type: "EXAM_CANCELLED" | "EXAM_RESULTS_AVAILABLE"; examinationId: string; familyId: string; memberId: string }): Promise<number> {
+    this.events.push(input);
+    return Promise.resolve(1);
   }
 }
 
 export class FakeDocumentsPort implements DocumentsPort<FakeTrx> {
   readonly byResource = new Map<string, Document[]>();
   readonly deleteCalls: { resourceType: ResourceType; resourceId: string }[] = [];
+  /** BR-CLN-08: simula o `documents` real (a resolução do alvo corre "na transação" do chamador). */
+  readonly clinicUploads: { clinicAccountId: string; examinationId: string; originalName: string }[] = [];
+  readonly clinicDeletes: { clinicAccountId: string; examinationId: string; documentId: string }[] = [];
+
+  async uploadClinicExamDocument(
+    actor: { clinicAccountId: string },
+    input: { examinationId: string; file: { buffer: Buffer; originalName: string } },
+    resolveTarget: (trx: FakeTrx) => Promise<{ familyId: string; memberId: string }>,
+    _context: unknown,
+  ): Promise<Document> {
+    const target = await resolveTarget(FAKE_TRX);
+    this.clinicUploads.push({ clinicAccountId: actor.clinicAccountId, examinationId: input.examinationId, originalName: input.file.originalName });
+    const document: Document = {
+      id: `doc-${String(this.clinicUploads.length)}`,
+      familyId: target.familyId,
+      memberId: target.memberId,
+      resourceType: "EXAMINATION",
+      resourceId: input.examinationId,
+      storageKey: `quarantine/doc-${String(this.clinicUploads.length)}`,
+      originalName: input.file.originalName,
+      mimeType: "application/pdf",
+      sizeBytes: input.file.buffer.length,
+      checksumSha256: "x",
+      scanStatus: "PENDING",
+      uploadedByClinic: true,
+      uploadedByClinicAccountId: actor.clinicAccountId,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+    };
+    const key = `EXAMINATION|${input.examinationId}`;
+    this.byResource.set(key, [...(this.byResource.get(key) ?? []), document]);
+    return document;
+  }
+
+  async deleteClinicExamDocument(
+    actor: { clinicAccountId: string },
+    input: { examinationId: string; documentId: string },
+    resolveTarget: (trx: FakeTrx) => Promise<{ familyId: string; memberId: string }>,
+    _context: unknown,
+  ): Promise<void> {
+    await resolveTarget(FAKE_TRX);
+    this.clinicDeletes.push({ clinicAccountId: actor.clinicAccountId, ...input });
+    const key = `EXAMINATION|${input.examinationId}`;
+    this.byResource.set(key, (this.byResource.get(key) ?? []).filter((d) => d.id !== input.documentId));
+  }
 
   async listForResource(_trx: FakeTrx, _familyId: string, _memberId: string, resourceType: ResourceType, resourceId: string): Promise<Document[]> {
     return Promise.resolve(this.byResource.get(`${resourceType}|${resourceId}`) ?? []);
@@ -113,6 +189,10 @@ function paginate<T extends { createdAt: Date; id: string }>(items: T[], limit: 
   return { items: page, nextCursor };
 }
 
+function scheduledMs(examination: Examination): number {
+  return examination.scheduledAt?.getTime() ?? 0;
+}
+
 export class FakeExaminationsRepository implements ExaminationsRepository<FakeTrx> {
   readonly byId = new Map<string, Examination>();
 
@@ -124,7 +204,10 @@ export class FakeExaminationsRepository implements ExaminationsRepository<FakeTr
       name: record.name,
       examDate: record.examDate,
       status: record.status,
+      issuedBy: "FAMILY",
       createdAt: record.createdAt,
+      ...(record.slotId !== undefined ? { slotId: record.slotId } : {}),
+      ...(record.scheduledAt !== undefined ? { scheduledAt: record.scheduledAt } : {}),
       ...(record.clinicId !== undefined ? { clinicId: record.clinicId } : {}),
       ...(record.clinicName !== undefined ? { clinicName: record.clinicName } : {}),
       ...(record.notes !== undefined ? { notes: record.notes } : {}),
@@ -178,6 +261,63 @@ export class FakeExaminationsRepository implements ExaminationsRepository<FakeTr
         .sort((a, b) => a.examDate.localeCompare(b.examDate))
         .slice(0, limit),
     );
+  }
+
+  async countScheduledBySlot(_trx: FakeTrx, slotIds: string[]): Promise<{ slotId: string; count: number }[]> {
+    const counts = new Map<string, number>();
+    for (const e of this.byId.values()) {
+      if (e.slotId !== undefined && slotIds.includes(e.slotId) && e.status === "SCHEDULED") counts.set(e.slotId, (counts.get(e.slotId) ?? 0) + 1);
+    }
+    return Promise.resolve([...counts].map(([slotId, count]) => ({ slotId, count })));
+  }
+
+  async existsScheduledForMember(_trx: FakeTrx, slotId: string, memberId: string): Promise<boolean> {
+    return Promise.resolve([...this.byId.values()].some((e) => e.slotId === slotId && e.memberId === memberId && e.status === "SCHEDULED"));
+  }
+
+  async findByClinicId(_trx: FakeTrx, clinicId: string, examinationId: string): Promise<Examination | null> {
+    const examination = this.byId.get(examinationId);
+    return Promise.resolve(examination?.clinicId === clinicId && examination.scheduledAt !== undefined ? examination : null);
+  }
+
+  async listByClinicAndStatus(_trx: FakeTrx, clinicId: string, statuses: ExaminationStatus[], filter: { from?: Date; to?: Date }): Promise<Examination[]> {
+    return Promise.resolve(
+      [...this.byId.values()]
+        .filter((e) => e.clinicId === clinicId && e.scheduledAt !== undefined && statuses.includes(e.status))
+        .filter((e) => !filter.from || scheduledMs(e) >= filter.from.getTime())
+        .filter((e) => !filter.to || scheduledMs(e) <= filter.to.getTime())
+        .sort((a, b) => scheduledMs(a) - scheduledMs(b)),
+    );
+  }
+
+  async updateStatusByClinic(_trx: FakeTrx, examinationId: string, change: ClinicExamStatusChange): Promise<Examination> {
+    const examination = this.byId.get(examinationId);
+    if (!examination) throw new Error("exame inexistente no fake");
+    const updated: Examination = { ...examination, status: change.status };
+    if (change.responseNote) updated.responseNote = change.responseNote;
+    else if (change.responseNote === null) delete updated.responseNote;
+    this.byId.set(examinationId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async completeByClinic(_trx: FakeTrx, examinationId: string, completion: ClinicExamCompletion): Promise<Examination> {
+    const examination = this.byId.get(examinationId);
+    if (!examination) throw new Error("exame inexistente no fake");
+    const updated: Examination = {
+      ...examination,
+      status: "COMPLETED",
+      issuedBy: "CLINIC",
+      issuedByClinicAccountId: completion.clinicAccountId,
+      resultsIssuedAt: completion.issuedAt,
+      ...(completion.resultNote ? { clinicResultNote: completion.resultNote } : {}),
+    };
+    this.byId.set(examinationId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async isCompleted(_trx: FakeTrx, familyId: string, memberId: string, examinationId: string): Promise<boolean> {
+    const examination = this.byId.get(examinationId);
+    return Promise.resolve(examination?.familyId === familyId && examination.memberId === memberId && examination.status === "COMPLETED");
   }
 
   async delete(_trx: FakeTrx, familyId: string, memberId: string, examinationId: string): Promise<void> {
@@ -298,6 +438,8 @@ export interface ExaminationsFixtures {
   policy: FakeAccessPolicy;
   clinics: FakeClinicsPort;
   documents: FakeDocumentsPort;
+  memberNames: FakeMemberNamesPort;
+  alerts: FakeExamAlertsPort;
   audit: FakeAuditPort;
 }
 
@@ -307,11 +449,15 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
   const policy = new FakeAccessPolicy();
   const clinics = new FakeClinicsPort();
   const documents = new FakeDocumentsPort();
+  const memberNames = new FakeMemberNamesPort();
+  const alerts = new FakeExamAlertsPort();
   const audit = new FakeAuditPort();
   const deps: ExaminationsDeps<FakeTrx> = {
     examinationsRepo,
     examResultsRepo,
     policy,
+    memberNames,
+    alerts,
     clinics,
     documents,
     audit,
@@ -319,5 +465,5 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, audit };
+  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, memberNames, alerts, audit };
 }

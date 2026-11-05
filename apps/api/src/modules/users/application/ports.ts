@@ -24,6 +24,8 @@ export interface ProfileChanges {
 
 export interface AccountListFilter {
   status?: User["status"];
+  /** BR-ADM-01: pesquisa parcial (sem distinguir maiúsculas) por e-mail ou nome. */
+  q?: string;
   limit: number;
   cursor?: string;
 }

@@ -26,13 +26,27 @@ import type { Logger } from "../../platform/logger/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import {
+  createAdminListClinicAccountsUseCase,
+  createAdminReactivateClinicAccountUseCase,
+  createAdminSuspendClinicAccountUseCase,
+} from "./application/admin-clinic-accounts.js";
+import {
   createAdminClinicRootAccountUseCase,
   createAdminCreateClinicUseCase,
   createAdminListClinicsUseCase,
   createAdminSetClinicStatusUseCase,
   createAdminUpdateClinicUseCase,
 } from "./application/admin-clinics.js";
-import { createListFreeClinicSlotsUseCase, createFindClinicSlotUseCase, createPublishClinicSlotsUseCase, createListOwnClinicSlotsUseCase, createRemoveClinicSlotUseCase } from "./application/clinic-slots.js";
+import {
+  createFindClinicSlotByIdUseCase,
+  createFindClinicSlotUseCase,
+  createListFreeClinicSlotsUseCase,
+  createListOwnClinicSlotsUseCase,
+  createLockClinicSlotUseCase,
+  createPublishClinicSlotsUseCase,
+  createRemoveClinicSlotUseCase,
+  createUpdateClinicSlotUseCase,
+} from "./application/clinic-slots.js";
 import { createClinicLoginUseCase } from "./application/clinic-login.js";
 import { createClinicLogoutUseCase } from "./application/clinic-logout.js";
 import { createClinicRefreshUseCase } from "./application/clinic-refresh.js";
@@ -41,7 +55,7 @@ import { createDeletePrivateClinicUseCase } from "./application/delete-private-c
 import { createGetBookableClinicUseCase } from "./application/get-bookable-clinic.js";
 import { createListClinicsUseCase } from "./application/list-clinics.js";
 import { createCreateClinicStaffUseCase, createListClinicStaffUseCase, createRemoveClinicStaffUseCase } from "./application/manage-clinic-staff.js";
-import type { ClinicMailer, ClinicsDeps } from "./application/ports.js";
+import type { ClinicMailer, ClinicsDeps, SlotBookingCountRow } from "./application/ports.js";
 import { createResolveClinicActorStateUseCase } from "./application/resolve-clinic-actor-state.js";
 import { createSetPrivateClinicStatusUseCase } from "./application/set-private-clinic-status.js";
 import { createUpdatePrivateClinicUseCase } from "./application/update-private-clinic.js";
@@ -63,6 +77,8 @@ export type { Clinic, ClinicStatus, ClinicType } from "./domain/clinic.js";
 export type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "./domain/clinic-account.js";
 export { parseClinicSigningKeys, type ClinicSigningKey } from "./domain/clinic-jwt.js";
 export type { ClinicSlot, ClinicSlotState } from "./domain/clinic-slot.js";
+export type { AdminClinicAccountView, SuspendClinicAccountInput } from "./application/admin-clinic-accounts.js";
+export type { SlotBookingCountRow } from "./application/ports.js";
 export { ClinicSmtpMailer } from "./infrastructure/clinic-mailer-smtp.js";
 export { ClinicFakeMailer } from "./infrastructure/clinic-mailer-fake.js";
 
@@ -81,6 +97,12 @@ export interface ClinicsModuleDeps {
   clinicAccessTtlSeconds: number;
   clinicRefreshTtlMs: number;
   cookieDomain: string;
+  /** BR-CLN-04: ocupação de horários por consultas/exames ativos — ligada no composition root. */
+  slotOccupancy: ClinicsSlotOccupancy;
+}
+
+export interface ClinicsSlotOccupancy {
+  countActiveBySlot: (trx: Kysely<Database>, slotIds: string[]) => Promise<SlotBookingCountRow[]>;
 }
 
 export interface ClinicsModule {
@@ -99,6 +121,14 @@ export interface ClinicsModule {
    * concreto. */
   listFreeClinicSlots: ReturnType<typeof createListFreeClinicSlotsUseCase<Kysely<Database>>>;
   findClinicSlot: ReturnType<typeof createFindClinicSlotUseCase<Kysely<Database>>>;
+  /** D19 (UC-EXM-08), consumida por `examinations`: horário pelo id (o pedido de exame não traz `clinicId`). */
+  findClinicSlotById: ReturnType<typeof createFindClinicSlotByIdUseCase<Kysely<Database>>>;
+  /** BR-APT-11 (`examinations`): bloqueia o horário (`FOR UPDATE`) na transação do chamador. */
+  lockClinicSlot: ReturnType<typeof createLockClinicSlotUseCase<Kysely<Database>>>;
+  /** Para `admin` (BR-ADM-03/04, ADR-023): listar, suspender e reativar contas do portal de uma clínica parceira. */
+  adminListClinicAccounts: ReturnType<typeof createAdminListClinicAccountsUseCase<Kysely<Database>>>;
+  adminSuspendClinicAccount: ReturnType<typeof createAdminSuspendClinicAccountUseCase<Kysely<Database>>>;
+  adminReactivateClinicAccount: ReturnType<typeof createAdminReactivateClinicAccountUseCase<Kysely<Database>>>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -124,6 +154,7 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     clinicAccountRepo,
     clinicSessionRepo,
     clinicSlotsRepo,
+    slotOccupancy: deps.slotOccupancy,
     clinicMailer: deps.clinicMailer,
     logger: deps.logger,
     clinicRateLimiter,
@@ -159,6 +190,7 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     removeClinicStaff: createRemoveClinicStaffUseCase(clinicsDeps),
     listOwnClinicSlots: createListOwnClinicSlotsUseCase(clinicsDeps),
     publishClinicSlots: createPublishClinicSlotsUseCase(clinicsDeps),
+    updateClinicSlot: createUpdateClinicSlotUseCase(clinicsDeps),
     removeClinicSlot: createRemoveClinicSlotUseCase(clinicsDeps),
   };
 
@@ -176,5 +208,10 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     getBookableClinic: createGetBookableClinicUseCase(clinicsDeps),
     listFreeClinicSlots: createListFreeClinicSlotsUseCase(clinicsDeps),
     findClinicSlot: createFindClinicSlotUseCase(clinicsDeps),
+    findClinicSlotById: createFindClinicSlotByIdUseCase(clinicsDeps),
+    lockClinicSlot: createLockClinicSlotUseCase(clinicsDeps),
+    adminListClinicAccounts: createAdminListClinicAccountsUseCase(clinicsDeps),
+    adminSuspendClinicAccount: createAdminSuspendClinicAccountUseCase(clinicsDeps),
+    adminReactivateClinicAccount: createAdminReactivateClinicAccountUseCase(clinicsDeps),
   };
 }

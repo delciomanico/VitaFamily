@@ -7,8 +7,15 @@ export interface AlertsTable {
   recipient_user_id: string;
   family_id: string;
   member_id: string;
-  type: "MEDICATION_DUE" | "APPOINTMENT_REMINDER" | "EXAM_REMINDER" | "APPOINTMENT_OUTCOME_REQUEST";
-  source_type: "DOSE" | "APPOINTMENT" | "EXAMINATION";
+  type:
+    | "MEDICATION_DUE"
+    | "APPOINTMENT_REMINDER"
+    | "EXAM_REMINDER"
+    | "APPOINTMENT_OUTCOME_REQUEST"
+    | "EXAM_CANCELLED"
+    | "EXAM_RESULTS_AVAILABLE"
+    | "RECOMMENDATION_ADDED";
+  source_type: "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION";
   source_id: string;
   rule_key: string;
   dedupe_key: string;

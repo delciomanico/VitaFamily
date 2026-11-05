@@ -27,6 +27,9 @@ M7 (`plan.md` §4): `Appointment` e o seu ciclo de vida (FR-APT). Depende de `ac
   `clinics.listFreeSlots` (todos os publicados) e filtra os que já têm marcação ativa
   (`appointmentsRepo.listActiveSlotIds`) — `clinics` não sabe nada de `appointments.slot_id`
   (`clinics/README.md` "Decisão desta fase sobre 'livre'"), por isso o filtro final é sempre aqui.
+  Com `kind=EXAM` (BR-APT-11) a ocupação vem de `examSlotOccupancy.countScheduledBySlot`: só devolve horários
+  com `remaining = capacity − exames SCHEDULED ≥ 1`; cada `AvailableSlot` traz `capacity`/`remaining`
+  (consulta: 1/1). `countActiveBySlot` (REQUESTED/SCHEDULED por horário) alimenta o `ClinicSlotView` de `clinics`.
 - **Portal da clínica** (`application/clinic-appointments.ts` + `interface/clinic-portal-router.ts`,
   rotas `/clinic-portal/requests/*` e `/clinic-portal/agenda/*`): autenticado pelo ator de clínica
   (`ClinicActorInfo`, ADR-020), nunca `AccessPolicy`. `findByClinicId`/`listByClinicAndStatus`

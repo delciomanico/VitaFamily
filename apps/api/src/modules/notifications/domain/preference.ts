@@ -6,7 +6,16 @@
 /** Tipo de alerta tal como aparece em `alerts.type` (entities.md) — `notifications` nunca
  * depende de `alerts` (modules.md §2; nota 15), por isso duplica aqui só os 4 valores que
  * precisa para decidir se o tipo está ativo nas preferências do destinatário. */
-export type AlertNotificationType = "MEDICATION_DUE" | "APPOINTMENT_REMINDER" | "EXAM_REMINDER" | "APPOINTMENT_OUTCOME_REQUEST";
+export type AlertNotificationType =
+  | "MEDICATION_DUE"
+  | "APPOINTMENT_REMINDER"
+  | "EXAM_REMINDER"
+  | "APPOINTMENT_OUTCOME_REQUEST"
+  // D19/ADR-023 (revisto): eventos de exame; sem interruptor próprio nas preferências (sempre ativos).
+  | "EXAM_CANCELLED"
+  | "EXAM_RESULTS_AVAILABLE"
+  // D19/ADR-023: nova recomendação da clínica; sem interruptor próprio (sempre ativo).
+  | "RECOMMENDATION_ADDED";
 
 export type Channel = "PUSH" | "EMAIL";
 

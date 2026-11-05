@@ -82,6 +82,10 @@ export async function resolveSlotBooking<Trx>(deps: AppointmentsDeps<Trx>, trx: 
   if (!slot) {
     throw new ValidationError([{ field: "slotId", message: "horário inválido ou de outra clínica" }], { detail: "Horário inválido." });
   }
+  // BR-APT-10 (D19): uma consulta só se marca num horário APPOINTMENT.
+  if (slot.kind !== "APPOINTMENT") {
+    throw new ValidationError([{ field: "slotId", message: "horário de exame; use o pedido de exame" }], { detail: "Horário inválido para consulta." });
+  }
   const clinic = await deps.clinics.getBookableClinic(trx, familyId, clinicId);
   if (!clinic) {
     throw new ValidationError([{ field: "clinicId", message: "clínica inválida ou arquivada" }], { detail: "Clínica inválida." });

@@ -8,10 +8,19 @@ export interface ExaminationsTable {
   member_id: string;
   name: string;
   exam_date: string;
+  /** `REQUESTED`/`REJECTED` ficam no enum de BD mas a CHECK `examinations_no_request_flow_check` (0022) proíbe-os. */
   status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
   clinic_id: ColumnType<string | null, string | null | undefined, string | null>;
   clinic_name: ColumnType<string | null, string | null | undefined, string | null>;
   notes: ColumnType<string | null, string | null | undefined, string | null>;
+  /** D19 — `db/migrations/0021_clinic_exams.sql`. */
+  scheduled_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  slot_id: ColumnType<string | null, string | null | undefined, string | null>;
+  response_note: ColumnType<string | null, string | null | undefined, string | null>;
+  issued_by: ColumnType<"FAMILY" | "CLINIC", "FAMILY" | "CLINIC" | undefined, "FAMILY" | "CLINIC">;
+  issued_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  results_issued_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  clinic_result_note: ColumnType<string | null, string | null | undefined, string | null>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

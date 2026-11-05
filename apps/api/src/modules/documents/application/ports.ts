@@ -47,6 +47,10 @@ export interface NewDocumentRecord {
   sizeBytes: number;
   checksumSha256: string;
   uploadedBy?: string;
+  /** BR-CLN-08: `true` só no upload feito pelo portal da clínica. */
+  uploadedByClinic?: boolean;
+  /** BR-CLN-08: autor, preenchido só no upload feito pelo portal da clínica. */
+  uploadedByClinicAccountId?: string;
   createdAt: Date;
 }
 
@@ -57,6 +61,8 @@ export interface DocumentsRepository<Trx> {
   /** Só por `familyId` — usado pelo worker `documents.scan`, que não recebe `memberId` no job. */
   findByIdForFamily(trx: Trx, familyId: string, documentId: string): Promise<Document | null>;
   listByResource(trx: Trx, familyId: string, memberId: string, resourceType: ResourceType, resourceId: string): Promise<Document[]>;
+  /** Só os do membro indicado (um id de outro membro/família simplesmente não aparece). */
+  listByIds(trx: Trx, familyId: string, memberId: string, documentIds: string[]): Promise<Document[]>;
   countByResource(trx: Trx, familyId: string, memberId: string, resourceType: ResourceType, resourceId: string): Promise<number>;
   /** Soma de `size_bytes` de toda a família (Q10: 100 MB por família, não por membro/recurso). */
   sumSizeByFamily(trx: Trx, familyId: string): Promise<number>;
@@ -93,6 +99,16 @@ export interface ScanQueuePort {
   enqueueScan(job: { documentId: string; familyId: string }): Promise<void>;
 }
 
+/**
+ * BR-CLN-08 (D19): um documento emitido pela clínica (`uploadedByClinic`, marca permanente) só fica visível
+ * ao paciente quando o recurso (exame) está `COMPLETED`. `documents` não conhece `examinations`
+ * (modules.md §2): a porta é ligada no composition root à função pública de `examinations`.
+ * Sem porta ligada, o documento da clínica nunca é libertado (falha fechada).
+ */
+export interface ReleaseGatePort<Trx> {
+  isReleased(trx: Trx, document: { familyId: string; memberId: string; resourceType: ResourceType; resourceId: string }): Promise<boolean>;
+}
+
 export interface DocumentsDeps<Trx> {
   documentsRepo: DocumentsRepository<Trx>;
   fileDeletionsRepo: FileDeletionsRepository<Trx>;
@@ -101,6 +117,8 @@ export interface DocumentsDeps<Trx> {
   storage: Storage;
   virusScanner: VirusScanner;
   scanQueue: ScanQueuePort;
+  /** BR-CLN-08 — ver `ReleaseGatePort`. */
+  releaseGate?: ReleaseGatePort<Trx>;
   rateLimiter: InMemoryRateLimiter;
   db: Trx;
   withTransaction: WithTransaction<Trx>;

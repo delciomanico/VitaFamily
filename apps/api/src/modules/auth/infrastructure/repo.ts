@@ -9,6 +9,7 @@ import type {
   NewAuthToken,
   NewSessionRecord,
   SessionRepository,
+  SessionStats,
 } from "../application/ports.js";
 import type { Session } from "../domain/session.js";
 import "./schema.js";
@@ -209,6 +210,18 @@ export class KyselySessionRepository implements SessionRepository<Kysely<Databas
       .where("user_id", "=", userId)
       .where("revoked_at", "is", null)
       .execute();
+  }
+
+  async stats(trx: Kysely<Database>, userId: string, now: Date): Promise<SessionStats> {
+    const row = await trx
+      .selectFrom("sessions")
+      .select([
+        sql<string>`count(*) FILTER (WHERE revoked_at IS NULL AND expires_at > ${now})`.as("active_count"),
+        sql<Date | null>`max(last_used_at)`.as("last_used_at"),
+      ])
+      .where("user_id", "=", userId)
+      .executeTakeFirstOrThrow();
+    return { activeCount: Number(row.active_count), lastUsedAt: row.last_used_at };
   }
 
   async revokeAllForUserExcept(

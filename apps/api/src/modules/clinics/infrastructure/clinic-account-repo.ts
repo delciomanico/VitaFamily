@@ -122,6 +122,26 @@ export class KyselyClinicAccountRepository implements ClinicAccountRepository<Ky
     return rows.map(accountToDomain);
   }
 
+  async listByClinicWithLastLogin(trx: Kysely<Database>, clinicId: string): Promise<{ account: ClinicAccount; lastLoginAt: Date | null }[]> {
+    const accounts = await this.listByClinic(trx, clinicId);
+    if (accounts.length === 0) return [];
+    // O refresh roda a sessão (nova linha, mesma cadeia): o login é o início de cada cadeia.
+    const rows = await trx
+      .selectFrom(
+        trx
+          .selectFrom("clinic_sessions")
+          .select(["clinic_account_id", sql<Date>`min(created_at)`.as("first_at")])
+          .where("clinic_account_id", "in", accounts.map((a) => a.id))
+          .groupBy(["clinic_account_id", "token_chain_id"])
+          .as("chains"),
+      )
+      .select(["clinic_account_id", sql<Date>`max(first_at)`.as("last_login_at")])
+      .groupBy("clinic_account_id")
+      .execute();
+    const byAccount = new Map(rows.map((r) => [r.clinic_account_id, r.last_login_at]));
+    return accounts.map((account) => ({ account, lastLoginAt: byAccount.get(account.id) ?? null }));
+  }
+
   async delete(trx: Kysely<Database>, id: string): Promise<void> {
     await trx.deleteFrom("clinic_accounts").where("id", "=", id).execute();
   }
@@ -205,6 +225,15 @@ export class KyselyClinicSessionRepository implements ClinicSessionRepository<Ky
       .updateTable("clinic_sessions")
       .set({ revoked_at: revokedAt, updated_at: sql`now()` })
       .where("token_chain_id", "=", tokenChainId)
+      .where("revoked_at", "is", null)
+      .execute();
+  }
+
+  async revokeAllForAccount(trx: Kysely<Database>, clinicAccountId: string, revokedAt: Date): Promise<void> {
+    await trx
+      .updateTable("clinic_sessions")
+      .set({ revoked_at: revokedAt, updated_at: sql`now()` })
+      .where("clinic_account_id", "=", clinicAccountId)
       .where("revoked_at", "is", null)
       .execute();
   }

@@ -12,5 +12,7 @@ export async function buildExaminationView<Trx>(deps: ExaminationsDeps<Trx>, trx
     deps.examResultsRepo.listByExamination(trx, examination.id),
     deps.documents.listForResource(trx, examination.familyId, examination.memberId, "EXAMINATION", examination.id),
   ]);
-  return { ...examination, results, documentIds: documents.map((d) => d.id) };
+  // BR-CLN-08 (D19): PDF emitido pela clínica só aparece ao paciente com o exame COMPLETED.
+  const visible = documents.filter((d) => !d.uploadedByClinic || examination.status === "COMPLETED");
+  return { ...examination, results, documentIds: visible.map((d) => d.id) };
 }

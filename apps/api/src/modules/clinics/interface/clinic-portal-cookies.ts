@@ -6,10 +6,14 @@ import { CLINIC_REFRESH_TOKEN_COOKIE } from "../domain/clinic-cookie.js";
 
 const CLINIC_REFRESH_COOKIE_PATH = `${API_BASE_PATH}/clinic-portal/auth`;
 
+function isSecureRequest(res: Response): boolean {
+  return res.req.secure || res.req.headers["x-forwarded-proto"] === "https";
+}
+
 export function setClinicRefreshCookie(res: Response, token: string, expiresAt: Date, cookieDomain: string): void {
   res.cookie(CLINIC_REFRESH_TOKEN_COOKIE, token, {
     httpOnly: true,
-    secure: true,
+    secure: isSecureRequest(res),
     sameSite: "strict",
     path: CLINIC_REFRESH_COOKIE_PATH,
     expires: expiresAt,
@@ -20,7 +24,7 @@ export function setClinicRefreshCookie(res: Response, token: string, expiresAt: 
 export function clearClinicRefreshCookie(res: Response, cookieDomain: string): void {
   res.clearCookie(CLINIC_REFRESH_TOKEN_COOKIE, {
     httpOnly: true,
-    secure: true,
+    secure: isSecureRequest(res),
     sameSite: "strict",
     path: CLINIC_REFRESH_COOKIE_PATH,
     ...(cookieDomain.length > 0 ? { domain: cookieDomain } : {}),
