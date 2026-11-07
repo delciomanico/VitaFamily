@@ -28,36 +28,83 @@ export interface PublishClinicSlotsInput {
   kind?: string | null;
   date: string;
   times: string[];
-  specialty: string;
+  /** Obrigatório sem `serviceTypeId` (M14: com serviço é o nome do serviço). */
+  specialty?: string | null;
   professionalName?: string | null;
-  durationMinutes: number;
+  /** Obrigatório sem `serviceTypeId` (M14: com serviço vem do serviço). */
+  durationMinutes?: number | null;
   /** BR-APT-11: 1–50, omitido = 1; > 1 só com `kind=EXAM`. */
   capacity?: number | null;
+  /** M14 a1 (BR-CLN-11/13/14): profissional ativo da clínica — ativa a deteção de sobreposição e bloqueios. */
+  professionalId?: string | null;
+  /** M14 a1: serviço ativo da clínica — `kind`, `specialty` e `durationMinutes` vêm dele. */
+  serviceTypeId?: string | null;
 }
 
 /** `POST /clinic-portal/slots` (`ClinicSlotBatchInput`): publica um horário por cada hora de
  * `times` no dia local `date` (fuso `CLINIC_TIMEZONE`). BR-CLN-04: ignora, em silêncio, horas já
- * passadas e duplicadas (mesma hora, especialidade, profissional) — nunca falha o lote por isso. */
+ * passadas e duplicadas (mesma hora, especialidade, profissional) — nunca falha o lote por isso.
+ * M14: com `professionalId`, duplicado exato (mesmo início e duração) é ignorado; qualquer outra
+ * sobreposição de `[início, início+duração)` do profissional, ou um bloqueio, => `CONFLICT` e nada é criado. */
 export function createPublishClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
   return async function publishClinicSlots(actor: ClinicPortalActor, input: PublishClinicSlotsInput, context: RequestContext): Promise<ClinicSlot[]> {
-    const kind = assertValidSlotKind(input.kind);
-    const specialty = assertValidSpecialty(input.specialty);
-    const durationMinutes = assertValidDurationMinutes(input.durationMinutes);
-    const capacity = assertValidCapacity(input.capacity);
-    assertCapacityAllowedForKind(kind, capacity);
-    const professionalName = input.professionalName?.trim() ? input.professionalName.trim() : undefined;
     const date = parseLocalDate(input.date);
-
     if (input.times.length === 0) {
       throw new ValidationError([{ field: "times", message: "pelo menos uma hora" }], { detail: "Sem horas para publicar." });
     }
+    const times = input.times.map((time) => parseLocalTime(time, "times"));
 
     return deps.withTransaction(async (trx) => {
+      // Ordem fixa profissional -> horários (schema.md §3a): o bloqueio do profissional vem primeiro.
+      const professional = input.professionalId ? await deps.catalogRepo.lockProfessional(trx, actor.clinicId, input.professionalId) : null;
+      if (input.professionalId && !professional) {
+        throw new NotFoundError({ detail: "Profissional não encontrado." });
+      }
+      const service = input.serviceTypeId ? await deps.catalogRepo.findServiceType(trx, actor.clinicId, input.serviceTypeId) : null;
+      if (input.serviceTypeId && !service) {
+        throw new NotFoundError({ detail: "Serviço não encontrado." });
+      }
+      if ((professional && !professional.active) || (service && !service.active)) {
+        throw new ConflictError({ detail: "Profissional ou serviço inativo." });
+      }
+
+      let kind: ClinicSlotKind;
+      let specialty: string;
+      let durationMinutes: number;
+      if (service) {
+        // `kind` omitido chega como `APPOINTMENT` (default do contrato): só um valor diferente do
+        // do serviço E diferente do default é um desacordo explícito.
+        if (input.kind !== undefined && input.kind !== null && input.kind !== service.kind && input.kind !== "APPOINTMENT") {
+          throw new ValidationError([{ field: "kind", message: "tem de coincidir com o do serviço" }], { detail: "Tipo de horário diferente do serviço." });
+        }
+        if (input.specialty && input.specialty.trim() !== service.name) {
+          throw new ValidationError([{ field: "specialty", message: "tem de coincidir com o nome do serviço" }], { detail: "Especialidade diferente do serviço." });
+        }
+        if (input.durationMinutes !== undefined && input.durationMinutes !== null && input.durationMinutes !== service.durationMinutes) {
+          throw new ValidationError([{ field: "durationMinutes", message: "tem de coincidir com a duração do serviço" }], { detail: "Duração diferente do serviço." });
+        }
+        kind = service.kind;
+        specialty = service.name;
+        durationMinutes = service.durationMinutes;
+      } else {
+        kind = assertValidSlotKind(input.kind);
+        if (input.specialty === undefined || input.specialty === null) {
+          throw new ValidationError([{ field: "specialty", message: "obrigatório sem serviceTypeId" }], { detail: "Especialidade inválida." });
+        }
+        specialty = assertValidSpecialty(input.specialty);
+        if (input.durationMinutes === undefined || input.durationMinutes === null) {
+          throw new ValidationError([{ field: "durationMinutes", message: "obrigatório sem serviceTypeId" }], { detail: "Duração inválida." });
+        }
+        durationMinutes = assertValidDurationMinutes(input.durationMinutes);
+      }
+      const capacity = assertValidCapacity(input.capacity);
+      assertCapacityAllowedForKind(kind, capacity);
+      const professionalName = professional ? professional.name : input.professionalName?.trim() ? input.professionalName.trim() : undefined;
+
       const now = deps.clock.now();
       const published: ClinicSlot[] = [];
 
-      for (const time of input.times) {
-        const { hour, minute } = parseLocalTime(time, "times");
+      for (const { hour, minute } of times) {
         const startsAt = zonedTimeToUtc({ ...date, hour, minute });
 
         // BR-CLN-04: ignora horas passadas e duplicadas (mesma hora, especialidade, profissional) —
@@ -65,20 +112,34 @@ export function createPublishClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
         if (startsAt.getTime() <= now.getTime()) {
           continue;
         }
-        const duplicateInBatch = published.some(
-          (slot) => slot.startsAt.getTime() === startsAt.getTime() && slot.kind === kind && slot.specialty === specialty && (slot.professionalName ?? null) === (professionalName ?? null),
-        );
-        if (duplicateInBatch) {
-          continue;
-        }
-        const duplicateInRepo = await deps.clinicSlotsRepo.existsDuplicate(trx, actor.clinicId, {
-          kind,
-          startsAt,
-          specialty,
-          ...(professionalName ? { professionalName } : {}),
-        });
-        if (duplicateInRepo) {
-          continue;
+        const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+        if (professional) {
+          const overlapping = await deps.clinicSlotsRepo.listByProfessional(trx, professional.id, { endsAfter: startsAt, startsBefore: endsAt });
+          if (overlapping.some((slot) => slot.startsAt.getTime() === startsAt.getTime() && slot.durationMinutes === durationMinutes)) {
+            continue;
+          }
+          if (overlapping.length > 0) {
+            throw new ConflictError({ detail: "O horário sobrepõe-se a outro horário do profissional." });
+          }
+          if ((await deps.timeOffRepo.listOverlapping(trx, professional.id, startsAt, endsAt)).length > 0) {
+            throw new ConflictError({ detail: "O profissional está bloqueado nesse período." });
+          }
+        } else {
+          const duplicateInBatch = published.some(
+            (slot) => slot.startsAt.getTime() === startsAt.getTime() && slot.kind === kind && slot.specialty === specialty && (slot.professionalName ?? null) === (professionalName ?? null),
+          );
+          if (duplicateInBatch) {
+            continue;
+          }
+          const duplicateInRepo = await deps.clinicSlotsRepo.existsDuplicate(trx, actor.clinicId, {
+            kind,
+            startsAt,
+            specialty,
+            ...(professionalName ? { professionalName } : {}),
+          });
+          if (duplicateInRepo) {
+            continue;
+          }
         }
 
         const slot = await deps.clinicSlotsRepo.insert(trx, {
@@ -91,6 +152,8 @@ export function createPublishClinicSlotsUseCase<Trx>(deps: ClinicsDeps<Trx>) {
           capacity,
           createdAt: now,
           ...(professionalName ? { professionalName } : {}),
+          ...(professional ? { professionalId: professional.id } : {}),
+          ...(service ? { serviceTypeId: service.id } : {}),
         });
         published.push(slot);
       }
@@ -206,6 +269,10 @@ export function createRemoveClinicSlotUseCase<Trx>(deps: ClinicsDeps<Trx>) {
       const slot = await deps.clinicSlotsRepo.lockById(trx, slotId);
       if (slot?.clinicId !== actor.clinicId) {
         throw new NotFoundError({ detail: "Horário não encontrado." });
+      }
+      // BR-CLN-12: horário gerado por regra não se remove individualmente (usar bloqueio ou desativar a regra).
+      if (slot.scheduleRuleId) {
+        throw new ConflictError({ detail: "Horário gerado por uma regra: use um bloqueio ou desative a regra." });
       }
 
       const counts = (await countsBySlot(deps, trx, [slotId])).get(slotId);

@@ -122,6 +122,18 @@ export type AuditAction =
   // Marcação presencial pela clínica (D20, ADR-024, BR-CLN-10): nunca o e-mail pesquisado nem o displayName.
   | "CLINIC_WALKIN_LOOKUP"
   | "CLINIC_WALKIN_BOOK"
+  // Portal da clínica v2 (M14 a1/a2, ADR-026, audit.md §3): metadata só com ids internos, flags, `kind` e
+  // contagens — nunca nomes, especialidade, preços, motivo do bloqueio nem dados de pacientes.
+  | "CLINIC_PROFESSIONAL_CREATE"
+  | "CLINIC_PROFESSIONAL_UPDATE"
+  | "CLINIC_SERVICE_CREATE"
+  | "CLINIC_SERVICE_UPDATE"
+  | "CLINIC_SCHEDULE_RULE_CREATE"
+  | "CLINIC_SCHEDULE_RULE_UPDATE"
+  | "CLINIC_SCHEDULE_RULE_REGENERATE"
+  | "CLINIC_SCHEDULE_GENERATE"
+  | "CLINIC_TIME_OFF_CREATE"
+  | "CLINIC_TIME_OFF_DELETE"
   // Seguradoras e portal da seguradora (ADR-021/ADR-023, BR-ADM-05/06, BR-INS-06): sem PII no metadata.
   | "ADMIN_INSURER_CREATE"
   | "ADMIN_INSURER_UPDATE"

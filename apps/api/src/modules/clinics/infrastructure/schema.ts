@@ -10,6 +10,8 @@ export interface ClinicsTable {
   address: ColumnType<string | null, string | null | undefined, string | null>;
   phone: ColumnType<string | null, string | null | undefined, string | null>;
   email: ColumnType<string | null, string | null | undefined, string | null>;
+  /** M14 a1 (`0027`): moeda da clínica, só leitura nestas fases. */
+  currency: ColumnType<string, string | undefined, never>;
   status: "ACTIVE" | "ARCHIVED";
   created_by: string | null;
   created_at: ColumnType<Date, Date | undefined, never>;

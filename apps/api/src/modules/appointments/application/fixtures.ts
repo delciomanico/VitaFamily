@@ -90,6 +90,15 @@ export class FakeClinicsPort implements ClinicsPort<FakeTrx> {
     return Promise.resolve(this.slots.get(slotId) ?? null);
   }
 
+  async listProfessionalSlotsOverlapping(_trx: FakeTrx, professionalId: string, from: Date, to: Date, excludeSlotId: string): Promise<string[]> {
+    return Promise.resolve(
+      [...this.slots.values()]
+        .filter((slot) => slot.id !== excludeSlotId && slot.professionalId === professionalId)
+        .filter((slot) => slot.startsAt.getTime() < to.getTime() && slot.startsAt.getTime() + slot.durationMinutes * 60_000 > from.getTime())
+        .map((slot) => slot.id),
+    );
+  }
+
   /** `familyId` vazio = clínica PARTNER (selecionável por qualquer família). */
   seed(id: string, name: string, familyId: string, active = true): void {
     this.clinics.set(id, { id, name, familyId, active });
@@ -205,6 +214,7 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
       ...(record.reason !== undefined ? { reason: record.reason } : {}),
       ...(record.notes !== undefined ? { notes: record.notes } : {}),
       ...(record.slotId !== undefined ? { slotId: record.slotId } : {}),
+      durationMinutes: record.durationMinutes ?? 30,
       ...(record.walkIn ? { walkIn: true } : {}),
       ...(record.bookedByClinicAccountId !== undefined ? { bookedByClinicAccountId: record.bookedByClinicAccountId } : {}),
     };
@@ -361,10 +371,15 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     return Promise.resolve(updated);
   }
 
-  async findScheduledStartingBetween(_trx: FakeTrx, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]> {
+  async findScheduledOverlapping(_trx: FakeTrx, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]> {
     return Promise.resolve(
       [...this.byId.values()].filter(
-        (a) => a.familyId === familyId && a.memberId === memberId && a.status === "SCHEDULED" && a.scheduledAt.getTime() >= from.getTime() && a.scheduledAt.getTime() < to.getTime(),
+        (a) =>
+          a.familyId === familyId &&
+          a.memberId === memberId &&
+          a.status === "SCHEDULED" &&
+          a.scheduledAt.getTime() < to.getTime() &&
+          a.scheduledAt.getTime() + (a.durationMinutes ?? 30) * 60_000 > from.getTime(),
       ),
     );
   }

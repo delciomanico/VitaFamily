@@ -19,6 +19,7 @@
 // diretamente.
 import type { Router } from "express";
 import type { Kysely } from "kysely";
+import type PgBoss from "pg-boss";
 import type { Clock } from "../../platform/clock/index.js";
 import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
@@ -47,6 +48,22 @@ import {
   createRemoveClinicSlotUseCase,
   createUpdateClinicSlotUseCase,
 } from "./application/clinic-slots.js";
+import {
+  createCreateClinicProfessionalUseCase,
+  createCreateClinicServiceTypeUseCase,
+  createListClinicProfessionalsUseCase,
+  createListClinicServiceTypesUseCase,
+  createUpdateClinicProfessionalUseCase,
+  createUpdateClinicServiceTypeUseCase,
+} from "./application/clinic-catalog.js";
+import {
+  createCreateClinicScheduleRuleUseCase,
+  createListClinicScheduleRulesUseCase,
+  createRegenerateClinicScheduleRuleUseCase,
+  createUpdateClinicScheduleRuleUseCase,
+} from "./application/clinic-schedule-rules.js";
+import { createCreateClinicTimeOffUseCase, createDeleteClinicTimeOffUseCase, createListClinicTimeOffUseCase } from "./application/clinic-time-off.js";
+import { createGenerateScheduleJobUseCase } from "./application/schedule-generation.js";
 import { createClinicLoginUseCase } from "./application/clinic-login.js";
 import { createClinicLogoutUseCase } from "./application/clinic-logout.js";
 import { createClinicRefreshUseCase } from "./application/clinic-refresh.js";
@@ -63,7 +80,9 @@ import type { ClinicSigningKey } from "./domain/clinic-jwt.js";
 import { ClinicInMemoryRateLimiter } from "./domain/clinic-rate-limiter.js";
 import { ClinicTtlCache } from "./domain/clinic-ttl-cache.js";
 import { KyselyClinicAccountRepository, KyselyClinicSessionRepository } from "./infrastructure/clinic-account-repo.js";
+import { KyselyClinicCatalogRepository, KyselyClinicScheduleRulesRepository, KyselyClinicTimeOffRepository } from "./infrastructure/clinic-catalog-repo.js";
 import { KyselyClinicSlotsRepository } from "./infrastructure/clinic-slots-repo.js";
+import { registerGenerateScheduleWorker } from "./infrastructure/jobs.js";
 import { KyselyClinicsRepository } from "./infrastructure/repo.js";
 import { createClinicsAdminRouter, type ClinicsAdminController } from "./interface/admin-router.js";
 import {
@@ -77,6 +96,7 @@ export type { Clinic, ClinicStatus, ClinicType } from "./domain/clinic.js";
 export type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "./domain/clinic-account.js";
 export { parseClinicSigningKeys, type ClinicSigningKey } from "./domain/clinic-jwt.js";
 export type { ClinicSlot, ClinicSlotState } from "./domain/clinic-slot.js";
+export { createGenerateScheduleJobUseCase } from "./application/schedule-generation.js";
 export type { AdminClinicAccountView, SuspendClinicAccountInput } from "./application/admin-clinic-accounts.js";
 export type { SlotBookingCountRow } from "./application/ports.js";
 export { ClinicSmtpMailer } from "./infrastructure/clinic-mailer-smtp.js";
@@ -125,6 +145,8 @@ export interface ClinicsModule {
   findClinicSlotById: ReturnType<typeof createFindClinicSlotByIdUseCase<Kysely<Database>>>;
   /** BR-APT-11 (`examinations`): bloqueia o horário (`FOR UPDATE`) na transação do chamador. */
   lockClinicSlot: ReturnType<typeof createLockClinicSlotUseCase<Kysely<Database>>>;
+  /** BR-CLN-13 (`appointments`, walk-in): horários do profissional que se sobrepõem a `[from, to)`, sem `excludeSlotId`. */
+  listProfessionalSlotsOverlapping: (trx: Kysely<Database>, professionalId: string, from: Date, to: Date, excludeSlotId: string) => Promise<string[]>;
   /** Para `admin` (BR-ADM-03/04, ADR-023): listar, suspender e reativar contas do portal de uma clínica parceira. */
   adminListClinicAccounts: ReturnType<typeof createAdminListClinicAccountsUseCase<Kysely<Database>>>;
   adminSuspendClinicAccount: ReturnType<typeof createAdminSuspendClinicAccountUseCase<Kysely<Database>>>;
@@ -137,6 +159,9 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
   const clinicAccountRepo = new KyselyClinicAccountRepository();
   const clinicSessionRepo = new KyselyClinicSessionRepository();
   const clinicSlotsRepo = new KyselyClinicSlotsRepository();
+  const catalogRepo = new KyselyClinicCatalogRepository();
+  const scheduleRulesRepo = new KyselyClinicScheduleRulesRepository();
+  const timeOffRepo = new KyselyClinicTimeOffRepository();
   const clinicRateLimiter = new ClinicInMemoryRateLimiter(deps.clock);
   const clinicAccountStateCache = new ClinicTtlCache<{
     clinicId: string;
@@ -155,6 +180,9 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     clinicSessionRepo,
     clinicSlotsRepo,
     slotOccupancy: deps.slotOccupancy,
+    catalogRepo,
+    scheduleRulesRepo,
+    timeOffRepo,
     clinicMailer: deps.clinicMailer,
     logger: deps.logger,
     clinicRateLimiter,
@@ -192,6 +220,19 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     publishClinicSlots: createPublishClinicSlotsUseCase(clinicsDeps),
     updateClinicSlot: createUpdateClinicSlotUseCase(clinicsDeps),
     removeClinicSlot: createRemoveClinicSlotUseCase(clinicsDeps),
+    listClinicProfessionals: createListClinicProfessionalsUseCase(clinicsDeps),
+    createClinicProfessional: createCreateClinicProfessionalUseCase(clinicsDeps),
+    updateClinicProfessional: createUpdateClinicProfessionalUseCase(clinicsDeps),
+    listClinicServiceTypes: createListClinicServiceTypesUseCase(clinicsDeps),
+    createClinicServiceType: createCreateClinicServiceTypeUseCase(clinicsDeps),
+    updateClinicServiceType: createUpdateClinicServiceTypeUseCase(clinicsDeps),
+    listClinicScheduleRules: createListClinicScheduleRulesUseCase(clinicsDeps),
+    createClinicScheduleRule: createCreateClinicScheduleRuleUseCase(clinicsDeps),
+    updateClinicScheduleRule: createUpdateClinicScheduleRuleUseCase(clinicsDeps),
+    regenerateClinicScheduleRule: createRegenerateClinicScheduleRuleUseCase(clinicsDeps),
+    listClinicTimeOff: createListClinicTimeOffUseCase(clinicsDeps),
+    createClinicTimeOff: createCreateClinicTimeOffUseCase(clinicsDeps),
+    deleteClinicTimeOff: createDeleteClinicTimeOffUseCase(clinicsDeps),
   };
 
   return {
@@ -210,8 +251,45 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     findClinicSlot: createFindClinicSlotUseCase(clinicsDeps),
     findClinicSlotById: createFindClinicSlotByIdUseCase(clinicsDeps),
     lockClinicSlot: createLockClinicSlotUseCase(clinicsDeps),
+    listProfessionalSlotsOverlapping: async (trx, professionalId, from, to, excludeSlotId) =>
+      (await clinicSlotsRepo.listByProfessional(trx, professionalId, { endsAfter: from, startsBefore: to })).filter((slot) => slot.id !== excludeSlotId).map((slot) => slot.id),
     adminListClinicAccounts: createAdminListClinicAccountsUseCase(clinicsDeps),
     adminSuspendClinicAccount: createAdminSuspendClinicAccountUseCase(clinicsDeps),
     adminReactivateClinicAccount: createAdminReactivateClinicAccountUseCase(clinicsDeps),
+  };
+}
+
+export interface ClinicsWorkerModuleDeps {
+  db: Kysely<Database>;
+  audit: AuditModule;
+  clock: Clock;
+  logger: Logger;
+  boss: PgBoss;
+}
+
+export interface ClinicsWorkerModule {
+  /** Job diário `clinics.generate-schedule` (BR-CLN-12) — só o processo "worker" chama isto. */
+  registerWorkers: () => Promise<void>;
+  /** A geração em si (idempotente), exposta para testes e execução manual. */
+  generateSchedule: ReturnType<typeof createGenerateScheduleJobUseCase<Kysely<Database>>>;
+}
+
+/** Composition root do processo "worker" (main/worker.ts): nunca monta `access`, `appointments` nem HTTP. */
+export function createClinicsWorkerModule(deps: ClinicsWorkerModuleDeps): ClinicsWorkerModule {
+  const generateSchedule = createGenerateScheduleJobUseCase<Kysely<Database>>({
+    clock: deps.clock,
+    audit: deps.audit,
+    logger: deps.logger,
+    withTransaction: (fn) => withTransaction(deps.db, fn),
+    catalogRepo: new KyselyClinicCatalogRepository(),
+    scheduleRulesRepo: new KyselyClinicScheduleRulesRepository(),
+    timeOffRepo: new KyselyClinicTimeOffRepository(),
+    clinicSlotsRepo: new KyselyClinicSlotsRepository(),
+  });
+  return {
+    generateSchedule,
+    registerWorkers: async () => {
+      await registerGenerateScheduleWorker(deps.boss, generateSchedule);
+    },
   };
 }

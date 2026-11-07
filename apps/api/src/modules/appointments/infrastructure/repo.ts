@@ -35,6 +35,7 @@ interface AppointmentRow {
   outcome_recorded_at: Date | null;
   walk_in: boolean;
   booked_by_clinic_account_id: string | null;
+  duration_minutes: number;
   created_at: Date;
 }
 
@@ -60,6 +61,7 @@ function toAppointment(row: AppointmentRow): Appointment {
   if (row.outcome_recorded_at !== null) appointment.outcomeRecordedAt = row.outcome_recorded_at;
   if (row.walk_in) appointment.walkIn = true;
   if (row.booked_by_clinic_account_id !== null) appointment.bookedByClinicAccountId = row.booked_by_clinic_account_id;
+  appointment.durationMinutes = row.duration_minutes;
   return appointment;
 }
 
@@ -82,6 +84,7 @@ const APPOINTMENT_COLUMNS = [
   "outcome_recorded_at",
   "walk_in",
   "booked_by_clinic_account_id",
+  "duration_minutes",
   "created_at",
 ] as const;
 
@@ -102,6 +105,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         reason: record.reason ?? null,
         notes: record.notes ?? null,
         slot_id: record.slotId ?? null,
+        ...(record.durationMinutes !== undefined ? { duration_minutes: record.durationMinutes } : {}),
         ...(record.walkIn ? { walk_in: true, booked_by_clinic_account_id: record.bookedByClinicAccountId ?? null } : {}),
         created_at: record.createdAt,
       })
@@ -314,15 +318,16 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
     return toAppointment(row);
   }
 
-  async findScheduledStartingBetween(trx: Kysely<Database>, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]> {
+  /** BR-CLN-10/16: consultas `SCHEDULED` do membro cujo intervalo `[scheduled_at, scheduled_at + duração)` sobrepõe `[from, to)` (semiaberto). */
+  async findScheduledOverlapping(trx: Kysely<Database>, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]> {
     const rows = await trx
       .selectFrom("appointments")
       .select(APPOINTMENT_COLUMNS)
       .where("family_id", "=", familyId)
       .where("member_id", "=", memberId)
       .where("status", "=", "SCHEDULED")
-      .where("scheduled_at", ">=", from)
       .where("scheduled_at", "<", to)
+      .where(sql<boolean>`scheduled_at + duration_minutes * interval '1 minute' > ${from}`)
       .execute();
     return rows.map(toAppointment);
   }

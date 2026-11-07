@@ -65,6 +65,8 @@ export interface SlotBookingSnapshot {
   clinicName: string;
   scheduledAt: Date;
   specialty: string;
+  /** BR-CLN-16: duração do horário, copiada para a consulta. */
+  durationMinutes: number;
   professionalName?: string;
 }
 
@@ -100,6 +102,7 @@ export async function resolveSlotBooking<Trx>(deps: AppointmentsDeps<Trx>, trx: 
     clinicName: clinic.name,
     scheduledAt: slot.startsAt,
     specialty: slot.specialty,
+    durationMinutes: slot.durationMinutes,
     ...(slot.professionalName ? { professionalName: slot.professionalName } : {}),
   };
 }

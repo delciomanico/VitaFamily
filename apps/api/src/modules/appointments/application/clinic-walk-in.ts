@@ -132,11 +132,24 @@ export function createCreateWalkInAppointmentUseCase<Trx>(deps: AppointmentsDeps
       if (await deps.appointmentsRepo.findActiveBySlot(trx, slot.id)) {
         throw new ConflictError({ detail: "Esse horário já tem uma marcação ativa." });
       }
-      // 4. Sobreposição com consulta SCHEDULED do paciente: início dentro do intervalo do horário.
+      // 4. Sobreposição por duração (BR-CLN-16): consulta SCHEDULED do paciente cujo intervalo
+      // `[início, início + duração)` sobrepõe o do horário.
       const endsAt = new Date(slot.startsAt.getTime() + slot.durationMinutes * 60_000);
-      const overlapping = await deps.appointmentsRepo.findScheduledStartingBetween(trx, patient.familyId, patient.memberId, slot.startsAt, endsAt);
+      const overlapping = await deps.appointmentsRepo.findScheduledOverlapping(trx, patient.familyId, patient.memberId, slot.startsAt, endsAt);
       if (overlapping.length > 0) {
         throw new ConflictError({ detail: "O paciente já tem uma consulta nesse período." });
+      }
+      // 4b. Defesa em profundidade (BR-CLN-13): o profissional já tem outra marcação ativa sobreposta
+      // (consulta REQUESTED/SCHEDULED ou exame SCHEDULED) — só possível com dados antigos/manuais.
+      if (slot.professionalId) {
+        const others = await deps.clinics.listProfessionalSlotsOverlapping(trx, slot.professionalId, slot.startsAt, endsAt, slot.id);
+        if (others.length > 0) {
+          const consultations = await deps.appointmentsRepo.countActiveBySlot(trx, others);
+          const exams = await deps.examSlotOccupancy.countScheduledBySlot(trx, others);
+          if (consultations.length > 0 || exams.some((row) => row.count > 0)) {
+            throw new ConflictError({ detail: "O profissional já tem uma marcação nesse período." });
+          }
+        }
       }
       const clinic = await deps.clinics.getBookableClinic(trx, patient.familyId, actor.clinicId);
       if (!clinic) {
@@ -153,6 +166,7 @@ export function createCreateWalkInAppointmentUseCase<Trx>(deps: AppointmentsDeps
         clinicName: clinic.name,
         specialty: slot.specialty,
         slotId: slot.id,
+        durationMinutes: slot.durationMinutes,
         walkIn: true,
         bookedByClinicAccountId: actor.clinicAccountId,
         createdAt: now,

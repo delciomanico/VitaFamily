@@ -61,6 +61,8 @@ export interface ClinicSlotLite {
   durationMinutes: number;
   /** BR-APT-11: vagas do horário (1 em `APPOINTMENT`). */
   capacity: number;
+  /** M14 (BR-CLN-13): profissional do catálogo; nulo/ausente nos horários manuais antigos. */
+  professionalId?: string;
 }
 
 /** `AvailableSlot` (openapi): horário + vagas restantes (`remaining` ≥ 1 nas listagens, BR-APT-11). */
@@ -80,6 +82,8 @@ export interface ClinicsPort<Trx> {
   findSlot(clinicId: string, slotId: string): Promise<ClinicSlotLite | null>;
   /** BR-APT-11/BR-CLN-10: bloqueia a linha do horário (`FOR UPDATE`) na transação do chamador — serializa reservas concorrentes. */
   lockSlot(trx: Trx, slotId: string): Promise<ClinicSlotLite | null>;
+  /** BR-CLN-13: ids dos outros horários do profissional que se sobrepõem a `[from, to)` (defesa em profundidade no walk-in). */
+  listProfessionalSlotsOverlapping(trx: Trx, professionalId: string, from: Date, to: Date, excludeSlotId: string): Promise<string[]>;
 }
 
 /**
@@ -127,6 +131,8 @@ export interface NewAppointmentRecord {
   /** D20 (ADR-024): marcação presencial pela clínica. */
   walkIn?: boolean;
   bookedByClinicAccountId?: string;
+  /** BR-CLN-16: copiada do horário ao reservar; omitido = 30 (default da BD). */
+  durationMinutes?: number;
   createdAt: Date;
 }
 
@@ -248,8 +254,8 @@ export interface AppointmentsRepository<Trx> {
   /** `completeConsultation` (D18, BR-CLN-06): marca `COMPLETED` e grava o resultado da consulta,
    * sempre com quem o registou — nunca escrito pela família. */
   completeByClinic(trx: Trx, appointmentId: string, change: ClinicOutcomeChange): Promise<Appointment>;
-  /** BR-CLN-10 (walk-in): consultas `SCHEDULED` do membro cujo início cai em `[from, to)`. */
-  findScheduledStartingBetween(trx: Trx, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]>;
+  /** BR-CLN-10/16 (walk-in): consultas `SCHEDULED` do membro cujo intervalo `[início, início + duração)` sobrepõe `[from, to)`. */
+  findScheduledOverlapping(trx: Trx, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]>;
 }
 
 /**

@@ -11,6 +11,8 @@ import type { ClinicSigningKey } from "../domain/clinic-jwt.js";
 import type { ClinicInMemoryRateLimiter } from "../domain/clinic-rate-limiter.js";
 import type { ClinicSession } from "../domain/clinic-session.js";
 import type { ClinicSlot, ClinicSlotKind, SlotBookingCounts } from "../domain/clinic-slot.js";
+import type { ClinicProfessional, ClinicServiceType } from "../domain/clinic-catalog.js";
+import type { ClinicScheduleRule, ClinicTimeOff } from "../domain/clinic-schedule.js";
 
 export interface ActorIdentity {
   userId: string;
@@ -173,6 +175,10 @@ export interface NewClinicSlotRecord {
   startsAt: Date;
   durationMinutes: number;
   capacity: number;
+  /** M14 (a1/a2): ligação ao catálogo/regra (BR-CLN-11/12); `ends_at` é calculado pelo repositório. */
+  professionalId?: string;
+  serviceTypeId?: string;
+  scheduleRuleId?: string;
   createdAt: Date;
 }
 
@@ -202,6 +208,125 @@ export interface ClinicSlotsRepository<Trx> {
   /** BR-APT-11: `SELECT … FOR UPDATE` da linha do horário — serializa marcação, `PATCH` e `DELETE`. */
   lockById(trx: Trx, slotId: string): Promise<ClinicSlot | null>;
   updateCapacity(trx: Trx, slotId: string, capacity: number): Promise<ClinicSlot>;
+  /** BR-CLN-12 (geração): `INSERT … ON CONFLICT DO NOTHING` (unicidade `(regra, início)` e exclusão de
+   * sobreposição); devolve só os horários efetivamente criados. */
+  insertManyIgnoringConflicts(trx: Trx, records: NewClinicSlotRecord[]): Promise<ClinicSlot[]>;
+  /** Horários do profissional cujo intervalo termina depois de `endsAfter` e começa antes de `startsBefore`. */
+  listByProfessional(trx: Trx, professionalId: string, filter: { endsAfter?: Date; startsBefore?: Date }): Promise<ClinicSlot[]>;
+  /** BR-CLN-15: horários da regra que começam depois de `after`. */
+  listFutureByRule(trx: Trx, scheduleRuleId: string, after: Date): Promise<ClinicSlot[]>;
+  /** `SELECT … FOR UPDATE` por ordem de id (serializa com reservas, BR-APT-11). */
+  lockMany(trx: Trx, slotIds: string[]): Promise<ClinicSlot[]>;
+  deleteMany(trx: Trx, slotIds: string[]): Promise<void>;
+}
+
+// --- Catálogo, regras e bloqueios (M14 a1/a2, ADR-026) ---
+
+export interface NewClinicProfessionalRecord {
+  id: string;
+  clinicId: string;
+  name: string;
+  specialty: string | null;
+  createdAt: Date;
+}
+
+export interface ClinicProfessionalChanges {
+  name?: string;
+  specialty?: string | null;
+  active?: boolean;
+}
+
+export interface NewClinicServiceTypeRecord {
+  id: string;
+  clinicId: string;
+  name: string;
+  kind: ClinicSlotKind;
+  durationMinutes: number;
+  priceMinor: number | null;
+  createdAt: Date;
+}
+
+export interface ClinicServiceTypeChanges {
+  name?: string;
+  durationMinutes?: number;
+  priceMinor?: number | null;
+  active?: boolean;
+}
+
+/** `clinic_professionals`/`clinic_service_types`/`clinics.currency` — nome duplicado entre ativos lança `ConflictError`. */
+export interface ClinicCatalogRepository<Trx> {
+  /** Serializa criações (limites por clínica, BR-CLN-11). */
+  lockClinic(trx: Trx, clinicId: string): Promise<void>;
+  getCurrency(trx: Trx, clinicId: string): Promise<string>;
+  insertProfessional(trx: Trx, record: NewClinicProfessionalRecord): Promise<ClinicProfessional>;
+  findProfessional(trx: Trx, clinicId: string, professionalId: string): Promise<ClinicProfessional | null>;
+  /** `SELECT … FOR UPDATE` da linha (ordem profissional → horário, schema.md §3a). */
+  lockProfessional(trx: Trx, clinicId: string, professionalId: string): Promise<ClinicProfessional | null>;
+  listProfessionals(trx: Trx, clinicId: string, filter: { active?: boolean }): Promise<ClinicProfessional[]>;
+  countProfessionals(trx: Trx, clinicId: string): Promise<number>;
+  updateProfessional(trx: Trx, professionalId: string, changes: ClinicProfessionalChanges): Promise<ClinicProfessional>;
+  insertServiceType(trx: Trx, record: NewClinicServiceTypeRecord): Promise<ClinicServiceType>;
+  findServiceType(trx: Trx, clinicId: string, serviceTypeId: string): Promise<ClinicServiceType | null>;
+  listServiceTypes(trx: Trx, clinicId: string, filter: { active?: boolean; kind?: ClinicSlotKind }): Promise<ClinicServiceType[]>;
+  countServiceTypes(trx: Trx, clinicId: string): Promise<number>;
+  updateServiceType(trx: Trx, serviceTypeId: string, changes: ClinicServiceTypeChanges): Promise<ClinicServiceType>;
+}
+
+export interface NewClinicScheduleRuleRecord {
+  id: string;
+  clinicId: string;
+  professionalId: string;
+  serviceTypeId: string;
+  weekdays: number[];
+  startTime: string;
+  endTime: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  capacity: number;
+  createdAt: Date;
+}
+
+export interface ClinicScheduleRuleChanges {
+  weekdays?: number[];
+  startTime?: string;
+  endTime?: string;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  capacity?: number;
+  active?: boolean;
+}
+
+/** `clinic_schedule_rules` — nunca se apagam (BR-CLN-12). */
+export interface ClinicScheduleRulesRepository<Trx> {
+  insert(trx: Trx, record: NewClinicScheduleRuleRecord): Promise<ClinicScheduleRule>;
+  findById(trx: Trx, clinicId: string, ruleId: string): Promise<ClinicScheduleRule | null>;
+  list(trx: Trx, clinicId: string, filter: { professionalId?: string; active?: boolean }): Promise<ClinicScheduleRule[]>;
+  count(trx: Trx, clinicId: string): Promise<number>;
+  listActiveByProfessional(trx: Trx, professionalId: string): Promise<ClinicScheduleRule[]>;
+  update(trx: Trx, ruleId: string, changes: ClinicScheduleRuleChanges): Promise<ClinicScheduleRule>;
+  /** Job diário: regras ativas de profissionais e serviços ativos (todas as clínicas). */
+  listActiveForGeneration(trx: Trx): Promise<ClinicScheduleRule[]>;
+}
+
+export interface NewClinicTimeOffRecord {
+  id: string;
+  clinicId: string;
+  professionalId: string;
+  startsAt: Date;
+  endsAt: Date;
+  reason: string | null;
+  createdByClinicAccountId: string;
+  createdAt: Date;
+}
+
+/** `clinic_time_off`. */
+export interface ClinicTimeOffRepository<Trx> {
+  insert(trx: Trx, record: NewClinicTimeOffRecord): Promise<ClinicTimeOff>;
+  findById(trx: Trx, clinicId: string, timeOffId: string): Promise<ClinicTimeOff | null>;
+  list(trx: Trx, clinicId: string, filter: { professionalId?: string; endsAfter: Date; startsBefore?: Date }): Promise<ClinicTimeOff[]>;
+  /** Bloqueios do profissional que intersectam `[from, to)`. */
+  listOverlapping(trx: Trx, professionalId: string, from: Date, to: Date): Promise<ClinicTimeOff[]>;
+  delete(trx: Trx, timeOffId: string): Promise<void>;
 }
 
 /** Marcações ativas de um horário (consultas `REQUESTED`/`SCHEDULED`, exames `SCHEDULED`). */
@@ -237,9 +362,17 @@ export interface ClinicsDeps<Trx> {
   /** BR-CLN-04/BR-APT-06: quais dos horários têm marcação ativa (consulta OU exame). Ligada no
    * composition root a `appointments`/`examinations` (que dependem de `clinics`, nunca o inverso). */
   slotOccupancy: SlotOccupancyPort<Trx>;
+  /** M14 (a1/a2, ADR-026): catálogo, regras e bloqueios. */
+  catalogRepo: ClinicCatalogRepository<Trx>;
+  scheduleRulesRepo: ClinicScheduleRulesRepository<Trx>;
+  timeOffRepo: ClinicTimeOffRepository<Trx>;
+  /** Janela rolante em semanas (BR-CLN-12, `CLINIC_SCHEDULE_HORIZON_WEEKS`); omitido = 8. */
+  scheduleHorizonWeeks?: number;
 }
 
 export type { Clinic, ClinicStatus, ClinicType } from "../domain/clinic.js";
 export type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "../domain/clinic-account.js";
 export type { ClinicSession } from "../domain/clinic-session.js";
 export type { ClinicSlot, ClinicSlotKind, ClinicSlotState, SlotBookingCounts, SlotOccupancy } from "../domain/clinic-slot.js";
+export type { ClinicProfessional, ClinicServiceType } from "../domain/clinic-catalog.js";
+export type { ClinicScheduleRule, ClinicTimeOff } from "../domain/clinic-schedule.js";

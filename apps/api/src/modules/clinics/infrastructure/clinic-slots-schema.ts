@@ -13,6 +13,11 @@ export interface ClinicSlotsTable {
   duration_minutes: number;
   /** BR-APT-11 — `db/migrations/0022_exam_slot_capacity_and_issuer_checks.sql`; default 1. */
   capacity: ColumnType<number, number | undefined, number>;
+  /** M14 a1/a2 — `db/migrations/0027_clinic_catalog_schedule.sql`; mantida pelo repositório (`starts_at + duração`). */
+  professional_id: ColumnType<string | null, string | null | undefined, string | null>;
+  service_type_id: ColumnType<string | null, string | null | undefined, string | null>;
+  schedule_rule_id: ColumnType<string | null, string | null | undefined, string | null>;
+  ends_at: ColumnType<Date, Date, never>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

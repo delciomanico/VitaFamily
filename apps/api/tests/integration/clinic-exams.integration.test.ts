@@ -104,7 +104,7 @@ describe("integração: migrações 0018..0022 e repositórios do portal da clí
       "0021_clinic_exams",
       "0022_exam_slot_capacity_and_issuer_checks",
     ]);
-    const legacy = await pool.query("INSERT INTO clinic_slots (clinic_id, specialty, starts_at, duration_minutes) VALUES ($1,'Geral',$2,30) RETURNING kind, capacity", [ids.clinic, FUTURE]);
+    const legacy = await pool.query("INSERT INTO clinic_slots (clinic_id, specialty, starts_at, duration_minutes, ends_at) VALUES ($1,'Geral',$2,30,$2::timestamptz + interval '30 minutes') RETURNING kind, capacity", [ids.clinic, FUTURE]);
     expect(legacy.rows[0]).toEqual({ kind: "APPOINTMENT", capacity: 1 });
   });
 
@@ -160,10 +160,10 @@ describe("integração: migrações 0018..0022 e repositórios do portal da clí
     });
 
     it("CHECKs: capacity 1–50; consulta só 1 vaga; REQUESTED/REJECTED proibidos; slot exige clínica; nota da clínica exige CLINIC", async () => {
-      await expect(pool.query("INSERT INTO clinic_slots (clinic_id, kind, specialty, starts_at, duration_minutes, capacity) VALUES ($1,'EXAM','x',$2,30,0)", [ids.clinic, FUTURE])).rejects.toThrow(/capacity_range/);
-      await expect(pool.query("INSERT INTO clinic_slots (clinic_id, kind, specialty, starts_at, duration_minutes, capacity) VALUES ($1,'EXAM','x',$2,30,51)", [ids.clinic, FUTURE])).rejects.toThrow(/capacity_range/);
-      await expect(pool.query("INSERT INTO clinic_slots (clinic_id, kind, specialty, starts_at, duration_minutes, capacity) VALUES ($1,'APPOINTMENT','x',$2,30,2)", [ids.clinic, FUTURE])).rejects.toThrow(/capacity_kind/);
-      await expect(pool.query("INSERT INTO clinic_slots (clinic_id, kind, specialty, starts_at, duration_minutes, capacity) VALUES ($1,'EXAM','x',$2,30,50)", [ids.clinic, FUTURE])).resolves.toBeDefined();
+      await expect(pool.query("INSERT INTO clinic_slots (clinic_id, kind, specialty, starts_at, duration_minutes, ends_at, capacity) VALUES ($1,'EXAM','x',$2,30,$2::timestamptz + interval '30 minutes',0)", [ids.clinic, FUTURE])).rejects.toThrow(/capacity_range/);
+      await expect(pool.query("INSERT INTO clinic_slots (clinic_id, kind, specialty, starts_at, duration_minutes, ends_at, capacity) VALUES ($1,'EXAM','x',$2,30,$2::timestamptz + interval '30 minutes',51)", [ids.clinic, FUTURE])).rejects.toThrow(/capacity_range/);
+      await expect(pool.query("INSERT INTO clinic_slots (clinic_id, kind, specialty, starts_at, duration_minutes, ends_at, capacity) VALUES ($1,'APPOINTMENT','x',$2,30,$2::timestamptz + interval '30 minutes',2)", [ids.clinic, FUTURE])).rejects.toThrow(/capacity_kind/);
+      await expect(pool.query("INSERT INTO clinic_slots (clinic_id, kind, specialty, starts_at, duration_minutes, ends_at, capacity) VALUES ($1,'EXAM','x',$2,30,$2::timestamptz + interval '30 minutes',50)", [ids.clinic, FUTURE])).resolves.toBeDefined();
 
       const examId = await newExam(null, "SCHEDULED");
       await expect(pool.query("UPDATE examinations SET status = 'REQUESTED' WHERE id = $1", [examId])).rejects.toThrow(/no_request_flow/);

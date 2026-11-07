@@ -70,6 +70,7 @@ export function createCreateAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>)
           clinicName: booking.clinicName,
           specialty: booking.specialty,
           slotId: booking.slotId,
+          durationMinutes: booking.durationMinutes,
           ...(booking.professionalName ? { professionalName: booking.professionalName } : {}),
           ...(input.reason ? { reason: input.reason } : {}),
           ...(input.notes ? { notes: input.notes } : {}),

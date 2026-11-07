@@ -18,7 +18,27 @@ export interface ClinicSlot {
   durationMinutes: number;
   /** BR-APT-11: vagas (1–50); sempre 1 em `APPOINTMENT`. */
   capacity: number;
+  /** M14 (a1/a2): ligação ao catálogo; nulos nos horários manuais antigos (BR-CLN-11/13). */
+  professionalId?: string;
+  serviceTypeId?: string;
+  /** Preenchido nos horários gerados por regra (BR-CLN-12): não se removem individualmente. */
+  scheduleRuleId?: string;
   createdAt: Date;
+}
+
+/** Fim do intervalo semiaberto `[startsAt, startsAt + duração)` (BR-CLN-13; `ends_at` na BD). */
+export function slotEndsAt(slot: Pick<ClinicSlot, "startsAt" | "durationMinutes">): Date {
+  return new Date(slot.startsAt.getTime() + slot.durationMinutes * 60_000);
+}
+
+/** Intervalos semiabertos `[aStart, aEnd)` e `[bStart, bEnd)`: fim de um = início do outro NÃO sobrepõe. */
+export function intervalsOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
+  return aStart.getTime() < bEnd.getTime() && bStart.getTime() < aEnd.getTime();
+}
+
+/** BR-CLN-13: sobreposição de dois horários (a quem chama cabe só comparar do mesmo profissional). */
+export function slotsOverlap(a: Pick<ClinicSlot, "startsAt" | "durationMinutes">, b: Pick<ClinicSlot, "startsAt" | "durationMinutes">): boolean {
+  return intervalsOverlap(a.startsAt, slotEndsAt(a), b.startsAt, slotEndsAt(b));
 }
 
 /** `ClinicSlotView.state` (openapi.yaml, BR-APT-11): `APPOINTMENT` -> FREE|REQUESTED|SCHEDULED;

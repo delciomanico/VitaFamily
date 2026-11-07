@@ -7,7 +7,10 @@ import type { Clinic, ClinicStatus } from "../domain/clinic.js";
 import type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "../domain/clinic-account.js";
 import { ClinicInMemoryRateLimiter } from "../domain/clinic-rate-limiter.js";
 import type { ClinicSession } from "../domain/clinic-session.js";
-import type { ClinicSlot } from "../domain/clinic-slot.js";
+import { slotEndsAt, slotsOverlap, type ClinicSlot } from "../domain/clinic-slot.js";
+import { ConflictError } from "../../../platform/errors/index.js";
+import type { ClinicProfessional, ClinicServiceType } from "../domain/clinic-catalog.js";
+import type { ClinicScheduleRule, ClinicTimeOff } from "../domain/clinic-schedule.js";
 import type {
   AccessPort,
   AuditPort,
@@ -18,6 +21,16 @@ import type {
   ClinicMailer,
   ClinicSentEmail,
   ClinicSessionRepository,
+  ClinicCatalogRepository,
+  ClinicProfessionalChanges,
+  ClinicScheduleRuleChanges,
+  ClinicScheduleRulesRepository,
+  ClinicServiceTypeChanges,
+  ClinicTimeOffRepository,
+  NewClinicProfessionalRecord,
+  NewClinicScheduleRuleRecord,
+  NewClinicServiceTypeRecord,
+  NewClinicTimeOffRecord,
   ClinicSlotDuplicateCheck,
   ClinicSlotListFilter,
   ClinicSlotsRepository,
@@ -250,9 +263,59 @@ export class FakeClinicSlotsRepository implements ClinicSlotsRepository<FakeTrx>
       capacity: record.capacity,
       createdAt: record.createdAt,
       ...(record.professionalName !== undefined ? { professionalName: record.professionalName } : {}),
+      ...(record.professionalId !== undefined ? { professionalId: record.professionalId } : {}),
+      ...(record.serviceTypeId !== undefined ? { serviceTypeId: record.serviceTypeId } : {}),
+      ...(record.scheduleRuleId !== undefined ? { scheduleRuleId: record.scheduleRuleId } : {}),
     };
+    if (this.conflicts(slot)) {
+      throw new Error("violação da exclusão/unicidade no fake");
+    }
     this.byId.set(slot.id, slot);
     return Promise.resolve(slot);
+  }
+
+  /** Emula a `EXCLUDE` (BR-CLN-13) e o UNIQUE `(schedule_rule_id, starts_at)` da BD. */
+  private conflicts(slot: ClinicSlot): boolean {
+    return [...this.byId.values()].some(
+      (other) =>
+        (slot.professionalId !== undefined && other.professionalId === slot.professionalId && slotsOverlap(slot, other)) ||
+        (slot.scheduleRuleId !== undefined && other.scheduleRuleId === slot.scheduleRuleId && other.startsAt.getTime() === slot.startsAt.getTime()),
+    );
+  }
+
+  async insertManyIgnoringConflicts(trx: FakeTrx, records: NewClinicSlotRecord[]): Promise<ClinicSlot[]> {
+    const created: ClinicSlot[] = [];
+    for (const record of records) {
+      try {
+        created.push(await this.insert(trx, record));
+      } catch {
+        // ON CONFLICT DO NOTHING
+      }
+    }
+    return created;
+  }
+
+  async listByProfessional(_trx: FakeTrx, professionalId: string, filter: { endsAfter?: Date; startsBefore?: Date }): Promise<ClinicSlot[]> {
+    return Promise.resolve(
+      [...this.byId.values()]
+        .filter((slot) => slot.professionalId === professionalId)
+        .filter((slot) => !filter.endsAfter || slotEndsAt(slot).getTime() > filter.endsAfter.getTime())
+        .filter((slot) => !filter.startsBefore || slot.startsAt.getTime() < filter.startsBefore.getTime())
+        .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
+    );
+  }
+
+  async listFutureByRule(_trx: FakeTrx, scheduleRuleId: string, after: Date): Promise<ClinicSlot[]> {
+    return Promise.resolve([...this.byId.values()].filter((slot) => slot.scheduleRuleId === scheduleRuleId && slot.startsAt.getTime() > after.getTime()).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()));
+  }
+
+  async lockMany(_trx: FakeTrx, slotIds: string[]): Promise<ClinicSlot[]> {
+    return Promise.resolve(slotIds.flatMap((id) => this.byId.get(id) ?? []));
+  }
+
+  async deleteMany(_trx: FakeTrx, slotIds: string[]): Promise<void> {
+    for (const id of slotIds) this.byId.delete(id);
+    return Promise.resolve();
   }
 
   async lockById(_trx: FakeTrx, slotId: string): Promise<ClinicSlot | null> {
@@ -303,6 +366,199 @@ export class FakeClinicSlotsRepository implements ClinicSlotsRepository<FakeTrx>
 
   seed(slot: ClinicSlot): void {
     this.byId.set(slot.id, slot);
+  }
+}
+
+/** Catálogo em memória (nome único entre ativos => `ConflictError`, como o UNIQUE parcial da BD). */
+export class FakeClinicCatalogRepository implements ClinicCatalogRepository<FakeTrx> {
+  readonly professionals = new Map<string, ClinicProfessional>();
+  readonly services = new Map<string, ClinicServiceType>();
+  currency = "AOA";
+  /** Registo de `lockProfessional` (para verificar a ordem de bloqueio). */
+  readonly locks: string[] = [];
+
+  async lockClinic(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  async getCurrency(): Promise<string> {
+    return Promise.resolve(this.currency);
+  }
+
+  private assertUniqueProfessional(candidate: ClinicProfessional): void {
+    if (candidate.active && [...this.professionals.values()].some((p) => p.id !== candidate.id && p.clinicId === candidate.clinicId && p.active && p.name.toLowerCase() === candidate.name.toLowerCase())) {
+      throw new ConflictError({ detail: "Já existe um profissional ativo com esse nome." });
+    }
+  }
+
+  private assertUniqueService(candidate: ClinicServiceType): void {
+    if (candidate.active && [...this.services.values()].some((s) => s.id !== candidate.id && s.clinicId === candidate.clinicId && s.kind === candidate.kind && s.active && s.name.toLowerCase() === candidate.name.toLowerCase())) {
+      throw new ConflictError({ detail: "Já existe um serviço ativo com esse nome." });
+    }
+  }
+
+  async insertProfessional(_trx: FakeTrx, record: NewClinicProfessionalRecord): Promise<ClinicProfessional> {
+    const professional: ClinicProfessional = { id: record.id, clinicId: record.clinicId, name: record.name, specialty: record.specialty, active: true };
+    this.assertUniqueProfessional(professional);
+    this.professionals.set(professional.id, professional);
+    return Promise.resolve(professional);
+  }
+
+  async findProfessional(_trx: FakeTrx, clinicId: string, professionalId: string): Promise<ClinicProfessional | null> {
+    const found = this.professionals.get(professionalId);
+    return Promise.resolve(found?.clinicId === clinicId ? found : null);
+  }
+
+  async lockProfessional(trx: FakeTrx, clinicId: string, professionalId: string): Promise<ClinicProfessional | null> {
+    this.locks.push(professionalId);
+    return this.findProfessional(trx, clinicId, professionalId);
+  }
+
+  async listProfessionals(_trx: FakeTrx, clinicId: string, filter: { active?: boolean }): Promise<ClinicProfessional[]> {
+    return Promise.resolve([...this.professionals.values()].filter((p) => p.clinicId === clinicId && (filter.active === undefined || p.active === filter.active)).sort((a, b) => a.name.localeCompare(b.name)));
+  }
+
+  async countProfessionals(_trx: FakeTrx, clinicId: string): Promise<number> {
+    return Promise.resolve([...this.professionals.values()].filter((p) => p.clinicId === clinicId).length);
+  }
+
+  async updateProfessional(_trx: FakeTrx, professionalId: string, changes: ClinicProfessionalChanges): Promise<ClinicProfessional> {
+    const current = this.professionals.get(professionalId);
+    if (!current) throw new Error("profissional inexistente no fake");
+    const updated: ClinicProfessional = { ...current, ...(changes.name !== undefined ? { name: changes.name } : {}), ...(changes.specialty !== undefined ? { specialty: changes.specialty } : {}), ...(changes.active !== undefined ? { active: changes.active } : {}) };
+    this.assertUniqueProfessional(updated);
+    this.professionals.set(professionalId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async insertServiceType(_trx: FakeTrx, record: NewClinicServiceTypeRecord): Promise<ClinicServiceType> {
+    const service: ClinicServiceType = { id: record.id, clinicId: record.clinicId, name: record.name, kind: record.kind, durationMinutes: record.durationMinutes, priceMinor: record.priceMinor, active: true };
+    this.assertUniqueService(service);
+    this.services.set(service.id, service);
+    return Promise.resolve(service);
+  }
+
+  async findServiceType(_trx: FakeTrx, clinicId: string, serviceTypeId: string): Promise<ClinicServiceType | null> {
+    const found = this.services.get(serviceTypeId);
+    return Promise.resolve(found?.clinicId === clinicId ? found : null);
+  }
+
+  async listServiceTypes(_trx: FakeTrx, clinicId: string, filter: { active?: boolean; kind?: "APPOINTMENT" | "EXAM" }): Promise<ClinicServiceType[]> {
+    return Promise.resolve(
+      [...this.services.values()]
+        .filter((s) => s.clinicId === clinicId && (filter.active === undefined || s.active === filter.active) && (!filter.kind || s.kind === filter.kind))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+  }
+
+  async countServiceTypes(_trx: FakeTrx, clinicId: string): Promise<number> {
+    return Promise.resolve([...this.services.values()].filter((s) => s.clinicId === clinicId).length);
+  }
+
+  async updateServiceType(_trx: FakeTrx, serviceTypeId: string, changes: ClinicServiceTypeChanges): Promise<ClinicServiceType> {
+    const current = this.services.get(serviceTypeId);
+    if (!current) throw new Error("serviço inexistente no fake");
+    const updated: ClinicServiceType = {
+      ...current,
+      ...(changes.name !== undefined ? { name: changes.name } : {}),
+      ...(changes.durationMinutes !== undefined ? { durationMinutes: changes.durationMinutes } : {}),
+      ...(changes.priceMinor !== undefined ? { priceMinor: changes.priceMinor } : {}),
+      ...(changes.active !== undefined ? { active: changes.active } : {}),
+    };
+    this.assertUniqueService(updated);
+    this.services.set(serviceTypeId, updated);
+    return Promise.resolve(updated);
+  }
+}
+
+export class FakeClinicScheduleRulesRepository implements ClinicScheduleRulesRepository<FakeTrx> {
+  readonly byId = new Map<string, ClinicScheduleRule>();
+
+  constructor(private readonly catalog: FakeClinicCatalogRepository) {}
+
+  async insert(_trx: FakeTrx, record: NewClinicScheduleRuleRecord): Promise<ClinicScheduleRule> {
+    const rule: ClinicScheduleRule = {
+      id: record.id,
+      clinicId: record.clinicId,
+      professionalId: record.professionalId,
+      serviceTypeId: record.serviceTypeId,
+      weekdays: record.weekdays,
+      startTime: record.startTime,
+      endTime: record.endTime,
+      validFrom: record.validFrom,
+      validUntil: record.validUntil,
+      capacity: record.capacity,
+      active: true,
+    };
+    this.byId.set(rule.id, rule);
+    return Promise.resolve(rule);
+  }
+
+  async findById(_trx: FakeTrx, clinicId: string, ruleId: string): Promise<ClinicScheduleRule | null> {
+    const found = this.byId.get(ruleId);
+    return Promise.resolve(found?.clinicId === clinicId ? found : null);
+  }
+
+  async list(_trx: FakeTrx, clinicId: string, filter: { professionalId?: string; active?: boolean }): Promise<ClinicScheduleRule[]> {
+    return Promise.resolve(
+      [...this.byId.values()].filter((r) => r.clinicId === clinicId && (!filter.professionalId || r.professionalId === filter.professionalId) && (filter.active === undefined || r.active === filter.active)),
+    );
+  }
+
+  async count(_trx: FakeTrx, clinicId: string): Promise<number> {
+    return Promise.resolve([...this.byId.values()].filter((r) => r.clinicId === clinicId).length);
+  }
+
+  async listActiveByProfessional(_trx: FakeTrx, professionalId: string): Promise<ClinicScheduleRule[]> {
+    return Promise.resolve([...this.byId.values()].filter((r) => r.professionalId === professionalId && r.active));
+  }
+
+  async update(_trx: FakeTrx, ruleId: string, changes: ClinicScheduleRuleChanges): Promise<ClinicScheduleRule> {
+    const current = this.byId.get(ruleId);
+    if (!current) throw new Error("regra inexistente no fake");
+    const updated: ClinicScheduleRule = { ...current, ...changes };
+    this.byId.set(ruleId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async listActiveForGeneration(): Promise<ClinicScheduleRule[]> {
+    return Promise.resolve(
+      [...this.byId.values()].filter((r) => r.active && this.catalog.professionals.get(r.professionalId)?.active === true && this.catalog.services.get(r.serviceTypeId)?.active === true),
+    );
+  }
+}
+
+export class FakeClinicTimeOffRepository implements ClinicTimeOffRepository<FakeTrx> {
+  readonly byId = new Map<string, ClinicTimeOff>();
+
+  async insert(_trx: FakeTrx, record: NewClinicTimeOffRecord): Promise<ClinicTimeOff> {
+    const timeOff: ClinicTimeOff = { id: record.id, clinicId: record.clinicId, professionalId: record.professionalId, startsAt: record.startsAt, endsAt: record.endsAt, reason: record.reason };
+    this.byId.set(timeOff.id, timeOff);
+    return Promise.resolve(timeOff);
+  }
+
+  async findById(_trx: FakeTrx, clinicId: string, timeOffId: string): Promise<ClinicTimeOff | null> {
+    const found = this.byId.get(timeOffId);
+    return Promise.resolve(found?.clinicId === clinicId ? found : null);
+  }
+
+  async list(_trx: FakeTrx, clinicId: string, filter: { professionalId?: string; endsAfter: Date; startsBefore?: Date }): Promise<ClinicTimeOff[]> {
+    return Promise.resolve(
+      [...this.byId.values()]
+        .filter((t) => t.clinicId === clinicId && t.endsAt.getTime() > filter.endsAfter.getTime())
+        .filter((t) => !filter.professionalId || t.professionalId === filter.professionalId)
+        .filter((t) => !filter.startsBefore || t.startsAt.getTime() < filter.startsBefore.getTime())
+        .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
+    );
+  }
+
+  async listOverlapping(_trx: FakeTrx, professionalId: string, from: Date, to: Date): Promise<ClinicTimeOff[]> {
+    return Promise.resolve([...this.byId.values()].filter((t) => t.professionalId === professionalId && t.startsAt.getTime() < to.getTime() && t.endsAt.getTime() > from.getTime()));
+  }
+
+  async delete(_trx: FakeTrx, timeOffId: string): Promise<void> {
+    this.byId.delete(timeOffId);
+    return Promise.resolve();
   }
 }
 
@@ -378,6 +634,9 @@ export interface ClinicsFixtures {
   clinicSessionRepo: FakeClinicSessionRepository;
   clinicSlotsRepo: FakeClinicSlotsRepository;
   slotOccupancy: FakeSlotOccupancy;
+  catalogRepo: FakeClinicCatalogRepository;
+  scheduleRulesRepo: FakeClinicScheduleRulesRepository;
+  timeOffRepo: FakeClinicTimeOffRepository;
   clinicMailer: FakeClinicMailer;
   clinicLogger: FakeClinicLogger;
 }
@@ -390,6 +649,9 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
   const clinicSessionRepo = new FakeClinicSessionRepository();
   const clinicSlotsRepo = new FakeClinicSlotsRepository();
   const slotOccupancy = new FakeSlotOccupancy();
+  const catalogRepo = new FakeClinicCatalogRepository();
+  const scheduleRulesRepo = new FakeClinicScheduleRulesRepository(catalogRepo);
+  const timeOffRepo = new FakeClinicTimeOffRepository();
   const clinicMailer = new FakeClinicMailer();
   const clinicLogger = new FakeClinicLogger();
   const deps: ClinicsDeps<FakeTrx> = {
@@ -403,6 +665,9 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
     clinicSessionRepo,
     clinicSlotsRepo,
     slotOccupancy,
+    catalogRepo,
+    scheduleRulesRepo,
+    timeOffRepo,
     clinicMailer,
     logger: clinicLogger as unknown as Logger,
     clinicRateLimiter: new ClinicInMemoryRateLimiter(clock),
@@ -410,5 +675,5 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
     clinicAccessTtlSeconds: 900,
     clinicRefreshTtlMs: 30 * 24 * 60 * 60 * 1000,
   };
-  return { deps, clinicsRepo, access, audit, clinicAccountRepo, clinicSessionRepo, clinicSlotsRepo, slotOccupancy, clinicMailer, clinicLogger };
+  return { deps, clinicsRepo, access, audit, clinicAccountRepo, clinicSessionRepo, clinicSlotsRepo, slotOccupancy, catalogRepo, scheduleRulesRepo, timeOffRepo, clinicMailer, clinicLogger };
 }

@@ -32,6 +32,8 @@ export interface Appointment {
   walkIn?: boolean;
   /** Autor da marcação walk-in (anulado se a conta for removida; `walkIn` mantém-se). */
   bookedByClinicAccountId?: string;
+  /** BR-CLN-16 (interno, fora dos contratos da família): duração em minutos (5–480); 30 sem horário. */
+  durationMinutes?: number;
   createdAt: Date;
 }
 

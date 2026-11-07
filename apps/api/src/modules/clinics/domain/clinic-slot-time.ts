@@ -95,6 +95,29 @@ function localDateTimeOf(instant: Date, timeZone: string): LocalDateTime {
   return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
 }
 
+/** Dia civil local de um instante em `timeZone` (default `CLINIC_TIMEZONE`). */
+export function localDateOf(instant: Date, timeZone: string = CLINIC_TIMEZONE): LocalDate {
+  const { year, month, day } = localDateTimeOf(instant, timeZone);
+  return { year, month, day };
+}
+
+/** Soma `days` dias civis (aritmética de calendário pura, sem fuso). */
+export function addLocalDays(date: LocalDate, days: number): LocalDate {
+  const shifted = new Date(Date.UTC(date.year, date.month - 1, date.day + days));
+  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth() + 1, day: shifted.getUTCDate() };
+}
+
+/** Dia da semana ISO (1 = segunda ... 7 = domingo) de um dia civil. */
+export function isoWeekdayOf(date: LocalDate): number {
+  const weekday = new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay();
+  return weekday === 0 ? 7 : weekday;
+}
+
+/** Ordem cronológica de dias civis: negativo, 0 ou positivo. */
+export function compareLocalDates(a: LocalDate, b: LocalDate): number {
+  return Date.UTC(a.year, a.month - 1, a.day) - Date.UTC(b.year, b.month - 1, b.day);
+}
+
 function sameLocal(a: LocalDateTime, b: LocalDateTime): boolean {
   return a.year === b.year && a.month === b.month && a.day === b.day && a.hour === b.hour && a.minute === b.minute;
 }

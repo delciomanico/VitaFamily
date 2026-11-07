@@ -26,6 +26,8 @@ export interface AppointmentsTable {
   /** Marcada presencialmente pela clínica (D20, ADR-024) — `db/migrations/0026_appointment_walk_in.sql`; permanente. */
   walk_in: ColumnType<boolean, boolean | undefined, boolean>;
   booked_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  /** BR-CLN-16 — `db/migrations/0027_clinic_catalog_schedule.sql`; default 30. */
+  duration_minutes: ColumnType<number, number | undefined, number>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

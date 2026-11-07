@@ -19,6 +19,7 @@ import { createExaminationsReminderQueries } from "../modules/examinations/index
 import { createNotificationsWorkerModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsWorkerModule } from "../modules/alerts/index.js";
 import { createLifecycleWorkerModule } from "../modules/lifecycle/index.js";
+import { createClinicsWorkerModule } from "../modules/clinics/index.js";
 
 export function main(): void {
   const config = loadConfig();
@@ -118,6 +119,9 @@ export function main(): void {
     },
   });
 
+  // M14 a2 (BR-CLN-12): geração diária de horários por regra; só precisa de BD, auditoria e relógio.
+  const clinicsWorker = createClinicsWorkerModule({ db, audit, clock, logger, boss });
+
   boss
     .start()
     .then(async () => {
@@ -126,6 +130,7 @@ export function main(): void {
       await notificationsWorker.registerWorkers();
       await alertsWorker.registerWorkers();
       await lifecycleWorker.registerWorkers();
+      await clinicsWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

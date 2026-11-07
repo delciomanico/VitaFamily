@@ -106,6 +106,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
       listFreeSlots: deps.clinics.listFreeClinicSlots,
       findSlot: deps.clinics.findClinicSlot,
       lockSlot: deps.clinics.lockClinicSlot,
+      listProfessionalSlotsOverlapping: deps.clinics.listProfessionalSlotsOverlapping,
     },
     examSlotOccupancy: deps.examSlotOccupancy,
     prescriptions: { issueForClinic: deps.prescriptions.issuePrescriptionForClinic },

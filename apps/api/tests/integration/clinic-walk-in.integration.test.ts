@@ -74,6 +74,8 @@ describe("integração: marcação presencial (walk-in) — migração 0026 e re
           return slot?.clinicId === clinicId ? slot : null;
         },
         lockSlot: (trx, slotId) => slots.lockById(trx, slotId),
+        listProfessionalSlotsOverlapping: async (trx, professionalId, from, to, excludeSlotId) =>
+          (await slots.listByProfessional(trx, professionalId, { endsAfter: from, startsBefore: to })).filter((slot) => slot.id !== excludeSlotId).map((slot) => slot.id),
       },
       examSlotOccupancy: { countScheduledBySlot: unused },
       prescriptions: { issueForClinic: unused },

@@ -8089,8 +8089,7 @@ components:
         kind:
           type: string
           enum: [APPOINTMENT, EXAM]
-          default: APPOINTMENT
-          description: "D19/BR-APT-10."
+          description: "D19/BR-APT-10. Omitido = APPOINTMENT sem serviceTypeId; com serviceTypeId vem do serviço (valor diferente -> VALIDATION_ERROR)."
         capacity:
           type: integer
           minimum: 1
