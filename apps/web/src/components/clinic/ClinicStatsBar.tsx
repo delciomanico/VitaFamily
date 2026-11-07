@@ -20,7 +20,7 @@ function Stat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; v
   )
 }
 
-/** Resumo do dia (só desktop): pedidos por responder, consultas e exames de hoje, vagas livres. Atualiza a cada navegação. */
+/** Resumo do dia : pedidos por responder, consultas e exames de hoje, vagas livres. Atualiza a cada navegação. */
 export function ClinicStatsBar() {
   const { pathname } = useLocation()
   const { state } = useAsync(async () => {
@@ -41,7 +41,7 @@ export function ClinicStatsBar() {
   const data = state.status === 'success' ? state.data : null
 
   return (
-    <section aria-label="Resumo" className="hidden grid-cols-4 gap-4 lg:grid">
+    <section aria-label="Resumo" className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
       <Stat icon={Inbox} label="Pedidos por responder" value={data?.requests ?? null} />
       <Stat icon={CalendarDays} label="Consultas hoje" value={data?.consultations ?? null} />
       <Stat icon={FlaskConical} label="Exames hoje" value={data?.exams ?? null} />

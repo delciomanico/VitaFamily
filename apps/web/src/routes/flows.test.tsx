@@ -204,8 +204,8 @@ describe('fluxos de autenticação', () => {
   it('só o Admin da clínica chega às contas da clínica (BR-CLN-05)', async () => {
     window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_rececao')
     const router = renderAt('/clinic/staff')
-    // Gestor: sem separador “Contas” e redirecionado para os pedidos.
-    expect(await screen.findByRole('heading', { name: 'Pedidos de consulta' })).toBeInTheDocument()
+    // Gestor: sem separador “Contas” e redirecionado para a página “Hoje”.
+    expect(await screen.findByRole('heading', { name: 'Hoje' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/clinic')
     expect(screen.queryByRole('link', { name: 'Contas' })).not.toBeInTheDocument()
   })

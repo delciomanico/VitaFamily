@@ -58,6 +58,7 @@ export const paths = {
   // Portal da clínica parceira (D17/D18): login e sessão próprios, fora do fluxo da app (ADR-020).
   clinicLogin: '/clinic/login',
   clinic: '/clinic',
+  clinicRequests: '/clinic/requests',
   clinicAgenda: '/clinic/agenda',
   clinicSlots: '/clinic/slots',
   clinicExams: '/clinic/exams',

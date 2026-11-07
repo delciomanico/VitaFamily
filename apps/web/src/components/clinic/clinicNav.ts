@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarClock, FlaskConical, Inbox, Users, type LucideIcon } from 'lucide-react'
+import { CalendarDays, CalendarClock, FlaskConical, Inbox, LayoutDashboard, Users, type LucideIcon } from 'lucide-react'
 import { paths } from '@/routes/paths'
 
 export interface ClinicNavItem {
@@ -13,11 +13,30 @@ export interface ClinicNavItem {
   pending?: boolean
 }
 
-/** Navegação do portal da clínica, partilhada pela barra lateral (desktop) e pelos separadores (telemóvel). */
-export const clinicNav: ClinicNavItem[] = [
-  { to: paths.clinic, label: 'Pedidos', icon: Inbox, end: true, pending: true },
-  { to: paths.clinicAgenda, label: 'Agenda', icon: CalendarDays, end: false },
-  { to: paths.clinicExams, label: 'Exames', icon: FlaskConical, end: false },
-  { to: paths.clinicSlots, label: 'Horários', icon: CalendarClock, end: false },
-  { to: paths.clinicStaff, label: 'Contas', icon: Users, end: false, adminOnly: true },
+export interface ClinicNavGroup {
+  /** Título da secção na barra lateral; ausente = item solto no topo. */
+  title?: string
+  items: ClinicNavItem[]
+}
+
+/**
+ * Navegação do portal da clínica (docs/11-implementation/clinic-portal-v2.md), partilhada pela
+ * barra lateral (desktop) e pelos separadores (telemóvel). Só entram áreas que já existem:
+ * as das fases seguintes (pacientes, serviços, financeiro…) aparecem quando forem entregues.
+ */
+export const clinicNavGroups: ClinicNavGroup[] = [
+  { items: [{ to: paths.clinic, label: 'Hoje', icon: LayoutDashboard, end: true }] },
+  {
+    title: 'Agenda',
+    items: [
+      { to: paths.clinicRequests, label: 'Pedidos', icon: Inbox, end: false, pending: true },
+      { to: paths.clinicAgenda, label: 'Calendário', icon: CalendarDays, end: false },
+      { to: paths.clinicSlots, label: 'Horários', icon: CalendarClock, end: false },
+    ],
+  },
+  { title: 'Exames', items: [{ to: paths.clinicExams, label: 'Exames', icon: FlaskConical, end: false }] },
+  { title: 'Gestão', items: [{ to: paths.clinicStaff, label: 'Contas', icon: Users, end: false, adminOnly: true }] },
 ]
+
+/** Lista plana (separadores do telemóvel). */
+export const clinicNav: ClinicNavItem[] = clinicNavGroups.flatMap((group) => group.items)

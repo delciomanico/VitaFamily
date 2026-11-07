@@ -278,7 +278,8 @@ export const routes: RouteObject[] = [
           {
             element: <ClinicShell />,
             children: [
-              { index: true, ...page(() => import('@/pages/clinic/ClinicRequestsPage'), 'ClinicRequestsPage') },
+              { index: true, ...page(() => import('@/pages/clinic/ClinicTodayPage'), 'ClinicTodayPage') },
+              { path: 'requests', ...page(() => import('@/pages/clinic/ClinicRequestsPage'), 'ClinicRequestsPage') },
               { path: 'agenda', ...page(() => import('@/pages/clinic/ClinicAgendaPage'), 'ClinicAgendaPage') },
               { path: 'exams', ...page(() => import('@/pages/clinic/ClinicExamsPage'), 'ClinicExamsPage') },
               { path: 'slots', ...page(() => import('@/pages/clinic/ClinicSlotsPage'), 'ClinicSlotsPage') },

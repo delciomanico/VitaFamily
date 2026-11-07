@@ -1,7 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import { ClinicSidebar } from '@/components/clinic/ClinicSidebar'
-import { ClinicStatsBar } from '@/components/clinic/ClinicStatsBar'
 import { clinicNav } from '@/components/clinic/clinicNav'
 import { ClinicAuthProvider, useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { useAsync } from '@/hooks/useAsync'
@@ -71,7 +70,7 @@ export function ClinicShell() {
         </div>
       </header>
       <nav aria-label="Portal da clínica" className="mx-auto max-w-3xl px-4 pt-4 lg:hidden">
-        <div className="flex gap-1 rounded-full bg-surface-muted p-1">
+        <div className="flex gap-1 overflow-x-auto rounded-full bg-surface-muted p-1">
           {tabs.map((tab) => (
             <NavLink
               key={tab.to}
@@ -79,7 +78,7 @@ export function ClinicShell() {
               end={tab.end}
               className={({ isActive }) =>
                 cn(
-                  'flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors',
+                  'flex h-9 flex-1 shrink-0 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium whitespace-nowrap transition-colors',
                   isActive ? 'bg-surface text-foreground shadow-card' : 'text-muted hover:text-foreground',
                 )
               }
@@ -99,7 +98,6 @@ export function ClinicShell() {
         id="conteudo"
         className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-5 pb-[max(2rem,env(safe-area-inset-bottom))] lg:mx-0 lg:max-w-[calc(16rem+84rem)] lg:gap-6 lg:py-8 lg:pr-10 lg:pl-[calc(16rem+2.5rem)]"
       >
-        <ClinicStatsBar />
         <Outlet />
       </main>
     </div>
