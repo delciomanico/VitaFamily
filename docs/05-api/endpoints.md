@@ -812,7 +812,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **REQUEST:** `ClinicSlotBatchInput`
 - **RESPONSE:** `201` `[ClinicSlot]`
 - **ERRORS:** `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** BR-CLN-04; ignora horas passadas e duplicadas (mesma hora, `kind`, especialidade e profissional). D19: `kind=EXAM` publica horários de exame (UC-CLN-07) com `capacity` vagas (1–50, default 1; em `APPOINTMENT` só 1, BR-APT-11).
+- **BUSINESS RULES:** BR-CLN-04; ignora horas passadas e duplicadas (mesma hora, `kind`, especialidade e profissional). M14: com `professionalId`/`serviceTypeId` (opcionais; BR-CLN-11) aplica-se BR-CLN-13 (sobreposição ⇒ `CONFLICT`, nada criado) e BR-CLN-14 (bloqueio ⇒ `CONFLICT`); `NOT_FOUND` se de outra clínica. D19: `kind=EXAM` publica horários de exame (UC-CLN-07) com `capacity` vagas (1–50, default 1; em `APPOINTMENT` só 1, BR-APT-11).
 
 ### `PATCH /clinic-portal/slots/{slotId}`  — updateClinicSlot
 - **AUTHORIZATION:** CLINIC_ACCOUNT
@@ -828,7 +828,117 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **REQUEST:** —
 - **RESPONSE:** `204` sem corpo
 - **ERRORS:** `CONFLICT` (horário com marcações ativas), `NOT_FOUND`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** BR-CLN-04/BR-APT-11: só remove horários sem marcações ativas (consulta `REQUESTED`/`SCHEDULED`; exame `SCHEDULED`).
+- **BUSINESS RULES:** BR-CLN-04/BR-APT-11: só remove horários sem marcações ativas (consulta `REQUESTED`/`SCHEDULED`; exame `SCHEDULED`). M14 (BR-CLN-12): horário gerado por regra (`scheduleRuleId`) não se remove individualmente (`CONFLICT`); usar bloqueio/férias ou desativar a regra.
+
+### M14 fases (a1)/(a2) — catálogo, regras de horário e bloqueios (ADR-026; contrato 2026-11-07)
+
+> Tudo com `clinic_id` do token (404 sem enumeração, `authorization.md` §6.1). Sem DELETE nos recursos do catálogo e das regras: **desativa-se** (`active=false`). Retrocompatível: `POST /clinic-portal/slots` continua a funcionar sem `professionalId`/`serviceTypeId`.
+
+### `GET /clinic-portal/professionals`  — listClinicProfessionals
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Listar profissionais (UC-CLN-11).
+- **REQUEST:** Query `active?`
+- **RESPONSE:** `200` `[ClinicProfessional]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-11.
+
+### `POST /clinic-portal/professionals`  — createClinicProfessional
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Criar profissional.
+- **REQUEST:** `ClinicProfessionalInput` (`name` 1–120, `specialty?` ≤80)
+- **RESPONSE:** `201` `ClinicProfessional`
+- **ERRORS:** `CONFLICT` (nome duplicado entre ativos; >100 profissionais), `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-11. Auditoria `CLINIC_PROFESSIONAL_CREATE`.
+
+### `PATCH /clinic-portal/professionals/{professionalId}`  — updateClinicProfessional
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Alterar/desativar/reativar.
+- **REQUEST:** `ClinicProfessionalPatch`
+- **RESPONSE:** `200` `ClinicProfessional`
+- **ERRORS:** `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-11/15: desativar remove os horários futuros livres gerados do profissional; marcações mantêm-se. Auditoria `CLINIC_PROFESSIONAL_UPDATE`.
+
+### `GET /clinic-portal/services`  — listClinicServiceTypes
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Listar tipos de serviço (consulta/exame).
+- **REQUEST:** Query `active?`, `kind?` (`APPOINTMENT`\|`EXAM`)
+- **RESPONSE:** `200` `[ClinicServiceType]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-11/12.
+
+### `POST /clinic-portal/services`  — createClinicServiceType
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Criar tipo de serviço.
+- **REQUEST:** `ClinicServiceTypeInput` (`name`, `kind`, `durationMinutes` ∈ {15,20,30,45,60}, `priceMinor?` ≥0)
+- **RESPONSE:** `201` `ClinicServiceType` (`currency` só leitura = moeda da clínica, AOA por omissão)
+- **ERRORS:** `CONFLICT` (nome duplicado por `kind` entre ativos; >100 serviços), `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-12. Preço só informativo (não gera cobrança nem recibo). Auditoria `CLINIC_SERVICE_CREATE`.
+
+### `PATCH /clinic-portal/services/{serviceTypeId}`  — updateClinicServiceType
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Alterar/desativar/reativar.
+- **REQUEST:** `ClinicServiceTypePatch` (`kind` imutável)
+- **RESPONSE:** `200` `ClinicServiceType`
+- **ERRORS:** `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-12/15: mudar a duração só afeta horários a gerar; desativar remove os futuros livres gerados do serviço. Auditoria `CLINIC_SERVICE_UPDATE`.
+
+### `GET /clinic-portal/schedule-rules`  — listClinicScheduleRules
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Listar regras de horário (UC-CLN-12).
+- **REQUEST:** Query `professionalId?`, `active?`
+- **RESPONSE:** `200` `[ClinicScheduleRule]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-12.
+
+### `POST /clinic-portal/schedule-rules`  — createClinicScheduleRule
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Criar regra e gerar os horários das próximas 8 semanas.
+- **REQUEST:** `ClinicScheduleRuleInput` (`professionalId`, `serviceTypeId`, `weekdays` ISO 1–7, `startTime`/`endTime` HH:mm locais, `validFrom?`, `validUntil?`, `capacity?`)
+- **RESPONSE:** `201` `ClinicScheduleRuleResult` (`rule` + `generation`)
+- **ERRORS:** `NOT_FOUND` (profissional/serviço de outra clínica), `CONFLICT` (inativos; regra sobreposta a outra ativa do profissional; >200 regras), `VALIDATION_ERROR` (intervalo sem espaço para uma duração; `capacity>1` em consulta), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-12/13/14. Geração idempotente; sobreposições ignoradas e contadas, nunca apagam. Auditoria `CLINIC_SCHEDULE_RULE_CREATE` (+ contagens).
+
+### `PATCH /clinic-portal/schedule-rules/{ruleId}`  — updateClinicScheduleRule
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Alterar/desativar/reativar e reconciliar.
+- **REQUEST:** `ClinicScheduleRulePatch` (profissional e serviço imutáveis)
+- **RESPONSE:** `200` `ClinicScheduleRuleResult`
+- **ERRORS:** `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-12/15: remove os futuros livres que deixaram de corresponder; mantém os com marcações (`keptBooked`). Auditoria `CLINIC_SCHEDULE_RULE_UPDATE`.
+
+### `POST /clinic-portal/schedule-rules/{ruleId}/regenerate`  — regenerateClinicScheduleRule
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Regenerar horários da regra (idempotente).
+- **REQUEST:** —
+- **RESPONSE:** `200` `ClinicScheduleRuleResult`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-12. Igual ao job `clinics.generate-schedule` para uma regra. Auditoria `CLINIC_SCHEDULE_RULE_REGENERATE`.
+
+### `GET /clinic-portal/time-off`  — listClinicTimeOff
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Listar bloqueios/férias (UC-CLN-13).
+- **REQUEST:** Query `professionalId?`, `from?`, `to?` (omissão: os que terminam depois de agora)
+- **RESPONSE:** `200` `[ClinicTimeOff]` (com `bookedSlotCount`)
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-14.
+
+### `POST /clinic-portal/time-off`  — createClinicTimeOff
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Bloquear um profissional num intervalo.
+- **REQUEST:** `ClinicTimeOffInput` (`professionalId`, `startsAt`, `endsAt` > `startsAt`, ≤366 dias, futuro; `reason?` ≤200)
+- **RESPONSE:** `201` `ClinicTimeOffResult` (`removedSlots`, `bookedSlots` a tratar)
+- **ERRORS:** `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-14: remove só horários **livres**; os com marcações ficam e são listados (a clínica reagenda/cancela pelos fluxos existentes). Auditoria `CLINIC_TIME_OFF_CREATE` (sem motivo).
+
+### `DELETE /clinic-portal/time-off/{timeOffId}`  — deleteClinicTimeOff
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Remover um bloqueio e regenerar o intervalo.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ClinicScheduleGeneration`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-14. Auditoria `CLINIC_TIME_OFF_DELETE`.
+
+**Alterações a endpoints existentes (retrocompatíveis):** `POST /clinic-portal/slots` aceita `professionalId?`/`serviceTypeId?` (com `serviceTypeId`, `kind`/`specialty`/`durationMinutes` vêm do serviço; `specialty` e `durationMinutes` passam a obrigatórios só sem `serviceTypeId`) e devolve `CONFLICT`/`NOT_FOUND` por sobreposição/bloqueio/outra clínica (BR-CLN-13/14); `DELETE /clinic-portal/slots/{id}` devolve `CONFLICT` para horário gerado por regra (BR-CLN-12); `ClinicSlot` ganha `professionalId`, `serviceTypeId`, `scheduleRuleId` (nulos nos horários manuais); `POST /clinic-portal/walk-in-appointments` passa a detetar sobreposição por duração do paciente e do profissional (BR-CLN-13/16). Job `clinics.generate-schedule` (`modules.md` §5).
 
 ### `GET /clinic-portal/requests`  — listClinicRequests
 - **AUTHORIZATION:** CLINIC_ACCOUNT
@@ -884,7 +994,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **DESCRIPTION:** Marcar uma consulta presencial `SCHEDULED` para o utilizador num horário `APPOINTMENT` livre da própria clínica (UC-CLN-08, ADR-024).
 - **REQUEST:** `{ patientEmail, slotId, notes? }` (`notes` ≤2000)
 - **RESPONSE:** `201` `ClinicBooking` (`status=SCHEDULED`; só o mínimo, BR-CLN-03)
-- **ERRORS:** `NOT_FOUND` (horário de outra clínica/inexistente; paciente não resolvível, mesma resposta genérica), `CONFLICT` (horário ocupado ou passado; sobreposição com consulta `SCHEDULED` do paciente), `VALIDATION_ERROR` (horário `kind=EXAM`; e-mail inválido), `RATE_LIMITED`, `UNAUTHENTICATED`
+- **ERRORS:** `NOT_FOUND` (horário de outra clínica/inexistente; paciente não resolvível, mesma resposta genérica), `CONFLICT` (horário ocupado ou passado; sobreposição **por duração** com consulta `SCHEDULED` do paciente ou, se o horário tem `professionalId`, com outra marcação ativa do profissional, BR-CLN-13/16), `VALIDATION_ERROR` (horário `kind=EXAM`; e-mail inválido), `RATE_LIMITED`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** BR-CLN-10, BR-APT-04/06 (reserva o horário), BR-APT-03/07 (lembretes). Ordem de validação: horário da clínica → paciente → estado do horário → sobreposição. Auditoria `CLINIC_WALKIN_BOOK`. Alerta `APPOINTMENT_CONFIRMED` quando existir (OP-22).
 
 ### `GET /clinic-portal/exam-agenda`  — listClinicExamAgenda

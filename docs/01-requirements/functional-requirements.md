@@ -160,6 +160,9 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-CLN-01 | Existe um cadastro `Clinic`. Clínicas parceiras são criadas pelo Platform Admin; os utilizadores criam entradas privadas para clínicas não parceiras (R8). **D17:** clínicas parceiras têm contas de Gestor da clínica (criadas pelo Platform Admin) com acesso apenas às marcações na própria clínica; nenhuma clínica acede a dados de saúde. | D3, D17 |
 | FR-CLN-03 | A clínica parceira pode marcar uma consulta presencial a um utilizador registado, identificado por e-mail exato, sem obter identificadores (BR-CLN-10). | D20, ADR-024 |
 | FR-CLN-02 | A clínica parceira publica horários de consulta ou de exame (`kind`); os de exame têm um número de vagas (`capacity`, 1–50). | D19, ADR-023 |
+| FR-CLN-04 | A clínica parceira gere o catálogo de **profissionais** e de **tipos de serviço** (consulta/exame, duração, preço informativo opcional), desativando em vez de apagar (BR-CLN-11/12). | D22, ADR-026 (M14 a1) |
+| FR-CLN-05 | A clínica parceira define **regras de horário semanais** por profissional e serviço que geram horários reserváveis de forma idempotente numa janela de 8 semanas, sem sobreposição por profissional (BR-CLN-12/13/15/16). | D22, ADR-026 (M14 a2) |
+| FR-CLN-06 | A clínica parceira regista **bloqueios/férias** de um profissional: remove os horários livres e sinaliza os já marcados para tratamento (BR-CLN-14). | D22, ADR-026 (M14 a2) |
 
 ---
 

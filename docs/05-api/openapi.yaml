@@ -3618,7 +3618,7 @@ paths:
       tags: [Clinic Portal]
       operationId: publishClinicSlots
       summary: "Publicar um ou mais horários num dia."
-      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-04; ignora horas passadas e duplicadas (mesma hora, kind, especialidade e profissional). UC-CLN-04/UC-CLN-07. D19: kind=EXAM publica horários de exame (specialty = tipo de exame) com capacity vagas (1-50, default 1; em APPOINTMENT só 1, BR-APT-11)."
+      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-04; ignora horas passadas e duplicadas (mesma hora, kind, especialidade e profissional). M14: com professionalId, qualquer outra sobreposição de intervalo [início, início+duração) do profissional, ou conflito com um bloqueio (ClinicTimeOff), -> CONFLICT e nada é criado (BR-CLN-13/14). UC-CLN-04/UC-CLN-07. D19: kind=EXAM publica horários de exame (specialty = tipo de exame) com capacity vagas (1-50, default 1; em APPOINTMENT só 1, BR-APT-11)."
       security:
         - clinicBearerAuth: []
       requestBody:
@@ -3636,6 +3636,16 @@ paths:
                 items: { $ref: "#/components/schemas/ClinicSlot" }
         '401':
           description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (professionalId/serviceTypeId de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (M14: sobreposição de horário do profissional; bloqueio/férias)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -3692,7 +3702,7 @@ paths:
       tags: [Clinic Portal]
       operationId: removeClinicSlot
       summary: "Remover um horário livre."
-      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-04: só remove horários sem marcações ativas (consulta REQUESTED/SCHEDULED; exame SCHEDULED, BR-APT-11)."
+      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-04: só remove horários sem marcações ativas (consulta REQUESTED/SCHEDULED; exame SCHEDULED, BR-APT-11). M14 (a2, BR-CLN-12): horário gerado por regra (scheduleRuleId) não se remove individualmente -> CONFLICT."
       security:
         - clinicBearerAuth: []
       parameters:
@@ -3714,7 +3724,446 @@ paths:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
         '409':
-          description: "CONFLICT (horário com marcações ativas)"
+          description: "CONFLICT (horário com marcações ativas; horário gerado por regra)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/professionals:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicProfessionals
+      summary: "Listar os profissionais da própria clínica."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-11, BR-CLN-11. Filtro opcional active (omitido = todos). Ordem: nome."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: active
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicProfessional" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Clinic Portal]
+      operationId: createClinicProfessional
+      summary: "Criar um profissional."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-11, BR-CLN-11. Nome único (sem distinção de maiúsculas) entre os profissionais ativos da clínica; limite de 100 por clínica (CONFLICT). Auditoria CLINIC_PROFESSIONAL_CREATE."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicProfessionalInput" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicProfessional" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (nome duplicado entre ativos; limite de profissionais)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/professionals/{professionalId}:
+    patch:
+      tags: [Clinic Portal]
+      operationId: updateClinicProfessional
+      summary: "Alterar ou desativar/reativar um profissional."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-11, BR-CLN-11/15. Não há DELETE: desativar = active=false. Desativar impede novas regras e geração e remove os horários futuros livres gerados pelas regras do profissional; marcações existentes mantêm-se. Auditoria CLINIC_PROFESSIONAL_UPDATE."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: professionalId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicProfessionalPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicProfessional" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (recurso de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (nome duplicado entre ativos)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/services:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicServiceTypes
+      summary: "Listar os tipos de serviço (consulta/exame) da própria clínica."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-11, BR-CLN-11/12. Filtros opcionais active e kind. Ordem: nome."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: active
+          in: query
+          schema: { type: boolean }
+        - name: kind
+          in: query
+          schema: { type: string, enum: [APPOINTMENT, EXAM] }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicServiceType" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Clinic Portal]
+      operationId: createClinicServiceType
+      summary: "Criar um tipo de serviço."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-11, BR-CLN-12. kind APPOINTMENT (consulta) ou EXAM (exame); durationMinutes em {15,20,30,45,60}; priceMinor opcional em cêntimos (inteiro >= 0), apenas informativo nesta fase; a moeda é a da clínica (AOA por omissão, só leitura). Nome único por kind entre os ativos; limite de 100 por clínica. Auditoria CLINIC_SERVICE_CREATE."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicServiceTypeInput" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicServiceType" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (nome duplicado entre ativos do mesmo kind; limite de serviços)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/services/{serviceTypeId}:
+    patch:
+      tags: [Clinic Portal]
+      operationId: updateClinicServiceType
+      summary: "Alterar ou desativar/reativar um tipo de serviço."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-11, BR-CLN-12/15. kind é imutável (VALIDATION_ERROR). Alterar a duração só afeta horários futuros a gerar; os existentes mantêm a sua duração. Desativar remove os horários futuros livres gerados por regras deste serviço; marcações existentes mantêm-se. Auditoria CLINIC_SERVICE_UPDATE."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: serviceTypeId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicServiceTypePatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicServiceType" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (recurso de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (nome duplicado entre ativos do mesmo kind)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/schedule-rules:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicScheduleRules
+      summary: "Listar as regras de horário da própria clínica."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-12, BR-CLN-13. Filtros opcionais professionalId e active."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: professionalId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: active
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicScheduleRule" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Clinic Portal]
+      operationId: createClinicScheduleRule
+      summary: "Criar uma regra de horário e gerar os horários das próximas semanas."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-12, BR-CLN-12/13/14. Profissional e serviço têm de ser da clínica e ativos (NOT_FOUND se de outra clínica; CONFLICT se inativos). O intervalo [startTime, endTime) tem de caber pelo menos uma duração do serviço; capacity > 1 só para serviços EXAM. Rejeita (CONFLICT) uma regra que se sobreponha a outra regra ativa do mesmo profissional (dia da semana, horas e validade). Gera de imediato, de forma idempotente, os ClinicSlot da janela rolante de 8 semanas (excluindo passado e bloqueios); sobreposições com horários existentes do profissional são ignoradas e contadas (generation.skippedOverlap), nunca apagam nada. Limite de 200 regras por clínica. Auditoria CLINIC_SCHEDULE_RULE_CREATE."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicScheduleRuleInput" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicScheduleRuleResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (recurso de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (profissional/serviço inativo; regra sobreposta a outra ativa do profissional; limite de regras)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/schedule-rules/{ruleId}:
+    patch:
+      tags: [Clinic Portal]
+      operationId: updateClinicScheduleRule
+      summary: "Alterar ou desativar/reativar uma regra de horário."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-12, BR-CLN-12/15. Não há DELETE: desativar = active=false. professionalId e serviceTypeId são imutáveis (criar nova regra). Após alterar, reconcilia: remove os horários futuros livres gerados pela regra que deixaram de corresponder (todos, se inativa) e gera os em falta; horários com marcações ativas nunca são removidos (generation.keptBooked). capacity só afeta horários novos. Auditoria CLINIC_SCHEDULE_RULE_UPDATE."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: ruleId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicScheduleRulePatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicScheduleRuleResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (recurso de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (regra sobreposta a outra ativa; reativar com profissional/serviço inativo)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/schedule-rules/{ruleId}/regenerate:
+    post:
+      tags: [Clinic Portal]
+      operationId: regenerateClinicScheduleRule
+      summary: "Regenerar os horários de uma regra (idempotente)."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-12, BR-CLN-13. Mesma geração que o job diário clinics.generate-schedule, para esta regra; repetir não altera nada (generation.created = 0). Regra inativa: reconcilia (remove livres futuros) e não gera. Auditoria CLINIC_SCHEDULE_RULE_REGENERATE."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: ruleId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicScheduleRuleResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (recurso de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/time-off:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicTimeOff
+      summary: "Listar bloqueios/férias dos profissionais da própria clínica."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-13, BR-CLN-14. Filtros: professionalId; from/to (por omissão, só os que terminam depois de agora). Cada item traz bookedSlotCount (horários do bloqueio ainda com marcações ativas, a tratar pela clínica)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: professionalId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicTimeOff" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Clinic Portal]
+      operationId: createClinicTimeOff
+      summary: "Registar um bloqueio/férias de um profissional."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-13, BR-CLN-14. Remove os ClinicSlot futuros LIVRES do profissional que intersectem [startsAt, endsAt); horários com marcações ativas NÃO são removidos nem as marcações canceladas: vêm em bookedSlots para a clínica os tratar (reagendar/cancelar pelos fluxos existentes). A geração passa a ignorar o intervalo. endsAt > startsAt, no máximo 366 dias; no futuro (endsAt > agora). Serializado com marcações e geração por bloqueio da linha do profissional e dos horários. Auditoria CLINIC_TIME_OFF_CREATE (sem motivo)."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicTimeOffInput" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicTimeOffResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (recurso de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/time-off/{timeOffId}:
+    delete:
+      tags: [Clinic Portal]
+      operationId: deleteClinicTimeOff
+      summary: "Remover um bloqueio/férias."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-13, BR-CLN-14. Remove o bloqueio e regenera de imediato os horários das regras ativas do profissional no intervalo (idempotente; os horários removidos antes são recriados se a regra ainda os prevê). Devolve a geração efetuada. Auditoria CLINIC_TIME_OFF_DELETE."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: timeOffId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicScheduleGeneration" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (recurso de outra clínica ou inexistente)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -7581,6 +8030,21 @@ components:
         professionalName:
           type: string
           nullable: true
+        professionalId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "M14 (a1). Profissional do catálogo (BR-CLN-11); nulo nos horários manuais antigos. Com valor aplica-se a deteção de sobreposição (BR-CLN-13) e os bloqueios (BR-CLN-14)."
+        serviceTypeId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "M14 (a1). Tipo de serviço do catálogo; nulo nos horários manuais antigos."
+        scheduleRuleId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "M14 (a2). Preenchido nos horários gerados por uma regra (BR-CLN-12); estes não se removem individualmente (DELETE /clinic-portal/slots/{id} -> CONFLICT): usar bloqueio ou desativar a regra."
         startsAt:
           type: string
           format: date-time
@@ -7620,7 +8084,7 @@ components:
               description: "capacity - bookedCount."
     ClinicSlotBatchInput:
       type: object
-      required: [date, times, specialty, durationMinutes]
+      required: [date, times]
       properties:
         kind:
           type: string
@@ -7644,12 +8108,192 @@ components:
           description: "Horas locais HH:mm."
         specialty:
           type: string
+          description: "Obrigatório sem serviceTypeId (M14 a1: com serviceTypeId é o nome do serviço)."
         professionalName:
           type: string
           nullable: true
+          description: "Texto livre (horários manuais antigos). Com professionalId é o nome do profissional (o valor enviado é ignorado)."
+        professionalId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "M14 (a1, BR-CLN-11/13). Profissional ativo da clínica (NOT_FOUND se de outra clínica); ativa a deteção de sobreposição (CONFLICT) e o conflito com bloqueios (CONFLICT)."
+        serviceTypeId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "M14 (a1). Serviço ativo da clínica; kind, specialty e durationMinutes vêm dele (valores enviados diferentes -> VALIDATION_ERROR)."
         durationMinutes:
           type: integer
           enum: [15, 20, 30, 45, 60]
+          description: "Obrigatório sem serviceTypeId."
+    ClinicProfessional:
+      type: object
+      required: [id, name, specialty, active]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        specialty: { type: string, maxLength: 80, nullable: true, description: "Informativa (BR-CLN-11)." }
+        active: { type: boolean }
+    ClinicProfessionalInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        specialty: { type: string, maxLength: 80, nullable: true }
+    ClinicProfessionalPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        specialty: { type: string, maxLength: 80, nullable: true }
+        active: { type: boolean }
+    ClinicServiceType:
+      type: object
+      required: [id, name, kind, durationMinutes, priceMinor, currency, active]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        kind:
+          type: string
+          enum: [APPOINTMENT, EXAM]
+          description: "Consulta (APPOINTMENT) ou exame (EXAM); mesmo enum de ClinicSlot.kind. Imutável."
+        durationMinutes: { type: integer, enum: [15, 20, 30, 45, 60] }
+        priceMinor:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 100000000000
+          nullable: true
+          description: "Preço em cêntimos (inteiro), opcional, só informativo nesta fase (BR-CLN-12)."
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          readOnly: true
+          description: "Moeda da clínica (clinics.currency; AOA por omissão). Só leitura em M14 a1/a2."
+        active: { type: boolean }
+    ClinicServiceTypeInput:
+      type: object
+      additionalProperties: false
+      required: [name, kind, durationMinutes]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        kind: { type: string, enum: [APPOINTMENT, EXAM] }
+        durationMinutes: { type: integer, enum: [15, 20, 30, 45, 60] }
+        priceMinor: { type: integer, format: int64, minimum: 0, maximum: 100000000000, nullable: true }
+    ClinicServiceTypePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: "kind não é alterável (enviá-lo -> VALIDATION_ERROR)."
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        durationMinutes: { type: integer, enum: [15, 20, 30, 45, 60] }
+        priceMinor: { type: integer, format: int64, minimum: 0, maximum: 100000000000, nullable: true }
+        active: { type: boolean }
+    ClinicScheduleRule:
+      type: object
+      required: [id, professionalId, serviceTypeId, weekdays, startTime, endTime, validFrom, validUntil, capacity, active]
+      properties:
+        id: { type: string, format: uuid }
+        professionalId: { type: string, format: uuid }
+        serviceTypeId: { type: string, format: uuid }
+        weekdays:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          items: { type: integer, minimum: 1, maximum: 7 }
+          description: "ISO: 1 = segunda ... 7 = domingo."
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', description: "Hora local da clínica (HH:mm)." }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', description: "Hora local; > startTime; o último horário termina em ou antes de endTime." }
+        validFrom: { type: string, format: date, nullable: true, description: "Dia local; nulo = desde já." }
+        validUntil: { type: string, format: date, nullable: true, description: "Dia local inclusivo; nulo = sem fim." }
+        capacity: { type: integer, minimum: 1, maximum: 50, description: "Vagas por horário gerado; > 1 só se o serviço for EXAM (BR-APT-11)." }
+        active: { type: boolean }
+    ClinicScheduleRuleInput:
+      type: object
+      additionalProperties: false
+      required: [professionalId, serviceTypeId, weekdays, startTime, endTime]
+      properties:
+        professionalId: { type: string, format: uuid }
+        serviceTypeId: { type: string, format: uuid }
+        weekdays: { type: array, minItems: 1, maxItems: 7, uniqueItems: true, items: { type: integer, minimum: 1, maximum: 7 } }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        validFrom: { type: string, format: date, nullable: true }
+        validUntil: { type: string, format: date, nullable: true }
+        capacity: { type: integer, minimum: 1, maximum: 50, default: 1 }
+    ClinicScheduleRulePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: "professionalId e serviceTypeId não são alteráveis."
+      properties:
+        weekdays: { type: array, minItems: 1, maxItems: 7, uniqueItems: true, items: { type: integer, minimum: 1, maximum: 7 } }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        validFrom: { type: string, format: date, nullable: true }
+        validUntil: { type: string, format: date, nullable: true }
+        capacity: { type: integer, minimum: 1, maximum: 50 }
+        active: { type: boolean }
+    ClinicScheduleGeneration:
+      type: object
+      required: [created, unchanged, removed, skippedOverlap, skippedTimeOff, keptBooked]
+      description: "Resultado de uma geração/reconciliação (BR-CLN-12/15). Só contagens, sem dados pessoais."
+      properties:
+        created: { type: integer, minimum: 0, description: "ClinicSlot criados." }
+        unchanged: { type: integer, minimum: 0, description: "Já existiam (idempotência)." }
+        removed: { type: integer, minimum: 0, description: "Livres futuros removidos pela reconciliação." }
+        skippedOverlap: { type: integer, minimum: 0, description: "Ignorados por sobreposição com outro horário do profissional (BR-CLN-13)." }
+        skippedTimeOff: { type: integer, minimum: 0, description: "Ignorados por bloqueio/férias (BR-CLN-14)." }
+        keptBooked: { type: integer, minimum: 0, description: "Horários que já não correspondem à regra mas têm marcações ativas e foram mantidos." }
+    ClinicScheduleRuleResult:
+      type: object
+      required: [rule, generation]
+      properties:
+        rule: { $ref: "#/components/schemas/ClinicScheduleRule" }
+        generation: { $ref: "#/components/schemas/ClinicScheduleGeneration" }
+    ClinicTimeOff:
+      type: object
+      required: [id, professionalId, startsAt, endsAt, reason, bookedSlotCount]
+      properties:
+        id: { type: string, format: uuid }
+        professionalId: { type: string, format: uuid }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        reason: { type: string, maxLength: 200, nullable: true, description: "Nota interna da clínica; nunca em auditoria nem logs." }
+        bookedSlotCount: { type: integer, minimum: 0, description: "Horários no intervalo ainda com marcações ativas (calculado)." }
+    ClinicTimeOffInput:
+      type: object
+      additionalProperties: false
+      required: [professionalId, startsAt, endsAt]
+      properties:
+        professionalId: { type: string, format: uuid }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time, description: "> startsAt, no máximo 366 dias depois, e no futuro." }
+        reason: { type: string, maxLength: 200, nullable: true }
+    ClinicTimeOffBookedSlot:
+      type: object
+      required: [slotId, kind, startsAt, durationMinutes, bookedCount]
+      description: "Horário do bloqueio com marcações ativas, a tratar pela clínica (agenda/exam-agenda). Sem dados do paciente."
+      properties:
+        slotId: { type: string, format: uuid }
+        kind: { type: string, enum: [APPOINTMENT, EXAM] }
+        startsAt: { type: string, format: date-time }
+        durationMinutes: { type: integer }
+        bookedCount: { type: integer, minimum: 1 }
+    ClinicTimeOffResult:
+      type: object
+      required: [timeOff, removedSlots, bookedSlots]
+      properties:
+        timeOff: { $ref: "#/components/schemas/ClinicTimeOff" }
+        removedSlots: { type: integer, minimum: 0, description: "Horários livres removidos." }
+        bookedSlots:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicTimeOffBookedSlot" }
     ClinicBooking:
       type: object
       required: [id, status, scheduledAt, patientName]

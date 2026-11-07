@@ -59,7 +59,26 @@
 - **Ator:** Gestor/Admin da clínica · **BR:** CLN-10, CLN-03, APT-04/06
 - **Fluxo:** escolhe um horário `APPOINTMENT` livre da clínica → introduz o e-mail do paciente → vê o `displayName` devolvido (confirma presencialmente que é a pessoa) → confirma → consulta `SCHEDULED` na agenda da clínica e no membro `SELF` do utilizador; o paciente é avisado (OP-22).
 - **Alternativos:** 404 genérico (sem conta/suspenso/sem `SELF`: a clínica não sabe qual); horário ocupado/passado → `CONFLICT`; sobreposição com outra consulta do paciente → `CONFLICT`; rate limit → `RATE_LIMITED`.
+- **M14 (BR-CLN-13/16):** a sobreposição é por **duração** (`[início, início+duração)`) e, num horário com `professionalId`, também por profissional.
 - **Pós-condição:** `walk_in=true`; gestão posterior só pela clínica (cancelar com motivo UC-CLN-06, completar, recomendações); auditoria `CLINIC_WALKIN_LOOKUP`/`CLINIC_WALKIN_BOOK`.
+
+### UC-CLN-11 Gerir profissionais e tipos de serviço (M14 a1, ADR-026)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-04 · **BR:** CLN-11, CLN-12
+- **Fluxo:** em **Serviços** vê duas listas (Profissionais; Consultas e exames) → cria (nome, especialidade; ou nome, tipo consulta/exame, duração, preço opcional) → edita ou **desativa** (nunca apaga; pode reativar). A moeda é a da clínica (AOA por omissão).
+- **Alternativos:** nome duplicado entre ativos ou limite atingido → `CONFLICT`; duração fora de {15,20,30,45,60} ou preço negativo → `VALIDATION_ERROR`; mudar o tipo (consulta/exame) de um serviço → `VALIDATION_ERROR` (criar outro).
+- **Pós-condição:** desativar remove os horários futuros livres gerados (BR-CLN-15); marcações existentes intactas; auditoria `CLINIC_PROFESSIONAL_*`/`CLINIC_SERVICE_*` sem nomes.
+
+### UC-CLN-12 Definir regras de horário e gerar horários (M14 a2)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-05 · **BR:** CLN-12, CLN-13, CLN-15, CLN-16
+- **Fluxo:** em **Agenda → Horários e disponibilidade** escolhe profissional, serviço, dias da semana, hora de início e fim (e, opcionalmente, validade e vagas se for exame) → guarda → o sistema mostra o resumo ("criados N horários; M ignorados por sobreposição/bloqueio") e os horários aparecem no calendário e na marcação (família e presencial). Pode editar, **desativar** ou **regenerar** a regra; todos os dias o sistema acrescenta as semanas seguintes (job).
+- **Alternativos:** regra sobreposta a outra ativa do profissional, profissional/serviço inativo → `CONFLICT`; intervalo menor que a duração, vagas > 1 em consulta → `VALIDATION_ERROR`; outra clínica → `NOT_FOUND`.
+- **Pós-condição:** `ClinicSlot` gerados com `professionalId`/`serviceTypeId`/`scheduleRuleId`; repetir não duplica; marcações nunca alteradas; auditoria `CLINIC_SCHEDULE_RULE_*`/`CLINIC_SCHEDULE_GENERATE`.
+
+### UC-CLN-13 Bloquear um profissional (bloqueio/férias) (M14 a2)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-06 · **BR:** CLN-14
+- **Fluxo:** escolhe profissional, início e fim (e nota interna opcional) → o sistema remove os horários livres do intervalo e **mostra a lista de horários já marcados** que a clínica tem de tratar (reagendar/cancelar com motivo, UC-CLN-06) → o aviso mantém-se na lista de bloqueios enquanto houver marcações. Remover o bloqueio repõe os horários que as regras ainda prevêem.
+- **Alternativos:** intervalo inválido (fim ≤ início, > 366 dias, no passado) → `VALIDATION_ERROR`; profissional de outra clínica → `NOT_FOUND`.
+- **Pós-condição:** nenhuma marcação é cancelada automaticamente; auditoria `CLINIC_TIME_OFF_*` sem a nota.
 
 ---
 

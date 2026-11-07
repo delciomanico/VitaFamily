@@ -92,6 +92,26 @@ Máx. 5 por recurso e 100 MB por família (Q10). `INSURANCE_POLICY` reaproveita 
 `clinicId` (PARTNER) · `kind` (APPOINTMENT | EXAM, default APPOINTMENT; D19) · `specialty` (em `EXAM`: tipo de exame) · `professionalName?` · `startsAt` (UTC) · `durationMinutes` · `capacity` (1–50, default 1; só `EXAM` pode ser > 1; BR-APT-11)
 **Regras:** BR-APT-06/10/11, BR-CLN-04. `APPOINTMENT`: livre = sem consulta PEDIDA/AGENDADA. `EXAM`: `bookedCount` = exames `SCHEDULED` com este `slotId`; `remaining = capacity − bookedCount`; cheio quando `remaining = 0`.
 
+**M14 a1/a2 (ADR-026):** `ClinicSlot` ganha `professionalId?` (→ `ClinicProfessional`), `serviceTypeId?` (→ `ClinicServiceType`), `scheduleRuleId?` (→ `ClinicScheduleRule`; preenchido só nos horários gerados) e `endsAt` (= `startsAt + durationMinutes`, derivado, usado na deteção de sobreposição). Nulos nos horários manuais antigos (retrocompatível). **Regras:** BR-CLN-12/13/14.
+
+### ClinicProfessional — profissional do catálogo da clínica (M14 a1)
+`clinicId` (PARTNER) · `name` (1–120) · `specialty?` (≤80, informativa) · `active`
+**Regras:** BR-CLN-11/15. Desativa-se, não se apaga. Sem ligação a `User`/`ClinicAccount` (a fase (f) acrescenta `ClinicAccount.professionalId`).
+
+### ClinicServiceType — tipo de consulta ou de exame do catálogo (M14 a1)
+`clinicId` · `name` (1–120) · `kind` (APPOINTMENT | EXAM; imutável) · `durationMinutes` (15, 20, 30, 45, 60) · `priceMinor?` (inteiro, cêntimos, ≥ 0; informativo) · `active` · `currency` (derivada de `Clinic.currency`, só leitura; omissão AOA)
+**Regras:** BR-CLN-11/12.
+
+### ClinicScheduleRule — regra semanal que gera horários (M14 a2)
+`clinicId` · `professionalId` · `serviceTypeId` (imutáveis) · `weekdays` (ISO 1–7) · `startTime`/`endTime` (hora local, `[start, end)`) · `validFrom?`/`validUntil?` (dias locais) · `capacity` (1–50; > 1 só `EXAM`) · `active`
+**Regras:** BR-CLN-12/13/15. Gera `ClinicSlot` numa janela de 8 semanas, de forma idempotente. Desativa-se, não se apaga.
+
+### ClinicTimeOff — bloqueio/férias de um profissional (M14 a2)
+`clinicId` · `professionalId` · `startsAt` · `endsAt` (> `startsAt`, ≤ 366 dias) · `reason?` (≤200, nota interna) · `createdByClinicAccountId?`
+**Regras:** BR-CLN-14. Remove só horários livres; os marcados são sinalizados.
+
+**`Clinic.currency`** (M14 a1): código ISO 4217 de 3 letras, omissão `AOA`; só leitura em a1/a2 (a fase (e) decide a configuração). **`Appointment.durationMinutes`** (M14 a2, interno): duração da marcação (copiada do horário; 30 se não houver); BR-CLN-16.
+
 ### ClinicAccount — conta do portal da clínica (D18, ADR-020)
 **Correção (ADR-021):** esta secção referia-se antes a `ClinicStaff(userId, clinicId, role)`, suposição
 revista por D18 — a conta do portal **não** é um `User`. Alinhado aqui com `schema.md` §3 (`clinic_accounts`).

@@ -20,7 +20,7 @@
 | `09-testing/` | `strategy.md`, `test-cases.md`, `acceptance-criteria.md` |
 | `10-operations/` | `environment.md`, `deployment.md`, `monitoring.md` |
 | `insurer-module/` | Material de origem do módulo de seguradoras (formalizado em ADR-025): especificação funcional e conflitos/decisões |
-| `11-implementation/` | `plan.md` (adição à estrutura do prompt: plano da Fase 16); `open-points.md` (pendências conhecidas de clínica/exames/recomendações); `clinic-portal-v2.md` (roadmap M14 e frontend do portal da clínica, ADR-026) |
+| `11-implementation/` | `plan.md` (adição à estrutura do prompt: plano da Fase 16); `open-points.md` (pendências conhecidas de clínica/exames/recomendações); `clinic-portal-v2.md` (roadmap M14 e frontend do portal da clínica, ADR-026; **contrato das fases (a1)/(a2) fechado em 2026-11-07**: BR-CLN-11..16, `schema.md` §3a, migração proposta `0027`) |
 
 ## Como foram tomadas as decisões
 - Fases 1–5: decididas **pelo proprietário** (D1–D16, M1–M6, N1–N3, R1–R10, N4–N11) — duas escolhas diferentes da recomendação (R2, R8) e uma de D16 (sem validação com utilizadores).

@@ -114,7 +114,13 @@ Notas:
 | Completar exame: carregar PDF (só metadados de volta, nunca download) e registar resultados (BR-CLN-08) | sim | sim |
 | Pesquisar utilizador por e-mail exato (só `displayName`) e marcar consulta presencial `SCHEDULED` num horário `APPOINTMENT` livre da própria clínica (BR-CLN-10, ADR-024); sujeito ao rate limit de BR-CLN-10 | sim | sim |
 | Criar e listar recomendações sobre consulta/exame da própria clínica (BR-CLN-09); **nunca** editar/eliminar | sim | sim |
-| Ver/gerir horários, pedidos, agenda, exames, documentos ou recomendações de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
+| Ler profissionais, tipos de serviço, regras de horário e bloqueios da própria clínica (M14 a1/a2, BR-CLN-11..14) | sim | sim |
+| Criar/editar/**desativar** profissionais e tipos de serviço (sem DELETE, BR-CLN-11/12) | sim | sim |
+| Criar/editar/desativar/regenerar regras de horário (geram `ClinicSlot`) e criar/remover bloqueios/férias (BR-CLN-12..15) | sim | sim |
+| Publicar horário manual com `professionalId`/`serviceTypeId` do catálogo (BR-CLN-13/14); remover horário gerado por regra individualmente | sim / **não** (`CONFLICT`) | sim / **não** (`CONFLICT`) |
+| Ver/gerir horários, pedidos, agenda, exames, documentos, recomendações, profissionais, serviços, regras ou bloqueios de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
+
+> **M14 (a1/a2):** nestas fases `CLINIC_ADMIN` e `CLINIC_MANAGER` têm as mesmas permissões sobre catálogo, regras e bloqueios (decisão do proprietário); a diferenciação por papel (`CLINIC_DOCTOR`, só o seu calendário) é a fase (f). O catálogo e as regras são dados da clínica e não contêm dados Vita/saúde. O job `clinics.generate-schedule` corre como `SYSTEM`, sem conta de clínica, e só escreve `clinic_slots` por regras ativas.
 
 Não há ação do portal que leia dados fora do mínimo de BR-CLN-03 (nome do paciente, especialidade,
 profissional, data/hora, observações do pedido); nunca condições, alergias, medicação prévia,
