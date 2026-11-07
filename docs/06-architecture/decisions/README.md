@@ -26,4 +26,6 @@
 - ADR-024 — Portal da clínica: marcação presencial (walk-in) para um utilizador registado, pesquisa por e-mail exato, emenda estreita a BR-CLN-03 (decisão do proprietário, D20)
 - ADR-025 — Módulo operacional de seguradoras (multi-seguradora): beneficiários, apólices, planos, elegibilidade, autorizações, despesas e rede; Kz por seguradora; emenda a BR-INS-08 (decisão do proprietário, D21; Q4 pendente)
 
+- ADR-026 — Portal da clínica como ferramenta independente (registo próprio de pacientes) ligada ao Vita por consentimento do paciente; emendas estreitas a BR-CLN-03/BR-CLN-10 (decisão do proprietário, D22, aceite)
+
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).
