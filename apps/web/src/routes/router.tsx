@@ -284,6 +284,10 @@ export const routes: RouteObject[] = [
               { path: 'exams', ...page(() => import('@/pages/clinic/ClinicExamsPage'), 'ClinicExamsPage') },
               { path: 'slots', ...page(() => import('@/pages/clinic/ClinicSlotsPage'), 'ClinicSlotsPage') },
               {
+                path: 'services',
+                ...page(() => import('@/pages/clinic/services/ClinicServicesPage'), 'ClinicServicesPage'),
+              },
+              {
                 element: <RequireClinicAdmin />,
                 children: [{ path: 'staff', ...page(() => import('@/pages/clinic/ClinicStaffPage'), 'ClinicStaffPage') }],
               },

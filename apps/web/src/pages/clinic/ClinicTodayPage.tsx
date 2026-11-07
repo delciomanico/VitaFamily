@@ -15,6 +15,7 @@ import { todayISO } from '@/lib/date'
 import { formatLongDate, formatTime, formatWhen } from '@/lib/format'
 import { appointmentStatus } from '@/lib/labels'
 import { paths } from '@/routes/paths'
+import { clinicCatalogService } from '@/services/clinicCatalog.service'
 import { clinicPortalService } from '@/services/clinicPortal.service'
 
 interface DayItem {
@@ -37,11 +38,13 @@ export function ClinicTodayPage() {
   const toast = useToast()
   const [walkIn, setWalkIn] = useState(false)
   const { state, reload } = useAsync(async () => {
-    const [requests, agenda, exams, slots] = await Promise.all([
+    const [requests, agenda, exams, slots, services] = await Promise.all([
       clinicPortalService.listRequests(),
       clinicPortalService.listAgenda(),
       clinicPortalService.listExamAgenda(),
       clinicPortalService.listSlots(),
+      // Aviso opcional: se o catálogo falhar, a página "Hoje" continua a funcionar sem ele.
+      clinicCatalogService.listServices({ active: true }).catch(() => null),
     ])
     const today = todayISO()
     const dayItems: DayItem[] = [
@@ -66,7 +69,12 @@ export function ClinicTodayPage() {
           status: b.status,
         })),
     ].sort((a, b) => a.at.localeCompare(b.at))
-    return { requests, dayItems, freeSlots: slots.reduce((sum, slot) => sum + slot.remaining, 0) }
+    return {
+      requests,
+      dayItems,
+      freeSlots: slots.reduce((sum, slot) => sum + slot.remaining, 0),
+      noServices: services !== null && services.length === 0,
+    }
   }, [])
 
   return (
@@ -89,6 +97,17 @@ export function ClinicTodayPage() {
       </div>
 
       <ClinicStatsBar />
+
+      {state.status === 'success' && state.data.noServices && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 bg-warning-soft">
+          <p className="text-sm text-warning">
+            Ainda não configurou serviços. Adicione os serviços e os profissionais para criar horários automáticos.
+          </p>
+          <Link to={paths.clinicServices} className="text-sm font-medium text-primary">
+            Configurar serviços
+          </Link>
+        </Card>
+      )}
 
       {state.status === 'loading' && <LoadingState rows={3} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}

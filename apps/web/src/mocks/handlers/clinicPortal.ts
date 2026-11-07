@@ -21,6 +21,7 @@ import type { DocumentUpload } from '@/types/document'
 import { memberName } from '../access'
 import { raiseAlerts } from '../alertRules'
 import { bookingOf, examBookingsOf, expireRequests, notifyResponse } from '../bookings'
+import { overlappingSlot, timeOffAt } from '../clinicSchedule'
 import { DEMO_PASSWORD } from '../data/users'
 import type { MockClinicAccountRecord } from '../data/clinicAccounts'
 import { db, newId } from '../db'
@@ -202,20 +203,41 @@ export function listOwnClinicSlots(clinicAccountId: string, kind?: SlotKind, now
   })
 }
 
-/** `POST /clinic-portal/slots`: publicar horários num dia; ignora horas passadas e duplicadas. */
+/**
+ * `POST /clinic-portal/slots`: publicar horários num dia; ignora horas passadas e duplicadas.
+ * M14: com `professionalId`/`serviceTypeId` usa o catálogo (o serviço dá tipo, nome e duração) e
+ * qualquer sobreposição do profissional ou bloqueio → `CONFLICT`, sem criar nada (BR-CLN-13/14).
+ */
 export function publishClinicSlots(clinicAccountId: string, input: PublishSlotsInput, now: Date = new Date()) {
   return respond((): ClinicSlot[] => {
     const { clinicId } = requireAccount(clinicAccountId)
-    const specialty = input.specialty.trim()
-    const professionalName = input.professionalName?.trim() || undefined
+    const professional = input.professionalId
+      ? db.professionals.find((p) => p.id === input.professionalId && p.clinicId === clinicId)
+      : undefined
+    if (input.professionalId && !professional) throw new AppError('NOT_FOUND')
+    const service = input.serviceTypeId
+      ? db.services.find((s) => s.id === input.serviceTypeId && s.clinicId === clinicId)
+      : undefined
+    if (input.serviceTypeId && !service) throw new AppError('NOT_FOUND')
+    if ((professional && !professional.active) || (service && !service.active)) throw new AppError('CONFLICT')
+    if (service) {
+      const differs =
+        input.kind !== service.kind ||
+        (input.durationMinutes !== undefined && input.durationMinutes !== service.durationMinutes) ||
+        (input.specialty?.trim() && input.specialty.trim() !== service.name)
+      if (differs) throw new AppError('VALIDATION_ERROR')
+    }
+    const specialty = service ? service.name : (input.specialty ?? '').trim()
+    const durationMinutes = service ? service.durationMinutes : input.durationMinutes
+    const professionalName = professional ? professional.name : input.professionalName?.trim() || undefined
     const capacity = input.capacity ?? 1
-    if (!specialty || input.times.length === 0) throw new AppError('VALIDATION_ERROR')
-    if (!(SLOT_DURATIONS as readonly number[]).includes(input.durationMinutes)) throw new AppError('VALIDATION_ERROR')
+    if (!specialty || input.times.length === 0 || durationMinutes === undefined) throw new AppError('VALIDATION_ERROR')
+    if (!(SLOT_DURATIONS as readonly number[]).includes(durationMinutes)) throw new AppError('VALIDATION_ERROR')
     // BR-APT-11: vagas 1–50, e só os horários de exame podem ter mais de uma.
     if (!Number.isInteger(capacity) || capacity < 1 || capacity > MAX_SLOT_CAPACITY) throw new AppError('VALIDATION_ERROR')
     if (input.kind === 'APPOINTMENT' && capacity > 1) throw new AppError('VALIDATION_ERROR')
 
-    const created: ClinicSlot[] = []
+    const planned: Array<{ startsAt: Date; iso: string; duplicate: boolean }> = []
     for (const time of input.times) {
       const startsAt = new Date(`${input.date}T${time}`)
       if (Number.isNaN(startsAt.getTime())) throw new AppError('VALIDATION_ERROR')
@@ -226,9 +248,28 @@ export function publishClinicSlots(clinicAccountId: string, input: PublishSlotsI
           s.kind === input.kind &&
           s.startsAt === iso &&
           s.professionalName === professionalName &&
-          s.specialty === specialty,
+          s.specialty === specialty &&
+          (!professional || s.durationMinutes === durationMinutes),
       )
-      if (startsAt.getTime() <= now.getTime() || duplicate) continue
+      if (startsAt.getTime() <= now.getTime()) continue
+      if (professional && !duplicate) {
+        // BR-CLN-13/14: nada é criado se alguma hora colidir.
+        if (overlappingSlot(db, professional.id, iso, durationMinutes)) throw new AppError('CONFLICT')
+        if (timeOffAt(db, professional.id, iso, durationMinutes)) throw new AppError('CONFLICT')
+      }
+      planned.push({ startsAt, iso, duplicate })
+    }
+    // Horas pedidas na mesma chamada não se podem sobrepor entre si (mesmo profissional).
+    if (professional) {
+      const fresh = planned.filter((p) => !p.duplicate).map((p) => p.startsAt.getTime()).sort((a, b) => a - b)
+      for (let i = 1; i < fresh.length; i++) {
+        if (fresh[i]! < fresh[i - 1]! + durationMinutes * 60_000) throw new AppError('CONFLICT')
+      }
+    }
+
+    const created: ClinicSlot[] = []
+    for (const { iso, duplicate } of planned) {
+      if (duplicate) continue
       const slot: ClinicSlot = {
         id: newId('slot'),
         clinicId,
@@ -236,8 +277,10 @@ export function publishClinicSlots(clinicAccountId: string, input: PublishSlotsI
         capacity,
         specialty,
         professionalName,
+        professionalId: professional?.id,
+        serviceTypeId: service?.id,
         startsAt: iso,
-        durationMinutes: input.durationMinutes,
+        durationMinutes,
       }
       db.slots.push(slot)
       created.push(slot)
@@ -267,6 +310,8 @@ export function removeClinicSlot(clinicAccountId: string, slotId: string) {
     const { clinicId } = requireAccount(clinicAccountId)
     const slot = db.slots.find((s) => s.id === slotId && s.clinicId === clinicId)
     if (!slot) throw new AppError('NOT_FOUND')
+    // Gerado por regra: não se remove individualmente (BR-CLN-12); usar bloqueio ou desativar a regra.
+    if (slot.scheduleRuleId) throw new AppError('CONFLICT')
     if (bookingOf(slot.id) || examBookingsOf(slot.id).length > 0) throw new AppError('CONFLICT')
     db.slots = db.slots.filter((s) => s.id !== slotId)
   })

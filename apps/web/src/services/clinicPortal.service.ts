@@ -52,6 +52,9 @@ interface ApiClinicSlot {
   capacity: number
   specialty: string
   professionalName?: string | null
+  professionalId?: string | null
+  serviceTypeId?: string | null
+  scheduleRuleId?: string | null
   startsAt: string
   durationMinutes: number
 }
@@ -92,6 +95,9 @@ const toSlot = (slot: ApiClinicSlot): ClinicSlot => ({
   capacity: slot.capacity,
   specialty: slot.specialty,
   professionalName: slot.professionalName ?? undefined,
+  professionalId: slot.professionalId ?? undefined,
+  serviceTypeId: slot.serviceTypeId ?? undefined,
+  scheduleRuleId: slot.scheduleRuleId ?? undefined,
   startsAt: slot.startsAt,
   durationMinutes: slot.durationMinutes,
 })
@@ -261,9 +267,12 @@ const apiImpl = {
         capacity: input.kind === 'EXAM' ? (input.capacity ?? 1) : 1,
         date: input.date,
         times: input.times,
-        specialty: input.specialty.trim(),
-        professionalName: input.professionalName?.trim() || null,
-        durationMinutes: input.durationMinutes,
+        // Com serviço, tipo/nome/duração vêm do catálogo (valores diferentes → VALIDATION_ERROR).
+        specialty: input.serviceTypeId ? undefined : input.specialty?.trim(),
+        professionalName: input.professionalId ? undefined : input.professionalName?.trim() || null,
+        professionalId: input.professionalId ?? null,
+        serviceTypeId: input.serviceTypeId ?? null,
+        durationMinutes: input.serviceTypeId ? undefined : input.durationMinutes,
       },
     })
     return created.map(toSlot)

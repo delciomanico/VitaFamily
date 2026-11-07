@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { CalendarClock, Pencil, Plus, Trash2 } from 'lucide-react'
 import { SpecialtyField } from '@/components/domain/AppointmentFields'
 import { DaySelector } from '@/components/clinic/DaySelector'
@@ -17,6 +18,8 @@ import { cn } from '@/lib/cn'
 import { todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { formatCount, formatRelativeDay, formatTime } from '@/lib/format'
+import { paths } from '@/routes/paths'
+import { clinicCatalogService } from '@/services/clinicCatalog.service'
 import { clinicPortalService } from '@/services/clinicPortal.service'
 import { MAX_SLOT_CAPACITY, SLOT_DURATIONS, type ClinicSlotView, type SlotKind } from '@/types/clinic'
 
@@ -54,7 +57,23 @@ function PublishForm({ kind, initialDate, onClose, onPublished }: PublishFormPro
   const [duration, setDuration] = useState('30')
   const [times, setTimes] = useState<string[]>([])
   const [capacity, setCapacity] = useState('1')
+  const [professionalId, setProfessionalId] = useState('')
+  const [serviceTypeId, setServiceTypeId] = useState('')
   const isExam = kind === 'EXAM'
+  // Catálogo opcional (M14): se falhar, o formulário continua a funcionar à mão.
+  const { state: catalog } = useAsync(
+    async () => {
+      const [professionals, services] = await Promise.all([
+        clinicCatalogService.listProfessionals({ active: true }),
+        clinicCatalogService.listServices({ active: true, kind }),
+      ])
+      return { professionals, services }
+    },
+    [kind],
+  )
+  const professionals = catalog.status === 'success' ? catalog.data.professionals : []
+  const services = catalog.status === 'success' ? catalog.data.services : []
+  const service = services.find((s) => s.id === serviceTypeId)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -62,8 +81,8 @@ function PublishForm({ kind, initialDate, onClose, onPublished }: PublishFormPro
     setTimes((current) => (current.includes(time) ? current.filter((t) => t !== time) : [...current, time].sort()))
 
   async function publish() {
-    if (!date || !specialty.trim() || times.length === 0) {
-      return setError(`Indique o dia, ${isExam ? 'o tipo de exame' : 'a especialidade'} e pelo menos uma hora.`)
+    if (!date || (!service && !specialty.trim()) || times.length === 0) {
+      return setError(`Indique o dia, ${service ? 'o serviço' : isExam ? 'o tipo de exame' : 'a especialidade'} e pelo menos uma hora.`)
     }
     const slots = Number(capacity)
     if (isExam && (!Number.isInteger(slots) || slots < 1 || slots > MAX_SLOT_CAPACITY)) {
@@ -76,9 +95,12 @@ function PublishForm({ kind, initialDate, onClose, onPublished }: PublishFormPro
         capacity: isExam ? slots : 1,
         date,
         times,
-        specialty,
-        professionalName,
-        durationMinutes: Number(duration),
+        // Com serviço, o tipo, o nome e a duração vêm do serviço (M14).
+        specialty: service ? undefined : specialty,
+        professionalName: professionalId ? undefined : professionalName,
+        professionalId: professionalId || undefined,
+        serviceTypeId: service?.id,
+        durationMinutes: service ? undefined : Number(duration),
       })
       toast.show(
         created.length > 0
@@ -116,7 +138,17 @@ function PublishForm({ kind, initialDate, onClose, onPublished }: PublishFormPro
     >
       <div className="flex max-h-[60dvh] flex-col gap-4 overflow-y-auto pr-1">
         <Input label="Dia" type="date" min={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} />
-        {isExam ? (
+        {services.length > 0 && (
+          <Select
+            label="Serviço (opcional)"
+            placeholder="Sem serviço — indicar à mão"
+            options={services.map((s) => ({ value: s.id, label: `${s.name} (${s.durationMinutes} min)` }))}
+            value={serviceTypeId}
+            onChange={(e) => setServiceTypeId(e.target.value)}
+            hint="Com serviço, o nome e a duração vêm do catálogo."
+          />
+        )}
+        {service ? null : isExam ? (
           <Input
             label="Tipo de exame"
             placeholder="Ex.: Análises clínicas"
@@ -138,17 +170,31 @@ function PublishForm({ kind, initialDate, onClose, onPublished }: PublishFormPro
           />
         )}
         <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Profissional (opcional)"
-            value={professionalName}
-            onChange={(e) => setProfessionalName(e.target.value)}
-          />
-          <Select
-            label="Duração"
-            options={SLOT_DURATIONS.map((m) => ({ value: String(m), label: `${m} min` }))}
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-          />
+          {professionals.length > 0 ? (
+            <Select
+              label="Profissional (opcional)"
+              placeholder="Sem profissional"
+              options={professionals.map((p) => ({ value: p.id, label: p.name }))}
+              value={professionalId}
+              onChange={(e) => setProfessionalId(e.target.value)}
+            />
+          ) : (
+            <Input
+              label="Profissional (opcional)"
+              value={professionalName}
+              onChange={(e) => setProfessionalName(e.target.value)}
+            />
+          )}
+          {service ? (
+            <Input label="Duração" value={`${service.durationMinutes} min`} disabled readOnly />
+          ) : (
+            <Select
+              label="Duração"
+              options={SLOT_DURATIONS.map((m) => ({ value: String(m), label: `${m} min` }))}
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+            />
+          )}
         </div>
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium">Horas ({times.length} escolhidas)</span>
@@ -212,6 +258,13 @@ export function ClinicSlotsPage() {
           Publicar horários
         </Button>
       </div>
+      <p className="text-sm text-muted">
+        Aqui publica horários avulsos. Os horários regulares criam-se sozinhos em{' '}
+        <Link to={paths.clinicServices} className="font-medium text-primary">
+          Serviços
+        </Link>
+        .
+      </p>
       <div role="tablist" aria-label="Tipo de horário" className="flex gap-2">
         {KIND_TABS.map((tab) => (
           <button
@@ -272,7 +325,12 @@ export function ClinicSlotsPage() {
                         <Pencil className="size-4" aria-hidden />
                       </button>
                     )}
-                    {slot.bookedCount === 0 ? (
+                    {slot.scheduleRuleId && (
+                      <Badge tone="neutral" className="hidden sm:inline-flex">
+                        Automático
+                      </Badge>
+                    )}
+                    {slot.bookedCount === 0 && !slot.scheduleRuleId ? (
                       <button
                         type="button"
                         onClick={() => remove(slot)}
@@ -282,7 +340,11 @@ export function ClinicSlotsPage() {
                         <Trash2 className="size-4" aria-hidden />
                       </button>
                     ) : (
-                      <span className="size-9 shrink-0" aria-hidden />
+                      <span
+                        className="size-9 shrink-0"
+                        aria-hidden
+                        title={slot.scheduleRuleId ? 'Horário automático: use um bloqueio ou desative a regra em Serviços.' : undefined}
+                      />
                     )}
                   </div>
                 )

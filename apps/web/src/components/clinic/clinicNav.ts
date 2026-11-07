@@ -1,4 +1,13 @@
-import { CalendarDays, CalendarClock, FlaskConical, Inbox, LayoutDashboard, Users, type LucideIcon } from 'lucide-react'
+import {
+  CalendarDays,
+  CalendarClock,
+  ClipboardList,
+  FlaskConical,
+  Inbox,
+  LayoutDashboard,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 import { paths } from '@/routes/paths'
 
 export interface ClinicNavItem {
@@ -32,6 +41,7 @@ export const clinicNavGroups: ClinicNavGroup[] = [
       { to: paths.clinicRequests, label: 'Pedidos', icon: Inbox, end: false, pending: true },
       { to: paths.clinicAgenda, label: 'Calendário', icon: CalendarDays, end: false },
       { to: paths.clinicSlots, label: 'Horários', icon: CalendarClock, end: false },
+      { to: paths.clinicServices, label: 'Serviços', icon: ClipboardList, end: false },
     ],
   },
   { title: 'Exames', items: [{ to: paths.clinicExams, label: 'Exames', icon: FlaskConical, end: false }] },

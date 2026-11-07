@@ -61,6 +61,7 @@ export const paths = {
   clinicRequests: '/clinic/requests',
   clinicAgenda: '/clinic/agenda',
   clinicSlots: '/clinic/slots',
+  clinicServices: '/clinic/services',
   clinicExams: '/clinic/exams',
   clinicStaff: '/clinic/staff',
 

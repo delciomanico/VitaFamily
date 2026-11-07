@@ -54,6 +54,12 @@ export interface ClinicSlot {
   capacity: number
   specialty: string
   professionalName?: string
+  /** M14 (a1): profissional do catálogo; ausente nos horários manuais antigos. */
+  professionalId?: string
+  /** M14 (a1): serviço do catálogo. */
+  serviceTypeId?: string
+  /** M14 (a2): preenchido nos horários gerados por uma regra (não se removem individualmente). */
+  scheduleRuleId?: string
   /** ISO UTC. */
   startsAt: string
   durationMinutes: number
@@ -82,9 +88,15 @@ export interface PublishSlotsInput {
   date: string
   /** Horas locais HH:mm. */
   times: string[]
-  specialty: string
+  /** Obrigatório sem `serviceTypeId` (com serviço é o nome do serviço). */
+  specialty?: string
   professionalName?: string
-  durationMinutes: number
+  /** M14 (a1): profissional ativo do catálogo (ativa deteção de sobreposição e bloqueios). */
+  professionalId?: string
+  /** M14 (a1): serviço ativo; `kind`, especialidade e duração vêm dele. */
+  serviceTypeId?: string
+  /** Obrigatório sem `serviceTypeId`. */
+  durationMinutes?: number
 }
 
 /** Durações aceites por horário (BR-CLN-04). */
@@ -178,3 +190,148 @@ export interface ClinicCompleteExamInput {
   results: ClinicExamResultInput[]
   resultNote?: string
 }
+
+// --- M14 (a1/a2): catálogo, regras de horário e bloqueios (BR-CLN-11..16) ---
+
+/** `ClinicProfessional` (BR-CLN-11): não se apaga, desativa-se. */
+export interface ClinicProfessional {
+  id: string
+  name: string
+  specialty?: string
+  active: boolean
+}
+
+export interface ClinicProfessionalInput {
+  name: string
+  specialty?: string
+}
+
+export interface ClinicProfessionalPatch {
+  name?: string
+  specialty?: string | null
+  active?: boolean
+}
+
+/** `ClinicServiceType` (BR-CLN-11/12): preço em cêntimos, apenas informativo. */
+export interface ClinicServiceType {
+  id: string
+  name: string
+  kind: SlotKind
+  durationMinutes: number
+  /** Cêntimos (inteiro >= 0); ausente = sem preço. */
+  priceMinor?: number
+  /** Moeda da clínica (só leitura; AOA por omissão). */
+  currency: string
+  active: boolean
+}
+
+export interface ClinicServiceTypeInput {
+  name: string
+  kind: SlotKind
+  durationMinutes: number
+  priceMinor?: number
+}
+
+/** `kind` não é alterável (BR-CLN-12). */
+export interface ClinicServiceTypePatch {
+  name?: string
+  durationMinutes?: number
+  priceMinor?: number | null
+  active?: boolean
+}
+
+/** `ClinicScheduleRule` (BR-CLN-12): horas locais da clínica, dias ISO (1 = segunda ... 7 = domingo). */
+export interface ClinicScheduleRule {
+  id: string
+  professionalId: string
+  serviceTypeId: string
+  weekdays: number[]
+  startTime: string
+  endTime: string
+  /** Dia local (yyyy-mm-dd); ausente = desde já. */
+  validFrom?: string
+  /** Dia local inclusivo; ausente = sem fim. */
+  validUntil?: string
+  capacity: number
+  active: boolean
+}
+
+export interface ClinicScheduleRuleInput {
+  professionalId: string
+  serviceTypeId: string
+  weekdays: number[]
+  startTime: string
+  endTime: string
+  validFrom?: string
+  validUntil?: string
+  capacity?: number
+}
+
+/** `professionalId` e `serviceTypeId` são imutáveis. */
+export interface ClinicScheduleRulePatch {
+  weekdays?: number[]
+  startTime?: string
+  endTime?: string
+  validFrom?: string | null
+  validUntil?: string | null
+  capacity?: number
+  active?: boolean
+}
+
+/** `ClinicScheduleGeneration`: só contagens (BR-CLN-12/15). */
+export interface ScheduleGeneration {
+  created: number
+  unchanged: number
+  removed: number
+  skippedOverlap: number
+  skippedTimeOff: number
+  keptBooked: number
+}
+
+/** `ClinicScheduleRuleResult`. */
+export interface ScheduleRuleResult {
+  rule: ClinicScheduleRule
+  generation: ScheduleGeneration
+}
+
+/** `ClinicTimeOff` (BR-CLN-14): bloqueio/férias de um profissional. */
+export interface ClinicTimeOff {
+  id: string
+  professionalId: string
+  /** ISO UTC. */
+  startsAt: string
+  endsAt: string
+  reason?: string
+  /** Horários do bloqueio ainda com marcações ativas. */
+  bookedSlotCount: number
+}
+
+export interface ClinicTimeOffInput {
+  professionalId: string
+  startsAt: string
+  endsAt: string
+  reason?: string
+}
+
+/** `ClinicTimeOffBookedSlot`: horário bloqueado com marcações ativas (sem dados do paciente). */
+export interface TimeOffBookedSlot {
+  slotId: string
+  kind: SlotKind
+  startsAt: string
+  durationMinutes: number
+  bookedCount: number
+}
+
+/** `ClinicTimeOffResult`. */
+export interface TimeOffResult {
+  timeOff: ClinicTimeOff
+  removedSlots: number
+  bookedSlots: TimeOffBookedSlot[]
+}
+
+/** Limites do catálogo (BR-CLN-11/12). */
+export const MAX_CLINIC_PROFESSIONALS = 100
+export const MAX_CLINIC_SERVICES = 100
+export const MAX_CLINIC_RULES = 200
+/** Janela rolante de geração (BR-CLN-12): hoje + 56 dias. */
+export const SCHEDULE_HORIZON_DAYS = 56
