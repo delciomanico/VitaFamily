@@ -88,6 +88,13 @@ PENDING → INFECTED    [antivírus] → ficheiro apagado, registo eliminado, up
 ```
 Documento PENDING não pode ser descarregado (`DOCUMENT_NOT_AVAILABLE`).
 
+## ClinicVisit (M14 P, BR-CLN-18)
+```text
+SCHEDULED → COMPLETED   [conta da clínica, só `outcomeNote`; mesma janela da consulta (ST4)]
+SCHEDULED → CANCELLED   [conta da clínica, com motivo; liberta o horário]
+```
+Nasce `SCHEDULED` (visita presencial só da clínica, paciente sem ligação Vita). Estados finais; sem reagendar (cancelar e marcar outro horário, como BR-APT-09). Não há `REQUESTED`/`NO_SHOW` nesta fase.
+
 ## Clinic
 ```text
 ACTIVE → ARCHIVED   [Platform Admin (PARTNER); criador ou Admin da família (PRIVATE)]

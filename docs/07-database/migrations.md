@@ -51,3 +51,9 @@
   5. `ALTER TABLE appointments ADD COLUMN duration_minutes int NOT NULL DEFAULT 30` + CHECK `BETWEEN 5 AND 480`; backfill a partir de `clinic_slots.duration_minutes` onde `slot_id IS NOT NULL`.
   6. Índices de `indexes.md` (M14).
   - Teste de integração obrigatório (`test-cases.md`, TC-CLN-04/05): a `EXCLUDE` rejeita sobreposição do mesmo profissional e aceita horários consecutivos e profissionais diferentes; apagar uma clínica apaga as quatro tabelas novas sem violar as FKs `NO ACTION`; migrar com horários/consultas existentes preserva-os (`ends_at` correto, `duration_minutes` = 30 ou do horário).
+
+- **M14 P (ADR-026, contrato 2026-11-08) — `0028_clinic_patients_consent.sql`** (nome indicativo; próximo número livre depois de `0027`; única migração, transacional; só tabelas/índices/enums novos, retrocompatível; sem `ADD VALUE`). Por ordem:
+  1. `CREATE TYPE clinic_patient_origin / clinic_link_via / clinic_consent_level / clinic_visit_status`.
+  2. `CREATE TABLE clinic_patients` (com `UNIQUE (clinic_id, id)`), `clinic_patient_links`, `clinic_consents`, `clinic_link_codes`, `clinic_visits` (CHECK, FKs e UNIQUE de `schema.md` §3d).
+  3. Índices de `indexes.md` (M14 P).
+  - Teste de integração obrigatório (`test-cases.md`, TC-CLN-08..12): apagar um `family_members` apaga ligação, consentimento e códigos mas **não** o `clinic_patients`/`clinic_visits`; apagar a clínica apaga as cinco tabelas; UNIQUE `(clinic_id, member_id)` e `(clinic_patient_id)`; consumo concorrente de um código (1 só vence); CHECK do `history_valid_until`.

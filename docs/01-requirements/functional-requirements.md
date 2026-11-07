@@ -163,6 +163,10 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-CLN-04 | A clínica parceira gere o catálogo de **profissionais** e de **tipos de serviço** (consulta/exame, duração, preço informativo opcional), desativando em vez de apagar (BR-CLN-11/12). | D22, ADR-026 (M14 a1) |
 | FR-CLN-05 | A clínica parceira define **regras de horário semanais** por profissional e serviço que geram horários reserváveis de forma idempotente numa janela de 8 semanas, sem sobreposição por profissional (BR-CLN-12/13/15/16). | D22, ADR-026 (M14 a2) |
 | FR-CLN-06 | A clínica parceira regista **bloqueios/férias** de um profissional: remove os horários livres e sinaliza os já marcados para tratamento (BR-CLN-14). | D22, ADR-026 (M14 a2) |
+| FR-CLN-07 | A clínica parceira mantém o **registo dos seus pacientes** (`ClinicPatient`: manual, sem conta Vita, ou ligado a um paciente Vita), com pesquisa por nome/telefone/e-mail, ficha (consultas, exames, recomendações, notas, estado do consentimento) e marcação presencial para paciente da clínica ou Vita (BR-CLN-17/18/22). | D22, ADR-026 (M14 P) |
+| FR-CLN-08 | O paciente Vita (titular/tutor) decide, por clínica, o que ela vê — **Marcações** ou **Partilhar histórico** (medicação e exames; 12 meses, renovável) — e pode revogar a qualquer momento; liga-se à clínica por código/QR de uso único (BR-CLN-19/20/21). | D22, ADR-026 (M14 P) |
+| FR-CLN-09 | O portal tem **pesquisa global** única sobre os pacientes e marcações da própria clínica, sem pesquisar a base Vita (BR-CLN-22). | D22, ADR-026 (M14 P) |
+| FR-CLN-10 | A clínica vê um **calendário por profissional** (dia/semana) com marcações e horários livres (BR-CLN-23). | D22, ADR-026 (M14 P) |
 
 ---
 

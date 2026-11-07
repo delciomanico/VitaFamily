@@ -1571,6 +1571,171 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/clinic-consents:
+    get:
+      tags: [Clinics]
+      operationId: listClinicConsents
+      summary: "Listar as clínicas ligadas ao membro e o que cada uma pode ver (quem vê o quê)."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF); DEPENDENT_SELF e OTHER nunca (authorization.md §6.4). UC-CLN-16, BR-CLN-19, ADR-026. Devolve as clínicas parceiras com consentimento e/ou ligação ao membro. Um consentimento HISTORY expirado aparece com level=BOOKINGS e renewalNeeded=true."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicConsent" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/clinic-consents/{clinicId}:
+    put:
+      tags: [Clinics]
+      operationId: putClinicConsent
+      summary: "Conceder, alterar ou renovar o consentimento de uma clínica parceira."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF). UC-CLN-16, BR-CLN-19. level=BOOKINGS (Marcações) ou HISTORY (Partilhar histórico: medicação e exames); HISTORY define a validade para daqui a 12 meses (repetir o pedido renova); BOOKINGS retira a partilha do histórico. Efeito imediato. Idempotente. Clínica inexistente, não parceira ou não ativa: NOT_FOUND. Auditoria CLINIC_CONSENT_SET (sem texto)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicConsentInput" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicConsent" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Clinics]
+      operationId: revokeClinicConsent
+      summary: "Revogar o consentimento e a ligação de uma clínica."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF). UC-CLN-16, BR-CLN-19. Corta de imediato a partilha futura, apaga a ligação do membro ao paciente da clínica e o consentimento; a clínica conserva o que ela própria criou, sem ids Vita. Sem consentimento nem ligação: NOT_FOUND. Auditoria CLINIC_CONSENT_REVOKE."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: clinicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Revogado
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/clinic-link-codes:
+    post:
+      tags: [Clinics]
+      operationId: createClinicLinkCode
+      summary: "Gerar um código/QR de uso único (10 min) para a clínica ligar o paciente."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF). UC-CLN-15, BR-CLN-20. Gerar um código novo invalida o anterior ainda ativo do membro. O QR codifica apenas o código. Limite: 5 códigos/hora por membro (RATE_LIMITED). Auditoria CLINIC_LINK_CODE_CREATE (sem o código)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicLinkCode" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED (Retry-After)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /families/{familyId}/shared-with-me:
     get:
       tags: [Sharing]
@@ -4394,8 +4559,8 @@ paths:
     post:
       tags: [Clinic Portal]
       operationId: createClinicWalkInAppointment
-      summary: "Marcar uma consulta presencial (SCHEDULED) para um utilizador registado, num horário livre da própria clínica."
-      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). BR-CLN-10, ADR-024, UC-CLN-08. O servidor re-resolve patientEmail; sem ids na API. Consulta nasce SCHEDULED no membro SELF, walk_in=true. Auditoria CLINIC_WALKIN_BOOK. Alerta APPOINTMENT_CONFIRMED quando existir (OP-22)."
+      summary: "Marcar uma consulta presencial (SCHEDULED) para um paciente Vita (por e-mail exato) ou da clínica, num horário livre da própria clínica."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). BR-CLN-10/18, ADR-024, UC-CLN-08. Exatamente um de patientEmail e clinicPatientId. Com patientEmail o servidor re-resolve o e-mail (sem ids na API), cria/liga o paciente da clínica e a consulta nasce SCHEDULED no membro SELF (walk_in=true). Com clinicPatientId: paciente ligado a um membro Vita => consulta no membro (como acima); paciente manual ou sem ligação => visita presencial só da clínica (source=MANUAL), que não aparece na app Vita. Auditoria CLINIC_WALKIN_BOOK (ou CLINIC_VISIT_BOOK). Alerta APPOINTMENT_CONFIRMED quando existir (OP-22)."
       security:
         - clinicBearerAuth: []
       requestBody:
@@ -4415,7 +4580,7 @@ paths:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
         '404':
-          description: "NOT_FOUND (horário de outra clínica/inexistente, ou paciente não resolvível; genérico)"
+          description: "NOT_FOUND (horário de outra clínica/inexistente, paciente não resolvível ou clinicPatientId de outra clínica; genérico)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -4425,12 +4590,323 @@ paths:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
         '422':
-          description: "VALIDATION_ERROR (e-mail inválido; horário kind=EXAM)"
+          description: "VALIDATION_ERROR (e-mail inválido; horário kind=EXAM; nenhum ou ambos de patientEmail/clinicPatientId)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
         '429':
           description: "RATE_LIMITED (Retry-After)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/patients:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicPatients
+      summary: "Listar/pesquisar os pacientes da própria clínica (paginado)."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN e CLINIC_MANAGER, authorization.md §6.2). UC-CLN-14, BR-CLN-17/22. q (2–100 caracteres) pesquisa por nome (sem distinção de maiúsculas/acentos, contém), e-mail (contém) e telefone (contém, ≥3 dígitos); omitido = todos. Ordem: nome. Nunca pesquisa a base Vita. Limite de 60 pedidos/min por conta (RATE_LIMITED)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, minLength: 2, maxLength: 100 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicPatientPage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (q curto/longo; cursor inválido)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED (Retry-After)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Clinic Portal]
+      operationId: createClinicPatient
+      summary: "Criar um paciente da clínica (cliente de balcão, sem conta Vita)."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). UC-CLN-14, BR-CLN-17. Nasce com origin=MANUAL e sem ligação Vita. Não há unicidade por nome (homónimos são válidos). Auditoria CLINIC_PATIENT_CREATE (sem dados pessoais)."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicPatientInput" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicPatient" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/patients/link:
+    post:
+      tags: [Clinic Portal]
+      operationId: linkClinicPatient
+      summary: "Ligar um paciente Vita à clínica com o código/QR gerado pelo paciente."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). UC-CLN-15, BR-CLN-20. Consome o código (uso único, 10 min). Sem clinicPatientId cria um paciente da clínica (origin=VITA, nome de apresentação); com clinicPatientId liga um paciente existente ainda não ligado. Cria o consentimento BOOKINGS se não existir. 404 idêntico para código inválido, expirado ou já usado. Rate limit partilhado com BR-CLN-10. Auditoria CLINIC_PATIENT_LINK (sem o código)."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicPatientLinkRequest" }
+      responses:
+        '200':
+          description: "Ligado (idempotente se o membro já estava ligado a este paciente)"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicPatient" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (genérico: código inválido, expirado ou usado; clinicPatientId de outra clínica)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (o paciente indicado já está ligado a outra pessoa, ou o membro já está ligado a outro paciente da clínica)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (formato do código)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED (Retry-After)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/patients/{patientId}:
+    get:
+      tags: [Clinic Portal]
+      operationId: getClinicPatient
+      summary: "Ver um paciente da clínica."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). UC-CLN-14, BR-CLN-17. Nunca devolve ids Vita; vitaLink só traz a forma e o nível/validade do consentimento."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicPatient" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Clinic Portal]
+      operationId: updateClinicPatient
+      summary: "Editar um paciente da clínica."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). UC-CLN-14, BR-CLN-17. Campos opcionais aceitam null para limpar; name não. origin e vitaLink não são editáveis. Auditoria CLINIC_PATIENT_UPDATE (lista dos campos alterados, sem valores)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicPatientPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicPatient" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/patients/{patientId}/record:
+    get:
+      tags: [Clinic Portal]
+      operationId: getClinicPatientRecord
+      summary: "Ficha do paciente: consultas, exames e recomendações da própria clínica com ele."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). UC-CLN-14, BR-CLN-17. Só atividade da própria clínica (BR-CLN-03): consultas (Vita e visitas presenciais manuais), exames e recomendações emitidas pela clínica; mais recentes primeiro, até 200 de cada. Nunca dados de saúde Vita (isso é shared-history). Uma ligação revogada deixa de associar as marcações Vita ao paciente; as visitas manuais mantêm-se."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicPatientRecord" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/patients/{patientId}/shared-history:
+    get:
+      tags: [Clinic Portal]
+      operationId: getClinicSharedHistory
+      summary: "Histórico partilhado pelo paciente Vita (medicação e exames), só leitura."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). UC-CLN-17, BR-CLN-21, ADR-026. Só com ligação e consentimento HISTORY válido (não expirado nem revogado); caso contrário 200 com active=false e listas vazias (nunca 403, nada a revelar). Medicação ativa e exames dos últimos 24 meses e futuros (sem documentos, notas nem texto livre). Auditoria CLINIC_SHARED_HISTORY_VIEW quando active=true (sem conteúdo)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicSharedHistory" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (paciente de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/search:
+    get:
+      tags: [Clinic Portal]
+      operationId: clinicGlobalSearch
+      summary: "Pesquisa global do portal: pacientes da clínica e marcações."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). UC-CLN-18, BR-CLN-22. Até 10 pacientes (nome/telefone/e-mail) e 10 marcações da própria clínica (consultas, exames e visitas por nome do paciente, serviço/especialidade ou profissional; futuras primeiro). Nunca pesquisa a base Vita (isso só por e-mail exato/código no fluxo de marcação). Limite de 60 pedidos/min por conta (RATE_LIMITED)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 100 }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicSearchResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (q ausente, curto ou longo)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED (Retry-After)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/calendar:
+    get:
+      tags: [Clinic Portal]
+      operationId: getClinicCalendar
+      summary: "Calendário por profissional: marcações e horários livres de uma janela."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). UC-CLN-19, BR-CLN-23. Janela [from, to) de no máximo 31 dias. entries = consultas (REQUESTED/SCHEDULED/COMPLETED/NO_SHOW), exames (SCHEDULED/COMPLETED) e visitas presenciais manuais; freeSlots = horários futuros com vaga. professionalId filtra um profissional (de outra clínica: NOT_FOUND). Mínimo necessário (BR-CLN-03). Só leitura."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: professionalId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicCalendar" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (profissional de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (to <= from; janela > 31 dias)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -8314,12 +8790,25 @@ components:
           nullable: true
         patientName:
           type: string
-          description: "Mínimo necessário (BR-CLN-03); nunca dados de saúde da família."
+          description: "Mínimo necessário (BR-CLN-03); nunca dados de saúde da família. Em visitas manuais é o nome do paciente da clínica."
         notes:
           type: string
           nullable: true
         responseNote:
           type: string
+          nullable: true
+        source:
+          type: string
+          enum: [VITA, MANUAL]
+          description: "M14 P (BR-CLN-18). VITA = consulta no membro Vita (omissão); MANUAL = visita presencial só da clínica (paciente sem ligação Vita)."
+        clinicPatientId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "M14 P. Paciente da clínica a que pertence (ligação por membro ou visita manual); nulo se ainda não existir registo da clínica."
+        slotId:
+          type: string
+          format: uuid
           nullable: true
     ClinicPatientLookupRequest:
       type: object
@@ -8341,12 +8830,19 @@ components:
     ClinicWalkInAppointmentRequest:
       type: object
       additionalProperties: false
-      required: [patientEmail, slotId]
+      required: [slotId]
+      oneOf:
+        - required: [patientEmail]
+        - required: [clinicPatientId]
+      description: "BR-CLN-10/18. Exatamente um de patientEmail (utilizador Vita, ADR-024) e clinicPatientId (paciente da clínica, M14 P)."
       properties:
         patientEmail:
           type: string
           format: email
           maxLength: 254
+        clinicPatientId:
+          type: string
+          format: uuid
         slotId:
           type: string
           format: uuid
@@ -8354,6 +8850,205 @@ components:
           type: string
           maxLength: 2000
           nullable: true
+    ClinicConsent:
+      type: object
+      required: [clinicId, clinicName, level, validUntil, renewalNeeded, linked]
+      description: "BR-CLN-19. O que uma clínica parceira pode ver do membro (quem vê o quê)."
+      properties:
+        clinicId: { type: string, format: uuid }
+        clinicName: { type: string }
+        level:
+          type: string
+          enum: [BOOKINGS, HISTORY]
+          description: "Nível efetivo. BOOKINGS = Marcações (omissão); HISTORY = Partilhar histórico (medicação e exames). HISTORY expirado aparece como BOOKINGS."
+        validUntil: { type: string, format: date-time, nullable: true, description: "Fim da validade do nível HISTORY (12 meses); nulo em BOOKINGS." }
+        renewalNeeded: { type: boolean, description: "true se o HISTORY expirou e pode ser renovado." }
+        linked: { type: boolean, description: "true se a clínica já tem um paciente ligado a este membro." }
+    ClinicConsentInput:
+      type: object
+      additionalProperties: false
+      required: [level]
+      properties:
+        level: { type: string, enum: [BOOKINGS, HISTORY] }
+    ClinicLinkCode:
+      type: object
+      required: [code, expiresAt]
+      description: "BR-CLN-20. Código de uso único, 10 min. Apresentar à clínica em texto ou QR (o QR codifica só o código)."
+      properties:
+        code: { type: string, pattern: '^[A-HJ-NP-Z2-9]{8}$', description: "8 caracteres sem 0/O/1/I/L; mostrado como XXXX-XXXX (o hífen é ignorado ao consumir)." }
+        expiresAt: { type: string, format: date-time }
+    ClinicPatientVitaLink:
+      type: object
+      required: [via, consentLevel, consentValidUntil]
+      description: "BR-CLN-17/19. Sem ids Vita: só a forma da ligação e o consentimento efetivo."
+      properties:
+        via: { type: string, enum: [EMAIL, CODE] }
+        consentLevel: { type: string, enum: [BOOKINGS, HISTORY], nullable: true }
+        consentValidUntil: { type: string, format: date-time, nullable: true }
+    ClinicPatient:
+      type: object
+      required: [id, name, phone, email, birthDate, notes, origin, vitaLink, createdAt, updatedAt]
+      description: "BR-CLN-17. Registo próprio da clínica (a clínica é responsável pelo tratamento, ADR-026). Nunca contém ids Vita."
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        phone: { type: string, maxLength: 30, nullable: true }
+        email: { type: string, format: email, maxLength: 254, nullable: true, description: "Contacto da clínica; nunca é usado para procurar contas Vita." }
+        birthDate: { type: string, format: date, nullable: true }
+        notes: { type: string, maxLength: 2000, nullable: true, description: "Notas internas da clínica." }
+        origin: { type: string, enum: [MANUAL, VITA] }
+        vitaLink:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ClinicPatientVitaLink"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ClinicPatientInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        phone: { type: string, maxLength: 30, pattern: '^[+0-9 ()-]{5,30}$', nullable: true }
+        email: { type: string, format: email, maxLength: 254, nullable: true }
+        birthDate: { type: string, format: date, nullable: true, description: "Não pode ser futura." }
+        notes: { type: string, maxLength: 2000, nullable: true }
+    ClinicPatientPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        phone: { type: string, maxLength: 30, pattern: '^[+0-9 ()-]{5,30}$', nullable: true }
+        email: { type: string, format: email, maxLength: 254, nullable: true }
+        birthDate: { type: string, format: date, nullable: true }
+        notes: { type: string, maxLength: 2000, nullable: true }
+    ClinicPatientPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicPatient" }
+        nextCursor: { type: string, nullable: true }
+    ClinicPatientLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code: { type: string, minLength: 8, maxLength: 9, description: "O código do paciente (com ou sem hífen, sem distinção de maiúsculas). Nunca registado em logs/auditoria." }
+        clinicPatientId: { type: string, format: uuid, description: "Opcional: liga este paciente da clínica em vez de criar um novo." }
+    ClinicPatientRecord:
+      type: object
+      required: [patient, bookings, examinations, recommendations]
+      description: "Ficha: só atividade da própria clínica (BR-CLN-03/17)."
+      properties:
+        patient: { $ref: "#/components/schemas/ClinicPatient" }
+        bookings:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicBooking" }
+        examinations:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicExamBooking" }
+        recommendations:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicRecommendation" }
+    ClinicSharedMedication:
+      type: object
+      required: [name, dosage, startAt, endAt, continuous]
+      properties:
+        name: { type: string }
+        dosage: { type: string }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time, nullable: true }
+        continuous: { type: boolean }
+    ClinicSharedExamResult:
+      type: object
+      required: [parameter]
+      properties:
+        parameter: { type: string }
+        valueNumeric: { type: number, nullable: true }
+        valueText: { type: string, nullable: true }
+        unit: { type: string, nullable: true }
+        referenceMin: { type: number, nullable: true }
+        referenceMax: { type: number, nullable: true }
+    ClinicSharedExam:
+      type: object
+      required: [name, examDate, status, results]
+      properties:
+        name: { type: string }
+        examDate: { type: string, format: date }
+        status: { type: string, enum: [SCHEDULED, COMPLETED] }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicSharedExamResult" }
+    ClinicSharedHistory:
+      type: object
+      required: [active, level, validUntil, medications, examinations]
+      description: "BR-CLN-21. Só leitura. active=false (sem consentimento HISTORY válido) => listas vazias. Sem interpretação nem alertas por valor (D11); sem documentos nem notas."
+      properties:
+        active: { type: boolean }
+        level: { type: string, enum: [BOOKINGS, HISTORY], nullable: true }
+        validUntil: { type: string, format: date-time, nullable: true }
+        medications:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicSharedMedication" }
+        examinations:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicSharedExam" }
+    ClinicCalendarEntry:
+      type: object
+      required: [id, source, kind, status, startsAt, endsAt, patientName]
+      description: "BR-CLN-23. Marcação do calendário; mínimo necessário (BR-CLN-03)."
+      properties:
+        id: { type: string, format: uuid }
+        source: { type: string, enum: [VITA, MANUAL] }
+        kind: { type: string, enum: [APPOINTMENT, EXAM] }
+        status: { type: string, enum: [REQUESTED, SCHEDULED, REJECTED, COMPLETED, NO_SHOW, CANCELLED] }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time, description: "Fim da duração da marcação (de exame: o do horário)." }
+        professionalId: { type: string, format: uuid, nullable: true }
+        professionalName: { type: string, nullable: true }
+        specialty: { type: string, nullable: true, description: "Serviço/especialidade; em exame, o tipo de exame." }
+        patientName: { type: string }
+        clinicPatientId: { type: string, format: uuid, nullable: true }
+        slotId: { type: string, format: uuid, nullable: true }
+    ClinicCalendarFreeSlot:
+      type: object
+      required: [slotId, kind, startsAt, endsAt, specialty, remaining]
+      properties:
+        slotId: { type: string, format: uuid }
+        kind: { type: string, enum: [APPOINTMENT, EXAM] }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        professionalId: { type: string, format: uuid, nullable: true }
+        professionalName: { type: string, nullable: true }
+        specialty: { type: string }
+        remaining: { type: integer, minimum: 1 }
+    ClinicCalendar:
+      type: object
+      required: [from, to, entries, freeSlots]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicCalendarEntry" }
+        freeSlots:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicCalendarFreeSlot" }
+    ClinicSearchResult:
+      type: object
+      required: [patients, bookings]
+      properties:
+        patients:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/ClinicPatient" }
+        bookings:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/ClinicCalendarEntry" }
     ClinicRequestResponse:
       type: object
       required: [decision]

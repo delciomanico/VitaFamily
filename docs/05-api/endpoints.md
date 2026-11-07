@@ -409,6 +409,42 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** BR-PRV-01..04: só leitura; efeito imediato; destinatário nulo = toda a família.
 
+### M14 fase (P) — consentimento e ligação a clínicas (lado família; ADR-026; contrato 2026-11-08)
+
+> Autorização de todas as rotas: titular adulto (`SELF`) ou tutor (`TUTOR_OF`); `DEPENDENT_SELF` e `OTHER` nunca (`authorization.md` §6.4). O dependente sem conta é gerido pelos tutores (N2).
+
+### `GET /families/{familyId}/members/{memberId}/clinic-consents`  — listClinicConsents
+- **AUTHORIZATION:** Titular (SELF adulto) ou tutor
+- **DESCRIPTION:** "Quem vê o quê": clínicas parceiras com consentimento e/ou ligação ao membro (UC-CLN-16).
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ClinicConsent]`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-19. `level` é o efetivo: um `HISTORY` expirado aparece como `BOOKINGS` com `renewalNeeded=true`.
+
+### `PUT /families/{familyId}/members/{memberId}/clinic-consents/{clinicId}`  — putClinicConsent
+- **AUTHORIZATION:** Titular (SELF adulto) ou tutor
+- **DESCRIPTION:** Conceder, alterar ou renovar o consentimento de uma clínica parceira (UC-CLN-16).
+- **REQUEST:** `ClinicConsentInput` (`level`: `BOOKINGS`\|`HISTORY`)
+- **RESPONSE:** `200` `ClinicConsent`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND` (clínica inexistente/não parceira/não ativa), `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-19. `HISTORY` fixa a validade em agora + 12 meses (repetir = renovar); `BOOKINGS` remove a partilha do histórico. Efeito imediato, idempotente; pode existir antes de a clínica ter ligado o paciente. Auditoria `CLINIC_CONSENT_SET`.
+
+### `DELETE /families/{familyId}/members/{memberId}/clinic-consents/{clinicId}`  — revokeClinicConsent
+- **AUTHORIZATION:** Titular (SELF adulto) ou tutor
+- **DESCRIPTION:** Revogar o consentimento e a ligação da clínica (UC-CLN-16).
+- **REQUEST:** —
+- **RESPONSE:** `204`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND` (sem consentimento nem ligação), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-19: apaga consentimento e ligação (a leitura da clínica cessa na hora); o registo da clínica mantém-se desligado. Auditoria `CLINIC_CONSENT_REVOKE`.
+
+### `POST /families/{familyId}/members/{memberId}/clinic-link-codes`  — createClinicLinkCode
+- **AUTHORIZATION:** Titular (SELF adulto) ou tutor
+- **DESCRIPTION:** Gerar o código/QR (uso único, 10 min) a mostrar à clínica (UC-CLN-15).
+- **REQUEST:** —
+- **RESPONSE:** `201` `ClinicLinkCode` (`code`, `expiresAt`)
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-20. Novo código invalida o anterior do membro; 5 códigos/hora por membro; só o hash fica guardado. Auditoria `CLINIC_LINK_CODE_CREATE` (sem o código).
+
 ### `GET /families/{familyId}/shared-with-me`  — sharedWithMe
 - **AUTHORIZATION:** FAM_MEMBER
 - **DESCRIPTION:** O que foi partilhado comigo.
@@ -992,10 +1028,85 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 ### `POST /clinic-portal/walk-in-appointments`  — createClinicWalkInAppointment
 - **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
 - **DESCRIPTION:** Marcar uma consulta presencial `SCHEDULED` para o utilizador num horário `APPOINTMENT` livre da própria clínica (UC-CLN-08, ADR-024).
-- **REQUEST:** `{ patientEmail, slotId, notes? }` (`notes` ≤2000)
+- **REQUEST:** `{ patientEmail \| clinicPatientId, slotId, notes? }` (exatamente um dos dois primeiros; `notes` ≤2000; M14 P, BR-CLN-18)
 - **RESPONSE:** `201` `ClinicBooking` (`status=SCHEDULED`; só o mínimo, BR-CLN-03)
-- **ERRORS:** `NOT_FOUND` (horário de outra clínica/inexistente; paciente não resolvível, mesma resposta genérica), `CONFLICT` (horário ocupado ou passado; sobreposição **por duração** com consulta `SCHEDULED` do paciente ou, se o horário tem `professionalId`, com outra marcação ativa do profissional, BR-CLN-13/16), `VALIDATION_ERROR` (horário `kind=EXAM`; e-mail inválido), `RATE_LIMITED`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** BR-CLN-10, BR-APT-04/06 (reserva o horário), BR-APT-03/07 (lembretes). Ordem de validação: horário da clínica → paciente → estado do horário → sobreposição. Auditoria `CLINIC_WALKIN_BOOK`. Alerta `APPOINTMENT_CONFIRMED` quando existir (OP-22).
+- **ERRORS:** `NOT_FOUND` (horário de outra clínica/inexistente; paciente não resolvível, mesma resposta genérica), `CONFLICT` (horário ocupado ou passado; sobreposição **por duração** com consulta `SCHEDULED` do paciente ou, se o horário tem `professionalId`, com outra marcação ativa do profissional, BR-CLN-13/16), `VALIDATION_ERROR` (horário `kind=EXAM`; e-mail inválido; nenhum ou ambos de `patientEmail`/`clinicPatientId`), `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-10, BR-APT-04/06 (reserva o horário), BR-APT-03/07 (lembretes). Ordem de validação: horário da clínica → paciente → estado do horário → sobreposição. Auditoria `CLINIC_WALKIN_BOOK` (ou `CLINIC_VISIT_BOOK` na visita manual). **M14 P (BR-CLN-18):** `patientEmail` cria/liga o `ClinicPatient` e o consentimento `BOOKINGS`; `clinicPatientId` ligado a membro Vita marca no membro, sem ligação ⇒ visita manual (não aparece na app Vita). Alerta `APPOINTMENT_CONFIRMED` quando existir (OP-22).
+
+### M14 fase (P) — pacientes da clínica, pesquisa e calendário (ADR-026; contrato 2026-11-08)
+
+> Tudo com `clinic_id` do token (404 sem enumeração). Sem DELETE de pacientes nesta fase (retenção: OP-32). Nenhuma resposta contém ids Vita.
+
+### `GET /clinic-portal/patients`  — listClinicPatients
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
+- **DESCRIPTION:** Listar/pesquisar os pacientes da própria clínica, paginado (UC-CLN-14).
+- **REQUEST:** Query `q?` (2–100), `limit?` (1–100, 25), `cursor?`
+- **RESPONSE:** `200` `ClinicPatientPage` (`items`, `nextCursor`)
+- **ERRORS:** `VALIDATION_ERROR`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-17/22. `q` = nome (sem maiúsculas/acentos, contém), e-mail (contém) ou telefone (contém, ≥3 dígitos). Ordem por nome. Nunca pesquisa a base Vita. 60 pedidos/min por conta.
+
+### `POST /clinic-portal/patients`  — createClinicPatient
+- **AUTHORIZATION:** CLINIC_ACCOUNT (ambos)
+- **DESCRIPTION:** Criar paciente da clínica (cliente de balcão sem conta Vita).
+- **REQUEST:** `ClinicPatientInput` (`name` 1–120; `phone?`, `email?`, `birthDate?`, `notes?` ≤2000)
+- **RESPONSE:** `201` `ClinicPatient` (`origin=MANUAL`, `vitaLink=null`)
+- **ERRORS:** `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-17. Auditoria `CLINIC_PATIENT_CREATE` (sem dados pessoais).
+
+### `GET /clinic-portal/patients/{patientId}`  — getClinicPatient
+- **AUTHORIZATION:** CLINIC_ACCOUNT (ambos)
+- **DESCRIPTION:** Ver um paciente.
+- **RESPONSE:** `200` `ClinicPatient`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-17.
+
+### `PATCH /clinic-portal/patients/{patientId}`  — updateClinicPatient
+- **AUTHORIZATION:** CLINIC_ACCOUNT (ambos)
+- **DESCRIPTION:** Editar (`null` limpa os campos opcionais; `origin` e `vitaLink` não se editam).
+- **REQUEST:** `ClinicPatientPatch`
+- **RESPONSE:** `200` `ClinicPatient`
+- **ERRORS:** `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-17. Auditoria `CLINIC_PATIENT_UPDATE` (nomes dos campos, sem valores).
+
+### `GET /clinic-portal/patients/{patientId}/record`  — getClinicPatientRecord
+- **AUTHORIZATION:** CLINIC_ACCOUNT (ambos)
+- **DESCRIPTION:** Ficha: consultas (incl. visitas manuais), exames e recomendações **da própria clínica** com o paciente (UC-CLN-14).
+- **RESPONSE:** `200` `ClinicPatientRecord` (até 200 itens de cada lista, mais recentes primeiro)
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-03/17. As marcações Vita associam-se ao paciente pela ligação (deixam de aparecer se for revogada); as visitas manuais mantêm-se. Estado do consentimento em `patient.vitaLink`.
+
+### `GET /clinic-portal/patients/{patientId}/shared-history`  — getClinicSharedHistory
+- **AUTHORIZATION:** CLINIC_ACCOUNT (ambos)
+- **DESCRIPTION:** Medicação e exames partilhados pelo paciente Vita, só leitura (UC-CLN-17).
+- **RESPONSE:** `200` `ClinicSharedHistory` (`active=false` e listas vazias sem consentimento `HISTORY` válido)
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-21. Medicação ativa; exames dos últimos 24 meses e futuros; sem documentos, notas nem texto livre; sem interpretação (D11). Auditoria `CLINIC_SHARED_HISTORY_VIEW` se `active`.
+
+### `POST /clinic-portal/patients/link`  — linkClinicPatient
+- **AUTHORIZATION:** CLINIC_ACCOUNT (ambos)
+- **DESCRIPTION:** Ligar um paciente Vita com o código/QR gerado por ele (UC-CLN-15).
+- **REQUEST:** `ClinicPatientLinkRequest` (`code`, `clinicPatientId?`)
+- **RESPONSE:** `200` `ClinicPatient` (criado com `origin=VITA` ou o indicado, agora com `vitaLink`)
+- **ERRORS:** `NOT_FOUND` (idêntico: inválido/expirado/usado; paciente de outra clínica), `CONFLICT`, `VALIDATION_ERROR`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-20, BR-CLN-10 (rate limit partilhado: 30/h por conta, 10 respostas 404/15 min, 60/h por IP). Cria consentimento `BOOKINGS` se não existir. Auditoria `CLINIC_PATIENT_LINK` (sem código).
+
+### `GET /clinic-portal/search`  — clinicGlobalSearch
+- **AUTHORIZATION:** CLINIC_ACCOUNT (ambos)
+- **DESCRIPTION:** Pesquisa global do portal (UC-CLN-18).
+- **REQUEST:** Query `q` (2–100)
+- **RESPONSE:** `200` `ClinicSearchResult` (`patients` ≤10, `bookings` ≤10 `ClinicCalendarEntry`)
+- **ERRORS:** `VALIDATION_ERROR`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-22. Só dados da própria clínica; nunca a base Vita. 60 pedidos/min por conta.
+
+### `GET /clinic-portal/calendar`  — getClinicCalendar
+- **AUTHORIZATION:** CLINIC_ACCOUNT (ambos)
+- **DESCRIPTION:** Calendário por profissional (vista dia/semana) (UC-CLN-19).
+- **REQUEST:** Query `from`, `to` (janela ≤ 31 dias), `professionalId?`
+- **RESPONSE:** `200` `ClinicCalendar` (`entries`, `freeSlots`)
+- **ERRORS:** `NOT_FOUND` (profissional de outra clínica), `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-23. O agrupamento por profissional faz-se no cliente com `professionalId` (nulo = "sem profissional").
+
+**Alterações a endpoints existentes (retrocompatíveis):** `POST /clinic-portal/walk-in-appointments` aceita **exatamente um** de `patientEmail` e `clinicPatientId` (BR-CLN-18); com `patientEmail` cria/liga o paciente da clínica; com `clinicPatientId` de paciente sem ligação Vita cria uma **visita presencial manual** (`ClinicBooking.source=MANUAL`). `GET /clinic-portal/agenda` passa a incluir as visitas manuais; `PUT /clinic-portal/agenda/{id}/cancel` e `/complete` aceitam também o id de uma visita manual (completar: só `outcomeNote`; `prescription` ⇒ `VALIDATION_ERROR`). `ClinicBooking` ganha `source`, `clinicPatientId`, `slotId`. A ocupação de horários (BR-APT-06) conta também visitas manuais `SCHEDULED`.
 
 ### `GET /clinic-portal/exam-agenda`  — listClinicExamAgenda
 - **AUTHORIZATION:** CLINIC_ACCOUNT
@@ -1775,13 +1886,37 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **ClinicSlotBatchInput** — `kind?`: APPOINTMENT|EXAM (default APPOINTMENT), `capacity?`: int (1–50, default 1; > 1 só com `kind=EXAM`, BR-APT-11), `date`: date (dia local), `times`: [string] (HH:mm locais), `specialty`: string, `professionalName?`: string, `durationMinutes`: int (15|20|30|45|60, BR-CLN-04)
 
-**ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família)
+**ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família), `source?`: VITA|MANUAL, `clinicPatientId?`: uuid, `slotId?`: uuid (M14 P)
 
 **ClinicRequestResponse** — `decision`: CONFIRM|REJECT, `note?`: string (motivo, só relevante em `REJECT`)
 
 **ClinicCancelRequest** — `note`: string (motivo obrigatório, UC-CLN-06)
 
 **ClinicCompleteAppointmentRequest** — `outcomeNote?`: string (resultado da consulta, BR-CLN-06), `prescription?`: `PrescriptionInput` (opcional; se presente, cria a receita com `issuedBy=CLINIC`, BR-RX-07)
+
+**ClinicPatient** — `id`: uuid, `name`: string, `phone?`: string, `email?`: string, `birthDate?`: date, `notes?`: string, `origin`: MANUAL|VITA, `vitaLink?`: `ClinicPatientVitaLink`, `createdAt`, `updatedAt` (BR-CLN-17; nunca ids Vita)
+
+**ClinicPatientVitaLink** — `via`: EMAIL|CODE, `consentLevel?`: BOOKINGS|HISTORY, `consentValidUntil?`: datetime
+
+**ClinicPatientInput** / **ClinicPatientPatch** — `name` (1–120; obrigatório só no Input), `phone?` (`^[+0-9 ()-]{5,30}$`), `email?`, `birthDate?` (não futura), `notes?` (≤2000); no Patch `null` limpa os opcionais e exige ≥1 campo
+
+**ClinicPatientPage** — `items`: [ClinicPatient], `nextCursor?`: string
+
+**ClinicPatientLinkRequest** — `code`: string (8 caracteres, hífen opcional), `clinicPatientId?`: uuid
+
+**ClinicPatientRecord** — `patient`: ClinicPatient, `bookings`: [ClinicBooking], `examinations`: [ClinicExamBooking], `recommendations`: [ClinicRecommendation]
+
+**ClinicSharedHistory** — `active`: bool, `level?`, `validUntil?`, `medications`: [`name`, `dosage`, `startAt`, `endAt?`, `continuous`], `examinations`: [`name`, `examDate`, `status`: SCHEDULED|COMPLETED, `results`: [`parameter`, `valueNumeric?`, `valueText?`, `unit?`, `referenceMin?`, `referenceMax?`]] (BR-CLN-21)
+
+**ClinicCalendarEntry** — `id`, `source`: VITA|MANUAL, `kind`: APPOINTMENT|EXAM, `status`, `startsAt`, `endsAt`, `professionalId?`, `professionalName?`, `specialty?`, `patientName`, `clinicPatientId?`, `slotId?`
+
+**ClinicCalendarFreeSlot** — `slotId`, `kind`, `startsAt`, `endsAt`, `professionalId?`, `professionalName?`, `specialty`, `remaining`
+
+**ClinicCalendar** — `from`, `to`, `entries`: [ClinicCalendarEntry], `freeSlots`: [ClinicCalendarFreeSlot]
+
+**ClinicSearchResult** — `patients`: [ClinicPatient] (≤10), `bookings`: [ClinicCalendarEntry] (≤10)
+
+**ClinicConsent** (família) — `clinicId`, `clinicName`, `level`: BOOKINGS|HISTORY (efetivo), `validUntil?`, `renewalNeeded`: bool, `linked`: bool; **ClinicConsentInput** — `level`; **ClinicLinkCode** — `code`: string, `expiresAt`: datetime
 
 **ClinicExamBooking** — `id`: uuid, `status`: SCHEDULED|COMPLETED|CANCELLED, `slotId?`: uuid, `scheduledAt`: datetime, `examType?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string, `resultsCount?`: int, `documents?`: [ClinicDocumentView], `resultsIssuedAt?`: datetime (mínimo necessário, BR-CLN-03; nunca os valores dos resultados)
 

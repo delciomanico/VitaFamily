@@ -112,6 +112,28 @@ Máx. 5 por recurso e 100 MB por família (Q10). `INSURANCE_POLICY` reaproveita 
 
 **`Clinic.currency`** (M14 a1): código ISO 4217 de 3 letras, omissão `AOA`; só leitura em a1/a2 (a fase (e) decide a configuração). **`Appointment.durationMinutes`** (M14 a2, interno): duração da marcação (copiada do horário; 30 se não houver); BR-CLN-16.
 
+### ClinicPatient — paciente da clínica (M14 P)
+`clinicId` (PARTNER) · `name` (1–120) · `phone?` · `email?` (contacto da clínica; nunca procura contas Vita) · `birthDate?` · `notes?` (≤2000, internas) · `origin` (MANUAL | VITA; imutável) · `createdByClinicAccountId?`
+Derivado: `vitaLink?` = `{via (EMAIL | CODE), consentLevel?, consentValidUntil?}` (da `ClinicPatientLink` e do `ClinicConsent`; **sem ids Vita**).
+**Regras:** BR-CLN-17/22/24. Registo da **clínica** (responsável pelo tratamento, ADR-026), separado de `FamilyMember`. Sem eliminação nesta fase (OP-32).
+
+### ClinicPatientLink — ligação servidor paciente da clínica ↔ membro Vita (M14 P)
+`clinicId` · `clinicPatientId` (único) · `familyId` · `memberId` (único por clínica) · `via` (EMAIL | CODE)
+**Regras:** BR-CLN-18/19/20/24. **Única** ponte para ids Vita; nunca exposta pela API do portal; apagada com o membro/conta/família ou na revogação do consentimento.
+
+### ClinicConsent — consentimento do paciente por clínica (M14 P)
+`clinicId` · `familyId` · `memberId` · `level` (BOOKINGS | HISTORY) · `historyValidUntil?` (HISTORY: agora + 12 meses, renovável) · `grantedByUserId?`
+Único por `(clinicId, memberId)`. Nível **efetivo**: `HISTORY` só enquanto `historyValidUntil > now`, senão `BOOKINGS`. Revogar = apagar.
+**Regras:** BR-CLN-19/21. Concedido/revogado só por `SELF` adulto ou `TUTOR_OF`; direção paciente → clínica; categorias internas `MEDICATION` + `EXAMS` mapeadas ao nível `HISTORY`.
+
+### ClinicLinkCode — código de ligação gerado pelo paciente (M14 P)
+`familyId` · `memberId` · `codeHash` (HMAC-SHA256; nunca o código) · `expiresAt` (+10 min) · `usedAt?` · `createdByUserId?`
+**Regras:** BR-CLN-20. Uso único; um ativo por membro; apagado diariamente depois de expirar/usar.
+
+### ClinicVisit — visita presencial de um paciente da clínica sem ligação Vita (M14 P)
+`clinicId` · `clinicPatientId` · `slotId?` · `scheduledAt` · `durationMinutes` · `status` (SCHEDULED | COMPLETED | CANCELLED) · `notes?` · `outcomeNote?` · `cancelNote?` · `bookedByClinicAccountId?`
+**Regras:** BR-CLN-18. Só da clínica (não está na app Vita, sem lembretes); ocupa o horário (BR-APT-06); estados e janela como a consulta (ST4); sem receita.
+
 ### ClinicAccount — conta do portal da clínica (D18, ADR-020)
 **Correção (ADR-021):** esta secção referia-se antes a `ClinicStaff(userId, clinicId, role)`, suposição
 revista por D18 — a conta do portal **não** é um `User`. Alinhado aqui com `schema.md` §3 (`clinic_accounts`).

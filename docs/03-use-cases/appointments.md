@@ -60,6 +60,7 @@
 - **Fluxo:** escolhe um horário `APPOINTMENT` livre da clínica → introduz o e-mail do paciente → vê o `displayName` devolvido (confirma presencialmente que é a pessoa) → confirma → consulta `SCHEDULED` na agenda da clínica e no membro `SELF` do utilizador; o paciente é avisado (OP-22).
 - **Alternativos:** 404 genérico (sem conta/suspenso/sem `SELF`: a clínica não sabe qual); horário ocupado/passado → `CONFLICT`; sobreposição com outra consulta do paciente → `CONFLICT`; rate limit → `RATE_LIMITED`.
 - **M14 (BR-CLN-13/16):** a sobreposição é por **duração** (`[início, início+duração)`) e, num horário com `professionalId`, também por profissional.
+- **M14 P (BR-CLN-18):** o paciente pode ser um **paciente da clínica** (`clinicPatientId`, UC-CLN-14): ligado a um membro Vita ⇒ consulta nesse membro; manual/sem ligação ⇒ visita presencial só da clínica. Com e-mail exato, o paciente da clínica é criado/ligado automaticamente.
 - **Pós-condição:** `walk_in=true`; gestão posterior só pela clínica (cancelar com motivo UC-CLN-06, completar, recomendações); auditoria `CLINIC_WALKIN_LOOKUP`/`CLINIC_WALKIN_BOOK`.
 
 ### UC-CLN-11 Gerir profissionais e tipos de serviço (M14 a1, ADR-026)
@@ -79,6 +80,42 @@
 - **Fluxo:** escolhe profissional, início e fim (e nota interna opcional) → o sistema remove os horários livres do intervalo e **mostra a lista de horários já marcados** que a clínica tem de tratar (reagendar/cancelar com motivo, UC-CLN-06) → o aviso mantém-se na lista de bloqueios enquanto houver marcações. Remover o bloqueio repõe os horários que as regras ainda prevêem.
 - **Alternativos:** intervalo inválido (fim ≤ início, > 366 dias, no passado) → `VALIDATION_ERROR`; profissional de outra clínica → `NOT_FOUND`.
 - **Pós-condição:** nenhuma marcação é cancelada automaticamente; auditoria `CLINIC_TIME_OFF_*` sem a nota.
+
+### UC-CLN-14 Gerir pacientes da clínica, ver a ficha e marcar presencial (M14 P)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-07 · **BR:** CLN-17, CLN-18, CLN-22
+- **Fluxo:** em **Pacientes** pesquisa (nome, telefone ou e-mail) ou lista com paginação → **Novo paciente** (nome; telefone, e-mail, data de nascimento e notas opcionais; cliente de balcão sem conta Vita) → abre a **ficha**: resumo e notas editáveis, consultas, exames e recomendações **da clínica** com ele, e o **estado do consentimento** ("Sem partilha ativa", "Marcações" ou "Histórico até …"). Na marcação presencial (UC-CLN-08) escolhe o horário e o paciente: um **paciente da clínica** (da pesquisa) ou, para um utilizador Vita, o **e-mail exato** (cria/liga automaticamente o paciente da clínica).
+- **Alternativos:** paciente de outra clínica → `NOT_FOUND`; campos inválidos → `VALIDATION_ERROR`; marcação com paciente manual gera uma **visita presencial** só da clínica (não aparece na app Vita); sobreposição → `CONFLICT`.
+- **Pós-condição:** registo da clínica separado dos dados Vita; sem ids Vita nas respostas; auditoria `CLINIC_PATIENT_*`, `CLINIC_VISIT_*`/`CLINIC_WALKIN_BOOK` sem dados pessoais.
+
+### UC-CLN-15 Ligar um paciente Vita com código/QR (M14 P)
+- **Ator:** paciente (titular/tutor) na app e conta da clínica · **FR:** CLN-08 · **BR:** CLN-20, CLN-19
+- **Fluxo:** o paciente abre **Clínicas → Ligar a uma clínica** e gera um código/QR (10 min, uso único; a app avisa que a clínica ficará com o nível "Marcações") → mostra-o na receção → a clínica introduz o código em **Pacientes → Ligar com código** (opcionalmente escolhendo um paciente existente) → fica criado/ligado o paciente da clínica com `vitaLink` e o paciente vê a clínica em "quem vê o quê".
+- **Alternativos:** código inválido, expirado ou já usado → `404` idêntico; muitos pedidos → `RATE_LIMITED`; paciente já ligado a outra pessoa, ou membro já ligado a outro paciente da clínica → `CONFLICT`; mais de 5 códigos/hora → `RATE_LIMITED`.
+- **Pós-condição:** ligação `via=CODE` e consentimento `BOOKINGS`; código consumido; auditoria `CLINIC_LINK_CODE_CREATE`/`CLINIC_PATIENT_LINK` sem o código.
+
+### UC-CLN-16 Consentir, renovar e revogar por clínica (app) (M14 P)
+- **Ator:** titular adulto ou tutor · **FR:** CLN-08 · **BR:** CLN-19, CLN-24
+- **Fluxo:** em **Clínicas** vê as clínicas com acesso ("quem vê o quê") → por clínica escolhe **Marcações** ou **Partilhar histórico** (medicação e exames; válido 12 meses, a app avisa quando é preciso renovar) → pode **revogar** a qualquer momento (efeito imediato; a app explica que o que a clínica já registou é dela).
+- **Alternativos:** dependente com conta ou outro membro → `FORBIDDEN`; clínica inexistente/privada/arquivada → `NOT_FOUND`.
+- **Pós-condição:** `CLINIC_CONSENT_SET`/`CLINIC_CONSENT_REVOKE` auditados; revogar apaga consentimento e ligação, sem apagar o registo da clínica.
+
+### UC-CLN-17 Ver o histórico partilhado de um paciente (M14 P)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-08 · **BR:** CLN-21
+- **Fluxo:** na ficha, o separador **Consentimentos/Histórico** mostra a medicação ativa e os exames partilhados pelo paciente (só leitura) enquanto o consentimento "Partilhar histórico" for válido; senão "Sem partilha ativa" e a indicação de o pedir ao paciente (ligar por código, ou renovar na app).
+- **Alternativos:** consentimento expirado/revogado ou sem ligação → `active=false` (sem dados); paciente de outra clínica → `NOT_FOUND`.
+- **Pós-condição:** leitura auditada (`CLINIC_SHARED_HISTORY_VIEW`, sem conteúdo); nenhum documento, nota ou texto livre é exposto.
+
+### UC-CLN-18 Pesquisa global do portal (M14 P)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-09 · **BR:** CLN-22
+- **Fluxo:** na barra de topo (`/` ou `Ctrl+K`) escreve ≥ 2 caracteres → resultados por secção: **Pacientes** (nome/telefone/e-mail) e **Marcações** (consultas, exames e visitas) da clínica → abre a ficha ou a marcação. Para marcar um utilizador Vita usa-se o fluxo de marcação (e-mail exato) ou a ligação por código; **nunca** a pesquisa global.
+- **Alternativos:** `q` curto → `VALIDATION_ERROR`; excesso de pedidos → `RATE_LIMITED`.
+- **Pós-condição:** sem efeitos; `q` fora de logs.
+
+### UC-CLN-19 Calendário por profissional (M14 P)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-10 · **BR:** CLN-23, CLN-03
+- **Fluxo:** em **Agenda → Calendário** escolhe vista dia/semana e (opcional) um profissional → vê, por profissional, as marcações (consultas, exames, visitas) e os horários livres do período → abre uma marcação (drawer) ou escolhe um horário livre para marcar (UC-CLN-08).
+- **Alternativos:** janela inválida ou > 31 dias → `VALIDATION_ERROR`; profissional de outra clínica → `NOT_FOUND`.
+- **Pós-condição:** só leitura; mínimo necessário (BR-CLN-03).
 
 ---
 

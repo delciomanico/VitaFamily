@@ -118,11 +118,18 @@ Notas:
 | Criar/editar/**desativar** profissionais e tipos de serviço (sem DELETE, BR-CLN-11/12) | sim | sim |
 | Criar/editar/desativar/regenerar regras de horário (geram `ClinicSlot`) e criar/remover bloqueios/férias (BR-CLN-12..15) | sim | sim |
 | Publicar horário manual com `professionalId`/`serviceTypeId` do catálogo (BR-CLN-13/14); remover horário gerado por regra individualmente | sim / **não** (`CONFLICT`) | sim / **não** (`CONFLICT`) |
-| Ver/gerir horários, pedidos, agenda, exames, documentos, recomendações, profissionais, serviços, regras ou bloqueios de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
+| Criar/editar/listar/pesquisar **pacientes da clínica** e ver a ficha (consultas, exames, recomendações da própria clínica; M14 P, BR-CLN-17/22) | sim | sim |
+| Pesquisa global do portal e calendário por profissional da própria clínica (BR-CLN-22/23); sujeitos a rate limit | sim | sim |
+| Marcar presencial com `clinicPatientId` (paciente da clínica, ligado ou manual) e cancelar/completar a **visita manual** (BR-CLN-18) | sim | sim |
+| Ligar um paciente Vita com o código/QR do paciente (`POST /patients/link`, BR-CLN-20); rate limit partilhado com BR-CLN-10 | sim | sim |
+| Ler o **histórico partilhado** (medicação e exames) de um paciente ligado, só com consentimento `HISTORY` válido; leitura auditada (BR-CLN-21) | sim | sim |
+| Ver/gerir horários, pedidos, agenda, exames, documentos, recomendações, profissionais, serviços, regras, bloqueios, pacientes, ficha, calendário ou histórico partilhado de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
+
+> **M14 (P):** pacientes, pesquisa, calendário, ligação e histórico partilhado têm as mesmas permissões para `CLINIC_ADMIN` e `CLINIC_MANAGER` (a diferenciação de receção vs. médico, "receção não vê notas clínicas", é a fase (f), ADR-026). O portal **nunca** recebe `userId`/`familyId`/`memberId`; `clinic_patient_links` é resolvida só no servidor. O histórico partilhado é a **única** leitura de dados de saúde Vita pelo portal para além de BR-CLN-06/08/09, só com consentimento válido, e é lido por **portas** dos módulos de saúde (não por `AccessPolicy`: o consentimento `ClinicConsent` é o critério, avaliado a cada pedido).
 
 > **M14 (a1/a2):** nestas fases `CLINIC_ADMIN` e `CLINIC_MANAGER` têm as mesmas permissões sobre catálogo, regras e bloqueios (decisão do proprietário); a diferenciação por papel (`CLINIC_DOCTOR`, só o seu calendário) é a fase (f). O catálogo e as regras são dados da clínica e não contêm dados Vita/saúde. O job `clinics.generate-schedule` corre como `SYSTEM`, sem conta de clínica, e só escreve `clinic_slots` por regras ativas.
 
-Não há ação do portal que leia dados fora do mínimo de BR-CLN-03 (nome do paciente, especialidade,
+Não há ação do portal que leia dados fora do mínimo de BR-CLN-03 (**exceto** o histórico partilhado por consentimento, BR-CLN-21) (nome do paciente, especialidade,
 profissional, data/hora, observações do pedido); nunca condições, alergias, medicação prévia,
 histórico de outras consultas, nem dados de família/tutela. A exceção de BR-CLN-06 (registar
 resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica está a atender; a de BR-CLN-08 (resultados/PDF) só ao exame `SCHEDULED` da própria clínica; a de BR-CLN-09 (recomendação) só a consulta/exame da própria clínica em `SCHEDULED`/`COMPLETED`. Exceção D20 (BR-CLN-10): a pesquisa por e-mail devolve só `displayName`; a marcação re-resolve o e-mail no servidor e o portal nunca recebe `userId`/`familyId`/`memberId`. O portal **nunca** lê resultados, documentos ou recomendações do paciente além do que a própria clínica escreveu.
@@ -134,6 +141,16 @@ resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica
 | Criar/repor a conta `CLINIC_ADMIN` raiz de uma clínica parceira | PLATFORM_ADMIN (`POST /admin/clinics/{id}/root-account`) |
 | Criar/listar/remover contas `CLINIC_MANAGER` da própria clínica | `CLINIC_ADMIN` da clínica (self-service, nunca o Platform Admin diretamente) |
 | **Listar** as contas do portal de uma clínica; **suspender/reativar** cada uma (revoga `clinic_sessions`) — ADR-023, BR-ADM-03/04 | PLATFORM_ADMIN (`GET /admin/clinics/{id}/accounts`, `POST .../accounts/{accountId}/suspend\|reactivate`); não cria nem remove |
+
+### 6.4 Consentimento e ligação a clínicas — lado família (M14 P, ADR-026)
+| Ação (rotas `/families/{f}/members/{m}/clinic-consents*` e `clinic-link-codes`) | `SELF` (adulto) | `TUTOR_OF` | `DEPENDENT_SELF` | `OTHER` / Family Admin como OTHER |
+|---|---|---|---|---|
+| Listar "quem vê o quê" | sim (do próprio) | sim (do dependente) | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Conceder/alterar/renovar nível (`PUT`) | sim | sim | não | não |
+| Revogar (`DELETE`) | sim | sim | não | não |
+| Gerar código/QR de ligação (`POST`) | sim | sim | não | não |
+
+Sem categoria de partilha nova nem `SharingGrant` (como `InsurancePolicy`, §3): só `SELF`/`TUTOR_OF` (N2: o dependente com conta não consente sozinho). Utilizador sem acesso ao membro ou família: `NOT_FOUND`. Um tutor que também é Admin usa `TUTOR_OF`. Mantém-se a regra de ADR-026: o consentimento é por clínica **parceira ativa**; revogar é sempre possível, mesmo com a clínica suspensa ou arquivada.
 
 ## 7. Administração da plataforma (`PLATFORM_ADMIN`, ADR-023)
 

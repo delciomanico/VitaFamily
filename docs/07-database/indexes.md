@@ -31,6 +31,11 @@
 | `clinic_professionals` · `clinic_service_types` | `(clinic_id, active)` | Listar o catálogo da clínica (M14 a1). |
 | `clinic_schedule_rules` | `(clinic_id, active)` · `(professional_id) WHERE active` | Job de geração e regras do profissional (M14 a2). |
 | `clinic_time_off` | `(professional_id, ends_at)` | Bloqueios futuros do profissional na geração/listagem (M14 a2). |
+| `clinic_patients` | `(clinic_id, name_norm, id)` · `(clinic_id, phone_digits) WHERE phone_digits IS NOT NULL` · `(clinic_id, email) WHERE email IS NOT NULL` | Listagem paginada por nome (cursor) e pesquisa; a pesquisa "contém" faz varrimento **dentro da clínica** (volume esperado de milhares; `pg_trgm` só se medir necessário) (M14 P). |
+| `clinic_patient_links` | UNIQUE `(clinic_patient_id)` · UNIQUE `(clinic_id, member_id)` · `(member_id)` | Resolver paciente↔membro; apagar/listar por membro (M14 P). |
+| `clinic_consents` | UNIQUE `(clinic_id, member_id)` · `(member_id)` | Consentimento efetivo; "quem vê o quê" (M14 P). |
+| `clinic_link_codes` | UNIQUE `(code_hash)` · `(member_id) WHERE used_at IS NULL` · `(expires_at)` | Consumo do código, invalidar anteriores, job de limpeza (M14 P). |
+| `clinic_visits` | `(clinic_id, scheduled_at)` · `(clinic_patient_id, scheduled_at DESC)` · UNIQUE parcial `(slot_id) WHERE status='SCHEDULED' AND slot_id IS NOT NULL` | Calendário, ficha e ocupação do horário (M14 P). |
 | `recommendations` | `(member_id, created_at DESC)` · `(appointment_id)` · `(examination_id)` · `(clinic_id, created_at DESC)` | Leitura pelo paciente; listagem da clínica (D19). |
 | `documents` | `(uploaded_by_clinic_account_id) WHERE uploaded_by_clinic_account_id IS NOT NULL` | Documentos emitidos pela clínica (D19). |
 | `exam_results` | `(examination_id)` · `(parameter)` por membro via join | Histórico de um parâmetro. |
