@@ -10,6 +10,8 @@ import type {
   ClinicSession,
   ClinicSlot,
   ClinicSlotView,
+  ClinicVisit,
+  ClinicWalkInInput,
   PublishSlotsInput,
 } from '@/types/clinic'
 import type { ClinicRecommendation, RecommendationOrigin } from '@/types/recommendation'
@@ -20,7 +22,8 @@ import type { Examination } from '@/types/examination'
 import type { DocumentUpload } from '@/types/document'
 import { memberName } from '../access'
 import { raiseAlerts } from '../alertRules'
-import { bookingOf, examBookingsOf, expireRequests, notifyResponse } from '../bookings'
+import { appointmentSlotTaken, bookingOf, examBookingsOf, expireRequests, notifyResponse, visitOf } from '../bookings'
+import { linkMember, patientOfMember } from '../clinicPatients'
 import { overlappingSlot, timeOffAt } from '../clinicSchedule'
 import { DEMO_PASSWORD } from '../data/users'
 import type { MockClinicAccountRecord } from '../data/clinicAccounts'
@@ -72,7 +75,7 @@ function toPublicAccount({ id, clinicId, email, role, status }: MockClinicAccoun
 }
 
 /** `ClinicBooking`: mínimo necessário (BR-CLN-03). */
-function toBooking(appointment: Appointment): ClinicBooking {
+export function toBooking(appointment: Appointment): ClinicBooking {
   return {
     id: appointment.id,
     status: appointment.status,
@@ -82,7 +85,31 @@ function toBooking(appointment: Appointment): ClinicBooking {
     patientName: memberName(appointment.memberId),
     notes: appointment.notes,
     responseNote: appointment.responseNote,
+    source: 'VITA',
+    clinicPatientId: appointment.clinicId ? patientOfMember(appointment.clinicId, appointment.memberId)?.id : undefined,
+    slotId: appointment.slotId,
   }
+}
+
+/** Visita presencial só da clínica (BR-CLN-18 c): `patientName` é o do paciente da clínica. */
+export function toVisitBooking(visit: ClinicVisit): ClinicBooking {
+  return {
+    id: visit.id,
+    status: visit.status,
+    scheduledAt: visit.scheduledAt,
+    specialty: visit.specialty,
+    professionalName: visit.professionalName,
+    patientName: db.clinicPatients.find((p) => p.id === visit.clinicPatientId)?.name ?? '',
+    notes: visit.notes,
+    responseNote: visit.responseNote,
+    source: 'MANUAL',
+    clinicPatientId: visit.clinicPatientId,
+    slotId: visit.slotId,
+  }
+}
+
+function findVisit(clinicId: string, id: string) {
+  return db.clinicVisits.find((v) => v.id === id && v.clinicId === clinicId)
 }
 
 /** Marcação desta clínica; de outra clínica → NOT_FOUND (sem enumeração). */
@@ -180,11 +207,12 @@ function toSlotView(slot: ClinicSlot): ClinicSlotView {
     return { ...slot, bookedCount, remaining, state: bookedCount === 0 ? 'FREE' : remaining === 0 ? 'FULL' : 'PARTIAL' }
   }
   const booking = bookingOf(slot.id)
+  const taken = booking !== undefined || visitOf(slot.id) !== undefined
   return {
     ...slot,
-    bookedCount: booking ? 1 : 0,
-    remaining: booking ? 0 : 1,
-    state: booking?.status === 'SCHEDULED' ? 'SCHEDULED' : booking ? 'REQUESTED' : 'FREE',
+    bookedCount: taken ? 1 : 0,
+    remaining: taken ? 0 : 1,
+    state: booking?.status === 'REQUESTED' ? 'REQUESTED' : taken ? 'SCHEDULED' : 'FREE',
   }
 }
 
@@ -312,7 +340,7 @@ export function removeClinicSlot(clinicAccountId: string, slotId: string) {
     if (!slot) throw new AppError('NOT_FOUND')
     // Gerado por regra: não se remove individualmente (BR-CLN-12); usar bloqueio ou desativar a regra.
     if (slot.scheduleRuleId) throw new AppError('CONFLICT')
-    if (bookingOf(slot.id) || examBookingsOf(slot.id).length > 0) throw new AppError('CONFLICT')
+    if (appointmentSlotTaken(slot.id) || examBookingsOf(slot.id).length > 0) throw new AppError('CONFLICT')
     db.slots = db.slots.filter((s) => s.id !== slotId)
   })
 }
@@ -362,10 +390,11 @@ export function listClinicAgenda(clinicAccountId: string, now: Date = new Date()
   return respond((): ClinicBooking[] => {
     const { clinicId } = requireAccount(clinicAccountId)
     expireRequests(now)
-    return db.appointments
-      .filter((a) => a.clinicId === clinicId && AGENDA_STATUSES.includes(a.status))
-      .map(toBooking)
-      .sort(byScheduledAt)
+    return [
+      ...db.appointments.filter((a) => a.clinicId === clinicId && AGENDA_STATUSES.includes(a.status)).map(toBooking),
+      // BR-CLN-18/23: as visitas presenciais manuais também aparecem na agenda.
+      ...db.clinicVisits.filter((v) => v.clinicId === clinicId).map(toVisitBooking),
+    ].sort(byScheduledAt)
   })
 }
 
@@ -378,6 +407,14 @@ export function cancelClinicAppointment(
 ) {
   return respond((): ClinicBooking => {
     const { clinicId } = requireAccount(clinicAccountId)
+    const visit = findVisit(clinicId, appointmentId)
+    if (visit) {
+      if (!note.trim()) throw new AppError('VALIDATION_ERROR')
+      if (visit.status !== 'SCHEDULED' || Date.parse(visit.scheduledAt) <= now.getTime()) throw new AppError('CONFLICT')
+      visit.status = 'CANCELLED'
+      visit.responseNote = note.trim()
+      return toVisitBooking(visit)
+    }
     const appointment = findBooking(clinicId, appointmentId)
     if (!note.trim()) throw new AppError('VALIDATION_ERROR')
     if (appointment.status !== 'SCHEDULED' || Date.parse(appointment.scheduledAt) <= now.getTime()) {
@@ -403,6 +440,16 @@ export function completeClinicAppointment(
 ) {
   return respond((): ClinicBooking => {
     const { clinicId } = requireAccount(clinicAccountId)
+    const visit = findVisit(clinicId, appointmentId)
+    if (visit) {
+      // Visita manual: só `outcomeNote`, sem receita (BR-CLN-18).
+      if (visit.status !== 'SCHEDULED' || input.prescription) {
+        throw new AppError(visit.status !== 'SCHEDULED' ? 'CONFLICT' : 'VALIDATION_ERROR')
+      }
+      visit.status = 'COMPLETED'
+      visit.outcomeNote = input.outcomeNote?.trim() || undefined
+      return toVisitBooking(visit)
+    }
     const appointment = findBooking(clinicId, appointmentId)
     // Só a consulta em curso: nunca completa duas vezes nem uma que não esteja confirmada (ST4).
     if (appointment.status !== 'SCHEDULED') throw new AppError('CONFLICT')
@@ -445,7 +492,7 @@ export function completeClinicAppointment(
 // --- Agenda de exames (`/clinic-portal/exam-agenda`, ADR-023) ---
 
 /** `ClinicExamBooking`: mínimo necessário (BR-CLN-03); nunca os valores dos resultados. */
-function toExamBooking(exam: Examination): ClinicExamBooking {
+export function toExamBooking(exam: Examination): ClinicExamBooking {
   const slot = db.slots.find((s) => s.id === exam.slotId)
   const results = db.examResults.filter((r) => r.examinationId === exam.id)
   return {
@@ -607,7 +654,7 @@ export function createClinicRecommendation(
   })
 }
 
-function toClinicRecommendation(r: (typeof db.recommendations)[number]): ClinicRecommendation {
+export function toClinicRecommendation(r: (typeof db.recommendations)[number]): ClinicRecommendation {
   return {
     id: r.id,
     appointmentId: r.appointmentId,
@@ -638,7 +685,7 @@ export function listClinicRecommendations(clinicAccountId: string, origin?: Part
 // --- Marcação presencial (`/clinic-portal/patient-lookup` e `/walk-in-appointments`, ADR-024) ---
 
 /** Primeiro nome + inicial do último apelido (“Maria S.”): o mínimo para o gestor confirmar a pessoa. */
-function displayNameOf(fullName: string): string {
+export function displayNameOf(fullName: string): string {
   const parts = fullName.trim().split(/\s+/)
   const last = parts.length > 1 ? parts[parts.length - 1] : undefined
   return last ? `${parts[0]} ${last[0]?.toUpperCase()}.` : (parts[0] ?? '')
@@ -665,29 +712,72 @@ export function lookupClinicPatient(clinicAccountId: string, email: string) {
   })
 }
 
-/** `POST /clinic-portal/walk-in-appointments`: consulta SCHEDULED num horário livre da própria clínica. */
-export function createClinicWalkIn(
-  clinicAccountId: string,
-  input: { patientEmail: string; slotId: string; notes?: string },
-  now: Date = new Date(),
-) {
+/**
+ * `POST /clinic-portal/walk-in-appointments` (BR-CLN-10/18): consulta SCHEDULED num horário livre
+ * da própria clínica. Exatamente um de `patientEmail` e `clinicPatientId`. (a) e-mail: consulta no
+ * membro SELF e paciente da clínica criado/reutilizado, com consentimento BOOKINGS; (b) paciente
+ * ligado a um membro: consulta nesse membro; (c) sem ligação: visita manual só da clínica.
+ */
+export function createClinicWalkIn(clinicAccountId: string, input: ClinicWalkInInput, now: Date = new Date()) {
   return respond((): ClinicBooking => {
     const { clinicId } = requireAccount(clinicAccountId)
     expireRequests(now)
+    if (Boolean(input.patientEmail) === Boolean(input.clinicPatientId)) throw new AppError('VALIDATION_ERROR')
     const slot = db.slots.find((s) => s.id === input.slotId && s.clinicId === clinicId)
     if (!slot) throw new AppError('NOT_FOUND')
-    const member = resolveWalkInPatient(input.patientEmail)
+
+    let member: ReturnType<typeof resolveWalkInPatient> | undefined
+    let clinicPatient: (typeof db.clinicPatients)[number] | undefined
+    if (input.patientEmail) {
+      member = resolveWalkInPatient(input.patientEmail)
+    } else {
+      clinicPatient = db.clinicPatients.find((p) => p.id === input.clinicPatientId && p.clinicId === clinicId)
+      if (!clinicPatient) throw new AppError('NOT_FOUND')
+      member = clinicPatient.memberId ? db.members.find((m) => m.id === clinicPatient!.memberId) : undefined
+    }
+
     if (slot.kind !== 'APPOINTMENT') throw new AppError('VALIDATION_ERROR')
-    if (bookingOf(slot.id) || Date.parse(slot.startsAt) <= now.getTime()) throw new AppError('CONFLICT')
-    const end = Date.parse(slot.startsAt) + slot.durationMinutes * 60_000
+    if (appointmentSlotTaken(slot.id) || Date.parse(slot.startsAt) <= now.getTime()) throw new AppError('CONFLICT')
+    const start = Date.parse(slot.startsAt)
+    const end = start + slot.durationMinutes * 60_000
+
+    if (!member) {
+      // (c) Visita presencial só da clínica: sobreposição entre visitas SCHEDULED do mesmo paciente.
+      const patient = clinicPatient!
+      const overlaps = db.clinicVisits.some(
+        (v) =>
+          v.clinicPatientId === patient.id &&
+          v.status === 'SCHEDULED' &&
+          Date.parse(v.scheduledAt) < end &&
+          Date.parse(v.scheduledAt) + v.durationMinutes * 60_000 > start,
+      )
+      if (overlaps) throw new AppError('CONFLICT')
+      const visit = {
+        id: newId('vis'),
+        clinicId,
+        clinicPatientId: patient.id,
+        slotId: slot.id,
+        scheduledAt: slot.startsAt,
+        durationMinutes: slot.durationMinutes,
+        specialty: slot.specialty,
+        professionalId: slot.professionalId,
+        professionalName: slot.professionalName,
+        status: 'SCHEDULED' as const,
+        notes: input.notes?.trim() || undefined,
+      }
+      db.clinicVisits.push(visit)
+      return toVisitBooking(visit)
+    }
+
     const overlaps = db.appointments.some(
       (a) =>
         a.memberId === member.id &&
         a.status === 'SCHEDULED' &&
         Date.parse(a.scheduledAt) < end &&
-        Date.parse(a.scheduledAt) + 30 * 60_000 > Date.parse(slot.startsAt),
+        Date.parse(a.scheduledAt) + 30 * 60_000 > start,
     )
     if (overlaps) throw new AppError('CONFLICT')
+    if (input.patientEmail) linkMember(clinicId, member.id, displayNameOf(member.name), 'EMAIL', now)
     const clinic = db.clinics.find((c) => c.id === clinicId)
     const appointment: Appointment = {
       id: newId('apt'),

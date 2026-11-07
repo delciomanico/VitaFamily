@@ -5,6 +5,7 @@ import {
   FlaskConical,
   Inbox,
   LayoutDashboard,
+  UserRound,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -44,6 +45,7 @@ export const clinicNavGroups: ClinicNavGroup[] = [
       { to: paths.clinicServices, label: 'Serviços', icon: ClipboardList, end: false },
     ],
   },
+  { title: 'Pacientes', items: [{ to: paths.clinicPatients, label: 'Pacientes', icon: UserRound, end: false }] },
   { title: 'Exames', items: [{ to: paths.clinicExams, label: 'Exames', icon: FlaskConical, end: false }] },
   { title: 'Gestão', items: [{ to: paths.clinicStaff, label: 'Contas', icon: Users, end: false, adminOnly: true }] },
 ]

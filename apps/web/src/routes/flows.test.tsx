@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ToastProvider } from '@/components/ui/Toast'
@@ -254,6 +254,8 @@ describe('fluxos de autenticação', () => {
     window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_admin')
     renderAt('/clinic/agenda')
     await screen.findByRole('heading', { name: 'Agenda da clínica' })
+    // O calendário por profissional é a vista inicial; a lista com ações é a vista alternativa.
+    fireEvent.click(await screen.findByRole('tab', { name: 'Lista' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Completar consulta' }))
     fireEvent.input(await screen.findByLabelText('Resultado da consulta'), {
@@ -273,6 +275,37 @@ describe('fluxos de autenticação', () => {
     window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
     renderAt('/app/health/prescriptions')
     expect(await screen.findByText(/Emitida pela clínica/)).toBeInTheDocument()
+  })
+
+  it('a clínica pesquisa um paciente, abre a ficha e vê o histórico partilhado (BR-CLN-21)', async () => {
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_admin')
+    renderAt('/clinic/patients')
+    await screen.findByRole('heading', { name: 'Pacientes' })
+    fireEvent.change(await screen.findByLabelText('Pesquisar paciente'), { target: { value: 'helena' } })
+    expect(await screen.findByText('Helena Baptista')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Monarca Lopes')).not.toBeInTheDocument())
+
+    cleanup()
+    renderAt('/clinic/patients/cpt_monarca')
+    expect(await screen.findByRole('heading', { name: 'Monarca Lopes' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Histórico partilhado' }))
+    expect(await screen.findByText(/Partilhado pelo paciente, só para leitura/)).toBeInTheDocument()
+
+    // Sem partilha: aviso claro, sem dados.
+    cleanup()
+    renderAt('/clinic/patients/cpt_helena')
+    await screen.findByRole('heading', { name: 'Helena Baptista' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Histórico partilhado' }))
+    expect(await screen.findByText('Este paciente não partilha o histórico.')).toBeInTheDocument()
+  })
+
+  it('a família gera o código para a clínica e vê as clínicas com acesso', async () => {
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+    renderAt('/app/family/mem_monarca')
+    expect(await screen.findByRole('heading', { name: 'Clínicas e partilha' })).toBeInTheDocument()
+    expect(await screen.findByText('Clínica Horizonte')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Gerar código para a clínica' })[0]!)
+    expect(await screen.findByRole('timer')).toHaveTextContent(/10:00|09:5\d/)
   })
 
   it('registo valida idade mínima e confirmação da palavra-passe', async () => {

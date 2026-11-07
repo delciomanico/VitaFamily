@@ -31,6 +31,7 @@ export function ClinicBookingList({ items, actions, showStatus = false }: Clinic
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="flex items-center gap-2">
                   <span className="truncate font-medium">{booking.patientName}</span>
+                  {booking.source === 'MANUAL' && <Badge>Visita presencial</Badge>}
                   {showStatus && (
                     <Badge tone={status.tone} dot className="ml-auto">
                       {status.label}

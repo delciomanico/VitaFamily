@@ -62,6 +62,8 @@ export const paths = {
   clinicAgenda: '/clinic/agenda',
   clinicSlots: '/clinic/slots',
   clinicServices: '/clinic/services',
+  clinicPatients: '/clinic/patients',
+  clinicPatient: (id: string) => `/clinic/patients/${id}`,
   clinicExams: '/clinic/exams',
   clinicStaff: '/clinic/staff',
 

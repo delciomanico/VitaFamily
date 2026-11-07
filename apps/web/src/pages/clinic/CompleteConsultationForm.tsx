@@ -212,6 +212,8 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
           }}
         />
 
+        {/* Visita presencial manual: sem receita (BR-CLN-18, a receita exige consulta Vita). */}
+        {booking.source !== 'MANUAL' && (
         <Switch
           label="Emitir receita"
           description="A receita fica disponível no histórico e nas receitas do paciente."
@@ -221,6 +223,7 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
             setError(null)
           }}
         />
+        )}
 
         {withPrescription && (
           <>

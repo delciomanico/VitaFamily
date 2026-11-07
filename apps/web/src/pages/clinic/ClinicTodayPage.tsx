@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarClock, CalendarDays, FlaskConical, Inbox, UserPlus } from 'lucide-react'
+import { CalendarClock, CalendarDays, FlaskConical, Inbox, Search, UserPlus } from 'lucide-react'
 import { ClinicStatsBar } from '@/components/clinic/ClinicStatsBar'
 import { WalkInBookingModal } from '@/components/clinic/WalkInBookingModal'
 import { Badge } from '@/components/ui/Badge'
@@ -88,6 +88,11 @@ export function ClinicTodayPage() {
           <Button size="sm" onClick={() => setWalkIn(true)} icon={<UserPlus className="size-4" aria-hidden />}>
             Consulta presencial
           </Button>
+          <Link to={paths.clinicPatients}>
+            <Button size="sm" variant="secondary" icon={<Search className="size-4" aria-hidden />}>
+              Pesquisar paciente
+            </Button>
+          </Link>
           <Link to={paths.clinicSlots}>
             <Button size="sm" variant="secondary" icon={<CalendarClock className="size-4" aria-hidden />}>
               Novo horário

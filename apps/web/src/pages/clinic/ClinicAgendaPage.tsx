@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { CalendarDays, UserPlus } from 'lucide-react'
 import { ClinicBookingList } from '@/components/domain/ClinicBookingList'
 import { RecommendationModal } from '@/components/domain/RecommendationModal'
+import { ClinicCalendarView } from '@/components/clinic/ClinicCalendarView'
 import { WalkInBookingModal } from '@/components/clinic/WalkInBookingModal'
 import { DaySelector } from '@/components/clinic/DaySelector'
 import { nextDays } from '@/components/domain/DatePickers'
 import { Button } from '@/components/ui/Button'
 import { DetailSection } from '@/components/ui/InfoList'
 import { Modal } from '@/components/ui/Modal'
+import { Tabs } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
@@ -23,6 +25,8 @@ import { CompleteConsultationForm } from './CompleteConsultationForm'
 /** Dias na tira da agenda da clínica. */
 const AGENDA_DAYS = 21
 
+type View = 'calendar' | 'list'
+
 /**
  * Agenda da clínica (`GET /clinic-portal/agenda`, UC-CLN-06): consultas confirmadas e os seus
  * desfechos, por dia. A clínica cancela uma consulta futura com motivo, e completa a consulta em
@@ -36,6 +40,9 @@ export function ClinicAgendaPage() {
   const [completing, setCompleting] = useState<ClinicBooking | null>(null)
   const [recommending, setRecommending] = useState<ClinicBooking | null>(null)
   const [walkIn, setWalkIn] = useState(false)
+  const [view, setView] = useState<View>('calendar')
+  const [slotToBook, setSlotToBook] = useState<string | undefined>()
+  const [calendarVersion, setCalendarVersion] = useState(0)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | undefined>()
   const [saving, setSaving] = useState(false)
@@ -69,6 +76,26 @@ export function ClinicAgendaPage() {
           Consulta presencial
         </Button>
       </div>
+      <Tabs
+        label="Vista da agenda"
+        value={view}
+        onChange={setView}
+        items={[
+          { value: 'calendar', label: 'Calendário' },
+          { value: 'list', label: 'Lista' },
+        ]}
+        className="w-60"
+      />
+      {view === 'calendar' && (
+        <ClinicCalendarView
+          version={calendarVersion}
+          onBookSlot={(slotId) => {
+            setSlotToBook(slotId)
+            setWalkIn(true)
+          }}
+        />
+      )}
+      {view === 'list' && (
       <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start lg:gap-6">
       <div className="lg:sticky lg:top-6">
       <DaySelector
@@ -92,9 +119,12 @@ export function ClinicAgendaPage() {
               actions={(booking) =>
                 (booking.status === 'SCHEDULED' || booking.status === 'COMPLETED') && (
                   <>
-                    <Button variant="ghost" size="sm" onClick={() => setRecommending(booking)}>
-                      Recomendação
-                    </Button>
+                    {/* Visita presencial manual: sem recomendação (só para consultas Vita, BR-CLN-09). */}
+                    {booking.source !== 'MANUAL' && (
+                      <Button variant="ghost" size="sm" onClick={() => setRecommending(booking)}>
+                        Recomendação
+                      </Button>
+                    )}
                     {booking.status === 'SCHEDULED' &&
                       /* A consulta em curso (hora já passada) é a que se completa (ST4). */
                       (Date.parse(booking.scheduledAt) <= Date.now() ? (
@@ -117,14 +147,21 @@ export function ClinicAgendaPage() {
       )}
       </div>
       </div>
+      )}
 
       {walkIn && (
         <WalkInBookingModal
-          onClose={() => setWalkIn(false)}
+          initialSlotId={slotToBook}
+          onClose={() => {
+            setWalkIn(false)
+            setSlotToBook(undefined)
+          }}
           onBooked={(booking) => {
             setWalkIn(false)
+            setSlotToBook(undefined)
             setDay(localDay(booking.scheduledAt))
             toast.show('Consulta marcada.')
+            setCalendarVersion((n) => n + 1)
             reload()
           }}
         />

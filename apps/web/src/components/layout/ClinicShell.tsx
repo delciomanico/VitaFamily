@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
+import { ClinicSearch } from '@/components/clinic/ClinicSearch'
 import { ClinicSidebar } from '@/components/clinic/ClinicSidebar'
 import { clinicNav } from '@/components/clinic/clinicNav'
 import { ClinicAuthProvider, useClinicAuth } from '@/contexts/ClinicAuthContext'
@@ -98,6 +99,7 @@ export function ClinicShell() {
         id="conteudo"
         className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-5 pb-[max(2rem,env(safe-area-inset-bottom))] lg:mx-0 lg:max-w-[calc(16rem+84rem)] lg:gap-6 lg:py-8 lg:pr-10 lg:pl-[calc(16rem+2.5rem)]"
       >
+        <ClinicSearch />
         <Outlet />
       </main>
     </div>

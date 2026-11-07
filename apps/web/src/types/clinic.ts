@@ -115,6 +115,11 @@ export interface ClinicBooking {
   patientName: string
   notes?: string
   responseNote?: string
+  /** M14 P (BR-CLN-18): VITA = consulta no membro Vita (omissão); MANUAL = visita presencial só da clínica. */
+  source?: 'VITA' | 'MANUAL'
+  /** M14 P: paciente da clínica a que pertence (ligação por membro ou visita manual). */
+  clinicPatientId?: string
+  slotId?: string
 }
 
 /** `ClinicRequestResponse` (openapi.yaml): confirmar ou recusar um pedido. */
@@ -335,3 +340,163 @@ export const MAX_CLINIC_SERVICES = 100
 export const MAX_CLINIC_RULES = 200
 /** Janela rolante de geração (BR-CLN-12): hoje + 56 dias. */
 export const SCHEDULE_HORIZON_DAYS = 56
+
+// --- M14 P: pacientes da clínica, consentimento, pesquisa e calendário (BR-CLN-17..24) ---
+
+export type ConsentLevel = 'BOOKINGS' | 'HISTORY'
+
+/** `ClinicPatientVitaLink` (BR-CLN-17/19): sem ids Vita, só a forma da ligação e o consentimento efetivo. */
+export interface ClinicPatientVitaLink {
+  via: 'EMAIL' | 'CODE'
+  consentLevel: ConsentLevel | null
+  consentValidUntil: string | null
+}
+
+/** `ClinicPatient` (BR-CLN-17): registo próprio da clínica, separado dos dados Vita. */
+export interface ClinicPatient {
+  id: string
+  name: string
+  phone: string | null
+  email: string | null
+  /** yyyy-mm-dd. */
+  birthDate: string | null
+  /** Notas internas da clínica. */
+  notes: string | null
+  origin: 'MANUAL' | 'VITA'
+  vitaLink: ClinicPatientVitaLink | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** `ClinicPatientInput`: campos opcionais aceitam null. */
+export interface ClinicPatientInput {
+  name: string
+  phone?: string | null
+  email?: string | null
+  birthDate?: string | null
+  notes?: string | null
+}
+
+export type ClinicPatientPatch = Partial<ClinicPatientInput>
+
+export interface ClinicPatientPage {
+  items: ClinicPatient[]
+  nextCursor: string | null
+}
+
+/** Medicação ativa partilhada (`ClinicSharedMedication`). */
+export interface ClinicSharedMedication {
+  name: string
+  dosage: string
+  startAt: string
+  endAt: string | null
+  continuous: boolean
+}
+
+export interface ClinicSharedExamResult {
+  parameter: string
+  valueNumeric: number | null
+  valueText: string | null
+  unit: string | null
+  referenceMin: number | null
+  referenceMax: number | null
+}
+
+export interface ClinicSharedExam {
+  name: string
+  examDate: string
+  status: 'SCHEDULED' | 'COMPLETED'
+  results: ClinicSharedExamResult[]
+}
+
+/** `ClinicSharedHistory` (BR-CLN-21): só leitura; `active=false` => listas vazias. */
+export interface ClinicSharedHistory {
+  active: boolean
+  level: ConsentLevel | null
+  validUntil: string | null
+  medications: ClinicSharedMedication[]
+  examinations: ClinicSharedExam[]
+}
+
+/** Recomendação emitida pela clínica ao paciente (`ClinicRecommendation`). */
+export interface ClinicPatientRecommendation {
+  id: string
+  appointmentId?: string
+  examinationId?: string
+  patientName: string
+  text: string
+  createdAt: string
+}
+
+/** `ClinicPatientRecord`: só atividade da própria clínica com o paciente. */
+export interface ClinicPatientRecord {
+  patient: ClinicPatient
+  bookings: ClinicBooking[]
+  examinations: ClinicExamBooking[]
+  recommendations: ClinicPatientRecommendation[]
+}
+
+/** `ClinicCalendarEntry` (BR-CLN-23). */
+export interface ClinicCalendarEntry {
+  id: string
+  source: 'VITA' | 'MANUAL'
+  kind: 'APPOINTMENT' | 'EXAM'
+  status: ClinicBooking['status']
+  startsAt: string
+  endsAt: string
+  professionalId: string | null
+  professionalName: string | null
+  specialty: string | null
+  patientName: string
+  clinicPatientId: string | null
+  slotId: string | null
+}
+
+export interface ClinicCalendarFreeSlot {
+  slotId: string
+  kind: SlotKind
+  startsAt: string
+  endsAt: string
+  professionalId: string | null
+  professionalName: string | null
+  specialty: string
+  remaining: number
+}
+
+export interface ClinicCalendar {
+  from: string
+  to: string
+  entries: ClinicCalendarEntry[]
+  freeSlots: ClinicCalendarFreeSlot[]
+}
+
+export interface ClinicSearchResult {
+  patients: ClinicPatient[]
+  bookings: ClinicCalendarEntry[]
+}
+
+/** `ClinicWalkInAppointmentRequest`: exatamente um de `patientEmail` e `clinicPatientId`. */
+export type ClinicWalkInInput = { slotId: string; notes?: string } & (
+  | { patientEmail: string; clinicPatientId?: undefined }
+  | { clinicPatientId: string; patientEmail?: undefined }
+)
+
+/** Visita presencial só da clínica (BR-CLN-18 c). */
+export interface ClinicVisit {
+  id: string
+  clinicPatientId: string
+  /** Horário em que foi marcada (ausente em visitas antigas). */
+  slotId?: string
+  scheduledAt: string
+  durationMinutes: number
+  specialty?: string
+  professionalId?: string
+  professionalName?: string
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'
+  notes?: string
+  responseNote?: string
+  outcomeNote?: string
+}
+
+export const CLINIC_PATIENT_NOTES_MAX = 2000
+export const CLINIC_SEARCH_MIN = 2

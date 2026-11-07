@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { History, Lock, ShieldCheck } from 'lucide-react'
 import { AppointmentList } from '@/components/domain/AppointmentList'
 import { ExaminationList } from '@/components/domain/ExaminationList'
+import { ClinicConsentsSection } from '@/components/domain/ClinicConsentsSection'
 import { Locked } from '@/components/domain/Locked'
 import { MedicationList } from '@/components/domain/MedicationList'
 import { PrescriptionList } from '@/components/domain/PrescriptionList'
@@ -65,8 +66,20 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function ProfileContent({ profile, onRemove }: { profile: MemberProfile; onRemove: () => void }) {
+function ProfileContent({
+  profile,
+  onRemove,
+  familyId,
+  userId,
+}: {
+  profile: MemberProfile
+  onRemove: () => void
+  familyId: string
+  userId: string
+}) {
   const { member, manage, isSelf } = profile
+  // Só o titular adulto ou o tutor gere clínicas e partilha (BR-CLN-19); o dependente com conta, nunca.
+  const canConsent = manage && !(isSelf && member.isDependent)
   const name = firstName(member.name)
   const details = [
     member.relationship && member.relationship !== 'SELF' ? relationshipLabels[member.relationship] : null,
@@ -145,6 +158,10 @@ function ProfileContent({ profile, onRemove }: { profile: MemberProfile; onRemov
         </Block>
       </Group>
 
+      {canConsent && (
+        <ClinicConsentsSection familyId={familyId} userId={userId} memberId={member.id} memberName={name} />
+      )}
+
       <div className="flex flex-col gap-2">
         <ButtonLink
           to={paths.familyMemberHistory(member.id)}
@@ -211,7 +228,9 @@ export function MemberProfilePage() {
         ) : (
           <ErrorState onRetry={reload} />
         ))}
-      {state.status === 'success' && <ProfileContent profile={state.data} onRemove={() => setConfirming(true)} />}
+      {state.status === 'success' && (
+        <ProfileContent profile={state.data} onRemove={() => setConfirming(true)} familyId={familyId} userId={userId} />
+      )}
 
       <ConfirmDialog
         open={confirming}

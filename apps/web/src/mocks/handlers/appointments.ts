@@ -3,7 +3,7 @@ import type { Appointment, AppointmentItem } from '@/types/appointment'
 import type { AvailableSlot, SlotKind } from '@/types/clinic'
 import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
-import { bookingOf, examBookingsOf, expireRequests } from '../bookings'
+import { appointmentSlotTaken, examBookingsOf, expireRequests } from '../bookings'
 import { respond } from '../respond'
 import { visibleClinics } from './clinics'
 
@@ -109,7 +109,7 @@ export function listAvailableSlots(
           partners.has(slot.clinicId) &&
           (!wanted || slot.specialty.toLocaleLowerCase('pt-PT') === wanted) &&
           Date.parse(slot.startsAt) > now.getTime() &&
-          (kind === 'EXAM' ? examBookingsOf(slot.id).length < slot.capacity : !bookingOf(slot.id)),
+          (kind === 'EXAM' ? examBookingsOf(slot.id).length < slot.capacity : !appointmentSlotTaken(slot.id)),
       )
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
       .map((slot) => ({
@@ -135,7 +135,7 @@ export function requestAppointment(
     if (!slot || !clinic || slot.kind !== 'APPOINTMENT' || Date.parse(slot.startsAt) <= now.getTime()) {
       throw new AppError('NOT_FOUND')
     }
-    if (bookingOf(slot.id)) throw new AppError('CONFLICT')
+    if (appointmentSlotTaken(slot.id)) throw new AppError('CONFLICT')
     const appointment: Appointment = {
       id: newId('apt'),
       familyId,

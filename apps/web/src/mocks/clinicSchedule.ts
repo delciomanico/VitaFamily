@@ -23,6 +23,8 @@ export interface ScheduleStore {
   services: Array<ClinicServiceType & { clinicId: string }>
   scheduleRules: Array<ClinicScheduleRule & { clinicId: string }>
   timeOffs: Array<ClinicTimeOff & { clinicId: string }>
+  /** Visitas presenciais só da clínica (BR-CLN-18): também ocupam o horário. */
+  clinicVisits?: Array<{ slotId?: string; status: string }>
 }
 
 const MINUTE = 60_000
@@ -51,7 +53,8 @@ const dayKey = (date: Date) =>
 export function isBooked(store: ScheduleStore, slotId: string): boolean {
   return (
     store.appointments.some((a) => a.slotId === slotId && (a.status === 'REQUESTED' || a.status === 'SCHEDULED')) ||
-    store.examinations.some((e) => e.slotId === slotId && e.status === 'SCHEDULED')
+    store.examinations.some((e) => e.slotId === slotId && e.status === 'SCHEDULED') ||
+    (store.clinicVisits ?? []).some((v) => v.slotId === slotId && v.status === 'SCHEDULED')
   )
 }
 
@@ -59,7 +62,7 @@ export function bookedCountOf(store: ScheduleStore, slot: ClinicSlot): number {
   return slot.kind === 'EXAM'
     ? store.examinations.filter((e) => e.slotId === slot.id && e.status === 'SCHEDULED').length
     : store.appointments.filter((a) => a.slotId === slot.id && (a.status === 'REQUESTED' || a.status === 'SCHEDULED'))
-        .length
+        .length + (store.clinicVisits ?? []).filter((v) => v.slotId === slot.id && v.status === 'SCHEDULED').length
 }
 
 const intersects = (aStart: number, aEnd: number, bStart: number, bEnd: number) => aStart < bEnd && bStart < aEnd

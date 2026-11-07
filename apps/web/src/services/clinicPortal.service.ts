@@ -18,6 +18,7 @@ import type {
   ClinicSession,
   ClinicSlot,
   ClinicSlotView,
+  ClinicWalkInInput,
   PublishSlotsInput,
   SlotKind,
 } from '@/types/clinic'
@@ -86,6 +87,9 @@ interface ApiClinicBooking {
   patientName: string
   notes?: string | null
   responseNote?: string | null
+  source?: 'VITA' | 'MANUAL'
+  clinicPatientId?: string | null
+  slotId?: string | null
 }
 
 const toSlot = (slot: ApiClinicSlot): ClinicSlot => ({
@@ -109,7 +113,7 @@ const toSlotView = (slot: ApiClinicSlotView): ClinicSlotView => ({
   remaining: slot.remaining,
 })
 
-const toExamBooking = (exam: ApiClinicExamBooking): ClinicExamBooking => ({
+export const toExamBooking = (exam: ApiClinicExamBooking): ClinicExamBooking => ({
   id: exam.id,
   status: exam.status,
   scheduledAt: exam.scheduledAt,
@@ -138,7 +142,7 @@ function completeExamBody(input: ClinicCompleteExamInput) {
   }
 }
 
-const toBooking = (booking: ApiClinicBooking): ClinicBooking => ({
+export const toBooking = (booking: ApiClinicBooking): ClinicBooking => ({
   id: booking.id,
   status: booking.status,
   scheduledAt: booking.scheduledAt,
@@ -147,6 +151,9 @@ const toBooking = (booking: ApiClinicBooking): ClinicBooking => ({
   patientName: booking.patientName,
   notes: booking.notes ?? undefined,
   responseNote: booking.responseNote ?? undefined,
+  source: booking.source,
+  clinicPatientId: booking.clinicPatientId ?? undefined,
+  slotId: booking.slotId ?? undefined,
 })
 
 const toAccount = (account: ApiClinicAccount): ClinicAccount => ({ ...account })
@@ -208,12 +215,8 @@ const toRecommendation = (r: ApiClinicRecommendation): ClinicRecommendation => (
   createdAt: r.createdAt,
 })
 
-/** `ClinicWalkInAppointmentRequest` (openapi.yaml, ADR-024). */
-export interface WalkInInput {
-  patientEmail: string
-  slotId: string
-  notes?: string
-}
+/** `ClinicWalkInAppointmentRequest` (openapi.yaml, ADR-024, BR-CLN-18): exatamente um paciente. */
+export type WalkInInput = ClinicWalkInInput
 
 const apiImpl = {
   async login(email: string, password: string): Promise<ClinicSession> {
@@ -360,7 +363,8 @@ const apiImpl = {
       await clinicApiFetch<ApiClinicBooking>('/walk-in-appointments', {
         method: 'POST',
         body: {
-          patientEmail: input.patientEmail.trim().toLowerCase(),
+          patientEmail: input.patientEmail ? input.patientEmail.trim().toLowerCase() : undefined,
+          clinicPatientId: input.clinicPatientId,
           slotId: input.slotId,
           notes: input.notes?.trim() || null,
         },

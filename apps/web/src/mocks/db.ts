@@ -3,6 +3,15 @@ import { clinicAccounts } from './data/clinicAccounts'
 import { clinics, seedSlots } from './data/clinics'
 import { seedExamDocuments, seedExamResults, seedExaminations } from './data/examinations'
 import { families, guardianships, invitations, members, sharingGrants } from './data/families'
+import {
+  seedClinicConsents,
+  seedClinicPatients,
+  seedClinicVisits,
+  type MockClinicConsent,
+  type MockClinicLinkCode,
+  type MockClinicPatient,
+  type MockClinicVisit,
+} from './data/clinicPatients'
 import { seedProfessionals, seedScheduleRules, seedServices } from './data/clinicCatalog'
 import { allergies, conditions } from './data/health'
 import { seedDocuments, seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
@@ -67,6 +76,14 @@ function seed(now: Date = new Date()) {
     services: structuredClone(seedServices) as Array<ClinicServiceType & { clinicId: string }>,
     scheduleRules: structuredClone(seedScheduleRules) as Array<ClinicScheduleRule & { clinicId: string }>,
     timeOffs: [] as Array<ClinicTimeOff & { clinicId: string }>,
+    /** Pacientes da clínica (M14 P, BR-CLN-17); `memberId`/`linkVia` só no mock, nunca saem. */
+    clinicPatients: seedClinicPatients(now) as MockClinicPatient[],
+    /** Consentimento por membro e clínica (BR-CLN-19). */
+    clinicConsents: seedClinicConsents(now) as MockClinicConsent[],
+    /** Códigos de ligação gerados pelo titular (BR-CLN-20): guarda-se o normalizado. */
+    clinicLinkCodes: [] as MockClinicLinkCode[],
+    /** Visitas presenciais só da clínica (BR-CLN-18 c). */
+    clinicVisits: seedClinicVisits(now) as MockClinicVisit[],
     alerts: [] as MockAlert[],
     /** Só quem alterou as preferências; os restantes usam DEFAULT_NOTIFICATION_PREFERENCES. */
     notificationPreferences: [] as MockNotificationPreferences[],

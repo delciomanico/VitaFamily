@@ -14,6 +14,16 @@ export function bookingOf(slotId: string): Appointment | undefined {
   return db.appointments.find((a) => a.slotId === slotId && HOLDS_SLOT.includes(a.status))
 }
 
+/** Visita presencial `SCHEDULED` num horário (BR-APT-06 conta-a como ocupação, BR-CLN-18). */
+export function visitOf(slotId: string) {
+  return db.clinicVisits.find((v) => v.slotId === slotId && v.status === 'SCHEDULED')
+}
+
+/** Horário de consulta ocupado por uma consulta Vita ou por uma visita manual. */
+export function appointmentSlotTaken(slotId: string): boolean {
+  return bookingOf(slotId) !== undefined || visitOf(slotId) !== undefined
+}
+
 /** Exames `SCHEDULED` num horário de exame: só estes ocupam vaga (BR-APT-11). */
 export function examBookingsOf(slotId: string) {
   return db.examinations.filter((e) => e.slotId === slotId && e.status === 'SCHEDULED')
