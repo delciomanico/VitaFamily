@@ -22,6 +22,7 @@ import type { Recommendation } from '@/types/recommendation'
 import type { DataExport, NotificationPreferences } from '@/types/settings'
 import { scanAlerts, type MockAlert } from './alertRules'
 import { generateRules } from './clinicSchedule'
+import type { ClinicExamResultsDraft, ConsultationReport } from '@/types/clinicReport'
 import type { ClinicAuditEntry, ClinicReceipt } from '@/types/clinicReceipt'
 import type { ClinicProfessional, ClinicScheduleRule, ClinicServiceType, ClinicTimeOff } from '@/types/clinic'
 
@@ -33,6 +34,23 @@ export interface MockClinicReceipt extends ClinicReceipt {
 
 /** Entrada de auditoria da clínica (`audit_logs.actor_clinic_id`, BR-CLN-40): sem PII por construção. */
 export interface MockClinicAuditEntry extends ClinicAuditEntry {
+  clinicId: string
+}
+
+/** Relatório da consulta no mock (M15 S): `clinicId` e a ligação ao paciente nunca saem (BR-CLN-50: sem FK). */
+export interface MockConsultationReport extends ConsultationReport {
+  clinicId: string
+  /** Família/membro Vita da consulta (só `APPOINTMENT`); a visita manual não tem. */
+  familyId?: string
+  memberId?: string
+  /** Conta autora (`author_account_id`, nulo se removida). */
+  authorAccountId?: string
+  /** Retrato do perfil da clínica fixado ao finalizar (nome). */
+  clinicName?: string
+}
+
+/** Rascunho de resultados de exame no mock (M15 T): tabela própria, o paciente nunca o vê. */
+export interface MockExamResultsDraft extends ClinicExamResultsDraft {
   clinicId: string
 }
 
@@ -89,6 +107,12 @@ function seed(now: Date = new Date()) {
     clinicReceipts: [] as MockClinicReceipt[],
     /** Contador sequencial por clínica (BR-CLN-32): último número atribuído. */
     clinicReceiptCounters: {} as Record<string, number>,
+    /** Relatórios da consulta (M15 S, BR-CLN-41): no máximo um por marcação. */
+    consultationReports: [] as MockConsultationReport[],
+    /** Rascunhos de resultados de exame (M15 T, BR-CLN-47). */
+    examResultDrafts: [] as MockExamResultsDraft[],
+    /** Laudos gerados (instantâneo do que foi emitido, BR-CLN-49): linhas do PDF por exame. */
+    examReportSnapshots: [] as Array<{ examinationId: string; documentId: string; lines: string[] }>,
     /** Auditoria das contas do portal (BR-CLN-40). */
     clinicAudit: [] as MockClinicAuditEntry[],
     /** Catálogo da clínica (M14, BR-CLN-11); `clinicId` só no mock (o contrato usa a clínica da sessão). */

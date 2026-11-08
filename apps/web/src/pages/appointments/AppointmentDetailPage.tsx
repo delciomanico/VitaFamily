@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { CalendarCheck, Clock, Pencil, Repeat } from 'lucide-react'
+import { ConsultationReportCard } from '@/components/appointments/ConsultationReportCard'
 import { ConfirmationButtons } from '@/components/domain/ConfirmationButtons'
 import { NO_CLINIC, SpecialtyField } from '@/components/domain/AppointmentFields'
 import { RecommendationsSection } from '@/components/domain/RecommendationsSection'
@@ -196,6 +197,8 @@ function AppointmentView({
           </Card>
         </DetailSection>
       )}
+
+      {appointment.reportAvailable && <ConsultationReportCard appointmentId={appointment.id} />}
 
       <RecommendationsSection memberId={appointment.memberId} origin={{ appointmentId: appointment.id }} />
 

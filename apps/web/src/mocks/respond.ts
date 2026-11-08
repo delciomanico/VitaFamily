@@ -11,3 +11,9 @@ export async function respond<T>(handler: () => T): Promise<T> {
   await wait()
   return structuredClone(handler())
 }
+
+/** Como `respond`, mas para ficheiros (`Blob`), que não se clonam: devolve o mesmo objeto. */
+export async function respondBlob(handler: () => Blob): Promise<Blob> {
+  await wait()
+  return handler()
+}

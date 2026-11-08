@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { FileText, FlaskConical } from 'lucide-react'
 import { RecommendationModal } from '@/components/domain/RecommendationModal'
 import { DaySelector } from '@/components/clinic/DaySelector'
+import { ExamReportButton } from '@/components/clinic/exams/ExamReportButton'
 import { ReceiptAction } from '@/components/clinic/ReceiptAction'
 import { nextDays } from '@/components/domain/DatePickers'
 import { Badge, type Tone } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
+import { Button, ButtonLink } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { DetailSection } from '@/components/ui/InfoList'
 import { Modal } from '@/components/ui/Modal'
@@ -18,9 +19,9 @@ import { localDay } from '@/lib/appointment'
 import { todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { formatRelativeDay, formatTime } from '@/lib/format'
+import { paths } from '@/routes/paths'
 import { clinicPortalService } from '@/services/clinicPortal.service'
 import type { ClinicExamBooking } from '@/types/clinic'
-import { CompleteExamForm } from './CompleteExamForm'
 
 const AGENDA_DAYS = 21
 
@@ -42,7 +43,6 @@ export function ClinicExamsPage() {
   const { state, reload } = useAsync(() => clinicPortalService.listExamAgenda(), [])
   const [day, setDay] = useState<string | null>(todayISO())
   const [cancelling, setCancelling] = useState<ClinicExamBooking | null>(null)
-  const [completing, setCompleting] = useState<ClinicExamBooking | null>(null)
   const [recommending, setRecommending] = useState<ClinicExamBooking | null>(null)
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | undefined>()
@@ -122,15 +122,22 @@ export function ClinicExamsPage() {
                           Recomendação
                         </Button>
                         {exam.status !== 'SCHEDULED' ? null : Date.parse(exam.scheduledAt) <= Date.now() ? (
-                          <Button size="sm" className="flex-1 sm:flex-none" onClick={() => setCompleting(exam)}>
-                            Emitir resultados
-                          </Button>
+                          <ButtonLink
+                            to={paths.clinicExamResults(exam.id)}
+                            size="sm"
+                            className="flex-1 sm:flex-none"
+                          >
+                            {exam.hasResultsDraft ? 'Continuar resultados' : 'Emitir resultados'}
+                          </ButtonLink>
                         ) : (
                           !isDoctor && (
                             <Button variant="danger-ghost" size="sm" onClick={() => setCancelling(exam)}>
                               Cancelar exame
                             </Button>
                           )
+                        )}
+                        {exam.status === 'COMPLETED' && exam.reportAvailable && (
+                          <ExamReportButton examinationId={exam.id} />
                         )}
                         {exam.status === 'COMPLETED' && (
                           <ReceiptAction
@@ -195,17 +202,6 @@ export function ClinicExamsPage() {
         />
       )}
 
-      {completing && (
-        <CompleteExamForm
-          booking={completing}
-          onClose={() => setCompleting(null)}
-          onCompleted={() => {
-            setCompleting(null)
-            toast.show('Resultados emitidos.')
-            reload()
-          }}
-        />
-      )}
     </>
   )
 }

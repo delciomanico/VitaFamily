@@ -205,7 +205,10 @@ export function DocumentRow({ document }: { document: DocumentInfo }) {
       <FileIcon mimeType={document.mimeType} />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{document.originalName}</span>
-        <span className="block text-sm text-muted">{formatFileSize(document.sizeBytes)}</span>
+        <span className="block text-sm text-muted">
+          {document.generatedBySystem && <strong className="font-medium text-primary">Laudo da clínica · </strong>}
+          {formatFileSize(document.sizeBytes)}
+        </span>
       </span>
       <Button variant="soft" size="sm" onClick={() => setOpen(true)}>
         Ver documento

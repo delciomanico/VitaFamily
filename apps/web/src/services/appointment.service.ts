@@ -29,6 +29,8 @@ export interface ApiAppointment {
   confirmationStatus?: ConfirmationStatus | null
   /** M14 Q (BR-CLN-30): retorno sugerido pela clínica. */
   followUpDueOn?: string | null
+  /** M15 S (BR-CLN-45). */
+  reportAvailable?: boolean | null
 }
 
 export function toAppointment(familyId: string, a: ApiAppointment): Appointment {
@@ -48,6 +50,7 @@ export function toAppointment(familyId: string, a: ApiAppointment): Appointment 
     responseNote: a.responseNote ?? undefined,
     confirmationStatus: a.confirmationStatus ?? undefined,
     followUpDueOn: a.followUpDueOn ?? undefined,
+    reportAvailable: a.reportAvailable ?? undefined,
   }
 }
 

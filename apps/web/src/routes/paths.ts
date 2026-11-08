@@ -30,6 +30,7 @@ export const paths = {
   appointments: '/app/appointments',
   appointmentNew: '/app/appointments/new',
   appointment: (id: string) => `/app/appointments/${id}`,
+  appointmentReport: (id: string) => `/app/appointments/${id}/report`,
 
   family: '/app/family',
   familyMember: (id: string) => `/app/family/${id}`,
@@ -66,6 +67,8 @@ export const paths = {
   clinicPatients: '/clinic/patients',
   clinicPatient: (id: string) => `/clinic/patients/${id}`,
   clinicExams: '/clinic/exams',
+  clinicConsultationReport: (bookingId: string) => `/clinic/consultations/${bookingId}/report`,
+  clinicExamResults: (examinationId: string) => `/clinic/exams/${examinationId}/results`,
   clinicReports: '/clinic/reports',
   clinicStaff: '/clinic/staff',
   clinicFinance: '/clinic/finance',

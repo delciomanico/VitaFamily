@@ -3,6 +3,7 @@ import type { Appointment, AppointmentItem, ConfirmationResponse } from '@/types
 import type { AvailableSlot, SlotKind } from '@/types/clinic'
 import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
+import { sharedFinalReportOf } from '../clinicReports'
 import { appointmentSlotTaken, examBookingsOf, expireRequests } from '../bookings'
 import { respond } from '../respond'
 import { visibleClinics } from './clinics'
@@ -47,7 +48,8 @@ function findAppointment(familyId: string, userId: string, id: string): Appointm
 }
 
 const toItem = (appointment: Appointment): AppointmentItem => ({
-  appointment,
+  // M15 S (BR-CLN-45): só titular/tutor chegam aqui (âmbito `inScope`); relatório FINAL partilhado.
+  appointment: sharedFinalReportOf(appointment) ? { ...appointment, reportAvailable: true } : appointment,
   memberName: memberName(appointment.memberId),
 })
 

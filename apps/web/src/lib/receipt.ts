@@ -40,6 +40,14 @@ const auditActions: Record<string, string> = {
   CLINIC_PATIENT_LINK: 'Ligou um paciente Vita',
   EXAM_CLINIC_COMPLETE: 'Emitiu resultados de um exame',
   EXAM_CLINIC_CANCEL: 'Cancelou um exame',
+  CONSULT_REPORT_SAVED: 'Guardou um relatório de consulta',
+  CONSULT_REPORT_FINALIZED: 'Finalizou um relatório de consulta',
+  CONSULT_REPORT_AMENDED: 'Acrescentou uma adenda a um relatório',
+  CONSULT_REPORT_VIEWED: 'Consultou um relatório de consulta',
+  EXAM_RESULTS_DRAFT_SAVED: 'Guardou um rascunho de resultados',
+  EXAM_RESULTS_DRAFT_DISCARDED: 'Descartou um rascunho de resultados',
+  EXAM_REPORT_GENERATED: 'Gerou um laudo de exame',
+  EXAM_REPORT_DOWNLOAD: 'Descarregou um laudo de exame',
 }
 
 export const auditActionLabel = (action: string) => auditActions[action] ?? action

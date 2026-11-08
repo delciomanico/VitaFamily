@@ -11,6 +11,7 @@ import { clinicDayService } from '@/services/clinicDay.service'
 import type { ClinicBooking } from '@/types/clinic'
 import { deriveDayState } from '@/lib/clinicDay'
 import { ReceiptAction } from './ReceiptAction'
+import { ReportAction } from './reports/ReportAction'
 
 interface BookingDayActionsProps {
   booking: ClinicBooking
@@ -161,6 +162,10 @@ export function BookingDayActions({
       />,
     )
   }
+
+  // M15 S: relatório da consulta em curso ou concluída (Médico escreve; Admin/Gestor leem).
+  const inCare = state === 'ARRIVED' || state === 'IN_PROGRESS' || state === 'COMPLETED' || (state === 'SCHEDULED' && started)
+  if (inCare) buttons.push(<ReportAction key="report" booking={booking} />)
 
   if (buttons.length === 0) return null
   return <div className="flex flex-wrap gap-2">{buttons}</div>

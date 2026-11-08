@@ -1,3 +1,5 @@
+import type { ConsultationReportInput } from './clinicReport'
+
 /** Clínica parceira (global) ou privada da família (docs/04-domain/entities.md → Clinic). */
 export interface Clinic {
   id: string
@@ -151,6 +153,8 @@ export interface ClinicBooking {
   followUpDueOn?: string
   /** M14 R (BR-CLN-31): recibo `ISSUED` da marcação; nunca devolvido ao Médico (BR-CLN-39). */
   receiptId?: string
+  /** M15 S (BR-CLN-41): estado do relatório da consulta; ausente = sem relatório. */
+  reportStatus?: 'DRAFT' | 'FINAL'
 }
 
 /** `ConfirmationStatus` (openapi.yaml): PENDING = "Sem resposta". */
@@ -196,6 +200,8 @@ export interface ClinicCompleteInput {
   outcomeNote?: string
   /** Receita opcional; se presente nasce com `issuedBy=CLINIC` (BR-RX-07). */
   prescription?: ClinicPrescriptionInput
+  /** M15 S (BR-CLN-42/44): presente = grava e finaliza o relatório na mesma operação (só o Médico). */
+  report?: ConsultationReportInput
 }
 
 /** Máximo de vagas por horário de exame (BR-APT-11). */
@@ -225,6 +231,10 @@ export interface ClinicExamBooking {
   documents: ClinicDocument[]
   /** M14 R (BR-CLN-31): recibo `ISSUED` do exame; nunca devolvido ao Médico. */
   receiptId?: string
+  /** M15 T (BR-CLN-47): existe rascunho de resultados. */
+  hasResultsDraft?: boolean
+  /** M15 T (BR-CLN-49): existe laudo PDF gerado e descarregável. */
+  reportAvailable?: boolean
 }
 
 /** Parâmetro de resultado emitido pela clínica (`ExamResultInput`). */
@@ -239,8 +249,11 @@ export interface ClinicExamResultInput {
 
 /** `ClinicCompleteExaminationRequest` (BR-CLN-08): parâmetros e/ou PDF já carregado; sem interpretação (D11). */
 export interface ClinicCompleteExamInput {
-  results: ClinicExamResultInput[]
+  /** Omitido = usa o rascunho de resultados (BR-CLN-47). */
+  results?: ClinicExamResultInput[]
   resultNote?: string
+  /** M15 T (BR-CLN-48): omissão true; só gera com >=1 resultado estruturado. */
+  generateReport?: boolean
 }
 
 // --- M14 (a1/a2): catálogo, regras de horário e bloqueios (BR-CLN-11..16) ---
