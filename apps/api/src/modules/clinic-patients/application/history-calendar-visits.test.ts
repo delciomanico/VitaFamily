@@ -246,10 +246,10 @@ describe("calendário (BR-CLN-23)", () => {
     s.slot("sx", "2026-11-10T12:00:00Z", { kind: "EXAM", capacity: 2, specialty: "Ecografia", professionalId: "prof-1", professionalName: "Dra. Lima" });
     s.slot("past", "2026-11-05T09:00:00Z", { professionalId: "prof-1" });
     s.fx.calendar.appointments = [
-      { id: "ap-ok", status: "SCHEDULED", startsAt: at("2026-11-10T09:00:00Z"), durationMinutes: 30, specialty: "Cardiologia", professionalName: "Dra. Lima", slotId: "s1", familyId: FAMILY, memberId: MEMBER },
-      { id: "ap-rej", status: "REJECTED", startsAt: at("2026-11-10T09:00:00Z"), durationMinutes: 30, slotId: "s1", familyId: FAMILY, memberId: MEMBER },
-      { id: "ap-cancelled", status: "CANCELLED", startsAt: at("2026-11-10T09:00:00Z"), durationMinutes: 30, slotId: "s1", familyId: FAMILY, memberId: MEMBER },
-      { id: "ap-out", status: "SCHEDULED", startsAt: at("2026-12-25T09:00:00Z"), durationMinutes: 30, familyId: FAMILY, memberId: MEMBER },
+      { id: "ap-ok", status: "SCHEDULED", startsAt: at("2026-11-10T09:00:00Z"), durationMinutes: 30, specialty: "Cardiologia", professionalName: "Dra. Lima", slotId: "s1", familyId: FAMILY, memberId: MEMBER, confirmationStatus: "PENDING" },
+      { id: "ap-rej", status: "REJECTED", startsAt: at("2026-11-10T09:00:00Z"), durationMinutes: 30, slotId: "s1", familyId: FAMILY, memberId: MEMBER, confirmationStatus: "PENDING" },
+      { id: "ap-cancelled", status: "CANCELLED", startsAt: at("2026-11-10T09:00:00Z"), durationMinutes: 30, slotId: "s1", familyId: FAMILY, memberId: MEMBER, confirmationStatus: "PENDING" },
+      { id: "ap-out", status: "SCHEDULED", startsAt: at("2026-12-25T09:00:00Z"), durationMinutes: 30, familyId: FAMILY, memberId: MEMBER, confirmationStatus: "PENDING" },
     ];
     s.fx.calendar.examinations = [{ id: "ex-1", status: "SCHEDULED", startsAt: at("2026-11-10T12:00:00Z"), examType: "Ecografia", slotId: "sx", familyId: FAMILY, memberId: MEMBER, resultsCount: 0 }];
     s.fx.slots.occupancy.set("s1", { requested: 0, scheduled: 1 });
@@ -306,6 +306,7 @@ describe("pesquisa global (BR-CLN-22) e ficha", () => {
       specialty: "Cardiologia",
       familyId: FAMILY,
       memberId: MEMBER,
+      confirmationStatus: "PENDING" as const,
     }));
     const result = await s.search(ACTOR, "maria");
     expect(result.patients).toHaveLength(10);
@@ -334,8 +335,8 @@ describe("pesquisa global (BR-CLN-22) e ficha", () => {
     const patient = await linkedPatient(s, { level: "BOOKINGS" });
     await s.book({}, ACTOR, { clinicPatientId: patient.id, slotId: "s1" }, CTX).catch(() => undefined);
     s.fx.calendar.appointments = [
-      { id: "ap-1", status: "COMPLETED", startsAt: at("2026-10-01T09:00:00Z"), durationMinutes: 30, specialty: "Cardiologia", familyId: FAMILY, memberId: MEMBER },
-      { id: "ap-2", status: "SCHEDULED", startsAt: at("2026-11-20T09:00:00Z"), durationMinutes: 30, familyId: FAMILY, memberId: MEMBER },
+      { id: "ap-1", status: "COMPLETED", startsAt: at("2026-10-01T09:00:00Z"), durationMinutes: 30, specialty: "Cardiologia", familyId: FAMILY, memberId: MEMBER, confirmationStatus: "PENDING" },
+      { id: "ap-2", status: "SCHEDULED", startsAt: at("2026-11-20T09:00:00Z"), durationMinutes: 30, familyId: FAMILY, memberId: MEMBER, confirmationStatus: "PENDING" },
     ];
     s.fx.calendar.examinations = [{ id: "ex-1", status: "COMPLETED", startsAt: at("2026-09-01T09:00:00Z"), examType: "Eco", familyId: FAMILY, memberId: MEMBER, resultsCount: 3 }];
     s.fx.recommendations.items = [{ id: "rec-1", memberId: MEMBER, appointmentId: "ap-1", text: "Beber água", createdAt: at("2026-10-02T09:00:00Z") }];

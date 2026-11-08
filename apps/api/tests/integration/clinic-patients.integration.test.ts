@@ -21,6 +21,7 @@ import { createCreateClinicPatientUseCase, createGetClinicPatientUseCase, create
 import type { ClinicPatientsDeps, SlotFacts } from "../../src/modules/clinic-patients/application/ports.js";
 import { createPurgeLinkCodesJobUseCase } from "../../src/modules/clinic-patients/application/purge-link-codes.js";
 import { createGetSharedHistoryUseCase } from "../../src/modules/clinic-patients/application/shared-history.js";
+import { createArriveVisitUseCase, createClearVisitFollowUpUseCase, createConfirmVisitUseCase, createNoShowVisitUseCase, createSetVisitFollowUpUseCase, createStartVisitUseCase } from "../../src/modules/clinic-patients/application/visit-day-flow.js";
 import { createBookVisitUseCase, createCancelVisitUseCase, createCompleteVisitUseCase, createListVisitsUseCase } from "../../src/modules/clinic-patients/application/visits.js";
 import { InMemoryRateLimiter } from "../../src/modules/clinic-patients/domain/rate-limiter.js";
 import { KyselyConsentsRepository, KyselyLinkCodesRepository, KyselyLinksRepository, KyselyPatientsRepository, KyselyVisitsRepository } from "../../src/modules/clinic-patients/infrastructure/repo.js";
@@ -75,6 +76,7 @@ describe("integração: pacientes da clínica (migração 0028)", () => {
       listAppointments: () => Promise.resolve([]), listExaminations: () => Promise.resolve([]), listRecentAppointments: () => Promise.resolve([]),
       listRecentExaminations: () => Promise.resolve([]), listAppointmentsOfMember: () => Promise.resolve([]), listExaminationsOfMember: () => Promise.resolve([]),
     },
+    reports: { listAppointments: () => Promise.resolve([]), listExaminations: () => Promise.resolve([]), listAppointmentFollowUps: () => Promise.resolve([]) },
     recommendations: { listOfMember: () => Promise.resolve([]) },
     slots: {
       lockSlot: async (trx, id) => { const s = await slotsRepo.lockById(trx, id); return s ? toFacts(s) : null; },
@@ -85,6 +87,7 @@ describe("integração: pacientes da clínica (migração 0028)", () => {
       findProfessional: () => Promise.resolve(null),
     },
     searchLimiter: new InMemoryRateLimiter(clock),
+    reportLimiter: new InMemoryRateLimiter(clock),
     sharedLimiter: new InMemoryRateLimiter(clock),
     audit: { record: (_t, e) => Promise.resolve(void audit.push(e)) },
     linkCodeSecret: "integration-secret-0123456789",
@@ -115,6 +118,7 @@ describe("integração: pacientes da clínica (migração 0028)", () => {
       clinicPatients: {
         resolvePatient: createResolvePatientUseCase(cp), ensureLinkedByEmail: createEnsureLinkedByEmailUseCase(cp), bookVisit: createBookVisitUseCase(cp),
         listVisits: createListVisitsUseCase(cp), cancelVisit: createCancelVisitUseCase(cp), completeVisit: createCompleteVisitUseCase(cp),
+        confirmVisit: createConfirmVisitUseCase(cp), arriveVisit: createArriveVisitUseCase(cp), startVisit: createStartVisitUseCase(cp), noShowVisit: createNoShowVisitUseCase(cp), setVisitFollowUp: createSetVisitFollowUpUseCase(cp), clearVisitFollowUp: createClearVisitFollowUpUseCase(cp),
         countActiveVisitsBySlot: createCountActiveVisitsBySlotUseCase(cp), findPatientIdsByMembers: createFindPatientIdsByMembersUseCase(cp),
       },
       walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),

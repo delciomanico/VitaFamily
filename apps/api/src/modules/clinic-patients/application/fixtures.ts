@@ -19,6 +19,7 @@ import type {
   ConsentWrite,
   ConsentsRepository,
   ExaminationFact,
+  FollowUpFact,
   LinkCodeRecord,
   LinkCodesRepository,
   LinksRepository,
@@ -30,11 +31,13 @@ import type {
   PatientsRepository,
   RecommendationFact,
   RecommendationsSourcePort,
+  ReportSourcePort,
   SharedExam,
   SharedHistoryReaderPort,
   SharedMedication,
   SlotFacts,
   SlotReservationPort,
+  VisitDayFlowChange,
   VisitListFilter,
   VisitsRepository,
 } from "./ports.js";
@@ -92,6 +95,10 @@ export class FakePatientsRepository implements PatientsRepository<FakeTrx> {
   async findById(_trx: FakeTrx, clinicId: string, patientId: string): Promise<ClinicPatient | null> {
     const patient = this.byId.get(patientId);
     return Promise.resolve(patient?.clinicId === clinicId ? patient : null);
+  }
+
+  async countCreatedBetween(_trx: FakeTrx, clinicId: string, from: Date, to: Date): Promise<number> {
+    return Promise.resolve([...this.byId.values()].filter((p) => p.clinicId === clinicId && p.createdAt.getTime() >= from.getTime() && p.createdAt.getTime() < to.getTime()).length);
   }
 
   async findManyByIds(_trx: FakeTrx, clinicId: string, patientIds: string[]): Promise<ClinicPatient[]> {
@@ -238,6 +245,7 @@ export class FakeVisitsRepository implements VisitsRepository<FakeTrx> {
       scheduledAt: record.scheduledAt,
       durationMinutes: record.durationMinutes,
       status: "SCHEDULED",
+      confirmationStatus: "PENDING",
       createdAt: record.createdAt,
       bookedByClinicAccountId: record.bookedByClinicAccountId,
       ...(record.notes ? { notes: record.notes } : {}),
@@ -274,8 +282,40 @@ export class FakeVisitsRepository implements VisitsRepository<FakeTrx> {
     const next: ClinicVisit = { ...visit, status: change.status };
     if (change.outcomeNote) next.outcomeNote = change.outcomeNote;
     if (change.cancelNote) next.cancelNote = change.cancelNote;
+    if (change.status !== "COMPLETED") delete next.followUpDueOn;
     this.byId.set(visitId, next);
     return Promise.resolve(next);
+  }
+  private require(clinicId: string, visitId: string): ClinicVisit {
+    const visit = this.byId.get(visitId);
+    if (visit?.clinicId !== clinicId) throw new Error("visita inexistente no fake");
+    return visit;
+  }
+  async applyConfirmation(_trx: FakeTrx, clinicId: string, visitId: string, confirmedAt: Date): Promise<ClinicVisit> {
+    const next: ClinicVisit = { ...this.require(clinicId, visitId), confirmationStatus: "CONFIRMED", confirmedAt };
+    this.byId.set(visitId, next);
+    return Promise.resolve(next);
+  }
+  async applyDayFlow(_trx: FakeTrx, clinicId: string, visitId: string, change: VisitDayFlowChange): Promise<ClinicVisit> {
+    const visit = this.require(clinicId, visitId);
+    const next: ClinicVisit = { ...visit, ...(change.status ? { status: change.status } : {}), ...(change.arrivedAt ? { arrivedAt: change.arrivedAt } : {}), ...(change.startedAt ? { startedAt: change.startedAt } : {}) };
+    this.byId.set(visitId, next);
+    return Promise.resolve(next);
+  }
+  async setFollowUp(_trx: FakeTrx, clinicId: string, visitId: string, dueOn: string | null): Promise<ClinicVisit> {
+    const next: ClinicVisit = { ...this.require(clinicId, visitId) };
+    if (dueOn === null) delete next.followUpDueOn;
+    else next.followUpDueOn = dueOn;
+    this.byId.set(visitId, next);
+    return Promise.resolve(next);
+  }
+  async listFollowUps(_trx: FakeTrx, clinicId: string, until: string, limit: number): Promise<ClinicVisit[]> {
+    return Promise.resolve(
+      [...this.byId.values()]
+        .filter((v) => v.clinicId === clinicId && v.status === "COMPLETED" && v.followUpDueOn !== undefined && v.followUpDueOn <= until)
+        .sort((a, b) => (a.followUpDueOn ?? "").localeCompare(b.followUpDueOn ?? "") || a.id.localeCompare(b.id))
+        .slice(0, limit),
+    );
   }
 }
 
@@ -307,9 +347,14 @@ export class FakeSharedHistoryReader implements SharedHistoryReaderPort<FakeTrx>
   }
 }
 
-export class FakeCalendarSource implements CalendarSourcePort<FakeTrx> {
+export class FakeCalendarSource implements CalendarSourcePort<FakeTrx>, ReportSourcePort<FakeTrx> {
   appointments: (AppointmentFact)[] = [];
   examinations: ExaminationFact[] = [];
+  /** M14 Q: retornos Vita por tratar (a porta real é `appointments`; aqui semeados à mão). */
+  followUps: (FollowUpFact & { clinicId?: string })[] = [];
+  async listAppointmentFollowUps(_trx: FakeTrx, clinicId: string, until: string, limit: number): Promise<FollowUpFact[]> {
+    return Promise.resolve(this.followUps.filter((f) => (f.clinicId ?? "clinic-a") === clinicId && f.dueOn <= until).sort((a, b) => a.dueOn.localeCompare(b.dueOn) || a.id.localeCompare(b.id)).slice(0, limit));
+  }
   async listAppointments(_trx: FakeTrx, _clinicId: string, window: { from: Date; to: Date }): Promise<AppointmentFact[]> {
     return Promise.resolve(this.appointments.filter((a) => a.startsAt.getTime() >= window.from.getTime() && a.startsAt.getTime() < window.to.getTime()));
   }
@@ -390,6 +435,7 @@ export interface ClinicPatientsFixtures {
   slots: FakeSlotReservation;
   sharedLimiter: InMemoryRateLimiter;
   searchLimiter: InMemoryRateLimiter;
+  reportLimiter: InMemoryRateLimiter;
   audit: FakeAuditPort;
 }
 
@@ -410,6 +456,7 @@ export function createClinicPatientsFixtures(clock: Clock): ClinicPatientsFixtur
   const slots = new FakeSlotReservation();
   const sharedLimiter = new InMemoryRateLimiter(clock);
   const searchLimiter = new InMemoryRateLimiter(clock);
+  const reportLimiter = new InMemoryRateLimiter(clock);
   const audit = new FakeAuditPort();
   const deps: ClinicPatientsDeps<FakeTrx> = {
     patientsRepo,
@@ -422,14 +469,16 @@ export function createClinicPatientsFixtures(clock: Clock): ClinicPatientsFixtur
     clinics,
     sharedHistory,
     calendar,
+    reports: calendar,
     recommendations,
     slots,
     searchLimiter,
+    reportLimiter,
     sharedLimiter,
     audit,
     linkCodeSecret: TEST_LINK_CODE_SECRET,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, patientsRepo, linksRepo, consentsRepo, codesRepo, visitsRepo, policy, members, clinics, sharedHistory, calendar, recommendations, slots, sharedLimiter, searchLimiter, audit };
+  return { deps, patientsRepo, linksRepo, consentsRepo, codesRepo, visitsRepo, policy, members, clinics, sharedHistory, calendar, recommendations, slots, sharedLimiter, searchLimiter, reportLimiter, audit };
 }

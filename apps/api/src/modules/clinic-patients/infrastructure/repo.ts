@@ -18,6 +18,7 @@ import type {
   PatientChanges,
   PatientListFilter,
   PatientsRepository,
+  VisitDayFlowChange,
   VisitListFilter,
   VisitsRepository,
 } from "../application/ports.js";
@@ -69,6 +70,18 @@ const PATIENT_COLUMNS = ["id", "clinic_id", "name", "phone", "email", "notes", "
 const BIRTH_DATE = sql<string | null>`to_char(birth_date, 'YYYY-MM-DD')`.as("birth_date");
 
 export class KyselyPatientsRepository implements PatientsRepository<Kysely<Database>> {
+  /** BR-CLN-29 `newPatients`: registos criados em `[from, to)`. Índice `(clinic_id, ...)`; contagem, nunca dados. */
+  async countCreatedBetween(trx: Kysely<Database>, clinicId: string, from: Date, to: Date): Promise<number> {
+    const row = await trx
+      .selectFrom("clinic_patients")
+      .select(sql<string>`count(*)`.as("total"))
+      .where("clinic_id", "=", clinicId)
+      .where("created_at", ">=", from)
+      .where("created_at", "<", to)
+      .executeTakeFirstOrThrow();
+    return Number(row.total);
+  }
+
   async insert(trx: Kysely<Database>, record: NewPatientRecord): Promise<ClinicPatient> {
     const row = await trx
       .insertInto("clinic_patients")
@@ -300,15 +313,40 @@ interface VisitRow {
   slot_id: string | null;
   scheduled_at: Date;
   duration_minutes: number;
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
+  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
   notes: string | null;
   outcome_note: string | null;
   cancel_note: string | null;
   booked_by_clinic_account_id: string | null;
+  confirmation_status: "PENDING" | "CONFIRMED";
+  confirmed_at: Date | null;
+  arrived_at: Date | null;
+  started_at: Date | null;
+  followup_due_on: string | null;
   created_at: Date;
 }
 
-const VISIT_COLUMNS = ["id", "clinic_id", "clinic_patient_id", "slot_id", "scheduled_at", "duration_minutes", "status", "notes", "outcome_note", "cancel_note", "booked_by_clinic_account_id", "created_at"] as const;
+const VISIT_COLUMNS = [
+  "id",
+  "clinic_id",
+  "clinic_patient_id",
+  "slot_id",
+  "scheduled_at",
+  "duration_minutes",
+  "status",
+  "notes",
+  "outcome_note",
+  "cancel_note",
+  "booked_by_clinic_account_id",
+  "confirmation_status",
+  "confirmed_at",
+  "arrived_at",
+  "started_at",
+  "created_at",
+] as const;
+/** `date` como texto AAAA-MM-DD (sem conversão de fuso do driver). */
+const VISIT_FOLLOWUP = sql<string | null>`to_char(followup_due_on, 'YYYY-MM-DD')`.as("followup_due_on");
+const VISIT_SELECT = [...VISIT_COLUMNS, VISIT_FOLLOWUP] as const;
 
 function toVisit(row: VisitRow): ClinicVisit {
   return {
@@ -318,7 +356,12 @@ function toVisit(row: VisitRow): ClinicVisit {
     scheduledAt: row.scheduled_at,
     durationMinutes: row.duration_minutes,
     status: row.status,
+    confirmationStatus: row.confirmation_status,
     createdAt: row.created_at,
+    ...(row.confirmed_at !== null ? { confirmedAt: row.confirmed_at } : {}),
+    ...(row.arrived_at !== null ? { arrivedAt: row.arrived_at } : {}),
+    ...(row.started_at !== null ? { startedAt: row.started_at } : {}),
+    ...(row.followup_due_on !== null ? { followUpDueOn: row.followup_due_on } : {}),
     ...(row.slot_id !== null ? { slotId: row.slot_id } : {}),
     ...(row.notes !== null ? { notes: row.notes } : {}),
     ...(row.outcome_note !== null ? { outcomeNote: row.outcome_note } : {}),
@@ -345,7 +388,7 @@ export class KyselyVisitsRepository implements VisitsRepository<Kysely<Database>
             created_at: record.createdAt,
             updated_at: record.createdAt,
           })
-          .returning(VISIT_COLUMNS)
+          .returning(VISIT_SELECT)
           .executeTakeFirstOrThrow(),
       "Esse horário já tem uma marcação ativa.",
     );
@@ -353,12 +396,12 @@ export class KyselyVisitsRepository implements VisitsRepository<Kysely<Database>
   }
 
   async findById(trx: Kysely<Database>, clinicId: string, visitId: string): Promise<ClinicVisit | null> {
-    const row = await trx.selectFrom("clinic_visits").select(VISIT_COLUMNS).where("clinic_id", "=", clinicId).where("id", "=", visitId).executeTakeFirst();
+    const row = await trx.selectFrom("clinic_visits").select(VISIT_SELECT).where("clinic_id", "=", clinicId).where("id", "=", visitId).executeTakeFirst();
     return row ? toVisit(row) : null;
   }
 
   async list(trx: Kysely<Database>, clinicId: string, filter: VisitListFilter, limit?: number): Promise<ClinicVisit[]> {
-    let query = trx.selectFrom("clinic_visits").select(VISIT_COLUMNS).where("clinic_id", "=", clinicId);
+    let query = trx.selectFrom("clinic_visits").select(VISIT_SELECT).where("clinic_id", "=", clinicId);
     if (filter.statuses) query = query.where("status", "in", filter.statuses);
     if (filter.from) query = query.where("scheduled_at", ">=", filter.from);
     if (filter.to) query = query.where("scheduled_at", "<", filter.to);
@@ -383,7 +426,7 @@ export class KyselyVisitsRepository implements VisitsRepository<Kysely<Database>
   async findScheduledOverlapping(trx: Kysely<Database>, clinicPatientId: string, from: Date, to: Date): Promise<ClinicVisit[]> {
     const rows = await trx
       .selectFrom("clinic_visits")
-      .select(VISIT_COLUMNS)
+      .select(VISIT_SELECT)
       .where("clinic_patient_id", "=", clinicPatientId)
       .where("status", "=", "SCHEDULED")
       .where("scheduled_at", "<", to)
@@ -397,14 +440,72 @@ export class KyselyVisitsRepository implements VisitsRepository<Kysely<Database>
       .updateTable("clinic_visits")
       .set({
         status: change.status,
+        // BR-CLN-30: o retorno só existe em `COMPLETED`.
+        ...(change.status !== "COMPLETED" ? { followup_due_on: null } : {}),
         ...(change.outcomeNote !== undefined ? { outcome_note: change.outcomeNote } : {}),
         ...(change.cancelNote !== undefined ? { cancel_note: change.cancelNote } : {}),
         updated_at: now,
       })
       .where("clinic_id", "=", clinicId)
       .where("id", "=", visitId)
-      .returning(VISIT_COLUMNS)
+      .returning(VISIT_SELECT)
       .executeTakeFirstOrThrow();
     return toVisit(row);
+  }
+
+  async applyConfirmation(trx: Kysely<Database>, clinicId: string, visitId: string, confirmedAt: Date): Promise<ClinicVisit> {
+    const row = await trx
+      .updateTable("clinic_visits")
+      .set({ confirmation_status: "CONFIRMED", confirmation_source: "CLINIC", confirmed_at: confirmedAt, updated_at: confirmedAt })
+      .where("clinic_id", "=", clinicId)
+      .where("id", "=", visitId)
+      .returning(VISIT_SELECT)
+      .executeTakeFirstOrThrow();
+    return toVisit(row);
+  }
+
+  async applyDayFlow(trx: Kysely<Database>, clinicId: string, visitId: string, change: VisitDayFlowChange, now: Date): Promise<ClinicVisit> {
+    const row = await mapUnique(
+      () =>
+        trx
+          .updateTable("clinic_visits")
+          .set({
+            ...(change.status !== undefined ? { status: change.status } : {}),
+            ...(change.arrivedAt !== undefined ? { arrived_at: change.arrivedAt } : {}),
+            ...(change.startedAt !== undefined ? { started_at: change.startedAt } : {}),
+            updated_at: now,
+          })
+          .where("clinic_id", "=", clinicId)
+          .where("id", "=", visitId)
+          .returning(VISIT_SELECT)
+          .executeTakeFirstOrThrow(),
+      "Esse horário já tem uma marcação ativa.",
+    );
+    return toVisit(row);
+  }
+
+  async setFollowUp(trx: Kysely<Database>, clinicId: string, visitId: string, dueOn: string | null, now: Date): Promise<ClinicVisit> {
+    const row = await trx
+      .updateTable("clinic_visits")
+      .set({ followup_due_on: dueOn, updated_at: now })
+      .where("clinic_id", "=", clinicId)
+      .where("id", "=", visitId)
+      .returning(VISIT_SELECT)
+      .executeTakeFirstOrThrow();
+    return toVisit(row);
+  }
+
+  async listFollowUps(trx: Kysely<Database>, clinicId: string, until: string, limit: number): Promise<ClinicVisit[]> {
+    const rows = await trx
+      .selectFrom("clinic_visits")
+      .select(VISIT_SELECT)
+      .where("clinic_id", "=", clinicId)
+      .where("status", "=", "COMPLETED")
+      .where(sql<boolean>`followup_due_on is not null and followup_due_on <= ${until}::date`)
+      .orderBy("followup_due_on", "asc")
+      .orderBy("id", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map(toVisit);
   }
 }

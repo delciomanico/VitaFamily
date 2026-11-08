@@ -12,6 +12,7 @@ import { runWithActor } from "../../src/platform/actor/index.js";
 import { createApp } from "../../src/platform/http/index.js";
 import { createLogger } from "../../src/platform/logger/index.js";
 import { createCancelClinicAppointmentUseCase, createCompleteClinicAppointmentUseCase, createListClinicAgendaUseCase, createListClinicRequestsUseCase, createRespondClinicRequestUseCase } from "../../src/modules/appointments/application/clinic-appointments.js";
+import { createArriveClinicAppointmentUseCase, createClearClinicFollowUpUseCase, createConfirmClinicAppointmentByPhoneUseCase, createNoShowClinicAppointmentUseCase, createSetClinicFollowUpUseCase, createStartClinicAppointmentUseCase } from "../../src/modules/appointments/application/clinic-day-flow.js";
 import { createClinicPatientLookupUseCase, createCreateWalkInAppointmentUseCase } from "../../src/modules/appointments/application/clinic-walk-in.js";
 import { createAppointmentsFixtures } from "../../src/modules/appointments/application/fixtures.js";
 import { createAppointmentsClinicPortalRouter } from "../../src/modules/appointments/interface/clinic-portal-router.js";
@@ -25,6 +26,8 @@ import { createLinkClinicPatientUseCase } from "../../src/modules/clinic-patient
 import { createCreateClinicPatientUseCase, createGetClinicPatientUseCase, createListClinicPatientsUseCase, createUpdateClinicPatientUseCase } from "../../src/modules/clinic-patients/application/patients.js";
 import { createGetClinicPatientRecordUseCase } from "../../src/modules/clinic-patients/application/record.js";
 import { createGetSharedHistoryUseCase } from "../../src/modules/clinic-patients/application/shared-history.js";
+import { createGetClinicReportSummaryUseCase, createListClinicFollowUpsUseCase } from "../../src/modules/clinic-patients/application/reports.js";
+import { createArriveVisitUseCase, createClearVisitFollowUpUseCase, createConfirmVisitUseCase, createNoShowVisitUseCase, createSetVisitFollowUpUseCase, createStartVisitUseCase } from "../../src/modules/clinic-patients/application/visit-day-flow.js";
 import { createBookVisitUseCase, createCancelVisitUseCase, createCompleteVisitUseCase, createListVisitsUseCase } from "../../src/modules/clinic-patients/application/visits.js";
 import { createClinicPatientsFamilyRouter } from "../../src/modules/clinic-patients/interface/family-router.js";
 import { createClinicPatientsPortalRouter } from "../../src/modules/clinic-patients/interface/portal-router.js";
@@ -103,6 +106,12 @@ async function buildHarness() {
     listVisits: createListVisitsUseCase(cp.deps),
     cancelVisit: createCancelVisitUseCase(cp.deps),
     completeVisit: createCompleteVisitUseCase(cp.deps),
+    confirmVisit: createConfirmVisitUseCase(cp.deps),
+    arriveVisit: createArriveVisitUseCase(cp.deps),
+    startVisit: createStartVisitUseCase(cp.deps),
+    noShowVisit: createNoShowVisitUseCase(cp.deps),
+    setVisitFollowUp: createSetVisitFollowUpUseCase(cp.deps),
+    clearVisitFollowUp: createClearVisitFollowUpUseCase(cp.deps),
     countActiveVisitsBySlot: createCountActiveVisitsBySlotUseCase(cp.deps),
     findPatientIdsByMembers: createFindPatientIdsByMembersUseCase(cp.deps),
   };
@@ -115,11 +124,12 @@ async function buildHarness() {
       durationMinutes: a.durationMinutes ?? 30,
       familyId: a.familyId,
       memberId: a.memberId,
+      confirmationStatus: a.confirmationStatus,
       ...(a.specialty ? { specialty: a.specialty } : {}),
       ...(a.slotId ? { slotId: a.slotId } : {}),
     }));
   cp.calendar.listRecentAppointments = async (trx, clinicId) =>
-    (await ap.appointmentsRepo.listForClinic(trx, clinicId, {})).map((a) => ({ id: a.id, status: a.status, startsAt: a.scheduledAt, durationMinutes: a.durationMinutes ?? 30, familyId: a.familyId, memberId: a.memberId, ...(a.specialty ? { specialty: a.specialty } : {}) }));
+    (await ap.appointmentsRepo.listForClinic(trx, clinicId, {})).map((a) => ({ id: a.id, status: a.status, startsAt: a.scheduledAt, durationMinutes: a.durationMinutes ?? 30, familyId: a.familyId, memberId: a.memberId, confirmationStatus: a.confirmationStatus, ...(a.specialty ? { specialty: a.specialty } : {}) }));
   cp.deps.sharedLimiter = ap.deps.walkInRateLimiter;
 
   const portalRouter = createClinicPatientsPortalRouter({
@@ -132,6 +142,8 @@ async function buildHarness() {
     getClinicSharedHistory: createGetSharedHistoryUseCase(cp.deps),
     clinicGlobalSearch: createClinicGlobalSearchUseCase(cp.deps),
     getClinicCalendar: createGetClinicCalendarUseCase(cp.deps),
+    getClinicReportSummary: createGetClinicReportSummaryUseCase(cp.deps),
+    listClinicFollowUps: createListClinicFollowUpsUseCase(cp.deps),
   });
   const familyRouter = createClinicPatientsFamilyRouter({
     listClinicConsents: createListClinicConsentsUseCase(cp.deps),
@@ -145,6 +157,12 @@ async function buildHarness() {
     listClinicAgenda: createListClinicAgendaUseCase(ap.deps),
     cancelClinicAppointment: createCancelClinicAppointmentUseCase(ap.deps),
     completeClinicAppointment: createCompleteClinicAppointmentUseCase(ap.deps),
+    confirmClinicAppointmentByPhone: createConfirmClinicAppointmentByPhoneUseCase(ap.deps),
+    arriveClinicAppointment: createArriveClinicAppointmentUseCase(ap.deps),
+    startClinicAppointment: createStartClinicAppointmentUseCase(ap.deps),
+    noShowClinicAppointment: createNoShowClinicAppointmentUseCase(ap.deps),
+    setClinicFollowUp: createSetClinicFollowUpUseCase(ap.deps),
+    clearClinicFollowUp: createClearClinicFollowUpUseCase(ap.deps),
     clinicPatientLookup: createClinicPatientLookupUseCase(ap.deps),
     createClinicWalkInAppointment: createCreateWalkInAppointmentUseCase(ap.deps),
   });

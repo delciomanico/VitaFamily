@@ -77,6 +77,8 @@ export interface PatientsRepository<Trx> {
   findById(trx: Trx, clinicId: string, patientId: string): Promise<ClinicPatient | null>;
   findManyByIds(trx: Trx, clinicId: string, patientIds: string[]): Promise<ClinicPatient[]>;
   update(trx: Trx, clinicId: string, patientId: string, changes: PatientChanges, now: Date): Promise<ClinicPatient>;
+  /** BR-CLN-29 `newPatients`: registos criados em `[from, to)` (só a contagem). */
+  countCreatedBetween(trx: Trx, clinicId: string, from: Date, to: Date): Promise<number>;
   /** Por nome (`name_norm`, `id`); varrimento "contém" dentro da clínica (indexes.md). Devolve até `limit` linhas. */
   list(trx: Trx, clinicId: string, filter: PatientListFilter, limit: number): Promise<ClinicPatient[]>;
 }
@@ -163,6 +165,13 @@ export interface VisitListFilter {
   clinicPatientId?: string;
 }
 
+/** BR-CLN-28: chegada/início/falta; só os campos presentes mudam. */
+export interface VisitDayFlowChange {
+  status?: ClinicVisitStatus;
+  arrivedAt?: Date;
+  startedAt?: Date;
+}
+
 export interface VisitsRepository<Trx> {
   /** UNIQUE parcial `(slot_id) WHERE SCHEDULED`: violação => `ConflictError`. */
   insert(trx: Trx, record: NewVisitRecord): Promise<ClinicVisit>;
@@ -172,6 +181,14 @@ export interface VisitsRepository<Trx> {
   /** Visitas `SCHEDULED` do paciente cujo intervalo `[início, início+duração)` sobrepõe `[from, to)` (BR-CLN-16). */
   findScheduledOverlapping(trx: Trx, clinicPatientId: string, from: Date, to: Date): Promise<ClinicVisit[]>;
   setStatus(trx: Trx, clinicId: string, visitId: string, change: { status: ClinicVisitStatus; outcomeNote?: string | null; cancelNote?: string | null }, now: Date): Promise<ClinicVisit>;
+  /** BR-CLN-27: "confirmado por telefone" (`CLINIC`). */
+  applyConfirmation(trx: Trx, clinicId: string, visitId: string, confirmedAt: Date): Promise<ClinicVisit>;
+  /** BR-CLN-28: chegada/início/falta (`NO_SHOW -> SCHEDULED` na chegada tardia: violação da UNIQUE do horário => `ConflictError`). */
+  applyDayFlow(trx: Trx, clinicId: string, visitId: string, change: VisitDayFlowChange, now: Date): Promise<ClinicVisit>;
+  /** BR-CLN-30: define (AAAA-MM-DD) ou limpa (`null`) o retorno. */
+  setFollowUp(trx: Trx, clinicId: string, visitId: string, dueOn: string | null, now: Date): Promise<ClinicVisit>;
+  /** BR-CLN-30: visitas `COMPLETED` com retorno até `until` (AAAA-MM-DD), por data. */
+  listFollowUps(trx: Trx, clinicId: string, until: string, limit: number): Promise<ClinicVisit[]>;
 }
 
 // --- Portas para outros módulos (ligadas no composition root, modules.md §2) ---
@@ -229,6 +246,10 @@ export interface AppointmentFact {
   memberId: string;
   notes?: string;
   responseNote?: string;
+  /** M14 Q (BR-CLN-25/28). */
+  confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED";
+  arrivedAt?: Date;
+  startedAt?: Date;
 }
 
 export interface ExaminationFact {
@@ -254,6 +275,25 @@ export interface CalendarSourcePort<Trx> {
   /** Ficha: marcações da clínica com este membro (só pela ligação). */
   listAppointmentsOfMember(trx: Trx, clinicId: string, familyId: string, memberId: string, limit: number): Promise<AppointmentFact[]>;
   listExaminationsOfMember(trx: Trx, clinicId: string, familyId: string, memberId: string, limit: number): Promise<ExaminationFact[]>;
+}
+
+/** Retorno por tratar de uma consulta Vita (facto mínimo; o nome e o telefone resolvem-se no servidor). */
+export interface FollowUpFact {
+  id: string;
+  familyId: string;
+  memberId: string;
+  dueOn: string;
+}
+
+/**
+ * `ReportSource` (BR-CLN-29/30, modules.md §3 nota 25): consultas e exames da janela (para as contagens, só `status`/`slotId`/
+ * `confirmationStatus` são lidos) e retornos Vita por tratar. Implementada no composition root por `appointments` e
+ * `examinations`; os horários/capacidade vêm da porta `SlotReservation` (`clinics`).
+ */
+export interface ReportSourcePort<Trx> {
+  listAppointments(trx: Trx, clinicId: string, window: { from: Date; to: Date }): Promise<AppointmentFact[]>;
+  listExaminations(trx: Trx, clinicId: string, window: { from: Date; to: Date }): Promise<ExaminationFact[]>;
+  listAppointmentFollowUps(trx: Trx, clinicId: string, until: string, limit: number): Promise<FollowUpFact[]>;
 }
 
 export interface RecommendationFact {
@@ -302,10 +342,14 @@ export interface ClinicPatientsDeps<Trx> {
   clinics: ClinicDirectoryPort<Trx>;
   sharedHistory: SharedHistoryReaderPort<Trx>;
   calendar: CalendarSourcePort<Trx>;
+  /** M14 Q (BR-CLN-29/30). */
+  reports: ReportSourcePort<Trx>;
   recommendations: RecommendationsSourcePort<Trx>;
   slots: SlotReservationPort<Trx>;
   /** Pesquisa/listagem: 60/min por conta (limiter próprio). */
   searchLimiter: RateLimiter;
+  /** BR-CLN-29: indicadores, 30 pedidos/min por conta (limiter próprio). */
+  reportLimiter: RateLimiter;
   /** BR-CLN-20: limiter partilhado com o walk-in (BR-CLN-10) — mesmas chaves `walk-in:*`. */
   sharedLimiter: RateLimiter;
   audit: AuditPort<Trx>;

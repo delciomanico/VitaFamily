@@ -1,6 +1,7 @@
 // Regras puras do scanner de alertas (ADR-009; architecture.md §5; entities.md "Alert"): cada
 // função devolve o instante UTC em que a regra fica satisfeita, a partir de valores fixos (R9,
 // BR-APT-05) — nenhuma regra é configurável em BD (ADR-009 "Justificação"). Sem I/O.
+import { addDaysIso, localMidnightUtc } from "../../../platform/time/index.js";
 
 export type AlertType =
   | "MEDICATION_DUE"
@@ -11,7 +12,10 @@ export type AlertType =
   | "EXAM_CANCELLED"
   | "EXAM_RESULTS_AVAILABLE"
   // D19/ADR-023 (BR-CLN-09): nova recomendação da clínica (texto sempre genérico, nunca o conteúdo).
-  | "RECOMMENDATION_ADDED";
+  | "RECOMMENDATION_ADDED"
+  // M14 Q (BR-ALR-09, BR-CLN-30): pedido de confirmação a 48 h e lembrete de retorno 7 dias antes (texto sempre genérico).
+  | "APPOINTMENT_CONFIRM_REQUEST"
+  | "FOLLOWUP_REMINDER";
 export type AlertSourceType = "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION";
 
 /** entities.md "Alert": `ruleKey` fixo por regra. */
@@ -24,7 +28,9 @@ export type RuleKey =
   | "exam.24h"
   | "exam.cancelled"
   | "exam.results"
-  | "recommendation.added";
+  | "recommendation.added"
+  | "appointment.confirm48h"
+  | "followup.due";
 
 /** Alertas de evento de exame (D19): disparados no momento da resposta/emissão, não por relógio. */
 export type ExamEventAlertType = "EXAM_CANCELLED" | "EXAM_RESULTS_AVAILABLE";
@@ -63,6 +69,17 @@ export const APPOINTMENT_OUTCOME_DELAY_MS = 24 * HOUR_MS;
 /** BR-EXM-03: lembrete de exame, 24h antes. */
 export const EXAM_REMINDER_24H_MS = 24 * HOUR_MS;
 
+/** BR-ALR-09: pedido de confirmação de consulta de clínica parceira, 48h antes (o lembrete de 24h existente cobre a 2.ª oportunidade). */
+export const APPOINTMENT_CONFIRM_REQUEST_LEAD_MS = 48 * HOUR_MS;
+/**
+ * BR-ALR-09: "marcada/confirmada com menos de 48 h de antecedência, não se emite". Sem estado novo para saber quando a
+ * marcação passou a `SCHEDULED`, o pedido só se emite enquanto o instante dos 48 h é recente (o scanner corre ao minuto):
+ * quem entra na janela depois disso nunca recebe um pedido tardio. Valor de implementação (não definido na doc).
+ */
+export const APPOINTMENT_CONFIRM_REQUEST_GRACE_MS = 30 * MINUTE_MS;
+/** BR-CLN-30: lembrete de retorno 7 dias antes de `followUpDueOn`. */
+export const FOLLOW_UP_REMINDER_LEAD_DAYS = 7;
+
 /** UC-ALR-01/BR-ALR-03: `dose.due` no horário; `dose.repeat` 15 min depois, só se ainda não
  * confirmada (quem chama já filtrou por `PENDING`/`UNCONFIRMED`, `medications.listReminderCandidates`). */
 export function doseRules(scheduledAt: Date): Rule[] {
@@ -78,6 +95,25 @@ export function appointmentReminderRules(scheduledAt: Date): Rule[] {
     { ruleKey: "appointment.24h", type: "APPOINTMENT_REMINDER", triggerAt: new Date(scheduledAt.getTime() - APPOINTMENT_REMINDER_24H_MS) },
     { ruleKey: "appointment.2h", type: "APPOINTMENT_REMINDER", triggerAt: new Date(scheduledAt.getTime() - APPOINTMENT_REMINDER_2H_MS) },
   ];
+}
+
+/**
+ * BR-ALR-09: `appointment.confirm48h` para consulta `SCHEDULED` de clínica parceira (`slotId`) ainda `PENDING`; vazio se for
+ * de clínica privada, já respondida ou se os 48 h já passaram há mais do que a tolerância (marcação tardia).
+ */
+export function appointmentConfirmRequestRules(
+  appointment: { scheduledAt: Date; slotId?: string | undefined; confirmationStatus: string },
+  now: Date,
+): Rule[] {
+  if (!appointment.slotId || appointment.confirmationStatus !== "PENDING") return [];
+  const triggerAt = new Date(appointment.scheduledAt.getTime() - APPOINTMENT_CONFIRM_REQUEST_LEAD_MS);
+  if (now.getTime() - triggerAt.getTime() > APPOINTMENT_CONFIRM_REQUEST_GRACE_MS) return [];
+  return [{ ruleKey: "appointment.confirm48h", type: "APPOINTMENT_CONFIRM_REQUEST", triggerAt }];
+}
+
+/** BR-CLN-30: `followup.due` à meia-noite local (CLINIC_TIMEZONE) do dia `followUpDueOn - 7`; se esse dia já passou, vence já. */
+export function followUpReminderRule(followUpDueOn: string): Rule {
+  return { ruleKey: "followup.due", type: "FOLLOWUP_REMINDER", triggerAt: localMidnightUtc(addDaysIso(followUpDueOn, -FOLLOW_UP_REMINDER_LEAD_DAYS)) };
 }
 
 /** UC-APT-04/BR-APT-02/Q4: pedido de confirmação do desfecho de uma consulta `SCHEDULED` passada. */

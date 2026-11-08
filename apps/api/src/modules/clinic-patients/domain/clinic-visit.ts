@@ -1,7 +1,9 @@
 // Visita presencial manual (BR-CLN-18, state-machines.md `ClinicVisit`). Só da clínica; sem receita. Sem I/O.
 import { ConflictError, ValidationError } from "../../../platform/errors/index.js";
 
-export type ClinicVisitStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED";
+export type ClinicVisitStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+/** BR-CLN-25: as visitas só têm `PENDING` ou `CONFIRMED` (nunca `DECLINED`), sempre com origem `CLINIC`. */
+export type VisitConfirmationStatus = "PENDING" | "CONFIRMED";
 
 export interface ClinicVisit {
   id: string;
@@ -15,13 +17,22 @@ export interface ClinicVisit {
   outcomeNote?: string;
   cancelNote?: string;
   bookedByClinicAccountId?: string;
+  /** M14 Q (BR-CLN-25/28/30). */
+  confirmationStatus: VisitConfirmationStatus;
+  confirmedAt?: Date;
+  arrivedAt?: Date;
+  startedAt?: Date;
+  /** Dia local (AAAA-MM-DD) do retorno a contactar; só em `COMPLETED`. */
+  followUpDueOn?: string;
   createdAt: Date;
 }
 
 export const VISIT_NOTE_MAX = 2000;
 
 const TRANSITIONS: Record<ClinicVisitStatus, ClinicVisitStatus[]> = {
-  SCHEDULED: ["COMPLETED", "CANCELLED"],
+  // M14 Q (BR-CLN-28): "Faltou" e a chegada tardia (`NO_SHOW -> SCHEDULED`) são reversíveis; COMPLETED/CANCELLED são finais.
+  SCHEDULED: ["COMPLETED", "CANCELLED", "NO_SHOW"],
+  NO_SHOW: ["SCHEDULED"],
   COMPLETED: [],
   CANCELLED: [],
 };

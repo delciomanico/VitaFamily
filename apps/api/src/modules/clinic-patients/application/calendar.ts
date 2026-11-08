@@ -5,12 +5,14 @@ import { NotFoundError } from "../../../platform/errors/index.js";
 import {
   assertWithinItemLimit,
   bookingMatches,
+  calendarDayState,
   compareEntries,
   orderSearchBookings,
   parseCalendarWindow,
   type CalendarEntry,
   type CalendarFreeSlot,
 } from "../domain/calendar.js";
+import { visitWaitingMinutes } from "../domain/day-flow.js";
 import { buildSearchTerms, normalizeSearchText, parseSearchQuery } from "../domain/clinic-patient.js";
 import type { ClinicVisit } from "../domain/clinic-visit.js";
 import type { AppointmentFact, ClinicPatientsDeps, ClinicPortalActor, ExaminationFact, SlotFacts } from "./ports.js";
@@ -20,7 +22,13 @@ const UNKNOWN_MEMBER = "Membro da família";
 /** Varrimento da pesquisa de marcações: as N mais recentes por origem (BR-CLN-22, "por varrimento dentro da clínica"). */
 export const SEARCH_BOOKING_SCAN_LIMIT = 1000;
 const CALENDAR_APPOINTMENT_STATUSES = ["REQUESTED", "SCHEDULED", "COMPLETED", "NO_SHOW"];
-const CALENDAR_VISIT_STATUSES = ["SCHEDULED", "COMPLETED"] as const;
+/** BR-CLN-23 (emenda Q): visitas manuais; `NO_SHOW` desde BR-CLN-28 (a falta da clínica aparece como nas consultas). */
+const CALENDAR_VISIT_STATUSES = ["SCHEDULED", "COMPLETED", "NO_SHOW"] as const;
+
+/** BR-CLN-23 (emenda Q): consultas ativas/realizadas e as `CANCELLED` por "Não posso" (`DECLINED`, horário livre mas visível). */
+function inCalendar(appointment: AppointmentFact): boolean {
+  return CALENDAR_APPOINTMENT_STATUSES.includes(appointment.status) || (appointment.status === "CANCELLED" && appointment.confirmationStatus === "DECLINED");
+}
 
 export interface BuiltEntries {
   entries: CalendarEntry[];
@@ -55,6 +63,7 @@ export async function buildEntries<Trx>(
   };
   const visitPatients = new Map((facts.visits.length === 0 ? [] : await deps.patientsRepo.findManyByIds(trx, clinicId, [...new Set(facts.visits.map((v) => v.clinicPatientId))])).map((p) => [p.id, p.name]));
 
+  const now = deps.clock.now();
   const entries: CalendarEntry[] = [];
   for (const a of facts.appointments) {
     const slot = a.slotId ? slots.get(a.slotId) : undefined;
@@ -71,6 +80,10 @@ export async function buildEntries<Trx>(
       patientName: await nameOf(a.familyId, a.memberId),
       clinicPatientId: patientIdByMember.get(a.memberId) ?? null,
       slotId: a.slotId ?? null,
+      confirmationStatus: a.confirmationStatus,
+      dayState: calendarDayState(a.status, a.arrivedAt, a.startedAt),
+      arrivedAt: a.arrivedAt ?? null,
+      waitingMinutes: visitWaitingMinutes(a.arrivedAt, a.startedAt, now),
     });
   }
   for (const e of facts.examinations) {
@@ -89,6 +102,10 @@ export async function buildEntries<Trx>(
       patientName: await nameOf(e.familyId, e.memberId),
       clinicPatientId: patientIdByMember.get(e.memberId) ?? null,
       slotId: e.slotId ?? null,
+      confirmationStatus: null,
+      dayState: null,
+      arrivedAt: null,
+      waitingMinutes: null,
     });
   }
   for (const v of facts.visits) {
@@ -106,6 +123,10 @@ export async function buildEntries<Trx>(
       patientName: visitPatients.get(v.clinicPatientId) ?? "Paciente",
       clinicPatientId: v.clinicPatientId,
       slotId: v.slotId ?? null,
+      confirmationStatus: v.confirmationStatus,
+      dayState: calendarDayState(v.status, v.arrivedAt, v.startedAt),
+      arrivedAt: v.arrivedAt ?? null,
+      waitingMinutes: visitWaitingMinutes(v.arrivedAt, v.startedAt, now),
     });
   }
   return { entries, slots };
@@ -137,7 +158,7 @@ export function createGetClinicCalendarUseCase<Trx>(deps: ClinicPatientsDeps<Trx
         deps,
         trx,
         actor.clinicId,
-        { appointments: appointments.filter((a) => CALENDAR_APPOINTMENT_STATUSES.includes(a.status)), examinations, visits },
+        { appointments: appointments.filter(inCalendar), examinations, visits },
         slotsInWindow,
       );
       const entries = built.entries.filter((entry) => !query.professionalId || entry.professionalId === query.professionalId).sort(compareEntries);

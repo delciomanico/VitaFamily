@@ -21,6 +21,9 @@ describe("isTypeEnabled (Q3/UC-ALR-05)", () => {
     ["APPOINTMENT_REMINDER", "appointmentReminder"],
     ["APPOINTMENT_OUTCOME_REQUEST", "appointmentReminder"],
     ["EXAM_REMINDER", "examReminder"],
+    // M14 Q (BR-ALR-09, BR-CLN-30): sem interruptor novo, seguem o de consultas.
+    ["APPOINTMENT_CONFIRM_REQUEST", "appointmentReminder"],
+    ["FOLLOWUP_REMINDER", "appointmentReminder"],
   ] as const)("%s depende de preference.%s", (type, field) => {
     const enabled = defaultPreference("u");
     expect(isTypeEnabled(enabled, type)).toBe(true);

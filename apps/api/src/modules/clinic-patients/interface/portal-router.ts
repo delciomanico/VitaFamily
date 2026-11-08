@@ -7,6 +7,7 @@ import { asyncHandler, buildRequestContext, requireParam, type RequestContext } 
 import { getClinicActor } from "../../../platform/actor/index.js";
 import { UnauthenticatedError, ValidationError } from "../../../platform/errors/index.js";
 import type { ClinicCalendarView, ClinicSearchView } from "../application/calendar.js";
+import type { ClinicFollowUpView, ClinicReportSummaryView } from "../application/reports.js";
 import type { LinkClinicPatientInput } from "../application/patient-link.js";
 import type { ClinicPatientPageView, ListClinicPatientsQuery } from "../application/patients.js";
 import type { ClinicPortalActor } from "../application/ports.js";
@@ -25,6 +26,9 @@ export interface ClinicPatientsPortalController {
   getClinicSharedHistory: (actor: ClinicPortalActor, patientId: string, context: RequestContext) => Promise<ClinicSharedHistoryView>;
   clinicGlobalSearch: (actor: ClinicPortalActor, q: unknown) => Promise<ClinicSearchView>;
   getClinicCalendar: (actor: ClinicPortalActor, query: { from: unknown; to: unknown; professionalId?: string | undefined }) => Promise<ClinicCalendarView>;
+  /** M14 Q (BR-CLN-29/30). */
+  getClinicReportSummary: (actor: ClinicPortalActor, query: { from: unknown; to: unknown; professionalId?: string | undefined }) => Promise<ClinicReportSummaryView>;
+  listClinicFollowUps: (actor: ClinicPortalActor, until: unknown) => Promise<ClinicFollowUpView[]>;
 }
 
 function requireClinicPortalActor(): ClinicPortalActor {
@@ -117,6 +121,21 @@ export function createClinicPatientsPortalRouter(controller: ClinicPatientsPorta
     asyncHandler(async (req, res) => {
       const professionalId = queryValue(req, "professionalId");
       res.json(toCalendarResponse(await controller.getClinicCalendar(requireClinicPortalActor(), { from: queryValue(req, "from"), to: queryValue(req, "to"), professionalId })));
+    }),
+  );
+
+  router.get(
+    "/clinic-portal/reports/summary",
+    asyncHandler(async (req, res) => {
+      const professionalId = queryValue(req, "professionalId");
+      res.json(await controller.getClinicReportSummary(requireClinicPortalActor(), { from: queryValue(req, "from"), to: queryValue(req, "to"), professionalId }));
+    }),
+  );
+
+  router.get(
+    "/clinic-portal/follow-ups",
+    asyncHandler(async (req, res) => {
+      res.json(await controller.listClinicFollowUps(requireClinicPortalActor(), queryValue(req, "until")));
     }),
   );
 

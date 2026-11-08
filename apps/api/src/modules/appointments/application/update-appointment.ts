@@ -73,7 +73,8 @@ export function createUpdateAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>)
       }
 
       const changes: AppointmentChanges = {
-        ...(input.scheduledAt ? { scheduledAt: parseScheduledAt(input.scheduledAt) } : {}),
+        // BR-CLN-25: só uma hora diferente conta como "mudar scheduledAt" (repõe a confirmação no repositório).
+        ...(input.scheduledAt && parseScheduledAt(input.scheduledAt).getTime() !== existing.scheduledAt.getTime() ? { scheduledAt: parseScheduledAt(input.scheduledAt) } : {}),
         ...(input.professionalName !== undefined ? { professionalName: input.professionalName } : {}),
         ...(input.specialty !== undefined ? { specialty: input.specialty } : {}),
         ...(input.reason !== undefined ? { reason: input.reason } : {}),

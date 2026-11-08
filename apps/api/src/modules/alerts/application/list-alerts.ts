@@ -26,6 +26,9 @@ const MESSAGE_BY_TYPE: Record<AlertType, string> = {
   EXAM_CANCELLED: "Um exame foi cancelado.",
   EXAM_RESULTS_AVAILABLE: "Há resultados de exame disponíveis.",
   RECOMMENDATION_ADDED: "Recebeu uma nova recomendação de uma clínica.",
+  // M14 Q (BR-ALR-09, BR-CLN-30): texto genérico, sem nome nem hora (BR-ALR-07/08).
+  APPOINTMENT_CONFIRM_REQUEST: "Tem uma consulta para confirmar. Abra a app.",
+  FOLLOWUP_REMINDER: "Tem um retorno sugerido por uma clínica. Abra a app.",
 };
 
 export function createListAlertsUseCase<Trx>(deps: AlertsApiDeps<Trx>) {

@@ -8,7 +8,8 @@
 // completo nem qualquer outro dado de saúde/família).
 import { ConflictError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
-import { assertValidAppointmentTransition, type Appointment, type AppointmentStatus } from "../domain/appointment.js";
+import { assertValidAppointmentTransition, type Appointment, type AppointmentStatus, type ConfirmationSource, type ConfirmationStatus } from "../domain/appointment.js";
+import { deriveDayState, waitingMinutes, type DayState } from "../domain/day-flow.js";
 import type { AppointmentsDeps, ClinicPortalActor, ClinicPrescriptionInput, RequestContext } from "./ports.js";
 
 export interface ClinicAppointmentView {
@@ -24,6 +25,14 @@ export interface ClinicAppointmentView {
   source?: "VITA" | "MANUAL";
   clinicPatientId?: string;
   slotId?: string;
+  /** M14 Q (BR-CLN-25/28/30). */
+  confirmationStatus: ConfirmationStatus;
+  confirmationSource?: ConfirmationSource;
+  dayState: DayState;
+  arrivedAt?: string;
+  startedAt?: string;
+  waitingMinutes?: number;
+  followUpDueOn?: string;
 }
 
 /** `memberId -> clinicPatientId` em lote (M14 P): consultas Vita associam-se ao paciente da clínica pela ligação. */
@@ -32,6 +41,8 @@ export async function patientIdsOf<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, c
 }
 
 export async function toView<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, appointment: Appointment, patientIds?: Map<string, string>): Promise<ClinicAppointmentView> {
+  const now = deps.clock.now();
+  const waiting = waitingMinutes(appointment.arrivedAt, appointment.startedAt, now);
   const patientName = (await deps.memberNames.getMemberName(trx, appointment.familyId, appointment.memberId)) ?? "Membro da família";
   const ids = appointment.clinicId ? (patientIds ?? (await patientIdsOf(deps, trx, appointment.clinicId, [appointment]))) : new Map<string, string>();
   const clinicPatientId = ids.get(appointment.memberId);
@@ -41,6 +52,13 @@ export async function toView<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, appoint
     scheduledAt: appointment.scheduledAt.toISOString(),
     patientName,
     source: "VITA",
+    confirmationStatus: appointment.confirmationStatus,
+    dayState: deriveDayState(appointment.status, appointment.arrivedAt, appointment.startedAt),
+    ...(appointment.confirmationSource ? { confirmationSource: appointment.confirmationSource } : {}),
+    ...(appointment.arrivedAt ? { arrivedAt: appointment.arrivedAt.toISOString() } : {}),
+    ...(appointment.startedAt ? { startedAt: appointment.startedAt.toISOString() } : {}),
+    ...(waiting !== null ? { waitingMinutes: waiting } : {}),
+    ...(appointment.followUpDueOn ? { followUpDueOn: appointment.followUpDueOn } : {}),
     ...(clinicPatientId ? { clinicPatientId } : {}),
     ...(appointment.slotId ? { slotId: appointment.slotId } : {}),
     ...(appointment.specialty ? { specialty: appointment.specialty } : {}),

@@ -5,6 +5,7 @@
 import { ConflictError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
+import { deriveVisitDayState, visitWaitingMinutes, type VisitDayState } from "../domain/day-flow.js";
 import {
   assertCanCancelVisit,
   assertCanCompleteVisit,
@@ -17,7 +18,7 @@ import type { ClinicPatientsDeps, ClinicPortalActor, RequestContext, SlotFacts }
 /** `ClinicBooking` (openapi) de uma visita manual: mínimo necessário (BR-CLN-03). */
 export interface ClinicVisitBookingView {
   id: string;
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
+  status: ClinicVisit["status"];
   scheduledAt: string;
   specialty?: string;
   professionalName?: string;
@@ -27,6 +28,14 @@ export interface ClinicVisitBookingView {
   source: "MANUAL";
   clinicPatientId: string;
   slotId?: string;
+  /** M14 Q (BR-CLN-25/28/30): visitas só `PENDING|CONFIRMED`, origem sempre `CLINIC`. */
+  confirmationStatus: "PENDING" | "CONFIRMED";
+  confirmationSource?: "CLINIC";
+  dayState: VisitDayState;
+  arrivedAt?: string;
+  startedAt?: string;
+  waitingMinutes?: number;
+  followUpDueOn?: string;
 }
 
 export async function toVisitViews<Trx>(deps: ClinicPatientsDeps<Trx>, trx: Trx, clinicId: string, visits: ClinicVisit[]): Promise<ClinicVisitBookingView[]> {
@@ -35,9 +44,18 @@ export async function toVisitViews<Trx>(deps: ClinicPatientsDeps<Trx>, trx: Trx,
   const names = new Map(patients.map((p) => [p.id, p.name]));
   const slotIds = [...new Set(visits.flatMap((v) => (v.slotId ? [v.slotId] : [])))];
   const slots = new Map((slotIds.length === 0 ? [] : await deps.slots.findSlotsByIds(trx, clinicId, slotIds)).map((s) => [s.id, s]));
+  const now = deps.clock.now();
   return visits.map((visit) => {
     const slot = visit.slotId ? slots.get(visit.slotId) : undefined;
+    const waiting = visitWaitingMinutes(visit.arrivedAt, visit.startedAt, now);
     return {
+      confirmationStatus: visit.confirmationStatus,
+      dayState: deriveVisitDayState(visit.status, visit.arrivedAt, visit.startedAt),
+      ...(visit.confirmationStatus === "CONFIRMED" ? { confirmationSource: "CLINIC" as const } : {}),
+      ...(visit.arrivedAt ? { arrivedAt: visit.arrivedAt.toISOString() } : {}),
+      ...(visit.startedAt ? { startedAt: visit.startedAt.toISOString() } : {}),
+      ...(waiting !== null ? { waitingMinutes: waiting } : {}),
+      ...(visit.followUpDueOn ? { followUpDueOn: visit.followUpDueOn } : {}),
       id: visit.id,
       status: visit.status,
       scheduledAt: visit.scheduledAt.toISOString(),

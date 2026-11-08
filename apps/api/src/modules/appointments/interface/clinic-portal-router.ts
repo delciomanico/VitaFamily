@@ -23,6 +23,7 @@ import type {
   CompleteConsultationInput,
   ListClinicAgendaQuery,
 } from "../application/clinic-appointments.js";
+import type { SetClinicFollowUpInput } from "../application/clinic-day-flow.js";
 import type { ClinicPatientLookupResult, CreateWalkInAppointmentInput } from "../application/clinic-walk-in.js";
 import type { ClinicPortalActor, ClinicPrescriptionInput } from "../application/ports.js";
 import { toClinicAppointmentListResponse, toClinicAppointmentResponse } from "./dto.js";
@@ -33,6 +34,13 @@ export interface AppointmentsClinicPortalController {
   listClinicAgenda: (actor: ClinicPortalActor, query: ListClinicAgendaQuery) => Promise<ClinicAppointmentView[]>;
   cancelClinicAppointment: (actor: ClinicPortalActor, appointmentId: string, input: CancelClinicAppointmentInput, context: RequestContext) => Promise<ClinicAppointmentView>;
   completeClinicAppointment: (actor: ClinicPortalActor, appointmentId: string, input: CompleteConsultationInput, context: RequestContext) => Promise<ClinicAppointmentView>;
+  /** M14 Q (BR-CLN-27/28/30): despacho por id (consulta Vita ou visita manual). */
+  confirmClinicAppointmentByPhone: (actor: ClinicPortalActor, appointmentId: string, context: RequestContext) => Promise<ClinicAppointmentView>;
+  arriveClinicAppointment: (actor: ClinicPortalActor, appointmentId: string, context: RequestContext) => Promise<ClinicAppointmentView>;
+  startClinicAppointment: (actor: ClinicPortalActor, appointmentId: string, context: RequestContext) => Promise<ClinicAppointmentView>;
+  noShowClinicAppointment: (actor: ClinicPortalActor, appointmentId: string, context: RequestContext) => Promise<ClinicAppointmentView>;
+  setClinicFollowUp: (actor: ClinicPortalActor, appointmentId: string, input: SetClinicFollowUpInput, context: RequestContext) => Promise<ClinicAppointmentView>;
+  clearClinicFollowUp: (actor: ClinicPortalActor, appointmentId: string, context: RequestContext) => Promise<ClinicAppointmentView>;
   /** D20 (ADR-024, BR-CLN-10). */
   clinicPatientLookup: (actor: ClinicPortalActor, input: { email: unknown }, context: RequestContext) => Promise<ClinicPatientLookupResult>;
   createClinicWalkInAppointment: (actor: ClinicPortalActor, input: CreateWalkInAppointmentInput, context: RequestContext) => Promise<ClinicAppointmentView>;
@@ -126,6 +134,37 @@ export function createAppointmentsClinicPortalRouter(controller: AppointmentsCli
       };
       const result = await controller.completeClinicAppointment(requireClinicPortalActor(), requireParam(req, "appointmentId"), input, buildRequestContext(req));
       res.json(toClinicAppointmentResponse(result));
+    }),
+  );
+
+  for (const [path, method] of [
+    ["confirm", "confirmClinicAppointmentByPhone"],
+    ["arrive", "arriveClinicAppointment"],
+    ["start", "startClinicAppointment"],
+    ["no-show", "noShowClinicAppointment"],
+  ] as const) {
+    router.put(
+      `/clinic-portal/agenda/:appointmentId/${path}`,
+      asyncHandler(async (req, res) => {
+        const result = await controller[method](requireClinicPortalActor(), requireParam(req, "appointmentId"), buildRequestContext(req));
+        res.json(toClinicAppointmentResponse(result));
+      }),
+    );
+  }
+
+  router.put(
+    "/clinic-portal/agenda/:appointmentId/follow-up",
+    asyncHandler(async (req, res) => {
+      const body = req.body as { amount?: unknown; unit?: unknown };
+      const result = await controller.setClinicFollowUp(requireClinicPortalActor(), requireParam(req, "appointmentId"), { amount: body.amount, unit: body.unit }, buildRequestContext(req));
+      res.json(toClinicAppointmentResponse(result));
+    }),
+  );
+
+  router.delete(
+    "/clinic-portal/agenda/:appointmentId/follow-up",
+    asyncHandler(async (req, res) => {
+      res.json(toClinicAppointmentResponse(await controller.clearClinicFollowUp(requireClinicPortalActor(), requireParam(req, "appointmentId"), buildRequestContext(req))));
     }),
   );
 

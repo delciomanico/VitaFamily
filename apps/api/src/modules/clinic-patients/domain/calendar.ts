@@ -19,6 +19,18 @@ export interface CalendarEntry {
   patientName: string;
   clinicPatientId: string | null;
   slotId: string | null;
+  /** M14 Q (BR-CLN-25/28): nulos nos exames. */
+  confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED" | null;
+  dayState: "SCHEDULED" | "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "NO_SHOW" | "CANCELLED" | "REQUESTED" | "REJECTED" | null;
+  arrivedAt: Date | null;
+  waitingMinutes: number | null;
+}
+
+/** BR-CLN-28: `ARRIVED`/`IN_PROGRESS` derivam de `arrivedAt`/`startedAt` só enquanto a marcação é `SCHEDULED`. */
+export function calendarDayState(status: CalendarEntryStatus, arrivedAt?: Date, startedAt?: Date): NonNullable<CalendarEntry["dayState"]> {
+  if (status !== "SCHEDULED") return status;
+  if (startedAt) return "IN_PROGRESS";
+  return arrivedAt ? "ARRIVED" : "SCHEDULED";
 }
 
 export interface CalendarFreeSlot {

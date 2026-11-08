@@ -126,3 +126,8 @@ não haver decisão aprovada (fica para change control do proprietário, não pa
 
 ## Marcação presencial pela clínica (walk-in, D20/ADR-024, BR-CLN-10)
 `POST /clinic-portal/patient-lookup` e `POST /clinic-portal/walk-in-appointments`: `interface/clinic-portal-router.ts` -> `application/clinic-walk-in.ts` (rate limit em memória de `domain/walk-in.ts`; paciente resolvido pela porta `PatientDirectoryPort`, ligada em `main/api.ts` a `users.byEmail` + `families.findActiveSelfMemberOfUser`, sem aresta nova entre módulos). A consulta nasce `SCHEDULED` no membro SELF com `walk_in=true` (migração `0026`). O alerta `APPOINTMENT_CONFIRMED` não existe (OP-22/OP-07).
+
+## Confirmação ativa e fluxo do dia (M14 Q, BR-CLN-25..30, migração `0029`)
+- Família: `PUT …/appointments/{id}/confirmation` -> `application/set-appointment-confirmation.ts` ("Vou" = `CONFIRMED`/`PATIENT`; "Não posso" cancela na mesma escrita e marca `DECLINED`; só consulta `SCHEDULED`, futura e com `slotId`). Reativar (`CANCELLED -> SCHEDULED`) ou mudar `scheduledAt` repõe `PENDING` e anula chegada/início (repositório).
+- Portal: `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up` -> `application/clinic-day-flow.ts` (despacho por id: consulta Vita e, se não existir, visita manual pela porta `ClinicPatientDirectory`). Regras puras em `domain/day-flow.ts` (`ARRIVED`/`IN_PROGRESS` derivam de `arrivedAt`/`startedAt`, nunca são estados Vita; dia local em `Europe/Lisbon` via `platform/time`).
+- `listReminderCandidates` ganha a janela de 48 h (pedido de confirmação) e `listFollowUpCandidates` serve o lembrete de retorno (`alerts`); `index.ts#listClinicFollowUps` serve `GET /clinic-portal/follow-ups` (via `clinic-patients`).

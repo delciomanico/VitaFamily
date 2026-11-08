@@ -422,7 +422,7 @@ describe("integração: catálogo, regras, bloqueios e duração (migração 002
             return row ? { familyId: row.familyId, memberId: row.memberId, fullName: row.name } : null;
           },
         },
-        clinicPatients: { resolvePatient: () => Promise.resolve(null), ensureLinkedByEmail: () => Promise.resolve({ clinicPatientId: randomUUID() }), bookVisit: () => Promise.reject(new Error("não usado")), listVisits: () => Promise.resolve([]), cancelVisit: () => Promise.resolve(null), completeVisit: () => Promise.resolve(null), countActiveVisitsBySlot: () => Promise.resolve([]), findPatientIdsByMembers: () => Promise.resolve(new Map()) },
+        clinicPatients: { resolvePatient: () => Promise.resolve(null), ensureLinkedByEmail: () => Promise.resolve({ clinicPatientId: randomUUID() }), bookVisit: () => Promise.reject(new Error("não usado")), listVisits: () => Promise.resolve([]), cancelVisit: () => Promise.resolve(null), completeVisit: () => Promise.resolve(null), confirmVisit: () => Promise.resolve(null), arriveVisit: () => Promise.resolve(null), startVisit: () => Promise.resolve(null), noShowVisit: () => Promise.resolve(null), setVisitFollowUp: () => Promise.resolve(null), clearVisitFollowUp: () => Promise.resolve(null), countActiveVisitsBySlot: () => Promise.resolve([]), findPatientIdsByMembers: () => Promise.resolve(new Map()) },
         walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
         audit: { record: () => Promise.resolve() },
         db,

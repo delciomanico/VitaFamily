@@ -1,7 +1,8 @@
 // Ficha do paciente (UC-CLN-14, BR-CLN-03/17): só atividade da PRÓPRIA clínica com ele — consultas (Vita, pela ligação, e
 // visitas manuais), exames e recomendações emitidas pela clínica; mais recentes primeiro, até 200 de cada. Nunca dados de
 // saúde Vita (isso é `shared-history`). Revogar a ligação deixa de associar as marcações Vita; as visitas mantêm-se.
-import type { CalendarEntry } from "../domain/calendar.js";
+import { calendarDayState, type CalendarEntry } from "../domain/calendar.js";
+import { visitWaitingMinutes } from "../domain/day-flow.js";
 import type { ClinicPatientsDeps, ClinicPortalActor } from "./ports.js";
 import { buildEntries } from "./calendar.js";
 import { requireOwnPatient, toPatientView, type ClinicPatientView } from "./support.js";
@@ -21,6 +22,13 @@ export interface RecordBookingView {
   source: "VITA" | "MANUAL";
   clinicPatientId: string;
   slotId?: string;
+  /** M14 Q (BR-CLN-25/28). */
+  confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED";
+  dayState: NonNullable<CalendarEntry["dayState"]>;
+  arrivedAt?: string;
+  startedAt?: string;
+  waitingMinutes?: number;
+  followUpDueOn?: string;
 }
 
 export interface RecordExamView {
@@ -68,19 +76,29 @@ export function createGetClinicPatientRecordUseCase<Trx>(deps: ClinicPatientsDep
       const { entries, slots } = await buildEntries(deps, trx, actor.clinicId, { appointments, examinations: [], visits: [] });
       const entryById = new Map(entries.map((entry) => [entry.id, entry]));
 
-      const vitaBookings: RecordBookingView[] = appointments.map((a) => ({
-        id: a.id,
-        status: a.status,
-        scheduledAt: a.startsAt.toISOString(),
-        patientName: memberName,
-        source: "VITA" as const,
-        clinicPatientId: patient.id,
-        ...(a.specialty ? { specialty: a.specialty } : {}),
-        ...(entryById.get(a.id)?.professionalName ? { professionalName: entryById.get(a.id)?.professionalName ?? "" } : {}),
-        ...(a.notes ? { notes: a.notes } : {}),
-        ...(a.responseNote ? { responseNote: a.responseNote } : {}),
-        ...(a.slotId ? { slotId: a.slotId } : {}),
-      }));
+      const now = deps.clock.now();
+      const vitaBookings: RecordBookingView[] = appointments.map((a) => {
+        const waiting = visitWaitingMinutes(a.arrivedAt, a.startedAt, now);
+        const professionalName = entryById.get(a.id)?.professionalName;
+        return {
+          id: a.id,
+          status: a.status,
+          scheduledAt: a.startsAt.toISOString(),
+          patientName: memberName,
+          source: "VITA" as const,
+          clinicPatientId: patient.id,
+          confirmationStatus: a.confirmationStatus,
+          dayState: calendarDayState(a.status, a.arrivedAt, a.startedAt),
+          ...(a.arrivedAt ? { arrivedAt: a.arrivedAt.toISOString() } : {}),
+          ...(a.startedAt ? { startedAt: a.startedAt.toISOString() } : {}),
+          ...(waiting !== null ? { waitingMinutes: waiting } : {}),
+          ...(a.specialty ? { specialty: a.specialty } : {}),
+          ...(professionalName ? { professionalName } : {}),
+          ...(a.notes ? { notes: a.notes } : {}),
+          ...(a.responseNote ? { responseNote: a.responseNote } : {}),
+          ...(a.slotId ? { slotId: a.slotId } : {}),
+        };
+      });
       const visitBookings = await toVisitViews(deps, trx, actor.clinicId, visits);
       const bookings = [...vitaBookings, ...visitBookings].sort((a, b) => b.scheduledAt.localeCompare(a.scheduledAt)).slice(0, RECORD_LIST_LIMIT);
 

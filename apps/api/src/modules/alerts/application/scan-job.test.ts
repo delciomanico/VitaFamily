@@ -33,6 +33,7 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
     memberId: "member-1",
     scheduledAt: NOW,
     status: "SCHEDULED",
+    confirmationStatus: "PENDING",
     createdAt: NOW,
     ...overrides,
   };

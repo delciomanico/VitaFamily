@@ -5,6 +5,10 @@ import { DomainError, ValidationError } from "../../../platform/errors/index.js"
 
 export type AppointmentStatus = "REQUESTED" | "SCHEDULED" | "REJECTED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
 
+/** BR-CLN-25: independente do estado da consulta; `DECLINED` só com a consulta `CANCELLED` ("Não posso"). */
+export type ConfirmationStatus = "PENDING" | "CONFIRMED" | "DECLINED";
+export type ConfirmationSource = "PATIENT" | "CLINIC";
+
 export interface Appointment {
   id: string;
   familyId: string;
@@ -34,6 +38,15 @@ export interface Appointment {
   bookedByClinicAccountId?: string;
   /** BR-CLN-16 (interno, fora dos contratos da família): duração em minutos (5–480); 30 sem horário. */
   durationMinutes?: number;
+  /** M14 Q (BR-CLN-25). */
+  confirmationStatus: ConfirmationStatus;
+  confirmationSource?: ConfirmationSource;
+  confirmedAt?: Date;
+  /** M14 Q (BR-CLN-28): chegada (check-in) e início do atendimento; `startedAt` implica `arrivedAt`. */
+  arrivedAt?: Date;
+  startedAt?: Date;
+  /** M14 Q (BR-CLN-30): dia local (AAAA-MM-DD) do retorno sugerido pela clínica; só em `COMPLETED`. */
+  followUpDueOn?: string;
   createdAt: Date;
 }
 

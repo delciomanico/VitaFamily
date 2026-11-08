@@ -40,7 +40,10 @@ export function createSetAppointmentStatusUseCase<Trx>(deps: AppointmentsDeps<Tr
       }
       assertValidAppointmentTransition(existing.status, input.status);
 
-      const appointment = await deps.appointmentsRepo.updateStatus(trx, familyId, memberId, appointmentId, input.status);
+      const appointment = await deps.appointmentsRepo.updateStatus(trx, familyId, memberId, appointmentId, input.status, {
+        // BR-CLN-25: reativar uma consulta cancelada repõe a confirmação (`PENDING`) e anula chegada/início.
+        resetDayFlow: existing.status === "CANCELLED" && input.status === "SCHEDULED",
+      });
 
       await deps.audit.record(trx, {
         occurredAt: deps.clock.now(),

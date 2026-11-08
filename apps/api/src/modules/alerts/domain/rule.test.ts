@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  APPOINTMENT_CONFIRM_REQUEST_GRACE_MS,
+  appointmentConfirmRequestRules,
+  followUpReminderRule,
   appointmentOutcomeRule,
   appointmentReminderRules,
   buildDedupeKey,
@@ -64,5 +67,37 @@ describe("buildDedupeKey (ADR-009: idempotente; BR-APT-03 recalcula ao editar)",
     const a = buildDedupeKey("dose.due", "dose-1", "user-1", triggerAt);
     const b = buildDedupeKey("dose.due", "dose-1", "user-2", triggerAt);
     expect(a).not.toBe(b);
+  });
+});
+
+describe("appointmentConfirmRequestRules (BR-ALR-09)", () => {
+  const scheduledAt = new Date("2026-11-10T10:00:00Z");
+  const trigger = "2026-11-08T10:00:00.000Z";
+
+  it("48h antes, só clínica parceira (slotId) e ainda PENDING", () => {
+    const [rule] = appointmentConfirmRequestRules({ scheduledAt, slotId: "s", confirmationStatus: "PENDING" }, new Date(trigger));
+    expect(rule).toEqual({ ruleKey: "appointment.confirm48h", type: "APPOINTMENT_CONFIRM_REQUEST", triggerAt: new Date(trigger) });
+  });
+
+  it.each([
+    ["sem slotId", { scheduledAt, confirmationStatus: "PENDING" }],
+    ["CONFIRMED", { scheduledAt, slotId: "s", confirmationStatus: "CONFIRMED" }],
+    ["DECLINED", { scheduledAt, slotId: "s", confirmationStatus: "DECLINED" }],
+  ])("%s => sem regra", (_name, appointment) => {
+    expect(appointmentConfirmRequestRules(appointment, new Date(trigger))).toEqual([]);
+  });
+
+  it("tolerância: marcada depois dos 48h (instante dos 48h já distante) => sem regra", () => {
+    const appointment = { scheduledAt, slotId: "s", confirmationStatus: "PENDING" };
+    expect(appointmentConfirmRequestRules(appointment, new Date(new Date(trigger).getTime() + APPOINTMENT_CONFIRM_REQUEST_GRACE_MS))).toHaveLength(1);
+    expect(appointmentConfirmRequestRules(appointment, new Date(new Date(trigger).getTime() + APPOINTMENT_CONFIRM_REQUEST_GRACE_MS + 1))).toEqual([]);
+  });
+});
+
+describe("followUpReminderRule (BR-CLN-30)", () => {
+  it("meia-noite local (Europe/Lisbon) do dia dueOn - 7", () => {
+    expect(followUpReminderRule("2026-11-20")).toEqual({ ruleKey: "followup.due", type: "FOLLOWUP_REMINDER", triggerAt: new Date("2026-11-13T00:00:00.000Z") });
+    // verão: UTC+1
+    expect(followUpReminderRule("2026-07-20").triggerAt.toISOString()).toBe("2026-07-12T23:00:00.000Z");
   });
 });

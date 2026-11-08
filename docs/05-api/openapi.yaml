@@ -9409,8 +9409,9 @@ components:
         clinicPatientId: { type: string, format: uuid, nullable: true }
         slotId: { type: string, format: uuid, nullable: true }
         confirmationStatus:
-          allOf: [ { $ref: "#/components/schemas/ConfirmationStatus" } ]
+          type: string
           nullable: true
+          enum: [PENDING, CONFIRMED, DECLINED]
           description: "M14 Q. Nulo em exames."
         dayState:
           type: string

@@ -4,7 +4,7 @@
 // nunca acede às tabelas desses módulos, conventions.md §3.5). Genéricas em `Trx` para que esta
 // camada nunca importe "kysely" (conventions.md §3.9).
 import type { Clock } from "../../../platform/clock/index.js";
-import type { Appointment } from "../../appointments/index.js";
+import type { Appointment, ReminderWindows } from "../../appointments/index.js";
 import type { Examination } from "../../examinations/index.js";
 import type { FamilyMember } from "../../families/index.js";
 import type { DoseOccurrence } from "../../medications/index.js";
@@ -20,7 +20,9 @@ export interface MedicationsPort<Trx> {
 
 /** `appointments` (modules.md §3 nota 3). */
 export interface AppointmentsPort<Trx> {
-  listReminderCandidates(trx: Trx, now: Date, outcomeWindowMs: number, limit: number): Promise<Appointment[]>;
+  listReminderCandidates(trx: Trx, now: Date, windows: ReminderWindows, limit: number): Promise<Appointment[]>;
+  /** BR-CLN-30: consultas `COMPLETED` com `followUpDueOn` em `[from, to]` (AAAA-MM-DD). */
+  listFollowUpCandidates(trx: Trx, from: string, to: string, limit: number): Promise<Appointment[]>;
   setOutcomeRequested(trx: Trx, appointmentId: string, requestedAt: Date): Promise<void>;
 }
 

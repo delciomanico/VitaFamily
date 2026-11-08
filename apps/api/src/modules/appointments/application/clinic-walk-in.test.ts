@@ -94,8 +94,8 @@ describe("createWalkInAppointment", () => {
     const { fx, book } = setup();
     const view = await book(ACTOR, input, CTX);
     expect(view).toMatchObject({ status: "SCHEDULED", scheduledAt: SLOT_AT.toISOString(), specialty: "Cardiologia", professionalName: "Dr. Costa", patientName: "Maria Santos Silva", notes: "trazer exames" });
-    // M14 P: `source`, `clinicPatientId` e `slotId` (BR-CLN-18); continua a não haver nenhum id Vita.
-    expect(Object.keys(view).sort()).toEqual(["clinicPatientId", "id", "notes", "patientName", "professionalName", "scheduledAt", "slotId", "source", "specialty", "status"]);
+    // M14 P: `source`, `clinicPatientId` e `slotId` (BR-CLN-18); M14 Q: `confirmationStatus` e `dayState`; continua a não haver nenhum id Vita.
+    expect(Object.keys(view).sort()).toEqual(["clinicPatientId", "confirmationStatus", "dayState", "id", "notes", "patientName", "professionalName", "scheduledAt", "slotId", "source", "specialty", "status"]);
     expect(view).toMatchObject({ source: "VITA", slotId: "slot-1" });
     const stored = [...fx.appointmentsRepo.byId.values()][0];
     expect(stored).toMatchObject({ familyId: FAMILY, memberId: MEMBER, slotId: "slot-1", clinicId: CLINIC, clinicName: "Clínica Sol", walkIn: true, bookedByClinicAccountId: "acc-a", status: "SCHEDULED" });
@@ -145,7 +145,7 @@ describe("createWalkInAppointment", () => {
 
   it("sobreposição com consulta SCHEDULED do paciente => CONFLICT; REQUESTED/CANCELLED não contam", async () => {
     const { fx, book } = setup();
-    const base = { id: "a1", familyId: FAMILY, memberId: MEMBER, scheduledAt: new Date(SLOT_AT.getTime() + 10 * 60_000), status: "SCHEDULED" as const, createdAt: NOW };
+    const base = { id: "a1", familyId: FAMILY, memberId: MEMBER, scheduledAt: new Date(SLOT_AT.getTime() + 10 * 60_000), status: "SCHEDULED" as const, confirmationStatus: "PENDING" as const, createdAt: NOW };
     fx.appointmentsRepo.seed({ ...base, status: "CANCELLED" });
     await expect(book(ACTOR, input, CTX)).resolves.toMatchObject({ status: "SCHEDULED" });
     fx.clinics.seedSlot({ id: "slot-2", clinicId: CLINIC, kind: "APPOINTMENT", specialty: "Cardiologia", startsAt: SLOT_AT, durationMinutes: 30, capacity: 1 });

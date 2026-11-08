@@ -1,6 +1,6 @@
 // Fakes em memória das portas de `alerts` (mesmo padrão de `medications`/`families`
 // `application/fixtures.ts`). Não é ficheiro de teste.
-import type { Appointment } from "../../appointments/index.js";
+import type { Appointment, ReminderWindows } from "../../appointments/index.js";
 import type { Examination } from "../../examinations/index.js";
 import type { FamilyMember } from "../../families/index.js";
 import type { DoseOccurrence } from "../../medications/index.js";
@@ -101,9 +101,13 @@ export class FakeAppointmentsPort implements AppointmentsPort<FakeTrx> {
   appointments: Appointment[] = [];
   readonly outcomeRequestedAt = new Map<string, Date>();
 
-  async listReminderCandidates(_trx: FakeTrx, now: Date, outcomeWindowMs: number, limit: number): Promise<Appointment[]> {
-    const lookahead = now.getTime() + outcomeWindowMs;
-    const outcomeThreshold = now.getTime() - outcomeWindowMs;
+  async listFollowUpCandidates(_trx: FakeTrx, from: string, to: string, limit: number): Promise<Appointment[]> {
+    return Promise.resolve(this.appointments.filter((a) => a.status === "COMPLETED" && a.followUpDueOn !== undefined && a.followUpDueOn >= from && a.followUpDueOn <= to).slice(0, limit));
+  }
+
+  async listReminderCandidates(_trx: FakeTrx, now: Date, windows: ReminderWindows, limit: number): Promise<Appointment[]> {
+    const lookahead = now.getTime() + windows.lookaheadMs;
+    const outcomeThreshold = now.getTime() - windows.outcomeWindowMs;
     return Promise.resolve(
       this.appointments
         .filter((a) => {

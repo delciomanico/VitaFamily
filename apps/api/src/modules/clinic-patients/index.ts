@@ -21,6 +21,7 @@ import {
   createPutClinicConsentUseCase,
   createRevokeClinicConsentUseCase,
 } from "./application/consents.js";
+import { createGetClinicReportSummaryUseCase, createListClinicFollowUpsUseCase } from "./application/reports.js";
 import { createCountActiveVisitsBySlotUseCase, createEnsureLinkedByEmailUseCase, createFindPatientIdsByMembersUseCase, createResolvePatientUseCase } from "./application/directory.js";
 import { createLinkClinicPatientUseCase } from "./application/patient-link.js";
 import { createCreateClinicPatientUseCase, createGetClinicPatientUseCase, createListClinicPatientsUseCase, createUpdateClinicPatientUseCase } from "./application/patients.js";
@@ -28,6 +29,7 @@ import type {
   CalendarSourcePort,
   ClinicPatientsDeps,
   RecommendationsSourcePort,
+  ReportSourcePort,
   SharedHistoryReaderPort,
   SlotFacts,
   SlotReservationPort,
@@ -36,13 +38,21 @@ import { createPurgeLinkCodesJobUseCase } from "./application/purge-link-codes.j
 import { createGetClinicPatientRecordUseCase } from "./application/record.js";
 import { createGetSharedHistoryUseCase } from "./application/shared-history.js";
 import { createBookVisitUseCase, createCancelVisitUseCase, createCompleteVisitUseCase, createListVisitsUseCase } from "./application/visits.js";
+import {
+  createArriveVisitUseCase,
+  createClearVisitFollowUpUseCase,
+  createConfirmVisitUseCase,
+  createNoShowVisitUseCase,
+  createSetVisitFollowUpUseCase,
+  createStartVisitUseCase,
+} from "./application/visit-day-flow.js";
 import { InMemoryRateLimiter, type RateLimiter } from "./domain/rate-limiter.js";
 import { registerPurgeLinkCodesWorker } from "./infrastructure/jobs.js";
 import { KyselyConsentsRepository, KyselyLinkCodesRepository, KyselyLinksRepository, KyselyPatientsRepository, KyselyVisitsRepository } from "./infrastructure/repo.js";
 import { createClinicPatientsFamilyRouter, type ClinicPatientsFamilyController } from "./interface/family-router.js";
 import { createClinicPatientsPortalRouter, type ClinicPatientsPortalController } from "./interface/portal-router.js";
 
-export type { CalendarSourcePort, RecommendationsSourcePort, SharedHistoryReaderPort, AppointmentFact, ExaminationFact, RecommendationFact, SharedExam, SharedMedication } from "./application/ports.js";
+export type { CalendarSourcePort, RecommendationsSourcePort, ReportSourcePort, FollowUpFact, SharedHistoryReaderPort, AppointmentFact, ExaminationFact, RecommendationFact, SharedExam, SharedMedication } from "./application/ports.js";
 export type { RateLimiter } from "./domain/rate-limiter.js";
 
 /** Ocupação de horários por consultas e exames (ligada no composition root a `appointments`+`examinations`). */
@@ -61,6 +71,8 @@ export interface ClinicPatientsModuleDeps {
   occupancy: ClinicPatientsSlotOccupancy;
   sharedHistory: SharedHistoryReaderPort<Kysely<Database>>;
   calendar: CalendarSourcePort<Kysely<Database>>;
+  /** M14 Q (BR-CLN-29/30): `ReportSource` — consultas/exames da janela e retornos Vita (ligada a `appointments`/`examinations`). */
+  reports: ReportSourcePort<Kysely<Database>>;
   recommendations: RecommendationsSourcePort<Kysely<Database>>;
   /** BR-CLN-20: o MESMO limiter do walk-in (chaves `walk-in:*`), para o limite ser partilhado (BR-CLN-10). */
   sharedLimiter: RateLimiter;
@@ -106,6 +118,13 @@ export interface ClinicPatientsModule {
     listVisits: ReturnType<typeof createListVisitsUseCase<Kysely<Database>>>;
     cancelVisit: ReturnType<typeof createCancelVisitUseCase<Kysely<Database>>>;
     completeVisit: ReturnType<typeof createCompleteVisitUseCase<Kysely<Database>>>;
+    /** M14 Q (BR-CLN-27/28/30): ações do dia e retorno sobre uma visita (`null` se o id não é uma visita da clínica). */
+    confirmVisit: ReturnType<typeof createConfirmVisitUseCase<Kysely<Database>>>;
+    arriveVisit: ReturnType<typeof createArriveVisitUseCase<Kysely<Database>>>;
+    startVisit: ReturnType<typeof createStartVisitUseCase<Kysely<Database>>>;
+    noShowVisit: ReturnType<typeof createNoShowVisitUseCase<Kysely<Database>>>;
+    setVisitFollowUp: ReturnType<typeof createSetVisitFollowUpUseCase<Kysely<Database>>>;
+    clearVisitFollowUp: ReturnType<typeof createClearVisitFollowUpUseCase<Kysely<Database>>>;
     countActiveVisitsBySlot: ReturnType<typeof createCountActiveVisitsBySlotUseCase<Kysely<Database>>>;
     findPatientIdsByMembers: ReturnType<typeof createFindPatientIdsByMembersUseCase<Kysely<Database>>>;
   };
@@ -136,9 +155,11 @@ export function createClinicPatientsModule(deps: ClinicPatientsModuleDeps): Clin
     clinics: { findPartnerClinic: (trx, clinicId) => deps.clinics.getPartnerClinic(trx, clinicId) },
     sharedHistory: deps.sharedHistory,
     calendar: deps.calendar,
+    reports: deps.reports,
     recommendations: deps.recommendations,
     slots,
     searchLimiter: new InMemoryRateLimiter(deps.clock),
+    reportLimiter: new InMemoryRateLimiter(deps.clock),
     sharedLimiter: deps.sharedLimiter,
     audit: deps.audit,
     linkCodeSecret: deps.linkCodeSecret,
@@ -163,6 +184,8 @@ export function createClinicPatientsModule(deps: ClinicPatientsModuleDeps): Clin
     getClinicSharedHistory: createGetSharedHistoryUseCase(clinicPatientsDeps),
     clinicGlobalSearch: createClinicGlobalSearchUseCase(clinicPatientsDeps),
     getClinicCalendar: createGetClinicCalendarUseCase(clinicPatientsDeps),
+    getClinicReportSummary: createGetClinicReportSummaryUseCase(clinicPatientsDeps),
+    listClinicFollowUps: createListClinicFollowUpsUseCase(clinicPatientsDeps),
   };
 
   return {
@@ -175,6 +198,12 @@ export function createClinicPatientsModule(deps: ClinicPatientsModuleDeps): Clin
       listVisits: createListVisitsUseCase(clinicPatientsDeps),
       cancelVisit: createCancelVisitUseCase(clinicPatientsDeps),
       completeVisit: createCompleteVisitUseCase(clinicPatientsDeps),
+      confirmVisit: createConfirmVisitUseCase(clinicPatientsDeps),
+      arriveVisit: createArriveVisitUseCase(clinicPatientsDeps),
+      startVisit: createStartVisitUseCase(clinicPatientsDeps),
+      noShowVisit: createNoShowVisitUseCase(clinicPatientsDeps),
+      setVisitFollowUp: createSetVisitFollowUpUseCase(clinicPatientsDeps),
+      clearVisitFollowUp: createClearVisitFollowUpUseCase(clinicPatientsDeps),
       countActiveVisitsBySlot: createCountActiveVisitsBySlotUseCase(clinicPatientsDeps),
       findPatientIdsByMembers: createFindPatientIdsByMembersUseCase(clinicPatientsDeps),
     },

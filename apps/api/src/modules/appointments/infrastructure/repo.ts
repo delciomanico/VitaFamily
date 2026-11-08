@@ -3,7 +3,7 @@
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
 import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
-import type { Appointment, AppointmentStatus } from "../domain/appointment.js";
+import type { Appointment, AppointmentStatus, ConfirmationSource, ConfirmationStatus } from "../domain/appointment.js";
 import type {
   AppointmentChanges,
   ClinicAppointmentsFilter,
@@ -12,8 +12,11 @@ import type {
   AppointmentsRepository,
   ClinicOutcomeChange,
   ClinicStatusChange,
+  ConfirmationChange,
   CursorPage,
+  DayFlowChange,
   NewAppointmentRecord,
+  ReminderWindows,
 } from "../application/ports.js";
 import "./schema.js";
 
@@ -37,6 +40,12 @@ interface AppointmentRow {
   walk_in: boolean;
   booked_by_clinic_account_id: string | null;
   duration_minutes: number;
+  confirmation_status: ConfirmationStatus;
+  confirmation_source: ConfirmationSource | null;
+  confirmed_at: Date | null;
+  arrived_at: Date | null;
+  started_at: Date | null;
+  followup_due_on: string | null;
   created_at: Date;
 }
 
@@ -47,8 +56,14 @@ function toAppointment(row: AppointmentRow): Appointment {
     memberId: row.member_id,
     scheduledAt: row.scheduled_at,
     status: row.status,
+    confirmationStatus: row.confirmation_status,
     createdAt: row.created_at,
   };
+  if (row.confirmation_source !== null) appointment.confirmationSource = row.confirmation_source;
+  if (row.confirmed_at !== null) appointment.confirmedAt = row.confirmed_at;
+  if (row.arrived_at !== null) appointment.arrivedAt = row.arrived_at;
+  if (row.started_at !== null) appointment.startedAt = row.started_at;
+  if (row.followup_due_on !== null) appointment.followUpDueOn = row.followup_due_on;
   if (row.professional_name !== null) appointment.professionalName = row.professional_name;
   if (row.clinic_id !== null) appointment.clinicId = row.clinic_id;
   if (row.clinic_name !== null) appointment.clinicName = row.clinic_name;
@@ -86,8 +101,26 @@ const APPOINTMENT_COLUMNS = [
   "walk_in",
   "booked_by_clinic_account_id",
   "duration_minutes",
+  "confirmation_status",
+  "confirmation_source",
+  "confirmed_at",
+  "arrived_at",
+  "started_at",
   "created_at",
 ] as const;
+
+/** `date` como texto AAAA-MM-DD (sem conversão de fuso do driver). */
+const FOLLOWUP_DUE_ON = sql<string | null>`to_char(followup_due_on, 'YYYY-MM-DD')`.as("followup_due_on");
+const APPOINTMENT_SELECT = [...APPOINTMENT_COLUMNS, FOLLOWUP_DUE_ON] as const;
+
+/** BR-CLN-25: reativar (`CANCELLED -> SCHEDULED`) ou mudar `scheduled_at` repõe `PENDING` e anula confirmação/chegada/início. */
+const RESET_DAY_FLOW = {
+  confirmation_status: "PENDING",
+  confirmation_source: null,
+  confirmed_at: null,
+  arrived_at: null,
+  started_at: null,
+} as const;
 
 export class KyselyAppointmentsRepository implements AppointmentsRepository<Kysely<Database>> {
   async insert(trx: Kysely<Database>, record: NewAppointmentRecord): Promise<Appointment> {
@@ -110,7 +143,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         ...(record.walkIn ? { walk_in: true, booked_by_clinic_account_id: record.bookedByClinicAccountId ?? null } : {}),
         created_at: record.createdAt,
       })
-      .returning(APPOINTMENT_COLUMNS)
+      .returning(APPOINTMENT_SELECT)
       .executeTakeFirstOrThrow();
     return toAppointment(row);
   }
@@ -118,7 +151,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
   async findById(trx: Kysely<Database>, familyId: string, memberId: string, appointmentId: string): Promise<Appointment | null> {
     const row = await trx
       .selectFrom("appointments")
-      .select(APPOINTMENT_COLUMNS)
+      .select(APPOINTMENT_SELECT)
       .where("family_id", "=", familyId)
       .where("member_id", "=", memberId)
       .where("id", "=", appointmentId)
@@ -127,7 +160,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
   }
 
   async listByMember(trx: Kysely<Database>, familyId: string, memberId: string, filter: AppointmentListFilter, limit: number, cursor?: string): Promise<CursorPage<Appointment>> {
-    let query = trx.selectFrom("appointments").select(APPOINTMENT_COLUMNS).where("family_id", "=", familyId).where("member_id", "=", memberId);
+    let query = trx.selectFrom("appointments").select(APPOINTMENT_SELECT).where("family_id", "=", familyId).where("member_id", "=", memberId);
     if (filter.status) {
       query = query.where("status", "=", filter.status);
     }
@@ -158,7 +191,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
     const row = await trx
       .updateTable("appointments")
       .set({
-        ...(changes.scheduledAt !== undefined ? { scheduled_at: changes.scheduledAt } : {}),
+        ...(changes.scheduledAt !== undefined ? { scheduled_at: changes.scheduledAt, ...RESET_DAY_FLOW } : {}),
         ...(changes.professionalName !== undefined ? { professional_name: changes.professionalName } : {}),
         ...(changes.clinicId !== undefined ? { clinic_id: changes.clinicId } : {}),
         ...(changes.clinicName !== undefined ? { clinic_name: changes.clinicName } : {}),
@@ -170,19 +203,25 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
       .where("family_id", "=", familyId)
       .where("member_id", "=", memberId)
       .where("id", "=", appointmentId)
-      .returning(APPOINTMENT_COLUMNS)
+      .returning(APPOINTMENT_SELECT)
       .executeTakeFirstOrThrow();
     return toAppointment(row);
   }
 
-  async updateStatus(trx: Kysely<Database>, familyId: string, memberId: string, appointmentId: string, status: AppointmentStatus): Promise<Appointment> {
+  async updateStatus(trx: Kysely<Database>, familyId: string, memberId: string, appointmentId: string, status: AppointmentStatus, options: { resetDayFlow?: boolean } = {}): Promise<Appointment> {
     const row = await trx
       .updateTable("appointments")
-      .set({ status, updated_at: sql`now()` })
+      .set({
+        status,
+        // BR-CLN-30 (ST4): sair de `COMPLETED` limpa o retorno; BR-CLN-25: reativar repõe a confirmação.
+        ...(status !== "COMPLETED" ? { followup_due_on: null } : {}),
+        ...(options.resetDayFlow ? RESET_DAY_FLOW : {}),
+        updated_at: sql`now()`,
+      })
       .where("family_id", "=", familyId)
       .where("member_id", "=", memberId)
       .where("id", "=", appointmentId)
-      .returning(APPOINTMENT_COLUMNS)
+      .returning(APPOINTMENT_SELECT)
       .executeTakeFirstOrThrow();
     return toAppointment(row);
   }
@@ -191,16 +230,16 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
     await trx.deleteFrom("appointments").where("family_id", "=", familyId).where("member_id", "=", memberId).where("id", "=", appointmentId).execute();
   }
 
-  async listReminderCandidates(trx: Kysely<Database>, now: Date, outcomeWindowMs: number, limit: number): Promise<Appointment[]> {
-    // `outcomeWindowMs` serve as duas janelas (ambas 24h, `alerts/domain/rule.ts`): limite futuro
-    // (nenhum lembrete fixo olha mais longe do que isto, BR-APT-05) e limiar passado (BR-APT-02).
-    const lookahead = new Date(now.getTime() + outcomeWindowMs);
-    const outcomeThreshold = new Date(now.getTime() - outcomeWindowMs);
+  async listReminderCandidates(trx: Kysely<Database>, now: Date, windows: ReminderWindows, limit: number): Promise<Appointment[]> {
+    // `lookaheadMs` é o limite futuro (nenhum lembrete olha mais longe: 48h do pedido de confirmação, BR-ALR-09; 24h/2h,
+    // BR-APT-05) e `outcomeWindowMs` o limiar passado do pedido de desfecho (BR-APT-02).
+    const lookahead = new Date(now.getTime() + windows.lookaheadMs);
+    const outcomeThreshold = new Date(now.getTime() - windows.outcomeWindowMs);
     // indexes.md: `(status, scheduled_at) WHERE status='SCHEDULED'` — mesmo índice para as duas
     // janelas (futura, lembretes; passada, pedido de desfecho), reaproveitado pelo scanner (M8).
     const rows = await trx
       .selectFrom("appointments")
-      .select(APPOINTMENT_COLUMNS)
+      .select(APPOINTMENT_SELECT)
       .where("status", "=", "SCHEDULED")
       .where((eb) =>
         eb.or([
@@ -214,6 +253,90 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
     return rows.map(toAppointment);
   }
 
+  /** BR-CLN-30 (`alerts.scan`): consultas `COMPLETED` com retorno em `[from, to]` (AAAA-MM-DD). Índice `(clinic_id, followup_due_on)`. */
+  async listFollowUpCandidates(trx: Kysely<Database>, from: string, to: string, limit: number): Promise<Appointment[]> {
+    const rows = await trx
+      .selectFrom("appointments")
+      .select(APPOINTMENT_SELECT)
+      .where("status", "=", "COMPLETED")
+      .where(sql<boolean>`followup_due_on between ${from}::date and ${to}::date`)
+      .orderBy("followup_due_on", "asc")
+      .orderBy("id", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map(toAppointment);
+  }
+
+  async applyConfirmation(trx: Kysely<Database>, familyId: string, memberId: string, appointmentId: string, change: ConfirmationChange): Promise<Appointment> {
+    const row = await trx
+      .updateTable("appointments")
+      .set({
+        confirmation_status: change.confirmationStatus,
+        confirmation_source: change.confirmationSource,
+        confirmed_at: change.confirmedAt,
+        ...(change.cancel ? { status: "CANCELLED" as const, followup_due_on: null } : {}),
+        updated_at: sql`now()`,
+      })
+      .where("family_id", "=", familyId)
+      .where("member_id", "=", memberId)
+      .where("id", "=", appointmentId)
+      .returning(APPOINTMENT_SELECT)
+      .executeTakeFirstOrThrow();
+    return toAppointment(row);
+  }
+
+  async applyConfirmationByClinic(trx: Kysely<Database>, clinicId: string, appointmentId: string, confirmedAt: Date): Promise<Appointment> {
+    const row = await trx
+      .updateTable("appointments")
+      .set({ confirmation_status: "CONFIRMED", confirmation_source: "CLINIC", confirmed_at: confirmedAt, updated_at: sql`now()` })
+      .where("clinic_id", "=", clinicId)
+      .where("id", "=", appointmentId)
+      .returning(APPOINTMENT_SELECT)
+      .executeTakeFirstOrThrow();
+    return toAppointment(row);
+  }
+
+  async applyDayFlow(trx: Kysely<Database>, clinicId: string, appointmentId: string, change: DayFlowChange): Promise<Appointment> {
+    const row = await trx
+      .updateTable("appointments")
+      .set({
+        ...(change.status !== undefined ? { status: change.status } : {}),
+        ...(change.arrivedAt !== undefined ? { arrived_at: change.arrivedAt } : {}),
+        ...(change.startedAt !== undefined ? { started_at: change.startedAt } : {}),
+        updated_at: sql`now()`,
+      })
+      .where("clinic_id", "=", clinicId)
+      .where("id", "=", appointmentId)
+      .returning(APPOINTMENT_SELECT)
+      .executeTakeFirstOrThrow();
+    return toAppointment(row);
+  }
+
+  async setFollowUp(trx: Kysely<Database>, clinicId: string, appointmentId: string, dueOn: string | null): Promise<Appointment> {
+    const row = await trx
+      .updateTable("appointments")
+      .set({ followup_due_on: dueOn, updated_at: sql`now()` })
+      .where("clinic_id", "=", clinicId)
+      .where("id", "=", appointmentId)
+      .returning(APPOINTMENT_SELECT)
+      .executeTakeFirstOrThrow();
+    return toAppointment(row);
+  }
+
+  async listFollowUpsByClinic(trx: Kysely<Database>, clinicId: string, until: string, limit: number): Promise<Appointment[]> {
+    const rows = await trx
+      .selectFrom("appointments")
+      .select(APPOINTMENT_SELECT)
+      .where("clinic_id", "=", clinicId)
+      .where("status", "=", "COMPLETED")
+      .where(sql<boolean>`followup_due_on is not null and followup_due_on <= ${until}::date`)
+      .orderBy("followup_due_on", "asc")
+      .orderBy("id", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map(toAppointment);
+  }
+
   async setOutcomeRequested(trx: Kysely<Database>, appointmentId: string, requestedAt: Date): Promise<void> {
     await trx.updateTable("appointments").set({ outcome_requested_at: requestedAt, updated_at: sql`now()` }).where("id", "=", appointmentId).execute();
   }
@@ -221,7 +344,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
   async findActiveBySlot(trx: Kysely<Database>, slotId: string): Promise<Appointment | null> {
     const row = await trx
       .selectFrom("appointments")
-      .select(APPOINTMENT_COLUMNS)
+      .select(APPOINTMENT_SELECT)
       .where("slot_id", "=", slotId)
       .where("status", "in", ["REQUESTED", "SCHEDULED"])
       .executeTakeFirst();
@@ -264,7 +387,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
   }
 
   async findByClinicId(trx: Kysely<Database>, clinicId: string, appointmentId: string): Promise<Appointment | null> {
-    const row = await trx.selectFrom("appointments").select(APPOINTMENT_COLUMNS).where("clinic_id", "=", clinicId).where("id", "=", appointmentId).executeTakeFirst();
+    const row = await trx.selectFrom("appointments").select(APPOINTMENT_SELECT).where("clinic_id", "=", clinicId).where("id", "=", appointmentId).executeTakeFirst();
     return row ? toAppointment(row) : null;
   }
 
@@ -276,7 +399,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
   ): Promise<Appointment[]> {
     let query = trx
       .selectFrom("appointments")
-      .select(APPOINTMENT_COLUMNS)
+      .select(APPOINTMENT_SELECT)
       .where("clinic_id", "=", clinicId)
       .where("status", "in", statuses);
     if (filter.from) {
@@ -290,7 +413,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
   }
 
   async listForClinic(trx: Kysely<Database>, clinicId: string, filter: ClinicAppointmentsFilter, limit?: number): Promise<Appointment[]> {
-    let query = trx.selectFrom("appointments").select(APPOINTMENT_COLUMNS).where("clinic_id", "=", clinicId);
+    let query = trx.selectFrom("appointments").select(APPOINTMENT_SELECT).where("clinic_id", "=", clinicId);
     if (filter.from) query = query.where("scheduled_at", ">=", filter.from);
     if (filter.to) query = query.where("scheduled_at", "<", filter.to);
     if (filter.familyId && filter.memberId) query = query.where("family_id", "=", filter.familyId).where("member_id", "=", filter.memberId);
@@ -307,7 +430,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         updated_at: sql`now()`,
       })
       .where("id", "=", appointmentId)
-      .returning(APPOINTMENT_COLUMNS)
+      .returning(APPOINTMENT_SELECT)
       .executeTakeFirstOrThrow();
     return toAppointment(row);
   }
@@ -323,7 +446,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         updated_at: sql`now()`,
       })
       .where("id", "=", appointmentId)
-      .returning(APPOINTMENT_COLUMNS)
+      .returning(APPOINTMENT_SELECT)
       .executeTakeFirstOrThrow();
     return toAppointment(row);
   }
@@ -332,7 +455,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
   async findScheduledOverlapping(trx: Kysely<Database>, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]> {
     const rows = await trx
       .selectFrom("appointments")
-      .select(APPOINTMENT_COLUMNS)
+      .select(APPOINTMENT_SELECT)
       .where("family_id", "=", familyId)
       .where("member_id", "=", memberId)
       .where("status", "=", "SCHEDULED")

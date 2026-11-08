@@ -48,3 +48,7 @@ POST /alerts/{id}/read → application/mark-alert-read.ts → notifications.skip
 
 ## Migração
 `db/migrations/0009_alerts_and_notifications.sql`: `alerts` (+ `push_subscriptions`/`notifications`, ver `notifications/README.md`).
+
+## Pedido de confirmação e lembrete de retorno (M14 Q, BR-ALR-09, BR-CLN-30)
+- `domain/rule.ts`: `appointment.confirm48h` (48 h antes, consulta `SCHEDULED` de clínica parceira ainda `PENDING`; só se o instante dos 48 h é recente — tolerância de 30 min — para não avisar marcações feitas com menos de 48 h) e `followup.due` (meia-noite local de `followUpDueOn - 7 dias`). O lembrete de 24 h existente cobre a 2.ª oportunidade, sem alerta duplicado.
+- `application/scan-job.ts` alarga a janela futura para 48 h e percorre `appointments.listFollowUpCandidates`; idempotente por `dedupeKey` (inclui `triggerAt`). Tipos novos seguem o interruptor `appointmentReminder`.

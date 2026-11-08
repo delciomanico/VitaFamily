@@ -73,6 +73,8 @@ export type AuditAction =
   | "APPOINTMENT_UPDATE"
   | "APPOINTMENT_DELETE"
   | "APPOINTMENT_STATUS"
+  // M14 Q (BR-CLN-26): resposta "Vou / Não posso" do paciente; `metadata.response` apenas.
+  | "APPOINTMENT_CONFIRMATION_SET"
   | "EXAM_CREATE"
   | "EXAM_UPDATE"
   | "EXAM_DELETE"
@@ -143,6 +145,18 @@ export type AuditAction =
   | "CLINIC_VISIT_BOOK"
   | "CLINIC_VISIT_CANCEL"
   | "CLINIC_VISIT_COMPLETE"
+  // Confirmação por telefone, fluxo do dia e retorno (M14 Q, BR-CLN-27/28/30, audit.md §3): ids internos e, em `SET`,
+  // `amount`/`unit`; nunca dados pessoais.
+  | "CLINIC_APPOINTMENT_CONFIRM"
+  | "CLINIC_APPOINTMENT_ARRIVE"
+  | "CLINIC_APPOINTMENT_START"
+  | "CLINIC_APPOINTMENT_NO_SHOW"
+  | "CLINIC_VISIT_CONFIRM"
+  | "CLINIC_VISIT_ARRIVE"
+  | "CLINIC_VISIT_START"
+  | "CLINIC_VISIT_NO_SHOW"
+  | "CLINIC_FOLLOWUP_SET"
+  | "CLINIC_FOLLOWUP_CLEAR"
   | "CLINIC_CONSENT_SET"
   | "CLINIC_CONSENT_REVOKE"
   | "CLINIC_LINK_CODE_CREATE"

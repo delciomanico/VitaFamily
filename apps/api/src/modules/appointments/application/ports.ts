@@ -5,7 +5,7 @@
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
-import type { Appointment, AppointmentStatus } from "../domain/appointment.js";
+import type { Appointment, AppointmentStatus, ConfirmationSource, ConfirmationStatus } from "../domain/appointment.js";
 import type { WalkInRateLimiter } from "../domain/walk-in.js";
 
 export interface ActorIdentity {
@@ -205,6 +205,27 @@ export interface PrescriptionsPort<Trx> {
   ): Promise<{ id: string }>;
 }
 
+/** BR-CLN-26: resposta do paciente; `cancel` = "Não posso" (`SCHEDULED -> CANCELLED` na mesma escrita). */
+export interface ConfirmationChange {
+  confirmationStatus: ConfirmationStatus;
+  confirmationSource: ConfirmationSource | null;
+  confirmedAt: Date | null;
+  cancel?: boolean;
+}
+
+/** BR-CLN-28: chegada/início/falta; só os campos presentes mudam. */
+export interface DayFlowChange {
+  status?: AppointmentStatus;
+  arrivedAt?: Date;
+  startedAt?: Date;
+}
+
+/** Janelas do scanner (`alerts`): limite futuro dos lembretes e limiar passado do pedido de desfecho. */
+export interface ReminderWindows {
+  lookaheadMs: number;
+  outcomeWindowMs: number;
+}
+
 export interface AppointmentListFilter {
   status?: AppointmentStatus;
   from?: Date;
@@ -230,13 +251,26 @@ export interface AppointmentsRepository<Trx> {
   findById(trx: Trx, familyId: string, memberId: string, appointmentId: string): Promise<Appointment | null>;
   listByMember(trx: Trx, familyId: string, memberId: string, filter: AppointmentListFilter, limit: number, cursor?: string): Promise<CursorPage<Appointment>>;
   update(trx: Trx, familyId: string, memberId: string, appointmentId: string, changes: AppointmentChanges): Promise<Appointment>;
-  updateStatus(trx: Trx, familyId: string, memberId: string, appointmentId: string, status: AppointmentStatus): Promise<Appointment>;
+  /** `resetDayFlow` (BR-CLN-25): reativação `CANCELLED -> SCHEDULED` repõe `PENDING` e anula confirmação/chegada/início. Sair de `COMPLETED` limpa o retorno (BR-CLN-30). */
+  updateStatus(trx: Trx, familyId: string, memberId: string, appointmentId: string, status: AppointmentStatus, options?: { resetDayFlow?: boolean }): Promise<Appointment>;
   delete(trx: Trx, familyId: string, memberId: string, appointmentId: string): Promise<void>;
   /** `alerts.scan` (M8, modules.md §3 nota 3): candidatas a `appointment.24h`/`appointment.2h`
    * (`SCHEDULED`, ainda no futuro — `alerts` decide por regra pura se o instante já foi atingido)
    * ou a `appointment.outcome` (`SCHEDULED`, já passada há `outcomeWindowMs`, sem pedido ainda —
    * BR-APT-02/Q4). `alerts` nunca acede a `appointments` diretamente (conventions.md §3.5). */
-  listReminderCandidates(trx: Trx, now: Date, outcomeWindowMs: number, limit: number): Promise<Appointment[]>;
+  listReminderCandidates(trx: Trx, now: Date, windows: ReminderWindows, limit: number): Promise<Appointment[]>;
+  /** `alerts.scan` (BR-CLN-30): consultas `COMPLETED` com retorno em `[from, to]` (AAAA-MM-DD). */
+  listFollowUpCandidates(trx: Trx, from: string, to: string, limit: number): Promise<Appointment[]>;
+  /** M14 Q (BR-CLN-26): resposta do paciente (`familyId`+`memberId` obrigatórios, conventions §3.4). */
+  applyConfirmation(trx: Trx, familyId: string, memberId: string, appointmentId: string, change: ConfirmationChange): Promise<Appointment>;
+  /** M14 Q (BR-CLN-27): "confirmado por telefone" (`CLINIC`). */
+  applyConfirmationByClinic(trx: Trx, clinicId: string, appointmentId: string, confirmedAt: Date): Promise<Appointment>;
+  /** M14 Q (BR-CLN-28): chegada/início/falta. */
+  applyDayFlow(trx: Trx, clinicId: string, appointmentId: string, change: DayFlowChange): Promise<Appointment>;
+  /** M14 Q (BR-CLN-30): define (AAAA-MM-DD) ou limpa (`null`) o retorno. */
+  setFollowUp(trx: Trx, clinicId: string, appointmentId: string, dueOn: string | null): Promise<Appointment>;
+  /** M14 Q (BR-CLN-30): consultas `COMPLETED` da clínica com retorno até `until` (AAAA-MM-DD), por data. */
+  listFollowUpsByClinic(trx: Trx, clinicId: string, until: string, limit: number): Promise<Appointment[]>;
   /** `alerts.scan` (M8): regista que o pedido de confirmação do desfecho já foi enviado para esta
    * consulta — único escritor de `outcome_requested_at` (`appointments/README.md`). */
   setOutcomeRequested(trx: Trx, appointmentId: string, requestedAt: Date): Promise<void>;
@@ -286,7 +320,7 @@ export interface PatientDirectoryPort<Trx> {
  */
 export interface ClinicVisitBookingView {
   id: string;
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
+  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
   scheduledAt: string;
   specialty?: string;
   professionalName?: string;
@@ -296,6 +330,14 @@ export interface ClinicVisitBookingView {
   source: "MANUAL";
   clinicPatientId: string;
   slotId?: string;
+  /** M14 Q (BR-CLN-25/28/30). */
+  confirmationStatus: ConfirmationStatus;
+  confirmationSource?: ConfirmationSource;
+  dayState: "SCHEDULED" | "ARRIVED" | "IN_PROGRESS" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
+  arrivedAt?: string;
+  startedAt?: string;
+  waitingMinutes?: number;
+  followUpDueOn?: string;
 }
 
 export interface ClinicPatientDirectoryPort<Trx> {
@@ -309,6 +351,13 @@ export interface ClinicPatientDirectoryPort<Trx> {
   /** `null` se o id não é uma visita da clínica (o chamador decide o 404). */
   cancelVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, note: string, context: RequestContext): Promise<ClinicVisitBookingView | null>;
   completeVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, input: { outcomeNote?: string | null; prescription?: unknown }, context: RequestContext): Promise<ClinicVisitBookingView | null>;
+  /** M14 Q (BR-CLN-27/28/30): ações do dia e retorno sobre uma visita; `null` se o id não é uma visita da clínica. */
+  confirmVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, context: RequestContext): Promise<ClinicVisitBookingView | null>;
+  arriveVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, context: RequestContext): Promise<ClinicVisitBookingView | null>;
+  startVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, context: RequestContext): Promise<ClinicVisitBookingView | null>;
+  noShowVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, context: RequestContext): Promise<ClinicVisitBookingView | null>;
+  setVisitFollowUp(trx: Trx, actor: ClinicPortalActor, visitId: string, input: { amount: unknown; unit: unknown }, context: RequestContext): Promise<ClinicVisitBookingView | null>;
+  clearVisitFollowUp(trx: Trx, actor: ClinicPortalActor, visitId: string, context: RequestContext): Promise<ClinicVisitBookingView | null>;
   /** BR-APT-06: visitas `SCHEDULED` por horário (ocupam-no). */
   countActiveVisitsBySlot(trx: Trx, slotIds: string[]): Promise<{ slotId: string; count: number }[]>;
   /** `memberId -> clinicPatientId` na clínica (consultas Vita associam-se ao paciente pela ligação). */

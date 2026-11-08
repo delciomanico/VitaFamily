@@ -2,16 +2,21 @@
 // `notifications.enqueueForAlert`, modules.md §2 nota 15). Processo de sistema (worker) — nunca
 // autoriza nada (sem `policy`/ator; mesmo critério de `medications` `generate-doses-job.ts`).
 import { newId } from "../../../platform/ids/index.js";
+import { addDaysIso, localDateIso } from "../../../platform/time/index.js";
 import type { AlertSourceType } from "../domain/alert.js";
 import { resolveRecipients } from "../domain/recipients.js";
 import {
+  APPOINTMENT_CONFIRM_REQUEST_LEAD_MS,
   APPOINTMENT_OUTCOME_DELAY_MS,
+  FOLLOW_UP_REMINDER_LEAD_DAYS,
+  appointmentConfirmRequestRules,
   appointmentOutcomeRule,
   appointmentReminderRules,
   buildDedupeKey,
   doseRules,
   examReminderRule,
   examReminderRuleAt,
+  followUpReminderRule,
   type Rule,
 } from "../domain/rule.js";
 import { localMidnightUtc } from "../domain/timezone.js";
@@ -96,10 +101,11 @@ export function createScanJobUseCase<Trx>(deps: AlertsWorkerDeps<Trx>) {
         });
       }
 
-      const appointments = await deps.appointments.listReminderCandidates(trx, now, APPOINTMENT_OUTCOME_DELAY_MS, BATCH_SIZE);
+      // A janela futura é a do pedido de confirmação (48 h, BR-ALR-09); os lembretes de 24 h/2 h só vencem mais tarde.
+      const appointments = await deps.appointments.listReminderCandidates(trx, now, { lookaheadMs: APPOINTMENT_CONFIRM_REQUEST_LEAD_MS, outcomeWindowMs: APPOINTMENT_OUTCOME_DELAY_MS }, BATCH_SIZE);
       for (const appointment of appointments) {
         const isOutcomeCandidate = appointment.scheduledAt.getTime() + APPOINTMENT_OUTCOME_DELAY_MS <= now.getTime();
-        const rules = isOutcomeCandidate ? [appointmentOutcomeRule(appointment.scheduledAt)] : appointmentReminderRules(appointment.scheduledAt);
+        const rules = isOutcomeCandidate ? [appointmentOutcomeRule(appointment.scheduledAt)] : [...appointmentConfirmRequestRules(appointment, now), ...appointmentReminderRules(appointment.scheduledAt)];
         alertsCreated += await processCandidate(trx, now, {
           familyId: appointment.familyId,
           memberId: appointment.memberId,
@@ -113,6 +119,20 @@ export function createScanJobUseCase<Trx>(deps: AlertsWorkerDeps<Trx>) {
           // selecionar esta consulta em todos os scans seguintes.
           await deps.appointments.setOutcomeRequested(trx, appointment.id, now);
         }
+      }
+
+      // BR-CLN-30: lembrete de retorno 7 dias antes de `followUpDueOn` (só consultas Vita; limpar o retorno tira-o dos candidatos).
+      const today = localDateIso(now);
+      const followUps = await deps.appointments.listFollowUpCandidates(trx, today, addDaysIso(today, FOLLOW_UP_REMINDER_LEAD_DAYS), BATCH_SIZE);
+      for (const appointment of followUps) {
+        if (!appointment.followUpDueOn) continue;
+        alertsCreated += await processCandidate(trx, now, {
+          familyId: appointment.familyId,
+          memberId: appointment.memberId,
+          sourceType: "APPOINTMENT",
+          sourceId: appointment.id,
+          rules: [followUpReminderRule(appointment.followUpDueOn)],
+        });
       }
 
       const windowStart = new Date(now.getTime() - EXAM_DATE_WINDOW_DAYS * 24 * 60 * 60 * 1000);

@@ -25,12 +25,15 @@ import type {
   ExamSlotOccupancyPort,
   ClinicStatusChange,
   ClinicsPort,
+  ConfirmationChange,
   CursorPage,
+  DayFlowChange,
   MembershipPort,
   MemberNamesPort,
   NewAppointmentRecord,
   PatientDirectoryPort,
   PrescriptionsPort,
+  ReminderWindows,
   RequestContext,
 } from "./ports.js";
 
@@ -201,6 +204,15 @@ function paginate<T extends { createdAt: Date; id: string }>(items: T[], limit: 
   return { items: page, nextCursor };
 }
 
+/** BR-CLN-25: repõe `PENDING` e anula confirmação/chegada/início (reativação ou nova hora). */
+function resetDayFlow(appointment: Appointment): void {
+  appointment.confirmationStatus = "PENDING";
+  delete appointment.confirmationSource;
+  delete appointment.confirmedAt;
+  delete appointment.arrivedAt;
+  delete appointment.startedAt;
+}
+
 export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTrx> {
   readonly byId = new Map<string, Appointment>();
 
@@ -211,6 +223,7 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
       memberId: record.memberId,
       scheduledAt: record.scheduledAt,
       status: record.status,
+      confirmationStatus: "PENDING",
       createdAt: record.createdAt,
       ...(record.professionalName !== undefined ? { professionalName: record.professionalName } : {}),
       ...(record.clinicId !== undefined ? { clinicId: record.clinicId } : {}),
@@ -246,7 +259,10 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
   async update(_trx: FakeTrx, familyId: string, memberId: string, appointmentId: string, changes: AppointmentChanges): Promise<Appointment> {
     const appointment = this.requireOwned(familyId, memberId, appointmentId);
     const updated: Appointment = { ...appointment };
-    if (changes.scheduledAt !== undefined) updated.scheduledAt = changes.scheduledAt;
+    if (changes.scheduledAt !== undefined) {
+      updated.scheduledAt = changes.scheduledAt;
+      resetDayFlow(updated);
+    }
     if (changes.professionalName === null) delete updated.professionalName;
     else if (changes.professionalName !== undefined) updated.professionalName = changes.professionalName;
     if (changes.clinicId === null) delete updated.clinicId;
@@ -263,9 +279,11 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     return Promise.resolve(updated);
   }
 
-  async updateStatus(_trx: FakeTrx, familyId: string, memberId: string, appointmentId: string, status: AppointmentStatus): Promise<Appointment> {
+  async updateStatus(_trx: FakeTrx, familyId: string, memberId: string, appointmentId: string, status: AppointmentStatus, options: { resetDayFlow?: boolean } = {}): Promise<Appointment> {
     const appointment = this.requireOwned(familyId, memberId, appointmentId);
     const updated: Appointment = { ...appointment, status };
+    if (status !== "COMPLETED") delete updated.followUpDueOn;
+    if (options.resetDayFlow) resetDayFlow(updated);
     this.byId.set(appointmentId, updated);
     return Promise.resolve(updated);
   }
@@ -280,9 +298,60 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
 
   readonly outcomeRequestedAt = new Map<string, Date>();
 
-  async listReminderCandidates(_trx: FakeTrx, now: Date, outcomeWindowMs: number, limit: number): Promise<Appointment[]> {
-    const lookahead = now.getTime() + outcomeWindowMs;
-    const outcomeThreshold = now.getTime() - outcomeWindowMs;
+  async listFollowUpCandidates(_trx: FakeTrx, from: string, to: string, limit: number): Promise<Appointment[]> {
+    return Promise.resolve([...this.byId.values()].filter((a) => a.status === "COMPLETED" && a.followUpDueOn !== undefined && a.followUpDueOn >= from && a.followUpDueOn <= to).slice(0, limit));
+  }
+
+  async applyConfirmation(_trx: FakeTrx, familyId: string, memberId: string, appointmentId: string, change: ConfirmationChange): Promise<Appointment> {
+    const appointment = this.requireOwned(familyId, memberId, appointmentId);
+    const updated: Appointment = { ...appointment, confirmationStatus: change.confirmationStatus };
+    if (change.confirmationSource) updated.confirmationSource = change.confirmationSource;
+    else delete updated.confirmationSource;
+    if (change.confirmedAt) updated.confirmedAt = change.confirmedAt;
+    else delete updated.confirmedAt;
+    if (change.cancel) {
+      updated.status = "CANCELLED";
+      delete updated.followUpDueOn;
+    }
+    this.byId.set(appointmentId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async applyConfirmationByClinic(_trx: FakeTrx, clinicId: string, appointmentId: string, confirmedAt: Date): Promise<Appointment> {
+    const appointment = this.requireOfClinic(clinicId, appointmentId);
+    const updated: Appointment = { ...appointment, confirmationStatus: "CONFIRMED", confirmationSource: "CLINIC", confirmedAt };
+    this.byId.set(appointmentId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async applyDayFlow(_trx: FakeTrx, clinicId: string, appointmentId: string, change: DayFlowChange): Promise<Appointment> {
+    const appointment = this.requireOfClinic(clinicId, appointmentId);
+    const updated: Appointment = { ...appointment, ...(change.status ? { status: change.status } : {}), ...(change.arrivedAt ? { arrivedAt: change.arrivedAt } : {}), ...(change.startedAt ? { startedAt: change.startedAt } : {}) };
+    this.byId.set(appointmentId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async setFollowUp(_trx: FakeTrx, clinicId: string, appointmentId: string, dueOn: string | null): Promise<Appointment> {
+    const appointment = this.requireOfClinic(clinicId, appointmentId);
+    const updated: Appointment = { ...appointment };
+    if (dueOn === null) delete updated.followUpDueOn;
+    else updated.followUpDueOn = dueOn;
+    this.byId.set(appointmentId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async listFollowUpsByClinic(_trx: FakeTrx, clinicId: string, until: string, limit: number): Promise<Appointment[]> {
+    return Promise.resolve(
+      [...this.byId.values()]
+        .filter((a) => a.clinicId === clinicId && a.status === "COMPLETED" && a.followUpDueOn !== undefined && a.followUpDueOn <= until)
+        .sort((a, b) => (a.followUpDueOn ?? "").localeCompare(b.followUpDueOn ?? "") || a.id.localeCompare(b.id))
+        .slice(0, limit),
+    );
+  }
+
+  async listReminderCandidates(_trx: FakeTrx, now: Date, windows: ReminderWindows, limit: number): Promise<Appointment[]> {
+    const lookahead = now.getTime() + windows.lookaheadMs;
+    const outcomeThreshold = now.getTime() - windows.outcomeWindowMs;
     return Promise.resolve(
       [...this.byId.values()]
         .filter((appointment) => {
@@ -399,6 +468,14 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     );
   }
 
+  private requireOfClinic(clinicId: string, appointmentId: string): Appointment {
+    const appointment = this.byId.get(appointmentId);
+    if (appointment?.clinicId !== clinicId) {
+      throw new Error("consulta inexistente no fake");
+    }
+    return appointment;
+  }
+
   private requireOwned(familyId: string, memberId: string, appointmentId: string): Appointment {
     const appointment = this.byId.get(appointmentId);
     if (!appointment) {
@@ -471,10 +548,46 @@ export class FakeClinicPatientDirectory implements ClinicPatientDirectoryPort<Fa
       source: "MANUAL",
       clinicPatientId: input.clinicPatientId,
       slotId: slot.id,
+      confirmationStatus: "PENDING",
+      dayState: "SCHEDULED",
       ...(input.notes ? { notes: input.notes } : {}),
     };
     this.visits.set(view.id, view);
     return Promise.resolve(view);
+  }
+
+  /** M14 Q: as regras reais das visitas testam-se em `clinic-patients`; o fake só regista a chamada e devolve a vista. */
+  private visitAction(name: string, clinicId: string, visitId: string, patch: Partial<ClinicVisitBookingView>): Promise<ClinicVisitBookingView | null> {
+    this.calls.push(name);
+    const visit = this.visits.get(visitId);
+    if (visit?.clinicId !== clinicId) return Promise.resolve(null);
+    const updated = { ...visit, ...patch };
+    this.visits.set(visitId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async confirmVisit(_trx: FakeTrx, actor: ClinicPortalActor, visitId: string): Promise<ClinicVisitBookingView | null> {
+    return this.visitAction("confirmVisit", actor.clinicId, visitId, { confirmationStatus: "CONFIRMED", confirmationSource: "CLINIC" });
+  }
+
+  async arriveVisit(_trx: FakeTrx, actor: ClinicPortalActor, visitId: string): Promise<ClinicVisitBookingView | null> {
+    return this.visitAction("arriveVisit", actor.clinicId, visitId, { dayState: "ARRIVED" });
+  }
+
+  async startVisit(_trx: FakeTrx, actor: ClinicPortalActor, visitId: string): Promise<ClinicVisitBookingView | null> {
+    return this.visitAction("startVisit", actor.clinicId, visitId, { dayState: "IN_PROGRESS" });
+  }
+
+  async noShowVisit(_trx: FakeTrx, actor: ClinicPortalActor, visitId: string): Promise<ClinicVisitBookingView | null> {
+    return this.visitAction("noShowVisit", actor.clinicId, visitId, { status: "NO_SHOW", dayState: "NO_SHOW" });
+  }
+
+  async setVisitFollowUp(_trx: FakeTrx, actor: ClinicPortalActor, visitId: string): Promise<ClinicVisitBookingView | null> {
+    return this.visitAction("setVisitFollowUp", actor.clinicId, visitId, { followUpDueOn: "2027-01-01" });
+  }
+
+  async clearVisitFollowUp(_trx: FakeTrx, actor: ClinicPortalActor, visitId: string): Promise<ClinicVisitBookingView | null> {
+    return this.visitAction("clearVisitFollowUp", actor.clinicId, visitId, {});
   }
 
   async listVisits(_trx: FakeTrx, clinicId: string): Promise<ClinicVisitBookingView[]> {

@@ -28,6 +28,13 @@ export interface AppointmentsTable {
   booked_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
   /** BR-CLN-16 — `db/migrations/0027_clinic_catalog_schedule.sql`; default 30. */
   duration_minutes: ColumnType<number, number | undefined, number>;
+  /** M14 Q (BR-CLN-25/28/30) — `db/migrations/0029_clinic_day_flow.sql`. */
+  confirmation_status: ColumnType<"PENDING" | "CONFIRMED" | "DECLINED", "PENDING" | "CONFIRMED" | "DECLINED" | undefined, "PENDING" | "CONFIRMED" | "DECLINED">;
+  confirmation_source: ColumnType<"PATIENT" | "CLINIC" | null, "PATIENT" | "CLINIC" | null | undefined, "PATIENT" | "CLINIC" | null>;
+  confirmed_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  arrived_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  started_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  followup_due_on: ColumnType<string | null, string | null | undefined, string | null>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

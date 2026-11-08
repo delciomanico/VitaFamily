@@ -13,6 +13,7 @@ import { runWithActor } from "../../src/platform/actor/index.js";
 import { createApp } from "../../src/platform/http/index.js";
 import { createLogger } from "../../src/platform/logger/index.js";
 import { createCancelClinicAppointmentUseCase, createCompleteClinicAppointmentUseCase, createListClinicAgendaUseCase, createListClinicRequestsUseCase, createRespondClinicRequestUseCase } from "../../src/modules/appointments/application/clinic-appointments.js";
+import { createArriveClinicAppointmentUseCase, createClearClinicFollowUpUseCase, createConfirmClinicAppointmentByPhoneUseCase, createNoShowClinicAppointmentUseCase, createSetClinicFollowUpUseCase, createStartClinicAppointmentUseCase } from "../../src/modules/appointments/application/clinic-day-flow.js";
 import { createClinicPatientLookupUseCase, createCreateWalkInAppointmentUseCase } from "../../src/modules/appointments/application/clinic-walk-in.js";
 import { createAppointmentsFixtures } from "../../src/modules/appointments/application/fixtures.js";
 import { createListAppointmentsUseCase } from "../../src/modules/appointments/application/list-appointments.js";
@@ -68,6 +69,12 @@ async function buildHarness() {
     listClinicAgenda: createListClinicAgendaUseCase(fx.deps),
     cancelClinicAppointment: createCancelClinicAppointmentUseCase(fx.deps),
     completeClinicAppointment: createCompleteClinicAppointmentUseCase(fx.deps),
+    confirmClinicAppointmentByPhone: createConfirmClinicAppointmentByPhoneUseCase(fx.deps),
+    arriveClinicAppointment: createArriveClinicAppointmentUseCase(fx.deps),
+    startClinicAppointment: createStartClinicAppointmentUseCase(fx.deps),
+    noShowClinicAppointment: createNoShowClinicAppointmentUseCase(fx.deps),
+    setClinicFollowUp: createSetClinicFollowUpUseCase(fx.deps),
+    clearClinicFollowUp: createClearClinicFollowUpUseCase(fx.deps),
     clinicPatientLookup: createClinicPatientLookupUseCase(fx.deps),
     createClinicWalkInAppointment: createCreateWalkInAppointmentUseCase(fx.deps),
   });
@@ -215,6 +222,14 @@ describe("POST /clinic-portal/walk-in-appointments", () => {
       source: "VITA",
       clinicPatientId: (created.body as { clinicPatientId: string }).clinicPatientId,
       slotId: SLOT,
+      // M14 Q: estado de confirmação e fluxo do dia (a marcação nasce "Sem resposta", sem chegada nem retorno).
+      confirmationStatus: "PENDING",
+      confirmationSource: null,
+      dayState: "SCHEDULED",
+      arrivedAt: null,
+      startedAt: null,
+      waitingMinutes: null,
+      followUpDueOn: null,
     });
     const id = (created.body as { id: string }).id;
 
@@ -259,7 +274,7 @@ describe("POST /clinic-portal/walk-in-appointments", () => {
     h.fx.patients.seed("outra@example.pt", "fam-2", "mem-2", "Outra Pessoa");
     expect((await walkIn(h, h.admin, { patientEmail: "outra@example.pt", slotId: SLOT })).status).toBe(409);
     // Sobreposição: consulta SCHEDULED do paciente a começar dentro do intervalo do horário (SLOT_AT + 10 min).
-    h.fx.appointmentsRepo.seed({ id: "pre-existing", familyId: "fam-3", memberId: "mem-3", scheduledAt: new Date(SLOT_AT.getTime() + 10 * 60_000), status: "SCHEDULED", createdAt: NOW });
+    h.fx.appointmentsRepo.seed({ id: "pre-existing", familyId: "fam-3", memberId: "mem-3", scheduledAt: new Date(SLOT_AT.getTime() + 10 * 60_000), status: "SCHEDULED", confirmationStatus: "PENDING", createdAt: NOW });
     h.fx.patients.seed("terceiro@example.pt", "fam-3", "mem-3", "Terceiro Utilizador");
     expect((await walkIn(h, h.admin, { patientEmail: "terceiro@example.pt", slotId: SLOT_2 })).status).toBe(409);
     expect((await walkIn(h, h.admin, { patientEmail: "terceiro@example.pt", slotId: SLOT_EXAM })).status).toBe(422);

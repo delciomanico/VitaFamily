@@ -15,7 +15,10 @@ export type AlertNotificationType =
   | "EXAM_CANCELLED"
   | "EXAM_RESULTS_AVAILABLE"
   // D19/ADR-023: nova recomendação da clínica; sem interruptor próprio (sempre ativo).
-  | "RECOMMENDATION_ADDED";
+  | "RECOMMENDATION_ADDED"
+  // M14 Q (BR-ALR-09, BR-CLN-30): partilham o interruptor `appointmentReminder` (sem interruptor novo).
+  | "APPOINTMENT_CONFIRM_REQUEST"
+  | "FOLLOWUP_REMINDER";
 
 export type Channel = "PUSH" | "EMAIL";
 
@@ -42,6 +45,8 @@ export function isTypeEnabled(preference: NotificationPreference, type: AlertNot
       return preference.medicationDue;
     case "APPOINTMENT_REMINDER":
     case "APPOINTMENT_OUTCOME_REQUEST":
+    case "APPOINTMENT_CONFIRM_REQUEST":
+    case "FOLLOWUP_REMINDER":
       return preference.appointmentReminder;
     case "EXAM_REMINDER":
       return preference.examReminder;

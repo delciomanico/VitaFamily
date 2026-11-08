@@ -18,6 +18,8 @@ export function toAppointmentResponse(appointment: Appointment) {
     specialty: appointment.specialty ?? null,
     reason: appointment.reason ?? null,
     notes: appointment.notes ?? null,
+    confirmationStatus: appointment.confirmationStatus,
+    followUpDueOn: appointment.followUpDueOn ?? null,
   };
 }
 
@@ -61,6 +63,13 @@ export function toClinicAppointmentResponse(view: ClinicAppointmentView) {
     source: view.source ?? "VITA",
     clinicPatientId: view.clinicPatientId ?? null,
     slotId: view.slotId ?? null,
+    confirmationStatus: view.confirmationStatus,
+    confirmationSource: view.confirmationSource ?? null,
+    dayState: view.dayState,
+    arrivedAt: view.arrivedAt ?? null,
+    startedAt: view.startedAt ?? null,
+    waitingMinutes: view.waitingMinutes ?? null,
+    followUpDueOn: view.followUpDueOn ?? null,
   };
 }
 

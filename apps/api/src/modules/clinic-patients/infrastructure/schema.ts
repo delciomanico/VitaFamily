@@ -60,11 +60,18 @@ export interface ClinicVisitsTable {
   slot_id: Nullable<string>;
   scheduled_at: Date;
   duration_minutes: number;
-  status: ColumnType<"SCHEDULED" | "COMPLETED" | "CANCELLED", "SCHEDULED" | "COMPLETED" | "CANCELLED" | undefined, "SCHEDULED" | "COMPLETED" | "CANCELLED">;
+  status: ColumnType<"SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW", "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | undefined, "SCHEDULED" | "COMPLETED" | "CANCELLED" | "NO_SHOW">;
   notes: Nullable<string>;
   outcome_note: Nullable<string>;
   cancel_note: Nullable<string>;
   booked_by_clinic_account_id: Nullable<string>;
+  /** M14 Q (BR-CLN-25/28/30) — `db/migrations/0029_clinic_day_flow.sql`; visitas nunca `DECLINED`, origem sempre `CLINIC`. */
+  confirmation_status: ColumnType<"PENDING" | "CONFIRMED", "PENDING" | "CONFIRMED" | undefined, "PENDING" | "CONFIRMED">;
+  confirmation_source: Nullable<"CLINIC">;
+  confirmed_at: Nullable<Date>;
+  arrived_at: Nullable<Date>;
+  started_at: Nullable<Date>;
+  followup_due_on: Nullable<string>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

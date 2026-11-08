@@ -32,7 +32,7 @@ const slot = (id: string, hhmm: string, durationMinutes: number, professionalId?
 describe("walk-in: sobreposição do paciente por duração (BR-CLN-16, AC-CLN-12)", () => {
   it("consulta SCHEDULED 10:00 de 60 min: 10:30 (30 min) => CONFLICT; 11:00 => 201; durationMinutes copiada do horário", async () => {
     const { fx, book } = setup();
-    fx.appointmentsRepo.seed({ id: "a1", familyId: FAMILY, memberId: MEMBER, scheduledAt: at("10:00"), status: "SCHEDULED", durationMinutes: 60, createdAt: NOW });
+    fx.appointmentsRepo.seed({ id: "a1", familyId: FAMILY, memberId: MEMBER, scheduledAt: at("10:00"), status: "SCHEDULED", durationMinutes: 60, confirmationStatus: "PENDING", createdAt: NOW });
     fx.clinics.seedSlot(slot("s-1030", "10:30", 30));
     fx.clinics.seedSlot(slot("s-1100", "11:00", 30));
 
@@ -44,7 +44,7 @@ describe("walk-in: sobreposição do paciente por duração (BR-CLN-16, AC-CLN-1
 
   it("um horário longo que engloba o início de outra consulta também sobrepõe; consecutivas não", async () => {
     const { fx, book } = setup();
-    fx.appointmentsRepo.seed({ id: "a1", familyId: FAMILY, memberId: MEMBER, scheduledAt: at("10:30"), status: "SCHEDULED", durationMinutes: 30, createdAt: NOW });
+    fx.appointmentsRepo.seed({ id: "a1", familyId: FAMILY, memberId: MEMBER, scheduledAt: at("10:30"), status: "SCHEDULED", durationMinutes: 30, confirmationStatus: "PENDING", createdAt: NOW });
     fx.clinics.seedSlot(slot("s-long", "10:00", 60));
     fx.clinics.seedSlot(slot("s-before", "10:00", 30));
     fx.clinics.seedSlot(slot("s-after", "11:00", 30));
@@ -55,7 +55,7 @@ describe("walk-in: sobreposição do paciente por duração (BR-CLN-16, AC-CLN-1
 
   it("consulta anterior à migração sem duração assume 30 min (fake: omitido = 30)", async () => {
     const { fx, book } = setup();
-    fx.appointmentsRepo.seed({ id: "a1", familyId: FAMILY, memberId: MEMBER, scheduledAt: at("10:00"), status: "SCHEDULED", createdAt: NOW });
+    fx.appointmentsRepo.seed({ id: "a1", familyId: FAMILY, memberId: MEMBER, scheduledAt: at("10:00"), status: "SCHEDULED", confirmationStatus: "PENDING", createdAt: NOW });
     fx.clinics.seedSlot(slot("s-1030", "10:30", 30));
     await expect(book(ACTOR, { patientEmail: EMAIL, slotId: "s-1030" }, CTX)).resolves.toBeDefined();
   });
@@ -66,7 +66,7 @@ describe("walk-in: defesa por profissional (BR-CLN-13)", () => {
     const { fx, book } = setup();
     fx.clinics.seedSlot(slot("s-main", "10:00", 60, "prof-1"));
     fx.clinics.seedSlot(slot("s-legacy", "10:30", 30, "prof-1")); // sobreposto (impossível com a EXCLUDE; dados antigos)
-    fx.appointmentsRepo.seed({ id: "a-other", familyId: "fam-9", memberId: "mem-9", scheduledAt: at("10:30"), status: "REQUESTED", slotId: "s-legacy", clinicId: CLINIC, createdAt: NOW });
+    fx.appointmentsRepo.seed({ id: "a-other", familyId: "fam-9", memberId: "mem-9", scheduledAt: at("10:30"), status: "REQUESTED", slotId: "s-legacy", clinicId: CLINIC, confirmationStatus: "PENDING", createdAt: NOW });
     await expect(book(ACTOR, { patientEmail: EMAIL, slotId: "s-main" }, CTX)).rejects.toMatchObject({ code: "CONFLICT" });
     expect(fx.appointmentsRepo.byId.size).toBe(1);
   });
@@ -84,7 +84,7 @@ describe("walk-in: defesa por profissional (BR-CLN-13)", () => {
     fx.clinics.seedSlot(slot("s-main", "10:00", 60, "prof-1"));
     fx.clinics.seedSlot(slot("s-free", "10:30", 30, "prof-1"));
     fx.clinics.seedSlot(slot("s-q", "10:00", 60, "prof-2"));
-    fx.appointmentsRepo.seed({ id: "a-q", familyId: "fam-9", memberId: "mem-9", scheduledAt: at("10:00"), status: "SCHEDULED", slotId: "s-q", clinicId: CLINIC, createdAt: NOW });
+    fx.appointmentsRepo.seed({ id: "a-q", familyId: "fam-9", memberId: "mem-9", scheduledAt: at("10:00"), status: "SCHEDULED", slotId: "s-q", clinicId: CLINIC, confirmationStatus: "PENDING", createdAt: NOW });
     await expect(book(ACTOR, { patientEmail: EMAIL, slotId: "s-main" }, CTX)).resolves.toBeDefined();
   });
 });

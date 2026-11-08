@@ -13,6 +13,14 @@ import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { ClinicsModule } from "../clinics/index.js";
 import {
+  createArriveClinicAppointmentUseCase,
+  createClearClinicFollowUpUseCase,
+  createConfirmClinicAppointmentByPhoneUseCase,
+  createNoShowClinicAppointmentUseCase,
+  createSetClinicFollowUpUseCase,
+  createStartClinicAppointmentUseCase,
+} from "./application/clinic-day-flow.js";
+import {
   createCancelClinicAppointmentUseCase,
   createCompleteClinicAppointmentUseCase,
   createListClinicAgendaUseCase,
@@ -25,7 +33,8 @@ import { createDeleteAppointmentUseCase } from "./application/delete-appointment
 import { createGetAppointmentUseCase } from "./application/get-appointment.js";
 import { createListAppointmentsUseCase } from "./application/list-appointments.js";
 import { createListAvailableSlotsUseCase } from "./application/list-available-slots.js";
-import type { AppointmentsDeps, ClinicAppointmentsFilter, ClinicPatientDirectoryPort, ClinicPrescriptionInput, PatientDirectoryPort, RequestContext } from "./application/ports.js";
+import type { AppointmentsDeps, ClinicAppointmentsFilter, ClinicPatientDirectoryPort, ClinicPrescriptionInput, PatientDirectoryPort, ReminderWindows, RequestContext } from "./application/ports.js";
+import { createSetAppointmentConfirmationUseCase } from "./application/set-appointment-confirmation.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
 import { WalkInInMemoryRateLimiter, type WalkInRateLimiter } from "./domain/walk-in.js";
@@ -35,7 +44,8 @@ import { toAppointmentPage } from "./interface/dto.js";
 import { createAppointmentsRouter, type AppointmentsController } from "./interface/router.js";
 import type { Appointment } from "./domain/appointment.js";
 
-export type { Appointment, AppointmentStatus } from "./domain/appointment.js";
+export type { Appointment, AppointmentStatus, ConfirmationSource, ConfirmationStatus } from "./domain/appointment.js";
+export type { ReminderWindows } from "./application/ports.js";
 
 /**
  * D18 (BR-CLN-06/BR-RX-07): a função pública `prescriptions.issuePrescriptionForClinic` devolve
@@ -87,6 +97,8 @@ export interface AppointmentsModule {
   walkInRateLimiter: WalkInRateLimiter;
   /** M14 P (`clinic-patients`, só leitura): consultas da própria clínica por janela/membro (calendário, ficha, pesquisa). */
   listClinicFacts: (trx: Kysely<Database>, clinicId: string, filter: ClinicAppointmentsFilter, limit?: number) => Promise<ClinicAppointmentFact[]>;
+  /** M14 Q (BR-CLN-30, `clinic-patients`, só leitura): retornos por tratar da clínica (consultas `COMPLETED` com `followUpDueOn <= until`). */
+  listClinicFollowUps: (trx: Kysely<Database>, clinicId: string, until: string, limit: number) => Promise<ClinicFollowUpFact[]>;
   /** BR-CLN-09 (`recommendations`, ligado no composition root): "esta consulta pertence à clínica X e está no estado Y". */
   findClinicOrigin: (trx: Kysely<Database>, clinicId: string, appointmentId: string) => Promise<ClinicOrigin | null>;
 }
@@ -104,6 +116,18 @@ export interface ClinicAppointmentFact {
   memberId: string;
   notes?: string;
   responseNote?: string;
+  /** M14 Q (BR-CLN-25/28): estado de confirmação e fluxo do dia (Hoje, calendário, indicadores). */
+  confirmationStatus: "PENDING" | "CONFIRMED" | "DECLINED";
+  arrivedAt?: Date;
+  startedAt?: Date;
+}
+
+/** M14 Q: retorno por tratar de uma consulta Vita (nunca o registo completo). */
+export interface ClinicFollowUpFact {
+  id: string;
+  familyId: string;
+  memberId: string;
+  dueOn: string;
 }
 
 /** Facto mínimo de uma origem de recomendação (modules.md §3 nota 22): nunca o registo completo. */
@@ -149,6 +173,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     updateAppointment: createUpdateAppointmentUseCase(appointmentsDeps),
     deleteAppointment: createDeleteAppointmentUseCase(appointmentsDeps),
     setAppointmentStatus: createSetAppointmentStatusUseCase(appointmentsDeps),
+    setAppointmentConfirmation: createSetAppointmentConfirmationUseCase(appointmentsDeps),
     listAvailableSlots: createListAvailableSlotsUseCase(appointmentsDeps),
   };
 
@@ -158,6 +183,12 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     listClinicAgenda: createListClinicAgendaUseCase(appointmentsDeps),
     cancelClinicAppointment: createCancelClinicAppointmentUseCase(appointmentsDeps),
     completeClinicAppointment: createCompleteClinicAppointmentUseCase(appointmentsDeps),
+    confirmClinicAppointmentByPhone: createConfirmClinicAppointmentByPhoneUseCase(appointmentsDeps),
+    arriveClinicAppointment: createArriveClinicAppointmentUseCase(appointmentsDeps),
+    startClinicAppointment: createStartClinicAppointmentUseCase(appointmentsDeps),
+    noShowClinicAppointment: createNoShowClinicAppointmentUseCase(appointmentsDeps),
+    setClinicFollowUp: createSetClinicFollowUpUseCase(appointmentsDeps),
+    clearClinicFollowUp: createClearClinicFollowUpUseCase(appointmentsDeps),
     clinicPatientLookup: createClinicPatientLookupUseCase(appointmentsDeps),
     createClinicWalkInAppointment: createCreateWalkInAppointmentUseCase(appointmentsDeps),
   };
@@ -180,7 +211,12 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
         ...(a.slotId ? { slotId: a.slotId } : {}),
         ...(a.notes ? { notes: a.notes } : {}),
         ...(a.responseNote ? { responseNote: a.responseNote } : {}),
+        confirmationStatus: a.confirmationStatus,
+        ...(a.arrivedAt ? { arrivedAt: a.arrivedAt } : {}),
+        ...(a.startedAt ? { startedAt: a.startedAt } : {}),
       })),
+    listClinicFollowUps: async (trx, clinicId, until, limit) =>
+      (await appointmentsRepo.listFollowUpsByClinic(trx, clinicId, until, limit)).flatMap((a) => (a.followUpDueOn ? [{ id: a.id, familyId: a.familyId, memberId: a.memberId, dueOn: a.followUpDueOn }] : [])),
     findClinicOrigin: async (trx, clinicId, appointmentId) => {
       const appointment = await appointmentsRepo.findByClinicId(trx, clinicId, appointmentId);
       return appointment
@@ -194,7 +230,9 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
 }
 
 export interface AppointmentsReminderQueries {
-  listReminderCandidates: (trx: Kysely<Database>, now: Date, outcomeWindowMs: number, limit: number) => Promise<Appointment[]>;
+  listReminderCandidates: (trx: Kysely<Database>, now: Date, windows: ReminderWindows, limit: number) => Promise<Appointment[]>;
+  /** BR-CLN-30: consultas `COMPLETED` com retorno em `[from, to]` (AAAA-MM-DD). */
+  listFollowUpCandidates: (trx: Kysely<Database>, from: string, to: string, limit: number) => Promise<Appointment[]>;
   setOutcomeRequested: (trx: Kysely<Database>, appointmentId: string, requestedAt: Date) => Promise<void>;
 }
 
@@ -206,7 +244,8 @@ export interface AppointmentsReminderQueries {
 export function createAppointmentsReminderQueries(_deps: { db: Kysely<Database> }): AppointmentsReminderQueries {
   const appointmentsRepo = new KyselyAppointmentsRepository();
   return {
-    listReminderCandidates: (trx, now, outcomeWindowMs, limit) => appointmentsRepo.listReminderCandidates(trx, now, outcomeWindowMs, limit),
+    listReminderCandidates: (trx, now, windows, limit) => appointmentsRepo.listReminderCandidates(trx, now, windows, limit),
+    listFollowUpCandidates: (trx, from, to, limit) => appointmentsRepo.listFollowUpCandidates(trx, from, to, limit),
     setOutcomeRequested: (trx, appointmentId, requestedAt) => appointmentsRepo.setOutcomeRequested(trx, appointmentId, requestedAt),
   };
 }
