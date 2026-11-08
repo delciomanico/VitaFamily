@@ -75,6 +75,11 @@ export interface ReimbursementClaimDocumentsTable {
   document_id: string;
 }
 
+export interface ReimbursementClaimReceiptsTable {
+  claim_id: string;
+  receipt_id: string;
+}
+
 declare module "../../../platform/db/index.js" {
   interface Database {
     insurer_accounts: InsurerAccountsTable;
@@ -83,5 +88,6 @@ declare module "../../../platform/db/index.js" {
     insurance_policies: InsurancePoliciesTable;
     reimbursement_claims: ReimbursementClaimsTable;
     reimbursement_claim_documents: ReimbursementClaimDocumentsTable;
+    reimbursement_claim_receipts: ReimbursementClaimReceiptsTable;
   }
 }

@@ -29,6 +29,8 @@ export interface ClinicPortalActor {
   clinicAccountId: string;
   clinicId: string;
   role: ClinicAccountRole;
+  /** M14 R (BR-CLN-39): só no Médico. */
+  professionalId?: string;
 }
 
 /**
@@ -75,6 +77,10 @@ export interface ClinicChanges {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  /** M14 R (BR-CLN-38): perfil da clínica parceira. */
+  displayName?: string | null;
+  description?: string | null;
+  openingHours?: string | null;
 }
 
 export interface ClinicListFilter {
@@ -105,6 +111,8 @@ export interface NewClinicAccountRecord {
   email: string;
   passwordHash: string;
   role: ClinicAccountRole;
+  /** BR-CLN-39: obrigatório em `CLINIC_DOCTOR`. */
+  professionalId?: string;
   createdByPlatformAdmin?: string;
   createdAt: Date;
 }
@@ -124,8 +132,10 @@ export interface ClinicAccountRepository<Trx> {
   /** `adminCreateOrResetClinicRootAccount` (D18): idempotente, nunca cria uma segunda conta. */
   resetCredentials(trx: Trx, id: string, changes: ClinicAccountCredentialsReset, now: Date): Promise<ClinicAccount>;
   updateStatus(trx: Trx, id: string, status: ClinicAccountStatus, now: Date): Promise<ClinicAccount>;
-  /** BR-CLN-05 (Fase C): contas da própria clínica, filtradas por papel (`listClinicStaff`). */
-  listByClinic(trx: Trx, clinicId: string, role?: ClinicAccountRole): Promise<ClinicAccount[]>;
+  /** BR-CLN-39: a conta Médico de um profissional (uma por profissional). */
+  findByProfessionalId(trx: Trx, professionalId: string): Promise<ClinicAccount | null>;
+  /** BR-CLN-05/39 (Fase C): contas da própria clínica, filtradas por papéis (`listClinicStaff`). */
+  listByClinic(trx: Trx, clinicId: string, roles?: ClinicAccountRole[]): Promise<ClinicAccount[]>;
   /** BR-ADM-03: contas da clínica com o último login (início da cadeia de refresh mais recente). */
   listByClinicWithLastLogin(trx: Trx, clinicId: string): Promise<{ account: ClinicAccount; lastLoginAt: Date | null }[]>;
   /** `removeClinicStaff` (Fase C) — quem chama já validou com `assertRemovableStaffTarget`. */

@@ -18,3 +18,29 @@ export interface AuditMaintenanceRepository {
   /** Anonimiza `actorUserId`, `ip`, `userAgent` de todas as entradas de `userId` (D15/ADR-011). */
   anonymizeUser(userId: string): Promise<number>;
 }
+
+/** Entrada da auditoria da própria clínica (BR-CLN-40): só estes campos saem; nunca `ip`, `metadata`, família, etc. */
+export interface ClinicAuditEntry {
+  id: string;
+  occurredAt: Date;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  result: "SUCCESS" | "DENIED" | "FAILURE";
+  actorAccountId: string | null;
+}
+
+export interface ClinicAuditFilter {
+  clinicId: string;
+  from: Date;
+  to: Date;
+  action?: string;
+  actorAccountId?: string;
+  /** Keyset (`occurred_at DESC, id DESC`): a página continua depois desta entrada. */
+  after?: { occurredAt: Date; id: string };
+}
+
+/** Porta de leitura da auditoria da clínica (só `actor_type = CLINIC_ACCOUNT` com `actor_clinic_id` = clínica do token). */
+export interface ClinicAuditReader<Trx> {
+  list(trx: Trx, filter: ClinicAuditFilter, limit: number): Promise<ClinicAuditEntry[]>;
+}

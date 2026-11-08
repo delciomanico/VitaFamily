@@ -5,10 +5,11 @@ import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { NextFunction, Request, RequestHandler, Response, Router } from "express";
+import type { Kysely } from "kysely";
 import PgBoss from "pg-boss";
 import { loadConfig } from "../platform/config/index.js";
 import { createLogger } from "../platform/logger/index.js";
-import { createDb, createPool, checkConnection } from "../platform/db/index.js";
+import { createDb, createPool, checkConnection, type Database } from "../platform/db/index.js";
 import { SystemClock } from "../platform/clock/index.js";
 import { MinioStorage } from "../platform/storage/index.js";
 import { createApp } from "../platform/http/index.js";
@@ -16,6 +17,7 @@ import { createMetrics } from "../platform/metrics/index.js";
 import { asyncHandler } from "../platform/http/async-handler.js";
 import { ServiceUnavailableError } from "../platform/errors/index.js";
 import { createAuditModule } from "../modules/audit/index.js";
+import { createClinicReceiptsModule, type ClinicReceiptsModule } from "../modules/clinic-receipts/index.js";
 import { createUsersModule } from "../modules/users/index.js";
 import { createAuthModule, parseSigningKeys, SmtpMailer } from "../modules/auth/index.js";
 import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modules/families/index.js";
@@ -92,7 +94,7 @@ export function main(): void {
     }
   }
 
-  const audit = createAuditModule({ db });
+  const audit = createAuditModule({ db, clock });
   const users = createUsersModule({
     db,
     audit,
@@ -104,7 +106,7 @@ export function main(): void {
   // da criação do User.
   // `families` precisa de `documents` (ficheiros) e `lifecycle` (pacote de dados), que dependem dele:
   // a porta `memberData` resolve-os tardiamente (atribuídos mais abaixo, antes de o servidor ouvir).
-  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule } = {};
+  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule } = {};
   const required = <T>(module: T | undefined, name: string): T => {
     if (!module) throw new Error(`${name} ainda não inicializado`);
     return module;
@@ -220,6 +222,12 @@ export function main(): void {
     insuranceAccessTtlSeconds: Math.round(parseDurationMs(config.JWT_ACCESS_TTL) / 1000),
     insuranceRefreshTtlMs: parseDurationMs(config.REFRESH_TTL),
     cookieDomain: config.COOKIE_DOMAIN,
+    // M14 R (BR-CLN-36, modules.md §2 nota 26): `ClinicReceiptLookup` implementada por `clinic-receipts` (criado mais abaixo).
+    receipts: {
+      lockVisible: (trx, familyId, memberId, receiptIds) => required(late.clinicReceipts, "clinicReceipts").claimLookup.lockVisible(trx, familyId, memberId, receiptIds),
+      refs: (trx, receiptIds) => required(late.clinicReceipts, "clinicReceipts").claimLookup.refs(trx, receiptIds),
+      summaries: (trx, receiptIds) => required(late.clinicReceipts, "clinicReceipts").claimLookup.summaries(trx, receiptIds),
+    },
   });
   // M8 (plan.md §4): `notifications` antes de `alerts` — `alerts` depende de `notifications`
   // pela raiz (modules.md §3 nota 15), nunca o inverso. D19: ambos vêm antes de `examinations`,
@@ -234,7 +242,10 @@ export function main(): void {
   });
   const alerts = createAlertsModule({ db, families, notifications, clock });
 
-  const examinations = createExaminationsModule({ db, audit, access, clinics, documents, alerts: { raiseExamEvent: alerts.raiseExamEvent }, clock });
+  const examinations = createExaminationsModule({ db, audit, access, clinics, documents, alerts: { raiseExamEvent: alerts.raiseExamEvent },
+    receipts: { findIssuedReceiptIds: (trx, clinicId, kind, bookingIds) => required(late.clinicReceipts, "clinicReceipts").findIssuedReceiptIds(trx, clinicId, kind, bookingIds) },
+    clock,
+  });
   late.examinations = examinations;
 
   // D18 (BR-CLN-06/BR-RX-07): `appointments` liga-se a `prescriptions` só aqui, pela sua API
@@ -276,6 +287,8 @@ export function main(): void {
       countActiveVisitsBySlot: (trx, slotIds) => required(late.clinicPatients, "clinicPatients").directory.countActiveVisitsBySlot(trx, slotIds),
       findPatientIdsByMembers: (trx, clinicId, memberIds) => required(late.clinicPatients, "clinicPatients").directory.findPatientIdsByMembers(trx, clinicId, memberIds),
     },
+    // M14 R (BR-CLN-31): `receiptId` nas marcações concluídas; `clinic-receipts` é criado depois destes módulos.
+    receipts: { findIssuedReceiptIds: (trx, clinicId, kind, bookingIds) => required(late.clinicReceipts, "clinicReceipts").findIssuedReceiptIds(trx, clinicId, kind, bookingIds) },
     clock,
   });
   late.appointments = appointments;
@@ -324,11 +337,42 @@ export function main(): void {
       listExaminations: (trx, clinicId, window) => examinations.listClinicFacts(trx, clinicId, window),
       listAppointmentFollowUps: (trx, clinicId, until, limit) => appointments.listClinicFollowUps(trx, clinicId, until, limit),
     },
+    receipts: { findIssuedReceiptIds: (trx, clinicId, kind, bookingIds) => required(late.clinicReceipts, "clinicReceipts").findIssuedReceiptIds(trx, clinicId, kind, bookingIds) },
     recommendations: { listOfMember: (trx, clinicId, familyId, memberId, limit) => recommendations.listOfMemberForClinic(trx, clinicId, familyId, memberId, limit) },
     sharedLimiter: appointments.walkInRateLimiter,
     linkCodeSecret: config.CLINIC_LINK_CODE_SECRET,
   });
   late.clinicPatients = clinicPatients;
+
+  // M14 R (ADR-026, modules.md §2 nota 26): `clinic-receipts` não importa módulos de saúde, `insurance` nem `families`: a marcação
+  // concluída, o consentimento, o perfil/catálogo e os pedidos de reembolso anexados entram por portas ligadas só aqui.
+  const serviceTypeOfSlot = async (trx: Kysely<Database>, clinicId: string, slotId: string | undefined): Promise<{ serviceTypeId?: string }> => {
+    const slot = slotId ? (await clinics.findClinicSlotsByIds(trx, clinicId, [slotId]))[0] : undefined;
+    return slot?.serviceTypeId ? { serviceTypeId: slot.serviceTypeId } : {};
+  };
+  const clinicReceipts = createClinicReceiptsModule({
+    db,
+    audit,
+    access,
+    clock,
+    bookings: {
+      find: async (trx, clinicId, kind, bookingId) => {
+        if (kind === "VISIT") {
+          const visit = await clinicPatients.receiptSource.findVisitFacts(trx, clinicId, bookingId);
+          return visit ? { status: visit.status, patientName: visit.patientName, ...(await serviceTypeOfSlot(trx, clinicId, visit.slotId)) } : null;
+        }
+        const facts = kind === "APPOINTMENT" ? await appointments.findReceiptFacts(trx, clinicId, bookingId) : await examinations.findReceiptFacts(trx, clinicId, bookingId);
+        return facts
+          ? { status: facts.status, patientName: facts.patientName, vita: { familyId: facts.familyId, memberId: facts.memberId }, ...(await serviceTypeOfSlot(trx, clinicId, facts.slotId)) }
+          : null;
+      },
+    },
+    consents: { hasConsent: (trx, clinicId, memberId) => clinicPatients.receiptSource.hasConsent(trx, clinicId, memberId) },
+    profile: { get: (trx, clinicId) => clinics.getReceiptProfile(trx, clinicId) },
+    services: { find: (trx, clinicId, serviceTypeId) => clinics.findServiceTypeForReceipt(trx, clinicId, serviceTypeId) },
+    attachedClaims: { claimIdsByReceipt: (trx, receiptIds) => insurance.claimIdsByReceipts(trx, receiptIds) },
+  });
+  late.clinicReceipts = clinicReceipts;
 
   // M9 (plan.md §4): `reports` lê pelas APIs públicas dos módulos dono (modules.md §2); cada
   // leitura aplica a sua `AccessPolicy` e auditoria, por isso reports não decide permissões.
@@ -480,6 +524,9 @@ export function main(): void {
       router.use(recommendations.clinicPortalRouter);
       router.use(clinicPatients.router);
       router.use(clinicPatients.clinicPortalRouter);
+      router.use(clinicReceipts.router);
+      router.use(clinicReceipts.clinicPortalRouter);
+      router.use(audit.clinicPortalRouter);
       router.use(notifications.router);
       router.use(alerts.router);
       router.use(reports.router);

@@ -10,12 +10,15 @@ export interface ClinicActorState {
   sessionId: string;
   clinicId: string;
   role: ClinicAccountRole;
+  /** M14 R (BR-CLN-39): só no Médico; um Médico sem profissional é inválido (`UNAUTHENTICATED`). */
+  professionalId?: string;
   suspended: boolean;
 }
 
 interface CachedClinicAccountState {
   clinicId: string;
   role: ClinicAccountRole;
+  professionalId?: string;
   suspended: boolean;
 }
 
@@ -30,9 +33,13 @@ export function createResolveClinicActorStateUseCase<Trx>(
       if (!account) {
         throw new UnauthenticatedError({ detail: "Sem sessão válida." });
       }
+      if (account.role === "CLINIC_DOCTOR" && !account.professionalId) {
+        throw new UnauthenticatedError({ detail: "Sem sessão válida." });
+      }
       accountState = {
         clinicId: account.clinicId,
         role: account.role,
+        ...(account.professionalId ? { professionalId: account.professionalId } : {}),
         suspended: account.status === "SUSPENDED",
       };
       cache.set(clinicAccountId, accountState);

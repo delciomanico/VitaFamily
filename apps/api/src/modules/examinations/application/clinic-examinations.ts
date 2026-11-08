@@ -33,6 +33,28 @@ export interface ClinicExamView {
   resultsCount: number;
   documents: ClinicExamDocumentView[];
   resultsIssuedAt?: string;
+  /** M14 R (BR-CLN-31): recibo `ISSUED` do exame; nunca devolvido ao Médico (BR-CLN-39). */
+  receiptId?: string;
+}
+
+/**
+ * BR-CLN-39: o Médico só vê/age em exames cujo horário (`clinic_slots.professional_id`) é o seu profissional;
+ * Admin/Gestor (sem `professionalId`) veem tudo. Exame sem horário nunca é de um Médico.
+ */
+async function actorOwnsExam<Trx>(deps: ExaminationsDeps<Trx>, actor: ClinicPortalActor, examination: Examination): Promise<boolean> {
+  if (!actor.professionalId) return true;
+  if (!examination.slotId) return false;
+  return (await deps.clinics.findSlotById(examination.slotId))?.professionalId === actor.professionalId;
+}
+
+async function withReceiptIds<Trx>(deps: ExaminationsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicExamView[]): Promise<ClinicExamView[]> {
+  const completed = views.filter((v) => v.status === "COMPLETED");
+  if (actor.professionalId || completed.length === 0) return views;
+  const ids = await deps.receipts.findIssuedReceiptIds(trx, actor.clinicId, "EXAM", completed.map((v) => v.id));
+  return views.map((v) => {
+    const receiptId = ids.get(v.id);
+    return receiptId ? { ...v, receiptId } : v;
+  });
 }
 
 async function toView<Trx>(deps: ExaminationsDeps<Trx>, trx: Trx, examination: Examination): Promise<ClinicExamView> {
@@ -99,7 +121,11 @@ export function createListClinicExamAgendaUseCase<Trx>(deps: ExaminationsDeps<Tr
   return async function listClinicExamAgenda(actor: ClinicPortalActor, query: ListClinicExamAgendaQuery): Promise<ClinicExamView[]> {
     return deps.withTransaction(async (trx) => {
       const exams = await deps.examinationsRepo.listByClinicAndStatus(trx, actor.clinicId, AGENDA_STATUSES, query);
-      return Promise.all(exams.map((exam) => toView(deps, trx, exam)));
+      const own: Examination[] = [];
+      for (const exam of exams) {
+        if (await actorOwnsExam(deps, actor, exam)) own.push(exam);
+      }
+      return withReceiptIds(deps, trx, actor, await Promise.all(own.map((exam) => toView(deps, trx, exam))));
     });
   };
 }
@@ -163,6 +189,9 @@ export function createCompleteClinicExaminationUseCase<Trx>(deps: ExaminationsDe
 
     return deps.withTransaction(async (trx) => {
       const existing = await requireOwnExam(deps, trx, actor, examinationId);
+      if (!(await actorOwnsExam(deps, actor, existing))) {
+        throw new NotFoundError({ detail: "Exame não encontrado." });
+      }
       // endpoints.md (completeClinicExamination): CONFLICT se o exame não está SCHEDULED.
       if (existing.status !== "SCHEDULED") {
         throw new ConflictError({ detail: "Só o exame confirmado (SCHEDULED) pode ser completado." });
@@ -204,6 +233,9 @@ export interface UploadClinicExamDocumentInput {
 function scheduledExamResolver<Trx>(deps: ExaminationsDeps<Trx>, actor: ClinicPortalActor, examinationId: string) {
   return async (trx: Trx): Promise<{ familyId: string; memberId: string }> => {
     const examination = await requireOwnExam(deps, trx, actor, examinationId);
+    if (!(await actorOwnsExam(deps, actor, examination))) {
+      throw new NotFoundError({ detail: "Exame não encontrado." });
+    }
     if (examination.status !== "SCHEDULED") {
       throw new ConflictError({ detail: "Só é possível alterar PDF de um exame confirmado (SCHEDULED)." });
     }

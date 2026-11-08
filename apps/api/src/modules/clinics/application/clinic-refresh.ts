@@ -27,12 +27,14 @@ export function createClinicRefreshUseCase<Trx>(deps: ClinicsDeps<Trx>) {
 
     if (session.revokedAt) {
       // Token já rodado e reutilizado: revoga toda a cadeia e audita (mesmo critério de AC-ACC-07).
+      const owner = await deps.clinicAccountRepo.findById(deps.db, session.clinicAccountId);
       await deps.withTransaction(async (trx) => {
         await deps.clinicSessionRepo.revokeChain(trx, session.tokenChainId, now);
         await deps.audit.record(trx, {
           occurredAt: now,
           actorType: "CLINIC_ACCOUNT",
           actorClinicAccountId: session.clinicAccountId,
+          ...(owner ? { actorClinicId: owner.clinicId } : {}),
           action: "CLINIC_ACCOUNT_REFRESH_REUSE_DETECTED",
           resourceType: "ClinicSession",
           resourceId: session.id,
@@ -90,6 +92,7 @@ export function createClinicRefreshUseCase<Trx>(deps: ClinicsDeps<Trx>) {
       refreshExpiresAt: newRefreshExpiresAt,
       clinicId: account.clinicId,
       role: account.role,
+      ...(account.professionalId ? { professionalId: account.professionalId } : {}),
     };
   };
 }

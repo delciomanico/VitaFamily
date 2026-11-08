@@ -20,6 +20,8 @@ export interface ActorIdentity {
 export interface ClinicPortalActor {
   clinicAccountId: string;
   clinicId: string;
+  /** M14 R (BR-CLN-39): só no Médico — restringe a marcações/pacientes do seu profissional e esconde `receiptId`. */
+  professionalId?: string;
 }
 
 export interface RequestContext {
@@ -67,6 +69,8 @@ export interface PatientChanges {
 }
 
 export interface PatientListFilter {
+  /** BR-CLN-39: restringe aos pacientes do Médico. */
+  ids?: string[];
   terms?: PatientSearchTerms;
   after?: PatientCursor;
 }
@@ -283,6 +287,8 @@ export interface FollowUpFact {
   familyId: string;
   memberId: string;
   dueOn: string;
+  /** M14 R (BR-CLN-39): horário da consulta (o Médico só vê os retornos do seu profissional). */
+  slotId?: string;
 }
 
 /**
@@ -331,6 +337,11 @@ export interface SlotReservationPort<Trx> {
   findProfessional(trx: Trx, clinicId: string, professionalId: string): Promise<{ id: string; name: string } | null>;
 }
 
+/** `ReceiptIds` (M14 R, BR-CLN-31): recibo `ISSUED` de cada visita; nunca importa `clinic-receipts`. */
+export interface ReceiptIdsPort<Trx> {
+  findIssuedReceiptIds(trx: Trx, clinicId: string, kind: "VISIT", bookingIds: string[]): Promise<Map<string, string>>;
+}
+
 export interface ClinicPatientsDeps<Trx> {
   patientsRepo: PatientsRepository<Trx>;
   linksRepo: LinksRepository<Trx>;
@@ -346,6 +357,8 @@ export interface ClinicPatientsDeps<Trx> {
   reports: ReportSourcePort<Trx>;
   recommendations: RecommendationsSourcePort<Trx>;
   slots: SlotReservationPort<Trx>;
+  /** M14 R (BR-CLN-31): `receiptId` nas visitas concluídas (implementada por `clinic-receipts`, ligada no composition root). */
+  receipts: ReceiptIdsPort<Trx>;
   /** Pesquisa/listagem: 60/min por conta (limiter próprio). */
   searchLimiter: RateLimiter;
   /** BR-CLN-29: indicadores, 30 pedidos/min por conta (limiter próprio). */

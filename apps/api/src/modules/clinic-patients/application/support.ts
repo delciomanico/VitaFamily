@@ -4,6 +4,7 @@ import { NotFoundError, RateLimitedError } from "../../../platform/errors/index.
 import type { ClinicPatient, ClinicLinkVia } from "../domain/clinic-patient.js";
 import { effectiveConsent } from "../domain/consent.js";
 import { SEARCH_ACCOUNT_RULE } from "../domain/rate-limiter.js";
+import { doctorPatientIds, isDoctor } from "./doctor-scope.js";
 import type { ClinicPatientsDeps, ClinicPortalActor } from "./ports.js";
 
 export interface ClinicPatientView {
@@ -56,6 +57,10 @@ export async function toPatientView<Trx>(deps: ClinicPatientsDeps<Trx>, trx: Trx
 export async function requireOwnPatient<Trx>(deps: ClinicPatientsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, patientId: string): Promise<ClinicPatient> {
   const patient = await deps.patientsRepo.findById(trx, actor.clinicId, patientId);
   if (!patient) {
+    throw new NotFoundError({ detail: "Paciente não encontrado." });
+  }
+  // BR-CLN-39: o Médico só acede a pacientes com (ou que tiveram) marcação com o seu profissional; fora disso 404.
+  if (isDoctor(actor) && !(await doctorPatientIds(deps, trx, actor)).includes(patient.id)) {
     throw new NotFoundError({ detail: "Paciente não encontrado." });
   }
   return patient;

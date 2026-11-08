@@ -43,7 +43,7 @@ import { createInsuranceLoginUseCase } from "./application/insurance-login.js";
 import { createInsuranceLogoutUseCase } from "./application/insurance-logout.js";
 import { createInsuranceRefreshUseCase } from "./application/insurance-refresh.js";
 import { createCreateInsuranceAgentUseCase, createListInsuranceAgentsUseCase, createRemoveInsuranceAgentUseCase } from "./application/manage-insurance-agents.js";
-import type { CachedInsuranceAccountState, InsuranceDeps, InsuranceHolderDeps, InsuranceMailer, InsurancePortalClaimsDeps } from "./application/ports.js";
+import type { CachedInsuranceAccountState, ClinicReceiptLookupPort, InsuranceDeps, InsuranceHolderDeps, InsuranceMailer, InsurancePortalClaimsDeps } from "./application/ports.js";
 import { createResolveInsuranceActorStateUseCase } from "./application/resolve-insurance-actor-state.js";
 import type { InsuranceSigningKey } from "./domain/insurance-jwt.js";
 import { InsuranceInMemoryRateLimiter } from "./domain/insurance-rate-limiter.js";
@@ -83,6 +83,8 @@ export interface InsuranceModuleDeps {
   insuranceAccessTtlSeconds: number;
   insuranceRefreshTtlMs: number;
   cookieDomain: string;
+  /** M14 R (BR-CLN-36): `ClinicReceiptLookup` — implementada por `clinic-receipts/interface`, ligada em `main/api.ts`. */
+  receipts: ClinicReceiptLookupPort<Kysely<Database>>;
 }
 
 export interface InsuranceModule {
@@ -96,6 +98,8 @@ export interface InsuranceModule {
   insuranceSecurityHandlers: { insuranceBearerAuth: ReturnType<typeof createInsuranceBearerAuthSecurityHandler> };
   /** Middleware a montar a seguir aos de `auth`/`clinics` (preenche o TERCEIRO `platform/actor`). */
   insuranceActorContextMiddleware: ReturnType<typeof createInsuranceActorContextMiddleware>;
+  /** M14 R (BR-CLN-35/36, `clinic-receipts`, ligado no composition root): pedidos ativos a que cada recibo está anexado. */
+  claimIdsByReceipts: (trx: Kysely<Database>, receiptIds: string[]) => Promise<Map<string, string[]>>;
 }
 
 export function createInsuranceModule(deps: InsuranceModuleDeps): InsuranceModule {
@@ -129,6 +133,7 @@ export function createInsuranceModule(deps: InsuranceModuleDeps): InsuranceModul
       deleteAllForResource: deps.documents.deleteAllForResource,
       listAttachable: deps.documents.listAttachable,
     },
+    receipts: deps.receipts,
     audit: deps.audit,
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
@@ -136,6 +141,7 @@ export function createInsuranceModule(deps: InsuranceModuleDeps): InsuranceModul
   };
   const portalClaimsDeps: InsurancePortalClaimsDeps<Kysely<Database>> = {
     claimsRepo,
+    receipts: deps.receipts,
     audit: deps.audit,
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
@@ -184,5 +190,6 @@ export function createInsuranceModule(deps: InsuranceModuleDeps): InsuranceModul
     insuranceActorContextMiddleware: createInsuranceActorContextMiddleware({
       resolveInsuranceActorState: createResolveInsuranceActorStateUseCase(insuranceDeps),
     }),
+    claimIdsByReceipts: (trx, receiptIds) => claimsRepo.activeClaimIdsByReceipts(trx, receiptIds),
   };
 }

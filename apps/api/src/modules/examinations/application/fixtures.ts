@@ -18,6 +18,7 @@ import type {
   CursorPage,
   DocumentsPort,
   ExamAlertsPort,
+  ReceiptIdsPort,
   MemberNamesPort,
   ExaminationChanges,
   ExaminationListFilter,
@@ -89,6 +90,19 @@ export class FakeClinicsPort implements ClinicsPort<FakeTrx> {
 
   seedSlot(slot: ClinicSlotLite): void {
     this.slots.set(slot.id, slot);
+  }
+
+  async findSlotById(slotId: string): Promise<ClinicSlotLite | null> {
+    return Promise.resolve(this.slots.get(slotId) ?? null);
+  }
+}
+
+/** M14 R (BR-CLN-31): `bookingId -> receiptId` preparado pelos testes. */
+export class FakeReceiptIdsPort implements ReceiptIdsPort<FakeTrx> {
+  readonly issued = new Map<string, string>();
+
+  async findIssuedReceiptIds(_trx: FakeTrx, _clinicId: string, _kind: "EXAM", bookingIds: string[]): Promise<Map<string, string>> {
+    return Promise.resolve(new Map([...this.issued].filter(([id]) => bookingIds.includes(id))));
   }
 }
 
@@ -455,6 +469,7 @@ export interface ExaminationsFixtures {
   documents: FakeDocumentsPort;
   memberNames: FakeMemberNamesPort;
   alerts: FakeExamAlertsPort;
+  receipts: FakeReceiptIdsPort;
   audit: FakeAuditPort;
 }
 
@@ -466,6 +481,7 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
   const documents = new FakeDocumentsPort();
   const memberNames = new FakeMemberNamesPort();
   const alerts = new FakeExamAlertsPort();
+  const receipts = new FakeReceiptIdsPort();
   const audit = new FakeAuditPort();
   const deps: ExaminationsDeps<FakeTrx> = {
     examinationsRepo,
@@ -475,10 +491,11 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
     alerts,
     clinics,
     documents,
+    receipts,
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, memberNames, alerts, audit };
+  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, memberNames, alerts, receipts, audit };
 }

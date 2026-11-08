@@ -139,6 +139,10 @@ export class KyselyPatientsRepository implements PatientsRepository<Kysely<Datab
   /** Varrimento "contém" dentro da clínica (`strpos`: sem escapes de `%`/`_`); ordem estável `(name_norm, id)`. */
   async list(trx: Kysely<Database>, clinicId: string, filter: PatientListFilter, limit: number): Promise<ClinicPatient[]> {
     let query = trx.selectFrom("clinic_patients").select([...PATIENT_COLUMNS, BIRTH_DATE]).where("clinic_id", "=", clinicId);
+    if (filter.ids) {
+      if (filter.ids.length === 0) return [];
+      query = query.where("id", "in", filter.ids);
+    }
     const terms = filter.terms;
     if (terms) {
       query = query.where((eb) => {

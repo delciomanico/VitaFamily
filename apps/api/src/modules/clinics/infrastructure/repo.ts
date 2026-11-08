@@ -13,6 +13,9 @@ interface ClinicRow {
   address: string | null;
   phone: string | null;
   email: string | null;
+  display_name: string | null;
+  description: string | null;
+  opening_hours: string | null;
   status: ClinicStatus;
   created_by: string | null;
   created_at: Date;
@@ -30,11 +33,14 @@ function toClinic(row: ClinicRow): Clinic {
   if (row.address !== null) clinic.address = row.address;
   if (row.phone !== null) clinic.phone = row.phone;
   if (row.email !== null) clinic.email = row.email;
+  if (row.display_name !== null) clinic.displayName = row.display_name;
+  if (row.description !== null) clinic.description = row.description;
+  if (row.opening_hours !== null) clinic.openingHours = row.opening_hours;
   if (row.created_by !== null) clinic.createdBy = row.created_by;
   return clinic;
 }
 
-const CLINIC_COLUMNS = ["id", "type", "family_id", "name", "address", "phone", "email", "status", "created_by", "created_at"] as const;
+const CLINIC_COLUMNS = ["id", "type", "family_id", "name", "address", "phone", "email", "display_name", "description", "opening_hours", "status", "created_by", "created_at"] as const;
 
 export class KyselyClinicsRepository implements ClinicsRepository<Kysely<Database>> {
   async insert(trx: Kysely<Database>, record: NewClinicRecord): Promise<Clinic> {
@@ -101,6 +107,9 @@ export class KyselyClinicsRepository implements ClinicsRepository<Kysely<Databas
         ...(changes.address !== undefined ? { address: changes.address } : {}),
         ...(changes.phone !== undefined ? { phone: changes.phone } : {}),
         ...(changes.email !== undefined ? { email: changes.email } : {}),
+        ...(changes.displayName !== undefined ? { display_name: changes.displayName } : {}),
+        ...(changes.description !== undefined ? { description: changes.description } : {}),
+        ...(changes.openingHours !== undefined ? { opening_hours: changes.openingHours } : {}),
         updated_at: sql`now()`,
       })
       .where("id", "=", clinicId)

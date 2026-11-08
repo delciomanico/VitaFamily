@@ -22,6 +22,8 @@ export interface ActorIdentity {
 export interface ClinicPortalActor {
   clinicAccountId: string;
   clinicId: string;
+  /** M14 R (BR-CLN-39): só no Médico — filtra por marcações do seu profissional e esconde `receiptId`. */
+  professionalId?: string;
 }
 
 /** Subconjunto de `AccessPolicy<Trx>` que `appointments` chama pela raiz (`access.policy`, modules.md §2). */
@@ -330,6 +332,8 @@ export interface ClinicVisitBookingView {
   source: "MANUAL";
   clinicPatientId: string;
   slotId?: string;
+  /** M14 R (BR-CLN-31): recibo `ISSUED` da visita; nunca para o Médico. */
+  receiptId?: string;
   /** M14 Q (BR-CLN-25/28/30). */
   confirmationStatus: ConfirmationStatus;
   confirmationSource?: ConfirmationSource;
@@ -347,7 +351,7 @@ export interface ClinicPatientDirectoryPort<Trx> {
   ensureLinkedByEmail(trx: Trx, actor: ClinicPortalActor, input: { familyId: string; memberId: string; fullName: string }, context: RequestContext): Promise<{ clinicPatientId: string }>;
   /** BR-CLN-18 (c): visita presencial manual (bloqueia o horário, valida sobreposições, audita `CLINIC_VISIT_BOOK`). */
   bookVisit(trx: Trx, actor: ClinicPortalActor, input: { clinicPatientId: string; slotId: string; notes?: string | null }, context: RequestContext): Promise<ClinicVisitBookingView>;
-  listVisits(trx: Trx, clinicId: string, filter: { from?: Date; to?: Date }): Promise<ClinicVisitBookingView[]>;
+  listVisits(trx: Trx, clinicId: string, filter: { from?: Date; to?: Date; professionalId?: string }): Promise<ClinicVisitBookingView[]>;
   /** `null` se o id não é uma visita da clínica (o chamador decide o 404). */
   cancelVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, note: string, context: RequestContext): Promise<ClinicVisitBookingView | null>;
   completeVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, input: { outcomeNote?: string | null; prescription?: unknown }, context: RequestContext): Promise<ClinicVisitBookingView | null>;
@@ -364,6 +368,14 @@ export interface ClinicPatientDirectoryPort<Trx> {
   findPatientIdsByMembers(trx: Trx, clinicId: string, memberIds: string[]): Promise<Map<string, string>>;
 }
 
+/**
+ * `ReceiptIds` (M14 R, BR-CLN-31): `ClinicBooking.receiptId` = recibo `ISSUED` da marcação. Definida aqui, implementada por
+ * `clinic-receipts` e ligada no composition root (`appointments` nunca importa `clinic-receipts`).
+ */
+export interface ReceiptIdsPort<Trx> {
+  findIssuedReceiptIds(trx: Trx, clinicId: string, kind: "APPOINTMENT" | "VISIT", bookingIds: string[]): Promise<Map<string, string>>;
+}
+
 export interface AppointmentsDeps<Trx> {
   appointmentsRepo: AppointmentsRepository<Trx>;
   policy: AccessPolicyPort<Trx>;
@@ -378,6 +390,8 @@ export interface AppointmentsDeps<Trx> {
   patients: PatientDirectoryPort<Trx>;
   /** M14 P (BR-CLN-18): pacientes da clínica e visitas manuais (implementada por `clinic-patients`). */
   clinicPatients: ClinicPatientDirectoryPort<Trx>;
+  /** M14 R (BR-CLN-31/39): `receiptId` nas marcações concluídas (nunca para o Médico). */
+  receipts: ReceiptIdsPort<Trx>;
   /** BR-CLN-10: rate limit dos endpoints walk-in (por conta, por IP, falhas 404). */
   walkInRateLimiter: WalkInRateLimiter;
   audit: AuditPort<Trx>;

@@ -5,6 +5,7 @@ import { calendarDayState, type CalendarEntry } from "../domain/calendar.js";
 import { visitWaitingMinutes } from "../domain/day-flow.js";
 import type { ClinicPatientsDeps, ClinicPortalActor } from "./ports.js";
 import { buildEntries } from "./calendar.js";
+import { isDoctor, slotsOfDoctor } from "./doctor-scope.js";
 import { requireOwnPatient, toPatientView, type ClinicPatientView } from "./support.js";
 import { toVisitViews } from "./visits.js";
 
@@ -67,12 +68,26 @@ export function createGetClinicPatientRecordUseCase<Trx>(deps: ClinicPatientsDep
       const link = await deps.linksRepo.findByPatient(trx, actor.clinicId, patient.id);
       const memberName = link ? ((await deps.members.getMemberName(trx, link.familyId, link.memberId)) ?? patient.name) : patient.name;
 
-      const [appointments, examinations, recommendations, visits] = await Promise.all([
+      const [allAppointments, allExaminations, allRecommendations, allVisits] = await Promise.all([
         link ? deps.calendar.listAppointmentsOfMember(trx, actor.clinicId, link.familyId, link.memberId, RECORD_LIST_LIMIT) : Promise.resolve([]),
         link ? deps.calendar.listExaminationsOfMember(trx, actor.clinicId, link.familyId, link.memberId, RECORD_LIST_LIMIT) : Promise.resolve([]),
         link ? deps.recommendations.listOfMember(trx, actor.clinicId, link.familyId, link.memberId, RECORD_LIST_LIMIT) : Promise.resolve([]),
         deps.visitsRepo.list(trx, actor.clinicId, { clinicPatientId: patient.id }, RECORD_LIST_LIMIT),
       ]);
+      // BR-CLN-39: a ficha do Médico fica limitada às marcações (e recomendações) do seu profissional.
+      let appointments = allAppointments;
+      let examinations = allExaminations;
+      let visits = allVisits;
+      let recommendations = allRecommendations;
+      if (isDoctor(actor)) {
+        const own = await slotsOfDoctor(deps, trx, actor, [...allAppointments, ...allExaminations, ...allVisits].map((f) => f.slotId));
+        appointments = allAppointments.filter((a) => a.slotId && own.has(a.slotId));
+        examinations = allExaminations.filter((e) => e.slotId && own.has(e.slotId));
+        visits = allVisits.filter((v) => v.slotId && own.has(v.slotId));
+        const appointmentIds = new Set(appointments.map((a) => a.id));
+        const examinationIds = new Set(examinations.map((e) => e.id));
+        recommendations = allRecommendations.filter((r) => (r.appointmentId !== undefined && appointmentIds.has(r.appointmentId)) || (r.examinationId !== undefined && examinationIds.has(r.examinationId)));
+      }
       const { entries, slots } = await buildEntries(deps, trx, actor.clinicId, { appointments, examinations: [], visits: [] });
       const entryById = new Map(entries.map((entry) => [entry.id, entry]));
 

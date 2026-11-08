@@ -161,6 +161,10 @@ export type AuditAction =
   | "CLINIC_CONSENT_REVOKE"
   | "CLINIC_LINK_CODE_CREATE"
   | "CLINIC_LINK_CODES_PURGE"
+  // M14 R (audit.md §3): recibos e perfil da clínica; `metadata` nunca com nomes, descrições, valores, motivo nem texto.
+  | "CLINIC_RECEIPT_ISSUE"
+  | "CLINIC_RECEIPT_VOID"
+  | "CLINIC_PROFILE_UPDATE"
   // Seguradoras e portal da seguradora (ADR-021/ADR-023, BR-ADM-05/06, BR-INS-06): sem PII no metadata.
   | "ADMIN_INSURER_CREATE"
   | "ADMIN_INSURER_UPDATE"
@@ -197,6 +201,11 @@ export interface AuditEvent {
   actorUserId?: string;
   /** D18: preenchido só quando `actorType==='CLINIC_ACCOUNT'` (schema.md §5). */
   actorClinicAccountId?: string;
+  /**
+   * M14 R (BR-CLN-40): clínica da conta quando `actorType==='CLINIC_ACCOUNT'`. Se omitido, o repositório usa a clínica do
+   * ator do pedido (token) quando coincide com `actorClinicAccountId`; os eventos sem sessão (login) passam-no explicitamente.
+   */
+  actorClinicId?: string;
   /** ADR-021: preenchido só quando `actorType==='INSURANCE_ACCOUNT'` (schema.md §5). */
   actorInsuranceAccountId?: string;
   action: AuditAction;

@@ -7,6 +7,7 @@ import { addDaysIso, isIsoDate, localDateIso } from "../../../platform/time/inde
 import { isFollowUpNotified } from "../domain/day-flow.js";
 import { REPORT_ACCOUNT_RULE } from "../domain/rate-limiter.js";
 import { buildReport, parseReportWindow, type ReportCounts, type ReportFact } from "../domain/report.js";
+import { isDoctor, slotsOfDoctor } from "./doctor-scope.js";
 import type { ClinicPatientsDeps, ClinicPortalActor } from "./ports.js";
 
 export interface ClinicReportRowView extends ReportCounts {
@@ -94,10 +95,16 @@ export function createListClinicFollowUpsUseCase<Trx>(deps: ClinicPatientsDeps<T
     }
     const until = rawUntil ?? addDaysIso(localDateIso(now), FOLLOW_UP_DEFAULT_DAYS);
     return deps.withTransaction(async (trx) => {
-      const [vita, visits] = await Promise.all([
+      let [vita, visits] = await Promise.all([
         deps.reports.listAppointmentFollowUps(trx, actor.clinicId, until, FOLLOW_UP_LIST_LIMIT),
         deps.visitsRepo.listFollowUps(trx, actor.clinicId, until, FOLLOW_UP_LIST_LIMIT),
       ]);
+      if (isDoctor(actor)) {
+        // BR-CLN-39: só os retornos das marcações do seu profissional.
+        const own = await slotsOfDoctor(deps, trx, actor, [...vita.map((f) => f.slotId), ...visits.map((v) => v.slotId ?? undefined)]);
+        vita = vita.filter((f) => f.slotId && own.has(f.slotId));
+        visits = visits.filter((v) => v.slotId && own.has(v.slotId));
+      }
       const links = vita.length === 0 ? [] : await deps.linksRepo.findByMembers(trx, actor.clinicId, [...new Set(vita.map((f) => f.memberId))]);
       const patientIdByMember = new Map(links.map((link) => [link.memberId, link.clinicPatientId]));
       const patientIds = [...new Set([...patientIdByMember.values(), ...visits.map((v) => v.clinicPatientId)])];

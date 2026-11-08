@@ -7,7 +7,9 @@ export interface ClinicAccountsTable {
   clinic_id: string;
   email: string;
   password_hash: string;
-  role: "CLINIC_ADMIN" | "CLINIC_MANAGER";
+  role: "CLINIC_ADMIN" | "CLINIC_MANAGER" | "CLINIC_DOCTOR";
+  /** M14 R (`0030`): só `CLINIC_DOCTOR`. */
+  professional_id: string | null;
   status: "ACTIVE" | "SUSPENDED";
   created_by_platform_admin: string | null;
   suspended_at: ColumnType<Date | null, Date | null | undefined, Date | null>;

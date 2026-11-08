@@ -69,6 +69,7 @@ export function toClinicExamResponse(view: ClinicExamView) {
     resultsCount: view.resultsCount,
     documents: view.documents,
     resultsIssuedAt: view.resultsIssuedAt ?? null,
+    receiptId: view.receiptId ?? null,
   };
 }
 

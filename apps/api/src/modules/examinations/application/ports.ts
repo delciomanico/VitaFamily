@@ -22,6 +22,8 @@ export interface ActorIdentity {
 export interface ClinicPortalActor {
   clinicAccountId: string;
   clinicId: string;
+  /** M14 R (BR-CLN-39): só no Médico — filtra por exames do seu profissional e esconde `receiptId`. */
+  professionalId?: string;
 }
 
 /** `access.getMemberName` (BR-CLN-03): nome do membro para `ClinicExamBooking.patientName` — o mínimo. */
@@ -49,6 +51,8 @@ export interface ClinicSlotLite {
   durationMinutes: number;
   /** BR-APT-11: vagas do horário. */
   capacity: number;
+  /** M14 (BR-CLN-13): profissional do catálogo; nulo nos horários manuais antigos. */
+  professionalId?: string;
 }
 
 /** Subconjunto de `AccessPolicy<Trx>` que `examinations` chama pela raiz (`access.policy`, modules.md §2). */
@@ -62,6 +66,13 @@ export interface ClinicsPort<Trx> {
   /** BR-APT-11: `ExaminationInput.slotId` não traz `clinicId` (openapi) — o horário resolve-se só pelo id
    * e é BLOQUEADO (`SELECT … FOR UPDATE`) na transação do chamador, que serializa as marcações. */
   lockSlot(trx: Trx, slotId: string): Promise<ClinicSlotLite | null>;
+  /** M14 R (BR-CLN-39): horário pelo id (sem bloqueio) — o Médico só age em exames do seu profissional. */
+  findSlotById(slotId: string): Promise<ClinicSlotLite | null>;
+}
+
+/** `ReceiptIds` (M14 R, BR-CLN-31): `ClinicExamBooking.receiptId`; implementada por `clinic-receipts`, ligada no composition root. */
+export interface ReceiptIdsPort<Trx> {
+  findIssuedReceiptIds(trx: Trx, clinicId: string, kind: "EXAM", bookingIds: string[]): Promise<Map<string, string>>;
 }
 
 /** Subconjunto da API pública de `documents` (modules.md §2) — documentos de um exame (FR-DOC-04). */
@@ -235,6 +246,7 @@ export interface ExaminationsDeps<Trx> {
   alerts: ExamAlertsPort<Trx>;
   clinics: ClinicsPort<Trx>;
   documents: DocumentsPort<Trx>;
+  receipts: ReceiptIdsPort<Trx>;
   audit: AuditPort<Trx>;
   db: Trx;
   withTransaction: WithTransaction<Trx>;

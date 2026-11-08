@@ -52,8 +52,8 @@ export function createCreateClinicRecommendationUseCase<Trx>(deps: Recommendatio
     return deps.withTransaction(async (trx) => {
       const origin: OriginFacts | null =
         draft.origin.kind === "APPOINTMENT"
-          ? await deps.origins.findAppointmentOfClinic(trx, actor.clinicId, draft.origin.id)
-          : await deps.origins.findExaminationOfClinic(trx, actor.clinicId, draft.origin.id);
+          ? await deps.origins.findAppointmentOfClinic(trx, actor.clinicId, draft.origin.id, actor.professionalId)
+          : await deps.origins.findExaminationOfClinic(trx, actor.clinicId, draft.origin.id, actor.professionalId);
       // Origem de outra clínica ou inexistente: NOT_FOUND indistinto (nunca revela existência).
       if (!origin) {
         throw new NotFoundError({ detail: draft.origin.kind === "APPOINTMENT" ? "Consulta não encontrada." : "Exame não encontrado." });
@@ -105,9 +105,23 @@ export function createListClinicRecommendationsUseCase<Trx>(deps: Recommendation
         { ...(query.appointmentId ? { appointmentId: query.appointmentId } : {}), ...(query.examinationId ? { examinationId: query.examinationId } : {}) },
         CLINIC_LIST_LIMIT,
       );
+      // BR-CLN-39: o Médico só vê as recomendações de origens (consulta/exame) do seu profissional.
+      const visible = [];
+      for (const item of items) {
+        if (!actor.professionalId) {
+          visible.push(item);
+          continue;
+        }
+        const origin = item.appointmentId
+          ? await deps.origins.findAppointmentOfClinic(trx, actor.clinicId, item.appointmentId, actor.professionalId)
+          : item.examinationId
+            ? await deps.origins.findExaminationOfClinic(trx, actor.clinicId, item.examinationId, actor.professionalId)
+            : null;
+        if (origin) visible.push(item);
+      }
       const names = new Map<string, string>();
       const views: ClinicRecommendationView[] = [];
-      for (const item of items) {
+      for (const item of visible) {
         const key = `${item.familyId}:${item.memberId}`;
         let name = names.get(key);
         if (name === undefined) {

@@ -143,6 +143,11 @@ export interface ClinicCalendarView {
 export function createGetClinicCalendarUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
   return async function getClinicCalendar(actor: ClinicPortalActor, query: { from: unknown; to: unknown; professionalId?: string | undefined }): Promise<ClinicCalendarView> {
     const window = parseCalendarWindow(query.from, query.to);
+    // BR-CLN-39: o Médico só vê a sua coluna; o `professionalId` de outro => 404.
+    if (actor.professionalId && query.professionalId && query.professionalId !== actor.professionalId) {
+      throw new NotFoundError({ detail: "Profissional não encontrado." });
+    }
+    if (actor.professionalId) query = { ...query, professionalId: actor.professionalId };
     return deps.withTransaction(async (trx) => {
       if (query.professionalId && !(await deps.slots.findProfessional(trx, actor.clinicId, query.professionalId))) {
         throw new NotFoundError({ detail: "Profissional não encontrado." });

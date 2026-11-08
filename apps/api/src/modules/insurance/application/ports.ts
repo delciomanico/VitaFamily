@@ -7,7 +7,7 @@ import type { Logger } from "../../../platform/logger/index.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Document, ResourceType } from "../../documents/index.js";
-import type { ClaimStatus, ReimbursementClaim } from "../domain/reimbursement-claim.js";
+import type { ClaimReceiptRef, ClaimStatus, ReimbursementClaim } from "../domain/reimbursement-claim.js";
 import type { InsurancePolicy } from "../domain/insurance-policy.js";
 import type { InsuranceAccount, InsuranceAccountRole, InsuranceAccountStatus } from "../domain/insurance-account.js";
 import type { InsuranceSigningKey } from "../domain/insurance-jwt.js";
@@ -191,6 +191,8 @@ export interface NewClaimRecord {
   amount: number;
   currency: string;
   documentIds: string[];
+  /** M14 R (BR-CLN-36). */
+  receiptIds: string[];
   submittedBy: string;
   createdAt: Date;
 }
@@ -223,6 +225,30 @@ export interface ReimbursementClaimsRepository<Trx> {
   listByInsurer(trx: Trx, insurerId: string, status?: ClaimStatus): Promise<PortalClaim[]>;
   findByInsurer(trx: Trx, insurerId: string, claimId: string, lock?: boolean): Promise<PortalClaim | null>;
   decide(trx: Trx, claimId: string, decision: ClaimDecisionRecord): Promise<ReimbursementClaim>;
+  /** BR-CLN-36: pedidos `SUBMITTED`/`APPROVED`/`PAID` a que cada recibo está anexado (`REJECTED` liberta o recibo). */
+  activeClaimIdsByReceipts(trx: Trx, receiptIds: string[]): Promise<Map<string, string[]>>;
+}
+
+/**
+ * `ClinicReceiptLookup` (M14 R, BR-CLN-36, modules.md §2 nota 26): o que `insurance` pede a `clinic-receipts` — definida aqui,
+ * implementada por `clinic-receipts/interface` e ligada em `main/api.ts` (`insurance` nunca importa `clinic-receipts`).
+ */
+export interface ClinicReceiptLookupPort<Trx> {
+  /** Recibos visíveis ao membro (`clinic_receipt_links`), bloqueados (`FOR UPDATE`); ids não visíveis ficam de fora. */
+  lockVisible(trx: Trx, familyId: string, memberId: string, receiptIds: string[]): Promise<{ id: string; number: number; status: "ISSUED" | "VOIDED"; totalMinor: number; currency: string }[]>;
+  refs(trx: Trx, receiptIds: string[]): Promise<ClaimReceiptRef[]>;
+  /** Resumo mínimo para a seguradora (BR-CLN-36): sem PDF, sem ids, sem profissional, sem método de pagamento. */
+  summaries(trx: Trx, receiptIds: string[]): Promise<(InsuranceClaimReceiptSummary & { id: string })[]>;
+}
+
+export interface InsuranceClaimReceiptSummary {
+  number: number;
+  issuedAt: string;
+  clinicName: string;
+  lines: { description: string; amountMinor: number }[];
+  totalMinor: number;
+  currency: string;
+  status: "ISSUED" | "VOIDED";
 }
 
 /** Subconjunto de `AccessPolicy<Trx>` que `insurance` chama pela raiz de `access` (modules.md §2). */
@@ -250,6 +276,8 @@ export interface InsuranceHolderDeps<Trx> {
   policy: AccessPolicyPort<Trx>;
   membership: MembershipPort<Trx>;
   documents: InsuranceDocumentsPort<Trx>;
+  /** M14 R (BR-CLN-36). */
+  receipts: ClinicReceiptLookupPort<Trx>;
   audit: AuditPort<Trx>;
   db: Trx;
   withTransaction: WithTransaction<Trx>;
@@ -259,13 +287,15 @@ export interface InsuranceHolderDeps<Trx> {
 /** Dependências do portal (`/insurance-portal/claims*`): sem `access`/`documents` (ADR-021). */
 export interface InsurancePortalClaimsDeps<Trx> {
   claimsRepo: ReimbursementClaimsRepository<Trx>;
+  /** M14 R (BR-CLN-36): resumo mínimo dos recibos anexados. */
+  receipts: ClinicReceiptLookupPort<Trx>;
   audit: AuditPort<Trx>;
   withTransaction: WithTransaction<Trx>;
   clock: Clock;
 }
 
 export type { InsurancePolicy } from "../domain/insurance-policy.js";
-export type { ClaimDecision, ClaimStatus, ReimbursementClaim } from "../domain/reimbursement-claim.js";
+export type { ClaimDecision, ClaimReceiptRef, ClaimStatus, ReimbursementClaim } from "../domain/reimbursement-claim.js";
 export type { Insurer, InsurerStatus } from "../domain/insurer.js";
 export type { InsuranceAccount, InsuranceAccountRole, InsuranceAccountStatus } from "../domain/insurance-account.js";
 export type { InsuranceSession } from "../domain/insurance-session.js";

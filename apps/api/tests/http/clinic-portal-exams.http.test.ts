@@ -202,7 +202,7 @@ describe("fluxo completo conforme o contrato (UC-EXM-08, UC-CLN-09..10, ADR-023 
 
     // BR-CLN-03: só o mínimo; sem passo de confirmação — a agenda já mostra SCHEDULED.
     const agenda = await request(h.app).get(`${API}/clinic-portal/exam-agenda`).set("Authorization", clinicA);
-    expect(agenda.body).toEqual([{ id, status: "SCHEDULED", scheduledAt: SLOT_AT.toISOString(), examType: "Ecografia", patientName: "Maria Silva", notes: "em jejum", responseNote: null, resultsCount: 0, documents: [], resultsIssuedAt: null }]);
+    expect(agenda.body).toEqual([{ id, status: "SCHEDULED", scheduledAt: SLOT_AT.toISOString(), examType: "Ecografia", patientName: "Maria Silva", notes: "em jejum", responseNote: null, resultsCount: 0, documents: [], resultsIssuedAt: null, receiptId: null }]);
     // As rotas de pedidos foram retiradas (ADR-023 revisto): não existem.
     expect((await request(h.app).get(`${API}/clinic-portal/exam-requests`).set("Authorization", clinicA)).status).toBe(404);
 

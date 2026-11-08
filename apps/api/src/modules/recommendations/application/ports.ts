@@ -16,6 +16,8 @@ export interface ActorIdentity {
 export interface ClinicPortalActor {
   clinicAccountId: string;
   clinicId: string;
+  /** M14 R (BR-CLN-39): só no Médico — só vê/cria recomendações em origens do seu profissional. */
+  professionalId?: string;
 }
 
 export interface RequestContext {
@@ -41,8 +43,8 @@ export interface OriginFacts {
 }
 
 export interface OriginsPort<Trx> {
-  findAppointmentOfClinic(trx: Trx, clinicId: string, appointmentId: string): Promise<OriginFacts | null>;
-  findExaminationOfClinic(trx: Trx, clinicId: string, examinationId: string): Promise<OriginFacts | null>;
+  findAppointmentOfClinic(trx: Trx, clinicId: string, appointmentId: string, professionalId?: string): Promise<OriginFacts | null>;
+  findExaminationOfClinic(trx: Trx, clinicId: string, examinationId: string, professionalId?: string): Promise<OriginFacts | null>;
 }
 
 /** Subconjunto da API pública de `alerts` (`recommendation.added`), ligado só no composition root. */

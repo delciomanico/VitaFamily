@@ -11,6 +11,7 @@ import { DomainError } from "../../../platform/errors/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
 import { verifyClinicAccessToken, type ClinicSigningKey } from "../domain/clinic-jwt.js";
 import type { ClinicActorState } from "../application/resolve-clinic-actor-state.js";
+import { assertPortalAccess } from "../domain/clinic-portal-access.js";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace -- augmentação padrão do Express.
@@ -53,7 +54,7 @@ export function createClinicBearerAuthSecurityHandler(deps: {
 /**
  * Middleware normal: resolve o estado da conta (cache ≤60 s), aplica suspensão
  * (authorization.md §6.1 passo 1) e só então chama `next()` dentro de `runWithClinicActor`.
- * Passa adiante (sem preencher o ator de clínica) pedidos sem `clinicAuthSubject` — rotas fora de
+ * Aplica a matriz papel × rota (`domain/clinic-portal-access.ts`). Passa adiante (sem preencher o ator de clínica) pedidos sem `clinicAuthSubject` — rotas fora de
  * `/clinic-portal/*` nunca têm este campo preenchido (security scheme diferente no contrato).
  */
 export function createClinicActorContextMiddleware(deps: {
@@ -73,11 +74,15 @@ export function createClinicActorContextMiddleware(deps: {
           return;
         }
 
+        // M14 R (BR-CLN-39, authorization.md §6.2b): papel -> rota decidido pela matriz; o filtro "suas" do Médico é do módulo dono.
+        assertPortalAccess(state.role, req.method, req.originalUrl.split("?")[0] ?? req.originalUrl);
+
         const actor: ClinicActorInfo = {
           clinicAccountId: state.clinicAccountId,
           sessionId: state.sessionId,
           clinicId: state.clinicId,
           role: state.role,
+          ...(state.professionalId ? { professionalId: state.professionalId } : {}),
         };
         runWithClinicActor(actor, () => {
           next();

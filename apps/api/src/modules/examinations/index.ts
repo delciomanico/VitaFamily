@@ -26,7 +26,7 @@ import { createDeleteExamResultUseCase } from "./application/delete-exam-result.
 import { createExamResultHistoryUseCase } from "./application/exam-result-history.js";
 import { createGetExaminationUseCase } from "./application/get-examination.js";
 import { createListExaminationsUseCase } from "./application/list-examinations.js";
-import type { ExaminationsDeps, ExamAlertsPort } from "./application/ports.js";
+import type { ExaminationsDeps, ExamAlertsPort, ReceiptIdsPort } from "./application/ports.js";
 import { createSetExaminationStatusUseCase } from "./application/set-examination-status.js";
 import { createUpdateExaminationUseCase } from "./application/update-examination.js";
 import { createUpdateExamResultUseCase } from "./application/update-exam-result.js";
@@ -49,6 +49,8 @@ export interface ExaminationsModuleDeps {
   /** D19: alertas de evento de exame — ligado no composition root à API pública de `alerts`
    * (`alerts` depende de `examinations`, nunca o inverso; ver `ExamAlertsPort`). */
   alerts: ExamAlertsPort<Kysely<Database>>;
+  /** M14 R (BR-CLN-31): `receiptId` nos exames concluídos — ligada no composition root a `clinic-receipts`. */
+  receipts: ReceiptIdsPort<Kysely<Database>>;
   clock: Clock;
 }
 
@@ -83,6 +85,15 @@ export interface SharedExamFact {
   results: { parameter: string; valueNumeric: number | null; valueText: string | null; unit: string | null; referenceMin: number | null; referenceMax: number | null }[];
 }
 
+/** M14 R: exame da própria clínica visto pelo recibo (nome do retrato; `familyId`/`memberId` SÓ no servidor). */
+export interface ClinicExamReceiptFacts {
+  status: string;
+  patientName: string;
+  slotId?: string;
+  familyId: string;
+  memberId: string;
+}
+
 export interface ExaminationsModule {
   router: Router;
   /** M14 P (`clinic-patients`, só leitura; ligado no composition root): exames da própria clínica por janela/membro. */
@@ -100,8 +111,10 @@ export interface ExaminationsModule {
   countScheduledBySlot: (trx: Kysely<Database>, slotIds: string[]) => Promise<{ slotId: string; count: number }[]>;
   /** BR-CLN-08: porta de libertação dos PDF da clínica para `documents` (exame `COMPLETED`). */
   releaseGate: { isReleased: (trx: Kysely<Database>, document: { familyId: string; memberId: string; resourceId: string }) => Promise<boolean> };
+  /** M14 R (BR-CLN-31, `clinic-receipts`, ligado no composition root): factos mínimos do exame da clínica para emitir recibo. */
+  findReceiptFacts: (trx: Kysely<Database>, clinicId: string, examinationId: string) => Promise<ClinicExamReceiptFacts | null>;
   /** BR-CLN-09 (`recommendations`, ligado no composition root): "este exame pertence à clínica X e está no estado Y". */
-  findClinicOrigin: (trx: Kysely<Database>, clinicId: string, examinationId: string) => Promise<ClinicExamOrigin | null>;
+  findClinicOrigin: (trx: Kysely<Database>, clinicId: string, examinationId: string, professionalId?: string) => Promise<ClinicExamOrigin | null>;
   /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
   reads: { examinations: MemberPageRead };
 }
@@ -117,7 +130,8 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
     policy: deps.access.policy,
     memberNames: { getMemberName: deps.access.getMemberName },
     alerts: deps.alerts,
-    clinics: { getBookableClinic: deps.clinics.getBookableClinic, lockSlot: deps.clinics.lockClinicSlot },
+    clinics: { getBookableClinic: deps.clinics.getBookableClinic, lockSlot: deps.clinics.lockClinicSlot, findSlotById: deps.clinics.findClinicSlotById },
+    receipts: deps.receipts,
     documents: {
       listForResource: deps.documents.listForResource,
       deleteAllForResource: deps.documents.deleteAllForResource,
@@ -198,8 +212,16 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
       }
       return shared;
     },
-    findClinicOrigin: async (trx, clinicId, examinationId) => {
+    findReceiptFacts: async (trx, clinicId, examinationId) => {
       const examination = await examinationsRepo.findByClinicId(trx, clinicId, examinationId);
+      if (!examination) return null;
+      const patientName = (await deps.access.getMemberName(trx, examination.familyId, examination.memberId)) ?? "Membro da família";
+      return { status: examination.status, patientName, familyId: examination.familyId, memberId: examination.memberId, ...(examination.slotId ? { slotId: examination.slotId } : {}) };
+    },
+    findClinicOrigin: async (trx, clinicId, examinationId, professionalId) => {
+      const examination = await examinationsRepo.findByClinicId(trx, clinicId, examinationId);
+      // BR-CLN-39: o Médico só vê origens do seu profissional.
+      if (examination && professionalId && (!examination.slotId || (await deps.clinics.findClinicSlotById(examination.slotId))?.professionalId !== professionalId)) return null;
       return examination
         ? { familyId: examination.familyId, memberId: examination.memberId, status: examination.status, ...(examination.clinicName ? { clinicName: examination.clinicName } : {}) }
         : null;

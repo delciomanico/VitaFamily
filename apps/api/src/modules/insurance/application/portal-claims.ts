@@ -5,7 +5,7 @@
 import { NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { decide, type ClaimStatus } from "../domain/reimbursement-claim.js";
-import type { InsurancePortalActor, InsurancePortalClaimsDeps, PortalClaim, RequestContext } from "./ports.js";
+import type { InsuranceClaimReceiptSummary, InsurancePortalActor, InsurancePortalClaimsDeps, PortalClaim, RequestContext } from "./ports.js";
 
 /** `components.schemas.InsuranceClaimView` — o mínimo necessário (ADR-021); `familyId`/`memberId` nunca saem. */
 export interface InsuranceClaimView {
@@ -17,9 +17,11 @@ export interface InsuranceClaimView {
   policyNumber: string;
   decisionNote: string | null;
   documentIds: string[];
+  /** M14 R (BR-CLN-36): resumo mínimo dos recibos anexados. */
+  receipts: InsuranceClaimReceiptSummary[];
 }
 
-export function toClaimView(portal: PortalClaim): InsuranceClaimView {
+export function toClaimView(portal: PortalClaim, receipts: InsuranceClaimReceiptSummary[] = []): InsuranceClaimView {
   const { claim } = portal;
   return {
     id: claim.id,
@@ -30,7 +32,16 @@ export function toClaimView(portal: PortalClaim): InsuranceClaimView {
     policyNumber: portal.policyNumber,
     decisionNote: claim.decisionNote ?? null,
     documentIds: claim.documentIds,
+    receipts,
   };
+}
+
+/** Resumo mínimo dos recibos de cada pedido (sem ids, sem PDF, sem profissional). */
+async function viewsWithReceipts<Trx>(deps: InsurancePortalClaimsDeps<Trx>, trx: Trx, portals: PortalClaim[]): Promise<InsuranceClaimView[]> {
+  const ids = [...new Set(portals.flatMap((p) => p.claim.receiptIds ?? []))];
+  const summaries = ids.length === 0 ? [] : await deps.receipts.summaries(trx, ids);
+  const byId = new Map(summaries.map(({ id, ...summary }) => [id, summary]));
+  return portals.map((p) => toClaimView(p, (p.claim.receiptIds ?? []).flatMap((id) => (byId.has(id) ? [byId.get(id) as InsuranceClaimReceiptSummary] : []))));
 }
 
 const STATUSES: readonly ClaimStatus[] = ["SUBMITTED", "APPROVED", "REJECTED", "PAID"];
@@ -44,7 +55,7 @@ export function createListInsuranceClaimsUseCase<Trx>(deps: InsurancePortalClaim
         throw new ValidationError([{ field: "status", message: STATUSES.join(" | ") }], { detail: "Filtro inválido." });
       }
     }
-    return deps.withTransaction(async (trx) => (await deps.claimsRepo.listByInsurer(trx, actor.insurerId, status)).map(toClaimView));
+    return deps.withTransaction(async (trx) => viewsWithReceipts(deps, trx, await deps.claimsRepo.listByInsurer(trx, actor.insurerId, status)));
   };
 }
 
@@ -55,7 +66,7 @@ export function createGetInsuranceClaimUseCase<Trx>(deps: InsurancePortalClaimsD
       if (!found) {
         throw new NotFoundError({ detail: "Pedido não encontrado." });
       }
-      return toClaimView(found);
+      return (await viewsWithReceipts(deps, trx, [found]))[0] ?? toClaimView(found);
     });
   };
 }
@@ -91,7 +102,7 @@ export function createDecideInsuranceClaimUseCase<Trx>(deps: InsurancePortalClai
         metadata: { status: outcome.status },
         ...auditContextFields(context),
       });
-      return toClaimView({ ...found, claim: decided });
+      return (await viewsWithReceipts(deps, trx, [{ ...found, claim: decided }]))[0] ?? toClaimView({ ...found, claim: decided });
     });
   };
 }

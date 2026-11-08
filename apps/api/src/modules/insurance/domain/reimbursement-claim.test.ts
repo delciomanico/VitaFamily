@@ -13,7 +13,7 @@ function codeOf(fn: () => unknown): string | undefined {
 
 describe("parseClaimInput (BR-INS-03/04)", () => {
   it("aceita valor positivo, moeda por omissão EUR e 1–10 documentos distintos", () => {
-    expect(parseClaimInput({ amount: 12.5, documentIds: ["a"] })).toEqual({ amount: 12.5, currency: "EUR", documentIds: ["a"] });
+    expect(parseClaimInput({ amount: 12.5, documentIds: ["a"] })).toEqual({ amount: 12.5, currency: "EUR", documentIds: ["a"], receiptIds: [] });
   });
 
   it.each([

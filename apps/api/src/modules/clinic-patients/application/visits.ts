@@ -13,6 +13,7 @@ import {
   normalizeVisitNote,
   type ClinicVisit,
 } from "../domain/clinic-visit.js";
+import { isDoctor, slotsOfDoctor, visitIsDoctors } from "./doctor-scope.js";
 import type { ClinicPatientsDeps, ClinicPortalActor, RequestContext, SlotFacts } from "./ports.js";
 
 /** `ClinicBooking` (openapi) de uma visita manual: mínimo necessário (BR-CLN-03). */
@@ -36,6 +37,19 @@ export interface ClinicVisitBookingView {
   startedAt?: string;
   waitingMinutes?: number;
   followUpDueOn?: string;
+  /** M14 R (BR-CLN-31): recibo `ISSUED` da visita; nunca para o Médico. */
+  receiptId?: string;
+}
+
+/** BR-CLN-31/39: acrescenta `receiptId` às visitas concluídas (Admin/Gestor apenas). */
+export async function attachVisitReceiptIds<Trx>(deps: ClinicPatientsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicVisitBookingView[]): Promise<ClinicVisitBookingView[]> {
+  const completed = views.filter((v) => v.status === "COMPLETED");
+  if (isDoctor(actor) || completed.length === 0) return views;
+  const ids = await deps.receipts.findIssuedReceiptIds(trx, actor.clinicId, "VISIT", completed.map((v) => v.id));
+  return views.map((v) => {
+    const receiptId = ids.get(v.id);
+    return receiptId ? { ...v, receiptId } : v;
+  });
 }
 
 export async function toVisitViews<Trx>(deps: ClinicPatientsDeps<Trx>, trx: Trx, clinicId: string, visits: ClinicVisit[]): Promise<ClinicVisitBookingView[]> {
@@ -153,8 +167,13 @@ export function createBookVisitUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
 }
 
 export function createListVisitsUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
-  return async function listVisits(trx: Trx, clinicId: string, filter: { from?: Date; to?: Date }): Promise<ClinicVisitBookingView[]> {
-    const visits = await deps.visitsRepo.list(trx, clinicId, { ...(filter.from ? { from: filter.from } : {}), ...(filter.to ? { to: filter.to } : {}) });
+  return async function listVisits(trx: Trx, clinicId: string, filter: { from?: Date; to?: Date; professionalId?: string }): Promise<ClinicVisitBookingView[]> {
+    let visits = await deps.visitsRepo.list(trx, clinicId, { ...(filter.from ? { from: filter.from } : {}), ...(filter.to ? { to: filter.to } : {}) });
+    if (filter.professionalId) {
+      // BR-CLN-39: o Médico só vê as visitas do seu profissional.
+      const own = await slotsOfDoctor(deps, trx, { clinicAccountId: "", clinicId, professionalId: filter.professionalId }, visits.map((v) => v.slotId ?? undefined));
+      visits = visits.filter((v) => v.slotId && own.has(v.slotId));
+    }
     return toVisitViews(deps, trx, clinicId, visits);
   };
 }
@@ -187,7 +206,7 @@ export function createCancelVisitUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
 export function createCompleteVisitUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
   return async function completeVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, input: { outcomeNote?: string | null; prescription?: unknown }, context: RequestContext): Promise<ClinicVisitBookingView | null> {
     const existing = await deps.visitsRepo.findById(trx, actor.clinicId, visitId);
-    if (!existing) return null;
+    if (!existing || !(await visitIsDoctors(deps, trx, actor, existing))) return null;
     assertNoPrescription(input.prescription);
     assertCanCompleteVisit(existing);
     const now = deps.clock.now();

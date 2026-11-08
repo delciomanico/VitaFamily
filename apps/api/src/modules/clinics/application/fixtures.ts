@@ -117,6 +117,12 @@ export class FakeClinicsRepository implements ClinicsRepository<FakeTrx> {
     else if (changes.phone !== undefined) updated.phone = changes.phone;
     if (changes.email === null) delete updated.email;
     else if (changes.email !== undefined) updated.email = changes.email;
+    if (changes.displayName === null) delete updated.displayName;
+    else if (changes.displayName !== undefined) updated.displayName = changes.displayName;
+    if (changes.description === null) delete updated.description;
+    else if (changes.description !== undefined) updated.description = changes.description;
+    if (changes.openingHours === null) delete updated.openingHours;
+    else if (changes.openingHours !== undefined) updated.openingHours = changes.openingHours;
     this.byId.set(clinicId, updated);
     return Promise.resolve(updated);
   }
@@ -160,6 +166,7 @@ export class FakeClinicAccountRepository implements ClinicAccountRepository<Fake
       role: record.role,
       status: "ACTIVE",
       createdAt: record.createdAt,
+      ...(record.professionalId !== undefined ? { professionalId: record.professionalId } : {}),
       ...(record.createdByPlatformAdmin !== undefined ? { createdByPlatformAdmin: record.createdByPlatformAdmin } : {}),
     };
     this.byId.set(account.id, account);
@@ -211,8 +218,12 @@ export class FakeClinicAccountRepository implements ClinicAccountRepository<Fake
     return Promise.resolve(updated);
   }
 
-  async listByClinic(_trx: FakeTrx, clinicId: string, role?: ClinicAccountRole): Promise<ClinicAccount[]> {
-    return Promise.resolve([...this.byId.values()].filter((account) => account.clinicId === clinicId && (!role || account.role === role)));
+  async findByProfessionalId(_trx: FakeTrx, professionalId: string): Promise<ClinicAccount | null> {
+    return Promise.resolve([...this.byId.values()].find((account) => account.professionalId === professionalId) ?? null);
+  }
+
+  async listByClinic(_trx: FakeTrx, clinicId: string, roles?: ClinicAccountRole[]): Promise<ClinicAccount[]> {
+    return Promise.resolve([...this.byId.values()].filter((account) => account.clinicId === clinicId && (!roles || roles.includes(account.role))));
   }
 
   /** Preparado por testes (o fake não conhece as sessões): último login por conta. */

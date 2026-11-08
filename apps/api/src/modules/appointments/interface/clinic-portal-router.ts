@@ -51,7 +51,7 @@ function requireClinicPortalActor(): ClinicPortalActor {
   if (!actor) {
     throw new UnauthenticatedError({ detail: "Sem sessão válida." });
   }
-  return { clinicAccountId: actor.clinicAccountId, clinicId: actor.clinicId };
+  return { clinicAccountId: actor.clinicAccountId, clinicId: actor.clinicId, ...(actor.professionalId ? { professionalId: actor.professionalId } : {}) };
 }
 
 function queryString(req: { query: Record<string, unknown> }, name: string): string | undefined {

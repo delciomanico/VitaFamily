@@ -27,9 +27,9 @@ describe("portal da seguradora: leitura (minimização, BR-INS-04)", () => {
     const list = createListInsuranceClaimsUseCase(fx.portalDeps);
 
     const a = await list(AGENT_A, {});
-    expect(a).toEqual([{ id: "c1", status: "SUBMITTED", amount: 10, currency: "EUR", policyHolderName: "Ana", policyNumber: "P-1", decisionNote: null, documentIds: ["d1", "d2"] }]);
+    expect(a).toEqual([{ id: "c1", status: "SUBMITTED", amount: 10, currency: "EUR", policyHolderName: "Ana", policyNumber: "P-1", decisionNote: null, documentIds: ["d1", "d2"], receipts: [] }]);
     expect((await list(AGENT_B, {})).map((c) => c.id)).toEqual(["c2"]);
-    expect(Object.keys(a[0] ?? {}).sort()).toEqual(["amount", "currency", "decisionNote", "documentIds", "id", "policyHolderName", "policyNumber", "status"]);
+    expect(Object.keys(a[0] ?? {}).sort()).toEqual(["amount", "currency", "decisionNote", "documentIds", "id", "policyHolderName", "policyNumber", "receipts", "status"]);
   });
 
   it("filtro status; valor inválido ⇒ VALIDATION_ERROR", async () => {

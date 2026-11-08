@@ -103,7 +103,7 @@
 | **Exames** | Marcações; Agenda e ocupação; Resultados (vista, BR-CLN-08) | agora | Admin, Gestor, Médico |
 | **Mais** | Financeiro (Recibos), Relatórios (Ocupação, Realizadas, Faltas, Cancelamentos, Novos pacientes — etapa Q), Definições (Perfil, Equipa e papéis, Auditoria) | Equipa agora; Relatórios (etapa Q); Financeiro, Perfil, Médico, Auditoria (etapa R) | Definições: Admin (Gestor lê o Perfil); Financeiro e Relatórios: Admin e Gestor; **Auditoria só Admin**; Médico não vê **Mais** |
 
-Incoerências resolvidas: (1) em Exames não há "pedidos" (ADR-023 revisto): chama-se "Marcações". (2) "Resultados" é vista sobre marcações. (3) Auditoria da clínica: contratada na etapa R (BR-CLN-40), sem PII, e só o Admin a vê; a exceção à regra 4 de `audit.md` §2 (P7 trata do titular) está documentada e **a ratificar** (OP-42). (4) Comunicação (lembretes/mensagens) deixa de ser grupo próprio: lembretes/confirmações vivem em Hoje/Agenda e as mensagens estruturadas na Ficha do paciente, para reduzir navegação.
+Incoerências resolvidas: (1) em Exames não há "pedidos" (ADR-023 revisto): chama-se "Marcações". (2) "Resultados" é vista sobre marcações. (3) Auditoria da clínica: contratada na etapa R (BR-CLN-40), sem PII, e só o Admin a vê; a exceção à regra 4 de `audit.md` §2 (P7 trata do titular) está documentada e **ratificada** (OP-42). (4) Comunicação (lembretes/mensagens) deixa de ser grupo próprio: lembretes/confirmações vivem em Hoje/Agenda e as mensagens estruturadas na Ficha do paciente, para reduzir navegação.
 
 ### 3.3 Padrões de UI
 - **Ficha do paciente como centro:** tabs Resumo | Consultas | Exames | Recomendações | Consentimentos | Financeiro; as tabs dependentes de consentimento mostram "Sem partilha ativa" com o que pedir ao paciente (convite). Nunca mostra ids Vita.
@@ -132,7 +132,7 @@ rotas (em inglês)              /clinic (Hoje) e /clinic/<area>/<resource>
 | 3 | **Agenda por profissional** com regras de horários, bloqueios, lista de espera | (a) | mock |
 | 4 | **Pacientes da clínica** + consentimento (ficha, código/QR, 2 níveis), pesquisa global e calendário por profissional (**etapa P**, contrato 2026-11-08) | (a)/(d) | mock; contrato pronto, backend pode arrancar |
 | 5 | **Confirmação ativa, fluxo do dia, indicadores e retorno** (**etapa Q**, contrato 2026-11-08) | (b)/(c) | mock; contrato pronto, backend pode arrancar (**sem** dependência de OP-07/OP-22) |
-| 6 | **Recibos, Financeiro, perfil, papel Médico e auditoria** (**etapa R**, contrato 2026-11-08; **última do M14**) | (e), (f) | mock; contrato pronto, backend pode arrancar (auditoria só após ratificar P7, OP-42) |
+| 6 | **Recibos, Financeiro, perfil, papel Médico e auditoria** (**etapa R**, contrato 2026-11-08; **última do M14**) | (e), (f) | mock; contrato pronto, backend pode arrancar (exceção a P7 ratificada, OP-42 resolvido) |
 | fora do M14 | Lista de espera (a3, OP-39); pré-consulta/QR de check-in (c) e mensagens estruturadas (d) (OP-43) | backlog | — |
 Tudo pode ser entregue em mock (MSW, `mocks/handlers/clinic/*`) para validar UX; **DPA/AIPD não bloqueiam o desenvolvimento em mock** mas são gate de lançamento. Mock nunca substitui testes de autorização/isolamento do backend.
 

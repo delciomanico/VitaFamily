@@ -10,6 +10,7 @@ import type { ClinicScheduleRuleResult, CreateClinicScheduleRuleInput, UpdateCli
 import type { ClinicTimeOffResult, ClinicTimeOffView, CreateClinicTimeOffInput } from "../application/clinic-time-off.js";
 import type { ScheduleGeneration } from "../domain/clinic-schedule.js";
 import type { CreateClinicStaffInput } from "../application/manage-clinic-staff.js";
+import type { ClinicProfile } from "../application/clinic-profile.js";
 import type { ClinicLoginInput, ClinicLoginResult } from "../application/clinic-login.js";
 import type { ClinicRefreshInput } from "../application/clinic-refresh.js";
 import type { ClinicSlotListQuery, ClinicSlotView, PublishClinicSlotsInput, UpdateClinicSlotInput } from "../application/clinic-slots.js";
@@ -40,6 +41,9 @@ export interface ClinicPortalController {
   listClinicStaff: (actor: ClinicPortalActor) => Promise<ClinicAccount[]>;
   createClinicStaff: (actor: ClinicPortalActor, input: CreateClinicStaffInput, ctx: RequestContext) => Promise<ClinicAccount>;
   removeClinicStaff: (actor: ClinicPortalActor, clinicAccountId: string, ctx: RequestContext) => Promise<void>;
+  // Perfil (M14 R, BR-CLN-38):
+  getClinicProfile: (actor: ClinicPortalActor) => Promise<ClinicProfile>;
+  updateClinicProfile: (actor: ClinicPortalActor, body: unknown, ctx: RequestContext) => Promise<ClinicProfile>;
   // Horários (Fase C, BR-CLN-04):
   listOwnClinicSlots: (actor: ClinicPortalActor, query: ClinicSlotListQuery) => Promise<ClinicSlotView[]>;
   publishClinicSlots: (actor: ClinicPortalActor, input: PublishClinicSlotsInput, ctx: RequestContext) => Promise<ClinicSlot[]>;
@@ -77,7 +81,7 @@ function requireClinicPortalActor(): ClinicPortalActor {
   if (!actor) {
     throw new UnauthenticatedError({ detail: "Sem sessão válida." });
   }
-  return { clinicAccountId: actor.clinicAccountId, clinicId: actor.clinicId, role: actor.role };
+  return { clinicAccountId: actor.clinicAccountId, clinicId: actor.clinicId, role: actor.role, ...(actor.professionalId ? { professionalId: actor.professionalId } : {}) };
 }
 
 function queryString(req: { query: Record<string, unknown> }, name: string): string | undefined {
@@ -120,6 +124,7 @@ export function createClinicPortalRouter(controller: ClinicPortalController, coo
         expiresIn: result.expiresIn,
         clinicId: result.clinicId,
         role: result.role,
+        ...(result.professionalId ? { professionalId: result.professionalId } : {}),
       });
     }),
   );
@@ -139,6 +144,7 @@ export function createClinicPortalRouter(controller: ClinicPortalController, coo
         expiresIn: result.expiresIn,
         clinicId: result.clinicId,
         role: result.role,
+        ...(result.professionalId ? { professionalId: result.professionalId } : {}),
       });
     }),
   );
@@ -176,6 +182,22 @@ export function createClinicPortalRouter(controller: ClinicPortalController, coo
     asyncHandler(async (req, res) => {
       await controller.removeClinicStaff(requireClinicPortalActor(), requireParam(req, "clinicAccountId"), buildRequestContext(req));
       res.status(204).end();
+    }),
+  );
+
+  // --- Perfil da clínica (M14 R, BR-CLN-38) ---
+
+  router.get(
+    "/clinic-portal/profile",
+    asyncHandler(async (_req, res) => {
+      res.json(await controller.getClinicProfile(requireClinicPortalActor()));
+    }),
+  );
+
+  router.patch(
+    "/clinic-portal/profile",
+    asyncHandler(async (req, res) => {
+      res.json(await controller.updateClinicProfile(requireClinicPortalActor(), req.body, buildRequestContext(req)));
     }),
   );
 

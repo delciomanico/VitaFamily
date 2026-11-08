@@ -29,6 +29,7 @@ import type {
   CalendarSourcePort,
   ClinicPatientsDeps,
   RecommendationsSourcePort,
+  ReceiptIdsPort,
   ReportSourcePort,
   SharedHistoryReaderPort,
   SlotFacts,
@@ -74,6 +75,8 @@ export interface ClinicPatientsModuleDeps {
   /** M14 Q (BR-CLN-29/30): `ReportSource` — consultas/exames da janela e retornos Vita (ligada a `appointments`/`examinations`). */
   reports: ReportSourcePort<Kysely<Database>>;
   recommendations: RecommendationsSourcePort<Kysely<Database>>;
+  /** M14 R (BR-CLN-31): `receiptId` nas visitas concluídas — ligada no composition root a `clinic-receipts`. */
+  receipts: ReceiptIdsPort<Kysely<Database>>;
   /** BR-CLN-20: o MESMO limiter do walk-in (chaves `walk-in:*`), para o limite ser partilhado (BR-CLN-10). */
   sharedLimiter: RateLimiter;
   /** `CLINIC_LINK_CODE_SECRET` (BR-CLN-20). */
@@ -111,6 +114,13 @@ export interface ClinicPatientsModule {
   /** `/clinic-portal/patients*`, `/search`, `/calendar` (ator `ClinicAccount`, ADR-020). */
   clinicPortalRouter: Router;
   /** `ClinicPatientDirectory` — porta definida por `appointments` (walk-in), implementada aqui. */
+  /** M14 R (BR-CLN-31/35, `clinic-receipts`, ligado no composition root). */
+  receiptSource: {
+    /** Visita manual da clínica vista pelo recibo (nunca Vita: só nome do retrato e horário). */
+    findVisitFacts: (trx: Kysely<Database>, clinicId: string, visitId: string) => Promise<{ status: string; patientName: string; slotId?: string } | null>;
+    /** BR-CLN-35: existe `ClinicConsent` (qualquer nível) da clínica para o membro. */
+    hasConsent: (trx: Kysely<Database>, clinicId: string, memberId: string) => Promise<boolean>;
+  };
   directory: {
     resolvePatient: ReturnType<typeof createResolvePatientUseCase<Kysely<Database>>>;
     ensureLinkedByEmail: ReturnType<typeof createEnsureLinkedByEmailUseCase<Kysely<Database>>>;
@@ -158,6 +168,7 @@ export function createClinicPatientsModule(deps: ClinicPatientsModuleDeps): Clin
     reports: deps.reports,
     recommendations: deps.recommendations,
     slots,
+    receipts: deps.receipts,
     searchLimiter: new InMemoryRateLimiter(deps.clock),
     reportLimiter: new InMemoryRateLimiter(deps.clock),
     sharedLimiter: deps.sharedLimiter,
@@ -191,6 +202,15 @@ export function createClinicPatientsModule(deps: ClinicPatientsModuleDeps): Clin
   return {
     router: createClinicPatientsFamilyRouter(familyController),
     clinicPortalRouter: createClinicPatientsPortalRouter(portalController),
+    receiptSource: {
+      findVisitFacts: async (trx, clinicId, visitId) => {
+        const visit = await clinicPatientsDeps.visitsRepo.findById(trx, clinicId, visitId);
+        if (!visit) return null;
+        const patient = await clinicPatientsDeps.patientsRepo.findById(trx, clinicId, visit.clinicPatientId);
+        return { status: visit.status, patientName: patient?.name ?? "Paciente", ...(visit.slotId ? { slotId: visit.slotId } : {}) };
+      },
+      hasConsent: async (trx, clinicId, memberId) => (await clinicPatientsDeps.consentsRepo.find(trx, clinicId, memberId)) !== null,
+    },
     directory: {
       resolvePatient: createResolvePatientUseCase(clinicPatientsDeps),
       ensureLinkedByEmail: createEnsureLinkedByEmailUseCase(clinicPatientsDeps),

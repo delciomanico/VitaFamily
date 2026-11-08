@@ -16,6 +16,10 @@ export function toClinicResponse(clinic: Clinic) {
     email: clinic.email ?? null,
     type: clinic.type,
     status: clinic.status,
+    // M14 R (BR-CLN-38): perfil institucional visível ao paciente na app.
+    displayName: clinic.displayName ?? null,
+    description: clinic.description ?? null,
+    openingHours: clinic.openingHours ?? null,
   };
 }
 
@@ -30,6 +34,7 @@ export function toClinicAccountResponse(account: ClinicAccount) {
     clinicId: account.clinicId,
     email: account.email,
     role: account.role,
+    ...(account.professionalId ? { professionalId: account.professionalId } : {}),
     status: account.status,
   };
 }

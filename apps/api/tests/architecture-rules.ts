@@ -65,6 +65,10 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   // `application`, ligadas no composition root. `access` (política/nome do membro), `clinics` (horários, profissionais,
   // clínica parceira) e `audit`.
   "clinic-patients": ["access", "clinics", "audit"],
+  // ADR-026 (modules.md §2 nota 26, M14 R): `clinic-receipts` NÃO importa módulos de saúde, `families`, `auth`, `insurance`
+  // nem `documents`: marcação concluída, consentimento, perfil, catálogo e pedidos anexados entram por portas da sua
+  // `application`, ligadas no composition root. `insurance` não importa `clinic-receipts` (só a porta `ClinicReceiptLookup`).
+  "clinic-receipts": ["access", "clinics", "audit"],
   // alerts -> notifications (modules.md §3 nota 15): a orquestração do pipeline
   // Evento→Regra→Alerta→Notificação fica em `alerts`, que chama `notifications` pela raiz para
   // criar/cancelar notificações — mesmo critério de `medications` ↔ `prescriptions` (nota 6).

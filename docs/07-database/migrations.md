@@ -65,8 +65,8 @@
   4. Índices de `indexes.md` (M14 Q).
   - Teste de integração obrigatório (`test-cases.md`, TC-CLN-13..16): linhas antigas ficam `PENDING` com colunas nulas; CHECK `DECLINED ⇒ CANCELLED`; `started_at ≥ arrived_at`; `clinic_visits` rejeita `DECLINED`; apagar o membro apaga a consulta e o retorno; os valores de enum novos aceitam-se depois da migração.
 
-- **M14 R (ADR-026, contrato 2026-11-08) — `0030_clinic_receipts_profile_roles.sql`** (**PROPOSTA**, ainda não escrita; próximo número livre depois de `0029`; única migração, transacional, retrocompatível). Por ordem:
-  1. `ALTER TYPE clinic_account_role ADD VALUE 'CLINIC_DOCTOR'` (sem usar o valor na própria migração; a CHECK usa `role::text`; se o runner/PG alvo não o permitir, dividir em `0030_clinic_doctor_role` + `0031_clinic_receipts_profile`).
+- **M14 R (ADR-026, contrato 2026-11-08) — `0030_clinic_receipts_profile_roles.sql`** (**implementada**; única migração, transacional, retrocompatível). Por ordem:
+  1. `ALTER TYPE clinic_account_role ADD VALUE 'CLINIC_DOCTOR'` (sem usar o valor na própria migração; a CHECK usa `role::text`; **verificado**: o runner e o PG 16 aceitam-no na mesma transação, pelo que não foi preciso dividir em duas migrações).
   2. `CREATE TYPE receipt_booking_kind / clinic_receipt_status / receipt_payment_method`.
   3. `CREATE TABLE clinic_receipt_counters`, `clinic_receipts` (com `UNIQUE (clinic_id, id)`), `clinic_receipt_lines`, `clinic_receipt_links`, `reimbursement_claim_receipts` (`schema.md` §3f).
   4. `ALTER TABLE clinic_accounts ADD COLUMN professional_id` + CHECK + UNIQUE parcial; `ALTER TABLE clinics ADD COLUMN display_name, description, opening_hours` + CHECKs.

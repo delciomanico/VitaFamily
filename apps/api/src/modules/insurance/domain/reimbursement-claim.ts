@@ -18,8 +18,25 @@ export interface ReimbursementClaim {
   decidedAt?: Date;
   /** Documentos escolhidos pelo titular (BR-INS-04) — a única superfície visível à seguradora. */
   documentIds: string[];
+  /** M14 R (BR-CLN-36): recibos de clínica anexados pelo titular (associação simples, sem `Document`/`Encounter`). */
+  receiptIds?: string[];
+  /** M14 R: referências dos recibos (preenchidas pela `application` no lado do titular). */
+  receipts?: ClaimReceiptRef[];
   createdAt: Date;
 }
+
+/** Referência a um recibo anexado (`ClaimReceiptRef`, openapi). */
+export interface ClaimReceiptRef {
+  receiptId: string;
+  number: number;
+  status: "ISSUED" | "VOIDED";
+  totalMinor: number;
+  currency: string;
+}
+
+/** BR-INS-04 + BR-CLN-36: `documentIds` + `receiptIds` entre 1 e 10 itens no total. */
+export const MAX_CLAIM_ITEMS = 10;
+export const MAX_CLAIM_RECEIPTS = 10;
 
 /** `ReimbursementClaimInput.documentIds` (openapi: minItems 1, maxItems 10). */
 export const MIN_CLAIM_DOCUMENTS = 1;
@@ -31,11 +48,12 @@ const DEFAULT_CURRENCY = "EUR";
 export interface ClaimInputFields {
   amount: unknown;
   currency?: unknown;
-  documentIds: unknown;
+  documentIds?: unknown;
+  receiptIds?: unknown;
 }
 
 /** BR-INS-03/04: valor > 0 (até 2 casas decimais), moeda ISO-4217 (default EUR), 1–10 documentos distintos. */
-export function parseClaimInput(input: ClaimInputFields): { amount: number; currency: string; documentIds: string[] } {
+export function parseClaimInput(input: ClaimInputFields): { amount: number; currency: string; documentIds: string[]; receiptIds: string[] } {
   const errors: FieldError[] = [];
   let amount = 0;
   if (typeof input.amount !== "number" || !Number.isFinite(input.amount) || input.amount <= 0) {
@@ -53,19 +71,28 @@ export function parseClaimInput(input: ClaimInputFields): { amount: number; curr
       currency = input.currency;
     }
   }
-  let documentIds: string[] = [];
-  if (!Array.isArray(input.documentIds) || input.documentIds.some((id) => typeof id !== "string")) {
-    errors.push({ field: "documentIds", message: "lista de ids de documentos" });
-  } else {
-    documentIds = [...new Set(input.documentIds as string[])];
-    if (documentIds.length < MIN_CLAIM_DOCUMENTS || documentIds.length > MAX_CLAIM_DOCUMENTS || documentIds.length !== input.documentIds.length) {
-      errors.push({ field: "documentIds", message: `${String(MIN_CLAIM_DOCUMENTS)} a ${String(MAX_CLAIM_DOCUMENTS)} documentos distintos` });
+  const parseIds = (raw: unknown, field: string, max: number): string[] => {
+    if (raw === undefined || raw === null) return [];
+    if (!Array.isArray(raw) || raw.some((id) => typeof id !== "string")) {
+      errors.push({ field, message: "lista de ids" });
+      return [];
     }
+    const ids = [...new Set(raw as string[])];
+    if (ids.length > max || ids.length !== raw.length) {
+      errors.push({ field, message: `no máximo ${String(max)} ids distintos` });
+    }
+    return ids;
+  };
+  const documentIds = parseIds(input.documentIds, "documentIds", MAX_CLAIM_DOCUMENTS);
+  const receiptIds = parseIds(input.receiptIds, "receiptIds", MAX_CLAIM_RECEIPTS);
+  // BR-INS-04/BR-CLN-36: pelo menos 1 e no máximo 10 itens no total (documentos + recibos).
+  if (errors.length === 0 && (documentIds.length + receiptIds.length < MIN_CLAIM_DOCUMENTS || documentIds.length + receiptIds.length > MAX_CLAIM_ITEMS)) {
+    errors.push({ field: "documentIds", message: `${String(MIN_CLAIM_DOCUMENTS)} a ${String(MAX_CLAIM_ITEMS)} itens (documentos + recibos)` });
   }
   if (errors.length > 0) {
     throw new ValidationError(errors, { detail: "Dados inválidos." });
   }
-  return { amount, currency, documentIds };
+  return { amount, currency, documentIds, receiptIds };
 }
 
 /** BR-INS-05: `REJECTED` exige motivo; `APPROVED` aceita nota opcional. Só a partir de `SUBMITTED` (senão `CONFLICT`). */

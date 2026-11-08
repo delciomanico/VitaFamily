@@ -10,6 +10,10 @@ export interface ClinicsTable {
   address: ColumnType<string | null, string | null | undefined, string | null>;
   phone: ColumnType<string | null, string | null | undefined, string | null>;
   email: ColumnType<string | null, string | null | undefined, string | null>;
+  /** M14 R (`0030`): perfil institucional (BR-CLN-38). */
+  display_name: ColumnType<string | null, string | null | undefined, string | null>;
+  description: ColumnType<string | null, string | null | undefined, string | null>;
+  opening_hours: ColumnType<string | null, string | null | undefined, string | null>;
   /** M14 a1 (`0027`): moeda da clínica, só leitura nestas fases. */
   currency: ColumnType<string, string | undefined, never>;
   status: "ACTIVE" | "ARCHIVED";

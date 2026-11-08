@@ -37,6 +37,7 @@ export function toReimbursementClaimResponse(claim: ReimbursementClaim) {
     status: claim.status,
     decisionNote: claim.decisionNote ?? null,
     documentIds: claim.documentIds,
+    receipts: claim.receipts ?? [],
     createdAt: claim.createdAt.toISOString(),
   };
 }
@@ -57,5 +58,6 @@ export function toInsuranceClaimViewResponse(view: InsuranceClaimView) {
     policyNumber: view.policyNumber,
     decisionNote: view.decisionNote,
     documentIds: view.documentIds,
+    receipts: view.receipts,
   };
 }

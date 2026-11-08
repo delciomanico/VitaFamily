@@ -33,6 +33,34 @@ export interface ClinicAppointmentView {
   startedAt?: string;
   waitingMinutes?: number;
   followUpDueOn?: string;
+  /** M14 R (BR-CLN-31): recibo `ISSUED` da marcação; nunca devolvido ao Médico (BR-CLN-39). */
+  receiptId?: string;
+}
+
+/**
+ * BR-CLN-39: o Médico só vê/age em marcações cujo horário (`clinic_slots.professional_id`) é o seu profissional; Admin/Gestor
+ * (sem `professionalId`) veem tudo. Marcação sem horário nunca é de um Médico.
+ */
+export async function actorOwnsSlot<Trx>(deps: AppointmentsDeps<Trx>, actor: ClinicPortalActor, slotId: string | undefined): Promise<boolean> {
+  if (!actor.professionalId) return true;
+  if (!slotId) return false;
+  const slot = await deps.clinics.findSlot(actor.clinicId, slotId);
+  return slot?.professionalId === actor.professionalId;
+}
+
+/** BR-CLN-31: acrescenta `receiptId` (consulta ou visita) às vistas — Admin/Gestor apenas; o Médico nunca recebe preços/recibos. */
+export async function attachReceiptIds<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
+  if (actor.professionalId || views.length === 0) return views;
+  const completed = views.filter((v) => v.status === "COMPLETED");
+  if (completed.length === 0) return views;
+  const ids = new Map<string, string>();
+  for (const [kind, source] of [["APPOINTMENT", "VITA"], ["VISIT", "MANUAL"]] as const) {
+    const bookingIds = completed.filter((v) => (v.source ?? "VITA") === source).map((v) => v.id);
+    if (bookingIds.length > 0) {
+      for (const [bookingId, receiptId] of await deps.receipts.findIssuedReceiptIds(trx, actor.clinicId, kind, bookingIds)) ids.set(bookingId, receiptId);
+    }
+  }
+  return views.map((v) => (ids.has(v.id) ? { ...v, receiptId: ids.get(v.id) } : v)) as ClinicAppointmentView[];
 }
 
 /** `memberId -> clinicPatientId` em lote (M14 P): consultas Vita associam-se ao paciente da clínica pela ligação. */
@@ -90,11 +118,16 @@ const AGENDA_STATUSES: AppointmentStatus[] = ["SCHEDULED", "COMPLETED", "NO_SHOW
 export function createListClinicAgendaUseCase<Trx>(deps: AppointmentsDeps<Trx>) {
   return async function listClinicAgenda(actor: ClinicPortalActor, query: ListClinicAgendaQuery): Promise<ClinicAppointmentView[]> {
     return deps.withTransaction(async (trx) => {
-      const appointments = await deps.appointmentsRepo.listByClinicAndStatus(trx, actor.clinicId, AGENDA_STATUSES, query);
+      const all = await deps.appointmentsRepo.listByClinicAndStatus(trx, actor.clinicId, AGENDA_STATUSES, query);
+      // BR-CLN-39: o Médico só vê as marcações do seu profissional (consultas e visitas).
+      const appointments: typeof all = [];
+      for (const appointment of all) {
+        if (await actorOwnsSlot(deps, actor, appointment.slotId)) appointments.push(appointment);
+      }
       const patientIds = await patientIdsOf(deps, trx, actor.clinicId, appointments);
       const views = await Promise.all(appointments.map((appointment) => toView(deps, trx, appointment, patientIds)));
-      const visits = await deps.clinicPatients.listVisits(trx, actor.clinicId, query);
-      return [...views, ...visits].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+      const visits = await deps.clinicPatients.listVisits(trx, actor.clinicId, { ...query, ...(actor.professionalId ? { professionalId: actor.professionalId } : {}) });
+      return attachReceiptIds(deps, trx, actor, [...views, ...visits].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt)));
     });
   };
 }
@@ -225,6 +258,9 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
         return visit;
       }
       const existing = found;
+      if (!(await actorOwnsSlot(deps, actor, existing.slotId))) {
+        throw new NotFoundError({ detail: "Pedido não encontrado." });
+      }
       // endpoints.md (completeClinicAppointment): "CONFLICT (consulta não está SCHEDULED, ST4)" —
       // só a consulta em curso (nunca repete a mesma conclusão nem completa duas vezes).
       if (existing.status !== "SCHEDULED") {

@@ -412,7 +412,7 @@ interface ClaimRow {
 
 const CLAIM_COLUMNS = ["id", "policy_id", "insurer_id", "amount", "currency", "status", "decision_note", "decided_by_insurance_account_id", "decided_at", "created_at"] as const;
 
-function toClaim(row: ClaimRow, documentIds: string[]): ReimbursementClaim {
+function toClaim(row: ClaimRow, documentIds: string[], receiptIds: string[] = []): ReimbursementClaim {
   const claim: ReimbursementClaim = {
     id: row.id,
     policyId: row.policy_id,
@@ -421,6 +421,7 @@ function toClaim(row: ClaimRow, documentIds: string[]): ReimbursementClaim {
     currency: row.currency,
     status: row.status,
     documentIds,
+    receiptIds,
     createdAt: row.created_at,
   };
   if (row.decision_note !== null) claim.decisionNote = row.decision_note;
@@ -441,9 +442,35 @@ export class KyselyReimbursementClaimsRepository implements ReimbursementClaimsR
     return map;
   }
 
+  /** BR-CLN-36: os `receiptIds` de cada pedido vêm SÓ de `reimbursement_claim_receipts`. */
+  private async receiptIdsByClaim(trx: Kysely<Database>, claimIds: string[]): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    if (claimIds.length === 0) return map;
+    const rows = await trx.selectFrom("reimbursement_claim_receipts").select(["claim_id", "receipt_id"]).where("claim_id", "in", claimIds).orderBy("receipt_id", "asc").execute();
+    for (const row of rows) {
+      map.set(row.claim_id, [...(map.get(row.claim_id) ?? []), row.receipt_id]);
+    }
+    return map;
+  }
+
   private async hydrate(trx: Kysely<Database>, rows: ClaimRow[]): Promise<ReimbursementClaim[]> {
-    const docs = await this.documentIdsByClaim(trx, rows.map((r) => r.id));
-    return rows.map((row) => toClaim(row, docs.get(row.id) ?? []));
+    const ids = rows.map((r) => r.id);
+    const [docs, receipts] = await Promise.all([this.documentIdsByClaim(trx, ids), this.receiptIdsByClaim(trx, ids)]);
+    return rows.map((row) => toClaim(row, docs.get(row.id) ?? [], receipts.get(row.id) ?? []));
+  }
+
+  async activeClaimIdsByReceipts(trx: Kysely<Database>, receiptIds: string[]): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    if (receiptIds.length === 0) return map;
+    const rows = await trx
+      .selectFrom("reimbursement_claim_receipts as r")
+      .innerJoin("reimbursement_claims as c", "c.id", "r.claim_id")
+      .select(["r.receipt_id", "r.claim_id"])
+      .where("r.receipt_id", "in", receiptIds)
+      .where("c.status", "in", ["SUBMITTED", "APPROVED", "PAID"])
+      .execute();
+    for (const row of rows) map.set(row.receipt_id, [...(map.get(row.receipt_id) ?? []), row.claim_id]);
+    return map;
   }
 
   async insert(trx: Kysely<Database>, record: NewClaimRecord): Promise<ReimbursementClaim> {
@@ -460,10 +487,18 @@ export class KyselyReimbursementClaimsRepository implements ReimbursementClaimsR
       })
       .returning(CLAIM_COLUMNS)
       .executeTakeFirstOrThrow();
-    await trx
-      .insertInto("reimbursement_claim_documents")
-      .values(record.documentIds.map((documentId) => ({ claim_id: record.id, document_id: documentId })))
-      .execute();
+    if (record.documentIds.length > 0) {
+      await trx
+        .insertInto("reimbursement_claim_documents")
+        .values(record.documentIds.map((documentId) => ({ claim_id: record.id, document_id: documentId })))
+        .execute();
+    }
+    if (record.receiptIds.length > 0) {
+      await trx
+        .insertInto("reimbursement_claim_receipts")
+        .values(record.receiptIds.map((receiptId) => ({ claim_id: record.id, receipt_id: receiptId })))
+        .execute();
+    }
     const [claim] = await this.hydrate(trx, [row]);
     if (!claim) throw new Error("pedido inserido não encontrado");
     return claim;
@@ -507,9 +542,10 @@ export class KyselyReimbursementClaimsRepository implements ReimbursementClaimsR
   }
 
   private async toPortal(trx: Kysely<Database>, rows: (ClaimRow & { holder_name: string; policy_number: string; family_id: string; member_id: string })[]): Promise<PortalClaim[]> {
-    const docs = await this.documentIdsByClaim(trx, rows.map((r) => r.id));
+    const ids = rows.map((r) => r.id);
+    const [docs, receipts] = await Promise.all([this.documentIdsByClaim(trx, ids), this.receiptIdsByClaim(trx, ids)]);
     return rows.map((row) => ({
-      claim: toClaim(row, docs.get(row.id) ?? []),
+      claim: toClaim(row, docs.get(row.id) ?? [], receipts.get(row.id) ?? []),
       policyHolderName: row.holder_name,
       policyNumber: row.policy_number,
       familyId: row.family_id,

@@ -13,6 +13,10 @@ export interface Clinic {
   address?: string;
   phone?: string;
   email?: string;
+  /** M14 R (BR-CLN-38): perfil institucional da clínica parceira (texto livre, sem dados de pacientes). */
+  displayName?: string;
+  description?: string;
+  openingHours?: string;
   status: ClinicStatus;
   createdBy?: string;
   createdAt: Date;

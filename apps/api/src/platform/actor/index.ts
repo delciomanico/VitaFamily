@@ -42,7 +42,9 @@ export function getActor(): ActorInfo | undefined {
 export interface ClinicActorInfo {
   clinicAccountId: string;
   clinicId: string;
-  role: "CLINIC_ADMIN" | "CLINIC_MANAGER";
+  role: "CLINIC_ADMIN" | "CLINIC_MANAGER" | "CLINIC_DOCTOR";
+  /** M14 R (BR-CLN-39): profissional do Médico; ausente em Admin/Gestor. */
+  professionalId?: string;
   sessionId: string;
 }
 

@@ -20,6 +20,7 @@ interface ClinicAccountRow {
   password_hash: string;
   role: ClinicAccountRole;
   status: ClinicAccountStatus;
+  professional_id: string | null;
   created_by_platform_admin: string | null;
   suspended_at: Date | null;
   created_at: Date;
@@ -35,6 +36,9 @@ function accountToDomain(row: ClinicAccountRow): ClinicAccount {
     status: row.status,
     createdAt: row.created_at,
   };
+  if (row.professional_id) {
+    account.professionalId = row.professional_id;
+  }
   if (row.created_by_platform_admin) {
     account.createdByPlatformAdmin = row.created_by_platform_admin;
   }
@@ -54,6 +58,7 @@ export class KyselyClinicAccountRepository implements ClinicAccountRepository<Ky
         email: record.email,
         password_hash: record.passwordHash,
         role: record.role,
+        professional_id: record.professionalId ?? null,
         status: "ACTIVE",
         created_by_platform_admin: record.createdByPlatformAdmin ?? null,
         created_at: record.createdAt,
@@ -113,10 +118,15 @@ export class KyselyClinicAccountRepository implements ClinicAccountRepository<Ky
     return accountToDomain(row);
   }
 
-  async listByClinic(trx: Kysely<Database>, clinicId: string, role?: ClinicAccountRole): Promise<ClinicAccount[]> {
+  async findByProfessionalId(trx: Kysely<Database>, professionalId: string): Promise<ClinicAccount | null> {
+    const row = await trx.selectFrom("clinic_accounts").selectAll().where("professional_id", "=", professionalId).executeTakeFirst();
+    return row ? accountToDomain(row) : null;
+  }
+
+  async listByClinic(trx: Kysely<Database>, clinicId: string, roles?: ClinicAccountRole[]): Promise<ClinicAccount[]> {
     let query = trx.selectFrom("clinic_accounts").selectAll().where("clinic_id", "=", clinicId);
-    if (role) {
-      query = query.where("role", "=", role);
+    if (roles && roles.length > 0) {
+      query = query.where("role", "in", roles);
     }
     const rows = await query.orderBy("created_at", "asc").execute();
     return rows.map(accountToDomain);

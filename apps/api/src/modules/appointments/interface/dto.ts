@@ -70,6 +70,7 @@ export function toClinicAppointmentResponse(view: ClinicAppointmentView) {
     startedAt: view.startedAt ?? null,
     waitingMinutes: view.waitingMinutes ?? null,
     followUpDueOn: view.followUpDueOn ?? null,
+    receiptId: view.receiptId ?? null,
   };
 }
 

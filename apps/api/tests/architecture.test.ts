@@ -215,3 +215,23 @@ describe("clinic-patients (ADR-026, modules.md §2 nota 24)", () => {
     expect(checkArchitecture(files(`modules/${module}/index`))).toEqual([]);
   });
 });
+
+describe("clinic-receipts (ADR-026, modules.md §2 nota 26)", () => {
+  const files = (target: string, from = "modules/clinic-receipts/application/x"): FileImports[] => [{ file: from, relativeImports: [target], bareImports: [] }];
+
+  it.each(["medications", "examinations", "appointments", "recommendations", "clinic-patients", "families", "auth", "insurance", "documents"])("não pode importar modules/%s (só por portas no composition root)", (module) => {
+    expect(checkArchitecture(files(`modules/${module}/index`)).join("\n")).toContain(`não pode depender de modules/${module}`);
+  });
+
+  it.each(["access", "audit"])("pode importar a raiz de modules/%s", (module) => {
+    expect(checkArchitecture(files(`modules/${module}/index`))).toEqual([]);
+  });
+
+  it("insurance não pode importar clinic-receipts (só a porta ClinicReceiptLookup)", () => {
+    expect(checkArchitecture(files("modules/clinic-receipts/index", "modules/insurance/application/x")).join("\n")).toContain("não pode depender de modules/clinic-receipts");
+  });
+
+  it("audit continua sem importar módulos de negócio (a auditoria da clínica é só uma consulta)", () => {
+    expect(checkArchitecture(files("modules/clinics/index", "modules/audit/application/x")).join("\n")).toContain("não pode depender de modules/clinics");
+  });
+});

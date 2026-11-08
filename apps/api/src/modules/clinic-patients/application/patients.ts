@@ -15,6 +15,7 @@ import {
   parseSearchQuery,
   phoneDigits,
 } from "../domain/clinic-patient.js";
+import { doctorPatientIds, isDoctor } from "./doctor-scope.js";
 import type { ClinicPatientsDeps, ClinicPortalActor, PatientChanges, RequestContext } from "./ports.js";
 import { enforceSearchRateLimit, requireOwnPatient, toPatientView, toPatientViews, type ClinicPatientView } from "./support.js";
 
@@ -107,7 +108,8 @@ export function createListClinicPatientsUseCase<Trx>(deps: ClinicPatientsDeps<Tr
     const after = query.cursor ? decodeCursor(query.cursor) : undefined;
     enforceSearchRateLimit(deps, actor);
     return deps.withTransaction(async (trx) => {
-      const rows = await deps.patientsRepo.list(trx, actor.clinicId, { ...(q ? { terms: buildSearchTerms(q) } : {}), ...(after ? { after } : {}) }, limit + 1);
+      const ids = isDoctor(actor) ? await doctorPatientIds(deps, trx, actor) : undefined;
+      const rows = await deps.patientsRepo.list(trx, actor.clinicId, { ...(ids ? { ids } : {}), ...(q ? { terms: buildSearchTerms(q) } : {}), ...(after ? { after } : {}) }, limit + 1);
       const page = rows.slice(0, limit);
       const last = page.at(-1);
       const nextCursor = rows.length > limit && last ? encodeCursor({ n: normalizeSearchText(last.name), i: last.id }) : null;

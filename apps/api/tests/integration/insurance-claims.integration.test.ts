@@ -55,6 +55,9 @@ describe("integração: apólices e pedidos de reembolso (Fase 4b)", () => {
   const membership = new FakeMembershipPort();
   const audit = new KyselyAuditRepository();
 
+  /** M14 R: estes testes não anexam recibos (cobertos em `clinic-receipts.integration.test.ts`). */
+  const noReceipts = { lockVisible: () => Promise.resolve([]), refs: () => Promise.resolve([]), summaries: () => Promise.resolve([]) };
+
   function holderDeps(): InsuranceHolderDeps<Kysely<Database>> {
     return {
       policiesRepo: new KyselyInsurancePoliciesRepository(),
@@ -63,6 +66,7 @@ describe("integração: apólices e pedidos de reembolso (Fase 4b)", () => {
       policy,
       membership,
       documents,
+      receipts: noReceipts,
       audit,
       db,
       withTransaction: (fn) => withTransaction(db, fn),
@@ -70,7 +74,7 @@ describe("integração: apólices e pedidos de reembolso (Fase 4b)", () => {
     };
   }
   function portalDeps(): InsurancePortalClaimsDeps<Kysely<Database>> {
-    return { claimsRepo, audit, withTransaction: (fn) => withTransaction(db, fn), clock };
+    return { claimsRepo, receipts: noReceipts, audit, withTransaction: (fn) => withTransaction(db, fn), clock };
   }
 
   /** Documento do membro (receita/exame/apólice) com o estado de antivírus pedido. */
@@ -175,7 +179,7 @@ describe("integração: apólices e pedidos de reembolso (Fase 4b)", () => {
     expect(claim).toMatchObject({ status: "SUBMITTED", amount: 42.5, currency: "EUR", insurerId: ids.insA, documentIds: [clean] });
 
     const listA = await createListInsuranceClaimsUseCase(portalDeps())(agentA, {});
-    expect(listA.find((c) => c.id === claim.id)).toEqual({ id: claim.id, status: "SUBMITTED", amount: 42.5, currency: "EUR", policyHolderName: "Ana", policyNumber: "P-9", decisionNote: null, documentIds: [clean] });
+    expect(listA.find((c) => c.id === claim.id)).toEqual({ id: claim.id, status: "SUBMITTED", amount: 42.5, currency: "EUR", policyHolderName: "Ana", policyNumber: "P-9", decisionNote: null, documentIds: [clean], receipts: [] });
     expect((await createListInsuranceClaimsUseCase(portalDeps())(agentB, {})).map((c) => c.id)).not.toContain(claim.id);
     await expect(createGetInsuranceClaimUseCase(portalDeps())(agentB, claim.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(createDecideInsuranceClaimUseCase(portalDeps())(agentB, claim.id, { decision: "APPROVE" }, ctx)).rejects.toMatchObject({ code: "NOT_FOUND" });

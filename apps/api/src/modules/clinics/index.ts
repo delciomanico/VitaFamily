@@ -64,6 +64,7 @@ import {
 } from "./application/clinic-schedule-rules.js";
 import { createCreateClinicTimeOffUseCase, createDeleteClinicTimeOffUseCase, createListClinicTimeOffUseCase } from "./application/clinic-time-off.js";
 import { createGenerateScheduleJobUseCase } from "./application/schedule-generation.js";
+import { createGetClinicProfileUseCase, createUpdateClinicProfileUseCase } from "./application/clinic-profile.js";
 import { createClinicLoginUseCase } from "./application/clinic-login.js";
 import { createClinicLogoutUseCase } from "./application/clinic-logout.js";
 import { createClinicRefreshUseCase } from "./application/clinic-refresh.js";
@@ -76,6 +77,7 @@ import type { ClinicMailer, ClinicsDeps, SlotBookingCountRow } from "./applicati
 import { createResolveClinicActorStateUseCase } from "./application/resolve-clinic-actor-state.js";
 import { createSetPrivateClinicStatusUseCase } from "./application/set-private-clinic-status.js";
 import { createUpdatePrivateClinicUseCase } from "./application/update-private-clinic.js";
+import type { ClinicAccountRole } from "./domain/clinic-account.js";
 import type { ClinicSigningKey } from "./domain/clinic-jwt.js";
 import type { ClinicSlot } from "./domain/clinic-slot.js";
 import { ClinicInMemoryRateLimiter } from "./domain/clinic-rate-limiter.js";
@@ -95,6 +97,7 @@ import { createClinicsRouter, type ClinicsController } from "./interface/router.
 
 export type { Clinic, ClinicStatus, ClinicType } from "./domain/clinic.js";
 export type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "./domain/clinic-account.js";
+export { CLINIC_PORTAL_ACCESS, findPortalRule, type PortalAccess, type PortalRouteRule } from "./domain/clinic-portal-access.js";
 export { parseClinicSigningKeys, type ClinicSigningKey } from "./domain/clinic-jwt.js";
 export type { ClinicSlot, ClinicSlotState } from "./domain/clinic-slot.js";
 export { createGenerateScheduleJobUseCase } from "./application/schedule-generation.js";
@@ -150,6 +153,10 @@ export interface ClinicsModule {
   listProfessionalSlotsOverlapping: (trx: Kysely<Database>, professionalId: string, from: Date, to: Date, excludeSlotId: string) => Promise<string[]>;
   /** M14 P (BR-CLN-19, `clinic-patients`): clínica PARCEIRA pelo id (qualquer estado); `null` se não existe ou é privada. */
   getPartnerClinic: (trx: Kysely<Database>, clinicId: string) => Promise<{ id: string; name: string; active: boolean } | null>;
+  /** M14 R (BR-CLN-31/38, `clinic-receipts`): cabeçalho (nome de apresentação ?? nome, morada, contactos) e moeda da clínica. */
+  getReceiptProfile: (trx: Kysely<Database>, clinicId: string) => Promise<{ issuer: { name: string; address: string | null; phone: string | null; email: string | null }; currency: string }>;
+  /** M14 R (BR-CLN-31, `clinic-receipts`): serviço do catálogo da clínica (nome e preço); `null` se de outra clínica/inexistente. */
+  findServiceTypeForReceipt: (trx: Kysely<Database>, clinicId: string, serviceTypeId: string) => Promise<{ id: string; name: string; priceMinor: number | null } | null>;
   /** M14 P (BR-CLN-23, `clinic-patients`): horários da clínica que começam em `[from, to)`. */
   listClinicSlotsInWindow: (trx: Kysely<Database>, clinicId: string, from: Date, to: Date) => Promise<ClinicSlot[]>;
   /** M14 P (`clinic-patients`): horários da clínica pelos ids. */
@@ -174,7 +181,8 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
   const clinicRateLimiter = new ClinicInMemoryRateLimiter(deps.clock);
   const clinicAccountStateCache = new ClinicTtlCache<{
     clinicId: string;
-    role: "CLINIC_ADMIN" | "CLINIC_MANAGER";
+    role: ClinicAccountRole;
+    professionalId?: string;
     suspended: boolean;
   }>(deps.clock, CLINIC_ACCOUNT_STATE_CACHE_TTL_MS);
 
@@ -225,6 +233,8 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     listClinicStaff: createListClinicStaffUseCase(clinicsDeps),
     createClinicStaff: createCreateClinicStaffUseCase(clinicsDeps),
     removeClinicStaff: createRemoveClinicStaffUseCase(clinicsDeps),
+    getClinicProfile: createGetClinicProfileUseCase(clinicsDeps),
+    updateClinicProfile: createUpdateClinicProfileUseCase(clinicsDeps),
     listOwnClinicSlots: createListOwnClinicSlotsUseCase(clinicsDeps),
     publishClinicSlots: createPublishClinicSlotsUseCase(clinicsDeps),
     updateClinicSlot: createUpdateClinicSlotUseCase(clinicsDeps),
@@ -262,6 +272,18 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     lockClinicSlot: createLockClinicSlotUseCase(clinicsDeps),
     listProfessionalSlotsOverlapping: async (trx, professionalId, from, to, excludeSlotId) =>
       (await clinicSlotsRepo.listByProfessional(trx, professionalId, { endsAfter: from, startsBefore: to })).filter((slot) => slot.id !== excludeSlotId).map((slot) => slot.id),
+    getReceiptProfile: async (trx, clinicId) => {
+      const clinic = await clinicsRepo.findById(trx, clinicId);
+      if (!clinic) throw new Error("clínica inexistente");
+      return {
+        issuer: { name: clinic.displayName ?? clinic.name, address: clinic.address ?? null, phone: clinic.phone ?? null, email: clinic.email ?? null },
+        currency: await catalogRepo.getCurrency(trx, clinicId),
+      };
+    },
+    findServiceTypeForReceipt: async (trx, clinicId, serviceTypeId) => {
+      const service = await catalogRepo.findServiceType(trx, clinicId, serviceTypeId);
+      return service ? { id: service.id, name: service.name, priceMinor: service.priceMinor } : null;
+    },
     getPartnerClinic: async (trx, clinicId) => {
       const clinic = await clinicsRepo.findById(trx, clinicId);
       return clinic?.type === "PARTNER" ? { id: clinic.id, name: clinic.name, active: clinic.status === "ACTIVE" } : null;

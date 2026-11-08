@@ -19,6 +19,7 @@ import type {
   AppointmentSlotBookingCount,
   ClinicAppointmentsFilter,
   ClinicPatientDirectoryPort,
+  ReceiptIdsPort,
   ClinicPortalActor,
   ClinicVisitBookingView,
   ClinicSlotLite,
@@ -503,6 +504,7 @@ export interface AppointmentsFixtures {
   prescriptions: FakePrescriptionsPort;
   patients: FakePatientDirectory;
   clinicPatients: FakeClinicPatientDirectory;
+  receipts: FakeReceiptIdsPort;
   audit: FakeAuditPort;
 }
 
@@ -629,6 +631,15 @@ export class FakeClinicPatientDirectory implements ClinicPatientDirectoryPort<Fa
   }
 }
 
+/** M14 R (BR-CLN-31): `bookingId -> receiptId` preparado pelos testes (tipo ignorado). */
+export class FakeReceiptIdsPort implements ReceiptIdsPort<FakeTrx> {
+  readonly issued = new Map<string, string>();
+
+  async findIssuedReceiptIds(_trx: FakeTrx, _clinicId: string, _kind: "APPOINTMENT" | "VISIT", bookingIds: string[]): Promise<Map<string, string>> {
+    return Promise.resolve(new Map([...this.issued].filter(([id]) => bookingIds.includes(id))));
+  }
+}
+
 export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const appointmentsRepo = new FakeAppointmentsRepository();
   const policy = new FakeAccessPolicy();
@@ -639,6 +650,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const prescriptions = new FakePrescriptionsPort();
   const patients = new FakePatientDirectory();
   const clinicPatients = new FakeClinicPatientDirectory(clinics);
+  const receipts = new FakeReceiptIdsPort();
   const audit = new FakeAuditPort();
   const deps: AppointmentsDeps<FakeTrx> = {
     appointmentsRepo,
@@ -650,11 +662,12 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     prescriptions,
     patients,
     clinicPatients,
+    receipts,
     walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, clinicPatients, audit };
+  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, clinicPatients, receipts, audit };
 }

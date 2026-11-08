@@ -12,10 +12,11 @@ import {
 } from "../domain/day-flow.js";
 import type { ClinicVisit } from "../domain/clinic-visit.js";
 import type { ClinicPatientsDeps, ClinicPortalActor, RequestContext } from "./ports.js";
-import { toVisitViews, type ClinicVisitBookingView } from "./visits.js";
+import { visitIsDoctors } from "./doctor-scope.js";
+import { attachVisitReceiptIds, toVisitViews, type ClinicVisitBookingView } from "./visits.js";
 
-async function viewOf<Trx>(deps: ClinicPatientsDeps<Trx>, trx: Trx, clinicId: string, visit: ClinicVisit): Promise<ClinicVisitBookingView> {
-  const [view] = await toVisitViews(deps, trx, clinicId, [visit]);
+async function viewOf<Trx>(deps: ClinicPatientsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, visit: ClinicVisit): Promise<ClinicVisitBookingView> {
+  const [view] = await attachVisitReceiptIds(deps, trx, actor, await toVisitViews(deps, trx, actor.clinicId, [visit]));
   if (!view) throw new Error("vista da visita em falta");
   return view;
 }
@@ -40,10 +41,10 @@ export function createConfirmVisitUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
     const existing = await deps.visitsRepo.findById(trx, actor.clinicId, visitId);
     if (!existing) return null;
     const now = deps.clock.now();
-    if (!planVisitConfirmation(existing, now)) return viewOf(deps, trx, actor.clinicId, existing);
+    if (!planVisitConfirmation(existing, now)) return viewOf(deps, trx, actor, existing);
     const visit = await deps.visitsRepo.applyConfirmation(trx, actor.clinicId, visitId, now);
     await audit(deps, trx, actor, "CLINIC_VISIT_CONFIRM", visitId, now, context);
-    return viewOf(deps, trx, actor.clinicId, visit);
+    return viewOf(deps, trx, actor, visit);
   };
 }
 
@@ -53,23 +54,23 @@ export function createArriveVisitUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
     if (!existing) return null;
     const now = deps.clock.now();
     const plan = planVisitArrive(existing, now);
-    if (!plan.changed) return viewOf(deps, trx, actor.clinicId, existing);
+    if (!plan.changed) return viewOf(deps, trx, actor, existing);
     const visit = await deps.visitsRepo.applyDayFlow(trx, actor.clinicId, visitId, { ...(plan.status !== existing.status ? { status: plan.status } : {}), arrivedAt: plan.arrivedAt }, now);
     await audit(deps, trx, actor, "CLINIC_VISIT_ARRIVE", visitId, now, context);
-    return viewOf(deps, trx, actor.clinicId, visit);
+    return viewOf(deps, trx, actor, visit);
   };
 }
 
 export function createStartVisitUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
   return async function startVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, context: RequestContext): Promise<ClinicVisitBookingView | null> {
     const existing = await deps.visitsRepo.findById(trx, actor.clinicId, visitId);
-    if (!existing) return null;
+    if (!existing || !(await visitIsDoctors(deps, trx, actor, existing))) return null;
     const now = deps.clock.now();
     const plan = planVisitStart(existing, now);
-    if (!plan.changed) return viewOf(deps, trx, actor.clinicId, existing);
+    if (!plan.changed) return viewOf(deps, trx, actor, existing);
     const visit = await deps.visitsRepo.applyDayFlow(trx, actor.clinicId, visitId, { arrivedAt: plan.arrivedAt, startedAt: plan.startedAt }, now);
     await audit(deps, trx, actor, "CLINIC_VISIT_START", visitId, now, context);
-    return viewOf(deps, trx, actor.clinicId, visit);
+    return viewOf(deps, trx, actor, visit);
   };
 }
 
@@ -78,34 +79,34 @@ export function createNoShowVisitUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
     const existing = await deps.visitsRepo.findById(trx, actor.clinicId, visitId);
     if (!existing) return null;
     const now = deps.clock.now();
-    if (!planVisitNoShow(existing, now)) return viewOf(deps, trx, actor.clinicId, existing);
+    if (!planVisitNoShow(existing, now)) return viewOf(deps, trx, actor, existing);
     // BR-CLN-28: a falta não reabre o horário (passado); só deixa de ser `SCHEDULED`.
     const visit = await deps.visitsRepo.applyDayFlow(trx, actor.clinicId, visitId, { status: "NO_SHOW" }, now);
     await audit(deps, trx, actor, "CLINIC_VISIT_NO_SHOW", visitId, now, context);
-    return viewOf(deps, trx, actor.clinicId, visit);
+    return viewOf(deps, trx, actor, visit);
   };
 }
 
 export function createSetVisitFollowUpUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
   return async function setVisitFollowUp(trx: Trx, actor: ClinicPortalActor, visitId: string, input: { amount: unknown; unit: unknown }, context: RequestContext): Promise<ClinicVisitBookingView | null> {
     const existing = await deps.visitsRepo.findById(trx, actor.clinicId, visitId);
-    if (!existing) return null;
+    if (!existing || !(await visitIsDoctors(deps, trx, actor, existing))) return null;
     const dueOn = computeVisitFollowUpDueOn(existing, input.amount, input.unit);
     const now = deps.clock.now();
     const visit = await deps.visitsRepo.setFollowUp(trx, actor.clinicId, visitId, dueOn, now);
     await audit(deps, trx, actor, "CLINIC_FOLLOWUP_SET", visitId, now, context, { amount: input.amount as number, unit: input.unit as string });
-    return viewOf(deps, trx, actor.clinicId, visit);
+    return viewOf(deps, trx, actor, visit);
   };
 }
 
 export function createClearVisitFollowUpUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
   return async function clearVisitFollowUp(trx: Trx, actor: ClinicPortalActor, visitId: string, context: RequestContext): Promise<ClinicVisitBookingView | null> {
     const existing = await deps.visitsRepo.findById(trx, actor.clinicId, visitId);
-    if (!existing) return null;
-    if (!existing.followUpDueOn) return viewOf(deps, trx, actor.clinicId, existing);
+    if (!existing || !(await visitIsDoctors(deps, trx, actor, existing))) return null;
+    if (!existing.followUpDueOn) return viewOf(deps, trx, actor, existing);
     const now = deps.clock.now();
     const visit = await deps.visitsRepo.setFollowUp(trx, actor.clinicId, visitId, null, now);
     await audit(deps, trx, actor, "CLINIC_FOLLOWUP_CLEAR", visitId, now, context);
-    return viewOf(deps, trx, actor.clinicId, visit);
+    return viewOf(deps, trx, actor, visit);
   };
 }

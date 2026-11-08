@@ -36,6 +36,7 @@ import type {
   SharedHistoryReaderPort,
   SharedMedication,
   SlotFacts,
+  ReceiptIdsPort,
   SlotReservationPort,
   VisitDayFlowChange,
   VisitListFilter,
@@ -124,6 +125,7 @@ export class FakePatientsRepository implements PatientsRepository<FakeTrx> {
     return Promise.resolve(
       [...this.byId.values()]
         .filter((p) => p.clinicId === clinicId)
+        .filter((p) => !filter.ids || filter.ids.includes(p.id))
         .filter((p) => !filter.terms || patientMatches(p, filter.terms))
         .sort((a, b) => (norm(a) < norm(b) ? -1 : norm(a) > norm(b) ? 1 : a.id.localeCompare(b.id)))
         .filter((p) => {
@@ -433,10 +435,20 @@ export interface ClinicPatientsFixtures {
   calendar: FakeCalendarSource;
   recommendations: FakeRecommendationsSource;
   slots: FakeSlotReservation;
+  receipts: FakeReceiptIdsPort;
   sharedLimiter: InMemoryRateLimiter;
   searchLimiter: InMemoryRateLimiter;
   reportLimiter: InMemoryRateLimiter;
   audit: FakeAuditPort;
+}
+
+/** M14 R (BR-CLN-31): `bookingId -> receiptId` preparado pelos testes. */
+export class FakeReceiptIdsPort implements ReceiptIdsPort<FakeTrx> {
+  readonly issued = new Map<string, string>();
+
+  async findIssuedReceiptIds(_trx: FakeTrx, _clinicId: string, _kind: "VISIT", bookingIds: string[]): Promise<Map<string, string>> {
+    return Promise.resolve(new Map([...this.issued].filter(([id]) => bookingIds.includes(id))));
+  }
 }
 
 export const TEST_LINK_CODE_SECRET = "test-secret-0123456789abcdef";
@@ -454,6 +466,7 @@ export function createClinicPatientsFixtures(clock: Clock): ClinicPatientsFixtur
   const calendar = new FakeCalendarSource();
   const recommendations = new FakeRecommendationsSource();
   const slots = new FakeSlotReservation();
+  const receipts = new FakeReceiptIdsPort();
   const sharedLimiter = new InMemoryRateLimiter(clock);
   const searchLimiter = new InMemoryRateLimiter(clock);
   const reportLimiter = new InMemoryRateLimiter(clock);
@@ -472,6 +485,7 @@ export function createClinicPatientsFixtures(clock: Clock): ClinicPatientsFixtur
     reports: calendar,
     recommendations,
     slots,
+    receipts,
     searchLimiter,
     reportLimiter,
     sharedLimiter,
@@ -480,5 +494,5 @@ export function createClinicPatientsFixtures(clock: Clock): ClinicPatientsFixtur
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, patientsRepo, linksRepo, consentsRepo, codesRepo, visitsRepo, policy, members, clinics, sharedHistory, calendar, recommendations, slots, sharedLimiter, searchLimiter, reportLimiter, audit };
+  return { deps, patientsRepo, linksRepo, consentsRepo, codesRepo, visitsRepo, policy, members, clinics, sharedHistory, calendar, recommendations, slots, receipts, sharedLimiter, searchLimiter, reportLimiter, audit };
 }

@@ -9,6 +9,14 @@ import { auditViewIfNotSelf, authorizeInsurance, loadPolicy } from "./support-ho
 
 export type ReimbursementClaimInput = ClaimInputFields;
 
+/** BR-CLN-36: acrescenta as referências dos recibos anexados (lado do titular). */
+async function withReceiptRefs<Trx>(deps: InsuranceHolderDeps<Trx>, trx: Trx, claims: ReimbursementClaim[]): Promise<ReimbursementClaim[]> {
+  const ids = [...new Set(claims.flatMap((c) => c.receiptIds ?? []))];
+  if (ids.length === 0) return claims.map((c) => ({ ...c, receipts: [] }));
+  const refs = new Map((await deps.receipts.refs(trx, ids)).map((r) => [r.receiptId, r]));
+  return claims.map((c) => ({ ...c, receipts: (c.receiptIds ?? []).flatMap((id) => refs.get(id) ?? []) }));
+}
+
 async function loadClaim<Trx>(deps: InsuranceHolderDeps<Trx>, trx: Trx, policyId: string, claimId: string, lock = false): Promise<ReimbursementClaim> {
   const claim = await deps.claimsRepo.findForPolicy(trx, policyId, claimId, lock);
   if (!claim) {
@@ -23,7 +31,7 @@ export function createListReimbursementClaimsUseCase<Trx>(deps: InsuranceHolderD
       const ctx = await authorizeInsurance(deps, trx, actor, familyId, memberId);
       await loadPolicy(deps, trx, familyId, memberId, policyId);
       await auditViewIfNotSelf(deps, trx, ctx, { userId: actor.userId, familyId, memberId, resourceType: "ReimbursementClaim", context });
-      return deps.claimsRepo.listByPolicy(trx, policyId);
+      return withReceiptRefs(deps, trx, await deps.claimsRepo.listByPolicy(trx, policyId));
     });
   };
 }
@@ -34,7 +42,7 @@ export function createGetReimbursementClaimUseCase<Trx>(deps: InsuranceHolderDep
       const ctx = await authorizeInsurance(deps, trx, actor, familyId, memberId);
       await loadPolicy(deps, trx, familyId, memberId, policyId);
       await auditViewIfNotSelf(deps, trx, ctx, { userId: actor.userId, familyId, memberId, resourceType: "ReimbursementClaim", context });
-      return loadClaim(deps, trx, policyId, claimId);
+      return (await withReceiptRefs(deps, trx, [await loadClaim(deps, trx, policyId, claimId)]))[0] ?? await loadClaim(deps, trx, policyId, claimId);
     });
   };
 }
@@ -61,6 +69,23 @@ export function createCreateReimbursementClaimUseCase<Trx>(deps: InsuranceHolder
         throw new ValidationError([{ field: "documentIds", message: "documentos inexistentes, de outro membro ou ainda em verificação antivírus" }], { detail: "Dados inválidos." });
       }
 
+      // BR-CLN-36: recibos visíveis ao membro, `ISSUED`, na moeda do pedido e sem outro pedido ativo.
+      if (parsed.receiptIds.length > 0) {
+        const visible = await deps.receipts.lockVisible(trx, familyId, memberId, parsed.receiptIds);
+        if (visible.length !== parsed.receiptIds.length) {
+          throw new NotFoundError({ detail: "Recibo não encontrado." });
+        }
+        if (visible.some((r) => r.status !== "ISSUED")) {
+          throw new ConflictError({ detail: "Só se anexam recibos emitidos (não anulados)." });
+        }
+        if (visible.some((r) => r.currency !== parsed.currency)) {
+          throw new ValidationError([{ field: "receiptIds", message: "a moeda do recibo difere da do pedido" }], { detail: "Moeda do recibo diferente da do pedido." });
+        }
+        if ((await deps.claimsRepo.activeClaimIdsByReceipts(trx, parsed.receiptIds)).size > 0) {
+          throw new ConflictError({ detail: "Um dos recibos já está anexado a outro pedido ativo." });
+        }
+      }
+
       const now = deps.clock.now();
       const claim = await deps.claimsRepo.insert(trx, {
         id: newId(),
@@ -69,6 +94,7 @@ export function createCreateReimbursementClaimUseCase<Trx>(deps: InsuranceHolder
         amount: parsed.amount,
         currency: parsed.currency,
         documentIds: parsed.documentIds,
+        receiptIds: parsed.receiptIds,
         submittedBy: actor.userId,
         createdAt: now,
       });
@@ -83,10 +109,10 @@ export function createCreateReimbursementClaimUseCase<Trx>(deps: InsuranceHolder
         subjectMemberId: memberId,
         result: "SUCCESS",
         requestId: context.requestId,
-        metadata: { documentCount: parsed.documentIds.length },
+        metadata: { documentCount: parsed.documentIds.length, receiptCount: parsed.receiptIds.length },
         ...auditContextFields(context),
       });
-      return claim;
+      return (await withReceiptRefs(deps, trx, [claim]))[0] ?? claim;
     });
   };
 }
@@ -114,7 +140,7 @@ export function createMarkReimbursementClaimPaidUseCase<Trx>(deps: InsuranceHold
         requestId: context.requestId,
         ...auditContextFields(context),
       });
-      return paid;
+      return (await withReceiptRefs(deps, trx, [paid]))[0] ?? paid;
     });
   };
 }

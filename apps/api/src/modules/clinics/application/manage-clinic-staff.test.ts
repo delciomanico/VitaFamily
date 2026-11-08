@@ -34,12 +34,12 @@ describe("createClinicStaff (BR-CLN-05)", () => {
     await expect(createStaff(MANAGER_A, { email: "gestor2@clinica.pt" }, CTX)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("e-mail já em uso -> VALIDATION_ERROR", async () => {
+  it("e-mail já em uso -> CONFLICT (BR-CLN-39)", async () => {
     const fixtures = createClinicsFixtures(new FixedClock(NOW));
     const createStaff = createCreateClinicStaffUseCase(fixtures.deps);
     await createStaff(ADMIN_A, { email: "gestor@clinica.pt" }, CTX);
 
-    await expect(createStaff(ADMIN_A, { email: "gestor@clinica.pt" }, CTX)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(createStaff(ADMIN_A, { email: "gestor@clinica.pt" }, CTX)).rejects.toMatchObject({ code: "CONFLICT" });
   });
 });
 
@@ -116,5 +116,53 @@ describe("removeClinicStaff (BR-CLN-05/endpoints.md removeClinicStaff)", () => {
     const fixtures = createClinicsFixtures(new FixedClock(NOW));
     const removeStaff = createRemoveClinicStaffUseCase(fixtures.deps);
     await expect(removeStaff(MANAGER_A, "whatever", CTX)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("createClinicStaff: Médico (BR-CLN-39, UC-CLN-30)", () => {
+  const PROFESSIONAL = "prof-1";
+
+  async function setup() {
+    const fixtures = createClinicsFixtures(new FixedClock(NOW));
+    await fixtures.catalogRepo.insertProfessional(undefined as never, { id: PROFESSIONAL, clinicId: CLINIC_A, name: "Dra. Lima", specialty: null, createdAt: NOW });
+    await fixtures.catalogRepo.insertProfessional(undefined as never, { id: "prof-b", clinicId: CLINIC_B, name: "Dr. Alheio", specialty: null, createdAt: NOW });
+    return { fixtures, createStaff: createCreateClinicStaffUseCase(fixtures.deps) };
+  }
+
+  it("Admin cria Médico ligado a profissional ativo da própria clínica; auditoria com role e profissional interno", async () => {
+    const { fixtures, createStaff } = await setup();
+    const account = await createStaff(ADMIN_A, { email: "medico@clinica.pt", role: "CLINIC_DOCTOR", professionalId: PROFESSIONAL }, CTX);
+    expect(account).toMatchObject({ role: "CLINIC_DOCTOR", professionalId: PROFESSIONAL, clinicId: CLINIC_A });
+    expect(fixtures.audit.events.at(-1)).toMatchObject({ action: "CLINIC_STAFF_CREATE", metadata: { role: "CLINIC_DOCTOR", professionalId: PROFESSIONAL } });
+  });
+
+  it.each([
+    ["Médico sem profissional", { email: "a@c.pt", role: "CLINIC_DOCTOR" }, "VALIDATION_ERROR"],
+    ["Gestor com profissional", { email: "a@c.pt", role: "CLINIC_MANAGER", professionalId: PROFESSIONAL }, "VALIDATION_ERROR"],
+    ["papel CLINIC_ADMIN", { email: "a@c.pt", role: "CLINIC_ADMIN" }, "VALIDATION_ERROR"],
+    ["profissional de outra clínica", { email: "a@c.pt", role: "CLINIC_DOCTOR", professionalId: "prof-b" }, "NOT_FOUND"],
+    ["profissional inexistente", { email: "a@c.pt", role: "CLINIC_DOCTOR", professionalId: "nao-existe" }, "NOT_FOUND"],
+  ])("%s", async (_name, input, code) => {
+    const { createStaff } = await setup();
+    await expect(createStaff(ADMIN_A, input, CTX)).rejects.toMatchObject({ code });
+  });
+
+  it("profissional inativo => NOT_FOUND; segunda conta Médico do mesmo profissional => CONFLICT", async () => {
+    const { fixtures, createStaff } = await setup();
+    await createStaff(ADMIN_A, { email: "m1@clinica.pt", role: "CLINIC_DOCTOR", professionalId: PROFESSIONAL }, CTX);
+    await expect(createStaff(ADMIN_A, { email: "m2@clinica.pt", role: "CLINIC_DOCTOR", professionalId: PROFESSIONAL }, CTX)).rejects.toMatchObject({ code: "CONFLICT" });
+    await fixtures.catalogRepo.insertProfessional(undefined as never, { id: "prof-2", clinicId: CLINIC_A, name: "Dr. Inativo", specialty: null, createdAt: NOW });
+    await fixtures.catalogRepo.updateProfessional(undefined as never, "prof-2", { active: false });
+    await expect(createStaff(ADMIN_A, { email: "m3@clinica.pt", role: "CLINIC_DOCTOR", professionalId: "prof-2" }, CTX)).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("Gestor não cria Médico (FORBIDDEN); a lista inclui Gestores e Médicos; o Admin remove um Médico", async () => {
+    const { fixtures, createStaff } = await setup();
+    await expect(createStaff(MANAGER_A, { email: "a@c.pt", role: "CLINIC_DOCTOR", professionalId: PROFESSIONAL }, CTX)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const doctor = await createStaff(ADMIN_A, { email: "m1@clinica.pt", role: "CLINIC_DOCTOR", professionalId: PROFESSIONAL }, CTX);
+    await createStaff(ADMIN_A, { email: "g1@clinica.pt" }, CTX);
+    expect((await createListClinicStaffUseCase(fixtures.deps)(ADMIN_A)).map((a) => a.role).sort()).toEqual(["CLINIC_DOCTOR", "CLINIC_MANAGER"]);
+    await createRemoveClinicStaffUseCase(fixtures.deps)(ADMIN_A, doctor.id, CTX);
+    expect((await createListClinicStaffUseCase(fixtures.deps)(ADMIN_A)).map((a) => a.role)).toEqual(["CLINIC_MANAGER"]);
   });
 });

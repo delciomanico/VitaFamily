@@ -1,5 +1,5 @@
-// Regra pura de hierarquia do portal da clínica (BR-CLN-05, authorization.md §6.3): só o
-// `CLINIC_ADMIN` administra os `CLINIC_MANAGER` da sua própria clínica — nunca o Platform Admin
+// Regra pura de hierarquia do portal da clínica (BR-CLN-05/39, authorization.md §6.3): só o
+// `CLINIC_ADMIN` administra os `CLINIC_MANAGER` e `CLINIC_DOCTOR` da sua própria clínica — nunca o Platform Admin
 // (que só cria/repõe a conta `CLINIC_ADMIN` raiz, Fase B), nunca outra clínica. Sem I/O: quem é o
 // ator já vem decidido pelo `ClinicActorInfo` (ADR-020, resolvido no middleware); isto só valida a
 // forma da ação sobre o estado já carregado.
@@ -19,12 +19,12 @@ export function assertCanManageStaff(actor: ClinicStaffActor): void {
 }
 
 /**
- * endpoints.md `removeClinicStaff`: só remove contas `CLINIC_MANAGER` da própria clínica (nunca a
+ * endpoints.md `removeClinicStaff`: só remove contas `CLINIC_MANAGER`/`CLINIC_DOCTOR` (BR-CLN-39) da própria clínica (nunca a
  * `CLINIC_ADMIN` raiz, nunca de outra clínica — `NOT_FOUND`, sem enumeração do motivo,
  * authorization.md §6.1 passo 2). Devolve o alvo validado para quem chama continuar a operação.
  */
 export function assertRemovableStaffTarget(actor: ClinicStaffActor, target: ClinicAccount | null): ClinicAccount {
-  if (target?.clinicId !== actor.clinicId || target.role !== "CLINIC_MANAGER") {
+  if (target?.clinicId !== actor.clinicId || target.role === "CLINIC_ADMIN") {
     throw new NotFoundError({ detail: "Conta não encontrada." });
   }
   return target;

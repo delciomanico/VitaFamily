@@ -17,6 +17,7 @@ import type {
   AccessPolicyPort,
   AuditPort,
   ClaimDecisionRecord,
+  ClinicReceiptLookupPort,
   InsuranceDocumentsPort,
   InsuranceHolderDeps,
   InsurancePoliciesRepository,
@@ -315,6 +316,7 @@ export class FakeReimbursementClaimsRepository implements ReimbursementClaimsRep
       currency: record.currency,
       status: "SUBMITTED",
       documentIds: record.documentIds,
+      receiptIds: record.receiptIds,
       createdAt: record.createdAt,
     };
     this.byId.set(claim.id, claim);
@@ -349,6 +351,14 @@ export class FakeReimbursementClaimsRepository implements ReimbursementClaimsRep
         decidedAt: decision.decidedAt,
       }),
     );
+  }
+  async activeClaimIdsByReceipts(_trx: FakeTrx, receiptIds: string[]): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    for (const claim of this.byId.values()) {
+      if (claim.status === "REJECTED") continue;
+      for (const id of claim.receiptIds ?? []) if (receiptIds.includes(id)) map.set(id, [...(map.get(id) ?? []), claim.id]);
+    }
+    return Promise.resolve(map);
   }
   seed(claim: ReimbursementClaim): void {
     this.byId.set(claim.id, claim);
@@ -404,6 +414,21 @@ export class FakeInsuranceDocumentsPort implements InsuranceDocumentsPort<FakeTr
   }
 }
 
+/** M14 R (BR-CLN-36): recibos preparados pelos testes; `visible` = visíveis ao membro. */
+export class FakeClinicReceiptLookup implements ClinicReceiptLookupPort<FakeTrx> {
+  readonly receipts = new Map<string, { id: string; number: number; status: "ISSUED" | "VOIDED"; totalMinor: number; currency: string; visible: boolean }>();
+
+  async lockVisible(_trx: FakeTrx, _familyId: string, _memberId: string, receiptIds: string[]) {
+    return Promise.resolve(receiptIds.flatMap((id) => (this.receipts.get(id)?.visible ? [this.receipts.get(id) as { id: string; number: number; status: "ISSUED" | "VOIDED"; totalMinor: number; currency: string }] : [])));
+  }
+  async refs(_trx: FakeTrx, receiptIds: string[]) {
+    return Promise.resolve(receiptIds.flatMap((id) => { const r = this.receipts.get(id); return r ? [{ receiptId: r.id, number: r.number, status: r.status, totalMinor: r.totalMinor, currency: r.currency }] : []; }));
+  }
+  async summaries(_trx: FakeTrx, receiptIds: string[]) {
+    return Promise.resolve(receiptIds.flatMap((id) => { const r = this.receipts.get(id); return r ? [{ id: r.id, number: r.number, issuedAt: "2026-01-01T00:00:00.000Z", clinicName: "Clínica Sol", lines: [{ description: "Consulta", amountMinor: r.totalMinor }], totalMinor: r.totalMinor, currency: r.currency, status: r.status }] : []; }));
+  }
+}
+
 export interface InsuranceHolderFixtures {
   deps: InsuranceHolderDeps<FakeTrx>;
   portalDeps: InsurancePortalClaimsDeps<FakeTrx>;
@@ -413,6 +438,7 @@ export interface InsuranceHolderFixtures {
   policy: FakeInsuranceAccessPolicy;
   membership: FakeMembershipPort;
   documents: FakeInsuranceDocumentsPort;
+  receipts: FakeClinicReceiptLookup;
   audit: FakeAuditPort;
 }
 
@@ -423,6 +449,7 @@ export function createInsuranceHolderFixtures(clock: Clock): InsuranceHolderFixt
   const policy = new FakeInsuranceAccessPolicy();
   const membership = new FakeMembershipPort();
   const documents = new FakeInsuranceDocumentsPort();
+  const receipts = new FakeClinicReceiptLookup();
   const audit = new FakeAuditPort();
   const deps: InsuranceHolderDeps<FakeTrx> = {
     policiesRepo,
@@ -431,13 +458,14 @@ export function createInsuranceHolderFixtures(clock: Clock): InsuranceHolderFixt
     policy,
     membership,
     documents,
+    receipts,
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  const portalDeps: InsurancePortalClaimsDeps<FakeTrx> = { claimsRepo, audit, withTransaction: (fn) => fn(FAKE_TRX), clock };
-  return { deps, portalDeps, policiesRepo, claimsRepo, insurersRepo, policy, membership, documents, audit };
+  const portalDeps: InsurancePortalClaimsDeps<FakeTrx> = { claimsRepo, receipts, audit, withTransaction: (fn) => fn(FAKE_TRX), clock };
+  return { deps, portalDeps, policiesRepo, claimsRepo, insurersRepo, policy, membership, documents, receipts, audit };
 }
 
 export interface InsuranceFixtures {

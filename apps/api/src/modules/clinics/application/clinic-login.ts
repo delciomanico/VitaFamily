@@ -22,6 +22,8 @@ export interface ClinicLoginResult {
   refreshExpiresAt: Date;
   clinicId: string;
   role: ClinicAccountRole;
+  /** M14 R: só no Médico. */
+  professionalId?: string;
 }
 
 const FAILURE_RULE = { max: 5, windowMs: 15 * 60 * 1000 };
@@ -45,13 +47,14 @@ export function createClinicLoginUseCase<Trx>(deps: ClinicsDeps<Trx>) {
 
     const now = deps.clock.now();
 
-    async function fail(error: DomainError, accountId?: string): Promise<never> {
+    async function fail(error: DomainError, accountId?: string, clinicId?: string): Promise<never> {
       deps.clinicRateLimiter.consume(failureKey, FAILURE_RULE);
       await deps.withTransaction(async (trx) => {
         await deps.audit.record(trx, {
           occurredAt: now,
           actorType: "CLINIC_ACCOUNT",
           ...(accountId !== undefined ? { actorClinicAccountId: accountId } : {}),
+          ...(clinicId !== undefined ? { actorClinicId: clinicId } : {}),
           action: "CLINIC_ACCOUNT_LOGIN_FAILED",
           resourceType: "ClinicAccount",
           ...(accountId !== undefined ? { resourceId: accountId } : {}),
@@ -70,10 +73,10 @@ export function createClinicLoginUseCase<Trx>(deps: ClinicsDeps<Trx>) {
 
     const passwordOk = await verifyClinicPassword(account.passwordHash, input.password);
     if (!passwordOk) {
-      return fail(new ClinicInvalidCredentialsError(), account.id);
+      return fail(new ClinicInvalidCredentialsError(), account.id, account.clinicId);
     }
     if (account.status === "SUSPENDED") {
-      return fail(new ClinicAccountSuspendedError(), account.id);
+      return fail(new ClinicAccountSuspendedError(), account.id, account.clinicId);
     }
 
     deps.clinicRateLimiter.reset(failureKey);
@@ -98,6 +101,7 @@ export function createClinicLoginUseCase<Trx>(deps: ClinicsDeps<Trx>) {
         occurredAt: now,
         actorType: "CLINIC_ACCOUNT",
         actorClinicAccountId: account.id,
+        actorClinicId: account.clinicId,
         action: "CLINIC_ACCOUNT_LOGIN",
         resourceType: "ClinicAccount",
         resourceId: account.id,
@@ -121,6 +125,7 @@ export function createClinicLoginUseCase<Trx>(deps: ClinicsDeps<Trx>) {
       refreshExpiresAt,
       clinicId: account.clinicId,
       role: account.role,
+      ...(account.professionalId ? { professionalId: account.professionalId } : {}),
     };
   };
 }
