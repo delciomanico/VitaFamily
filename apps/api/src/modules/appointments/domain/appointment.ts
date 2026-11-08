@@ -47,6 +47,8 @@ export interface Appointment {
   startedAt?: Date;
   /** M14 Q (BR-CLN-30): dia local (AAAA-MM-DD) do retorno sugerido pela clínica; só em `COMPLETED`. */
   followUpDueOn?: string;
+  /** M15 S (BR-CLN-45): derivado (não persistido) — há relatório FINAL partilhado e o ator é SELF/TUTOR_OF. */
+  reportAvailable?: boolean;
   createdAt: Date;
 }
 

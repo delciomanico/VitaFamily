@@ -43,8 +43,15 @@ const ALL: Row[] = [
   [["PUT"], ["/clinic-portal/agenda/:appointmentId/start", "/clinic-portal/agenda/:appointmentId/complete"], "yes", "yes", "own"],
   [["PUT", "DELETE"], ["/clinic-portal/agenda/:appointmentId/follow-up"], "yes", "yes", "own"],
   [["GET"], ["/clinic-portal/follow-ups", "/clinic-portal/calendar"], "yes", "yes", "own"],
+  // M15 S (BR-CLN-44): Admin e Gestor LEEM o relatório e o PDF; só o Médico (nas suas) escreve, finaliza e acrescenta adendas.
+  [["GET"], ["/clinic-portal/agenda/:appointmentId/report", "/clinic-portal/agenda/:appointmentId/report/pdf"], "yes", "yes", "own"],
+  [["PUT"], ["/clinic-portal/agenda/:appointmentId/report", "/clinic-portal/agenda/:appointmentId/report/finalize"], "no", "no", "own"],
+  [["POST"], ["/clinic-portal/agenda/:appointmentId/report/addenda"], "no", "no", "own"],
   [["GET"], ["/clinic-portal/exam-agenda"], "yes", "yes", "own"],
   [["PUT"], ["/clinic-portal/exam-agenda/:examinationId/complete"], "yes", "yes", "own"],
+  // M15 T (BR-CLN-47..49): rascunho de resultados e laudo = permissões de `complete` de exame (entrada de valores, não autoria clínica).
+  [["GET", "PUT", "DELETE"], ["/clinic-portal/exam-agenda/:examinationId/results-draft"], "yes", "yes", "own"],
+  [["GET"], ["/clinic-portal/exam-agenda/:examinationId/report/pdf"], "yes", "yes", "own"],
   [["POST"], ["/clinic-portal/exam-agenda/:examinationId/documents"], "yes", "yes", "own"],
   [["DELETE"], ["/clinic-portal/exam-agenda/:examinationId/documents/:documentId"], "yes", "yes", "own"],
   [["PUT"], ["/clinic-portal/exam-agenda/:examinationId/cancel"], "yes", "yes", "no"],

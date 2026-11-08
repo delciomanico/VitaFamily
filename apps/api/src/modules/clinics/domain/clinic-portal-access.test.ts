@@ -9,6 +9,7 @@ import { createClinicAuditRouter } from "../../audit/interface/clinic-audit-rout
 import { createAppointmentsClinicPortalRouter } from "../../appointments/interface/clinic-portal-router.js";
 import { createClinicPatientsPortalRouter } from "../../clinic-patients/interface/portal-router.js";
 import { createClinicReceiptsPortalRouter } from "../../clinic-receipts/interface/portal-router.js";
+import { createClinicReportsPortalRouter } from "../../clinic-reports/interface/portal-router.js";
 import { createExaminationsClinicPortalRouter } from "../../examinations/interface/clinic-portal-router.js";
 import { createRecommendationsClinicPortalRouter } from "../../recommendations/interface/clinic-portal-router.js";
 import { createClinicPortalRouter } from "../interface/clinic-portal-router.js";
@@ -49,6 +50,7 @@ const ROUTERS = [
   createRecommendationsClinicPortalRouter(stub),
   createClinicPatientsPortalRouter(stub),
   createClinicReceiptsPortalRouter(stub),
+  createClinicReportsPortalRouter(stub),
   createClinicAuditRouter(stub),
 ];
 
@@ -80,6 +82,16 @@ describe("matriz papel × rota do portal da clínica (TC-AZ-CLN-V5)", () => {
     ["POST", "/clinic-portal/patients/link", "yes", "yes", "no"],
     ["PUT", "/clinic-portal/exam-agenda/abc/cancel", "yes", "yes", "no"],
     ["POST", "/clinic-portal/recommendations", "yes", "yes", "own"],
+    // M15 (authorization.md §6.2b, TC-AZ-CLN-V6): relatório da consulta — só o Médico escreve; Admin/Gestor leem.
+    ["GET", "/clinic-portal/agenda/abc/report", "yes", "yes", "own"],
+    ["GET", "/clinic-portal/agenda/abc/report/pdf", "yes", "yes", "own"],
+    ["PUT", "/clinic-portal/agenda/abc/report", "no", "no", "own"],
+    ["PUT", "/clinic-portal/agenda/abc/report/finalize", "no", "no", "own"],
+    ["POST", "/clinic-portal/agenda/abc/report/addenda", "no", "no", "own"],
+    ["GET", "/clinic-portal/exam-agenda/abc/results-draft", "yes", "yes", "own"],
+    ["PUT", "/clinic-portal/exam-agenda/abc/results-draft", "yes", "yes", "own"],
+    ["DELETE", "/clinic-portal/exam-agenda/abc/results-draft", "yes", "yes", "own"],
+    ["GET", "/clinic-portal/exam-agenda/abc/report/pdf", "yes", "yes", "own"],
   ];
   it.each(expected)("%s %s => Admin %s · Gestor %s · Médico %s", (method, path, admin, manager, doctor) => {
     const rule = findPortalRule(method, `/api/v1${path}`);

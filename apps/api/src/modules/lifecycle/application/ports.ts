@@ -50,6 +50,8 @@ export interface ExportSources {
   doses: MemberPageRead;
   appointments: MemberPageRead;
   examinations: MemberPageRead;
+  /** M15 S (BR-CLN-50): relatório da consulta PARTILHADO de uma consulta Vita (`FamilyConsultationReport`); só se `reportAvailable`. */
+  consultationReport?: (actor: ReadActor, familyId: string, memberId: string, appointmentId: string, context: ReadContext) => Promise<ApiObject>;
   /** Documentos de uma receita ou de um exame (a listagem exige o recurso). */
   documents: (actor: ReadActor, familyId: string, memberId: string, resourceType: "PRESCRIPTION" | "EXAMINATION", resourceId: string) => Promise<ApiObject[]>;
   downloadDocument: (

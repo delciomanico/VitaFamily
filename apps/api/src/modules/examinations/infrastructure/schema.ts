@@ -38,9 +38,19 @@ export interface ExamResultsTable {
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }
 
+/** M15 T (`0031`, schema.md §3g): rascunho de resultados — dado de saúde, nunca em logs/auditoria. */
+export interface ClinicExamResultDraftsTable {
+  examination_id: string;
+  results: ColumnType<unknown[], string, string>;
+  result_note: string | null;
+  updated_by_clinic_account_id: string | null;
+  updated_at: ColumnType<Date, Date | undefined, Date>;
+}
+
 declare module "../../../platform/db/index.js" {
   interface Database {
     examinations: ExaminationsTable;
     exam_results: ExamResultsTable;
+    clinic_exam_result_drafts: ClinicExamResultDraftsTable;
   }
 }

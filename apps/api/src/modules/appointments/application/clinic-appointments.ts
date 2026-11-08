@@ -35,6 +35,8 @@ export interface ClinicAppointmentView {
   followUpDueOn?: string;
   /** M14 R (BR-CLN-31): recibo `ISSUED` da marcação; nunca devolvido ao Médico (BR-CLN-39). */
   receiptId?: string;
+  /** M15 S (BR-CLN-41): estado do relatório da consulta; ausente se não existe. */
+  reportStatus?: "DRAFT" | "FINAL";
 }
 
 /**
@@ -49,7 +51,7 @@ export async function actorOwnsSlot<Trx>(deps: AppointmentsDeps<Trx>, actor: Cli
 }
 
 /** BR-CLN-31: acrescenta `receiptId` (consulta ou visita) às vistas — Admin/Gestor apenas; o Médico nunca recebe preços/recibos. */
-export async function attachReceiptIds<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
+async function attachReceipts<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
   if (actor.professionalId || views.length === 0) return views;
   const completed = views.filter((v) => v.status === "COMPLETED");
   if (completed.length === 0) return views;
@@ -61,6 +63,24 @@ export async function attachReceiptIds<Trx>(deps: AppointmentsDeps<Trx>, trx: Tr
     }
   }
   return views.map((v) => (ids.has(v.id) ? { ...v, receiptId: ids.get(v.id) } : v)) as ClinicAppointmentView[];
+}
+
+/** M15 S (BR-CLN-41): `reportStatus` (consulta ou visita) para os três papéis; o Médico só recebe as vistas que já são suas. */
+async function attachReportStatuses<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
+  if (views.length === 0) return views;
+  const statuses = new Map<string, "DRAFT" | "FINAL">();
+  for (const [kind, source] of [["APPOINTMENT", "VITA"], ["VISIT", "MANUAL"]] as const) {
+    const bookingIds = views.filter((v) => (v.source ?? "VITA") === source && (v.status === "SCHEDULED" || v.status === "COMPLETED" || v.status === "NO_SHOW" || v.status === "CANCELLED")).map((v) => v.id);
+    if (bookingIds.length > 0) {
+      for (const [bookingId, status] of await deps.consultationReports.statuses(trx, actor.clinicId, kind, bookingIds)) statuses.set(bookingId, status);
+    }
+  }
+  return views.map((v) => (statuses.has(v.id) ? { ...v, reportStatus: statuses.get(v.id) } : v)) as ClinicAppointmentView[];
+}
+
+/** Decora as vistas da agenda com `receiptId` (BR-CLN-31) e `reportStatus` (BR-CLN-41). */
+export async function attachReceiptIds<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
+  return attachReportStatuses(deps, trx, actor, await attachReceipts(deps, trx, actor, views));
 }
 
 /** `memberId -> clinicPatientId` em lote (M14 P): consultas Vita associam-se ao paciente da clínica pela ligação. */
@@ -239,6 +259,8 @@ export interface CompleteConsultationInput {
   outcomeNote?: string | null;
   /** Opcional (BR-CLN-06/BR-RX-07): se presente, emite a receita associada (`issuedBy=CLINIC`). */
   prescription?: ClinicPrescriptionInput | null;
+  /** M15 S (BR-CLN-42/44): presente => grava e finaliza o relatório na mesma transação (só o Médico; validado pelo módulo dono). */
+  report?: unknown;
 }
 
 /** `PUT /clinic-portal/agenda/{appointmentId}/complete` (D18, BR-CLN-06/BR-RX-07): completa a
@@ -254,6 +276,10 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
         const visit = await deps.clinicPatients.completeVisit(trx, actor, appointmentId, { outcomeNote: input.outcomeNote ?? null, prescription: input.prescription }, context);
         if (!visit) {
           throw new NotFoundError({ detail: "Pedido não encontrado." });
+        }
+        if (input.report !== undefined && input.report !== null) {
+          await deps.consultationReports.finalizeWithComplete(trx, actor, "VISIT", appointmentId, input.report, context);
+          return { ...visit, reportStatus: "FINAL" };
         }
         return visit;
       }
@@ -287,6 +313,12 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
         );
       }
 
+      // M15 S (BR-CLN-42): o relatório grava-se e finaliza na MESMA transação; falha de qualquer parte => nada muda.
+      const hasReport = input.report !== undefined && input.report !== null;
+      if (hasReport) {
+        await deps.consultationReports.finalizeWithComplete(trx, actor, "APPOINTMENT", appointmentId, input.report, context);
+      }
+
       await deps.audit.record(trx, {
         occurredAt: now,
         actorType: "CLINIC_ACCOUNT",
@@ -299,10 +331,11 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
         result: "SUCCESS",
         requestId: context.requestId,
         ...auditContextFields(context),
-        metadata: { from: existing.status, to: "COMPLETED", hasPrescription: Boolean(input.prescription) },
+        metadata: { from: existing.status, to: "COMPLETED", hasPrescription: Boolean(input.prescription), hasReport },
       });
 
-      return toView(deps, trx, appointment);
+      const view = await toView(deps, trx, appointment);
+      return hasReport ? { ...view, reportStatus: "FINAL" } : (await attachReportStatuses(deps, trx, actor, [view]))[0] ?? view;
     });
   };
 }

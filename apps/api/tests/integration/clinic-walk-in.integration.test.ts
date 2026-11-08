@@ -109,6 +109,7 @@ describe("integração: marcação presencial (walk-in) — migração 0026 e re
         countActiveVisitsBySlot: () => Promise.resolve([]),
         findPatientIdsByMembers: () => Promise.resolve(new Map()),
       },
+      consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()) },
       walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
       audit: { record: (_trx, event) => Promise.resolve(void audit.push(event)) },
       db,

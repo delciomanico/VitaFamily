@@ -26,6 +26,7 @@ import { createDeleteDocumentUseCase } from "./application/delete-document.js";
 import { createDownloadDocumentUseCase } from "./application/download-document.js";
 import { createDeleteAllForResourceUseCase, createListAttachableUseCase, createListForResourceUseCase } from "./application/for-resource.js";
 import { createGetDocumentUseCase } from "./application/get-document.js";
+import { createDiscardStoredUseCase, createReadGeneratedExamReportUseCase, createStoreGeneratedUseCase } from "./application/generated-documents.js";
 import { createPurgeFilesUseCases } from "./application/purge-files.js";
 import { createListDocumentsUseCase } from "./application/list-documents.js";
 import type { DocumentsDeps, ReleaseGatePort, ScanDocumentDeps, VirusScanner } from "./application/ports.js";
@@ -81,6 +82,12 @@ export interface DocumentsModule {
    * `AccessPolicy`), com `resolveTarget` a verificar o exame dentro da transação (ver `application/clinic-documents.ts`). */
   uploadClinicExamDocument: ReturnType<typeof createUploadClinicExamDocumentUseCase<Kysely<Database>>>;
   deleteClinicExamDocument: ReturnType<typeof createDeleteClinicExamDocumentUseCase<Kysely<Database>>>;
+  /** M15 T (BR-CLN-49, `examinations`): laudo PDF gerado pelo servidor — nasce `CLEAN`, sem quarentena (exceção a BR-DOC-02), na transação do chamador. */
+  storeGenerated: ReturnType<typeof createStoreGeneratedUseCase<Kysely<Database>>>;
+  /** M15 T: objeto de um laudo escrito cuja transação reverteu -> `file_deletions`. */
+  discardStored: ReturnType<typeof createDiscardStoredUseCase<Kysely<Database>>>;
+  /** M15 T (BR-CLN-49): bytes do laudo gerado do exame (a clínica descarrega SÓ este documento). */
+  readGeneratedExamReport: ReturnType<typeof createReadGeneratedExamReportUseCase<Kysely<Database>>>;
   purgeMemberFiles: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<void>;
   purgeFamilyFiles: (trx: Kysely<Database>, familyId: string) => Promise<void>;
 }
@@ -131,6 +138,9 @@ export function createDocumentsModule(deps: DocumentsModuleDeps): DocumentsModul
     listAttachable: createListAttachableUseCase(documentsDeps),
     uploadClinicExamDocument: createUploadClinicExamDocumentUseCase(documentsDeps),
     deleteClinicExamDocument: createDeleteClinicExamDocumentUseCase(documentsDeps),
+    storeGenerated: createStoreGeneratedUseCase(documentsDeps),
+    discardStored: createDiscardStoredUseCase(documentsDeps),
+    readGeneratedExamReport: createReadGeneratedExamReportUseCase(documentsDeps),
     ...createPurgeFilesUseCases(documentsDeps),
   };
 }

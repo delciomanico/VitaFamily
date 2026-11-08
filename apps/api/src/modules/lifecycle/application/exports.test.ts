@@ -115,6 +115,29 @@ describe("exportação de dados (UC-ACC-06)", () => {
     expect(json).not.toContain('"conditions"');
   });
 
+  it("M15 S (BR-CLN-50): o relatório PARTILHADO das consultas Vita entra no pacote; só com reportAvailable; secção negada fica de fora", async () => {
+    const reads: string[] = [];
+    const appointments = () => Promise.resolve({ items: [{ id: "apt-1", reportAvailable: true }, { id: "apt-2", reportAvailable: false }], nextCursor: null });
+    const { deps, stored } = setup({
+      appointments,
+      consultationReport: (_a, _f, _m, appointmentId) => {
+        reads.push(appointmentId);
+        return Promise.resolve({ appointmentId, impression: "Diagnóstico exportado" });
+      },
+    });
+    const view = await createRequestExportUseCase(deps)(ME, undefined, CTX);
+    await flush();
+    const json = stored.get(`exports/${view.id}.zip`)?.toString("utf8") ?? "";
+    expect(reads).toEqual(["apt-1"]);
+    expect(json).toContain('"consultationReports"');
+    expect(json).toContain("Diagnóstico exportado");
+
+    const denied = setup({ appointments, consultationReport: () => Promise.reject(new ForbiddenError()) });
+    const second = await createRequestExportUseCase(denied.deps)(ME, undefined, CTX);
+    await flush();
+    expect(denied.stored.get(`exports/${second.id}.zip`)?.toString("utf8") ?? "").not.toContain("consultationReports");
+  });
+
   it("no máximo 3 pedidos por dia (N7)", async () => {
     const { deps } = setup();
     const request = createRequestExportUseCase(deps);

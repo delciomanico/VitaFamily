@@ -229,8 +229,8 @@
 
 ### UC-CLN-38 Gerar e ver o laudo do exame (M15 T)
 - **Atores:** conta da clínica (Admin, Gestor, Médico suas); titular/tutor (e `OTHER` com partilha de `EXAMS`) · **FR:** CLN-24 · **BR:** CLN-48, CLN-49
-- **Fluxo:** ao **Concluir** o exame com resultados estruturados, a opção **"Gerar laudo em PDF"** (ligada) cria o PDF; a clínica vê **Laudo (PDF)** no exame e imprime-o; o paciente vê o laudo junto aos documentos do exame (rótulo "Laudo da clínica") e descarrega-o como qualquer PDF. Valores fora do intervalo de referência indicado aparecem com **"Fora da referência"** e o aviso de que não é interpretação.
-- **Alternativos:** sem resultados estruturados ⇒ não há laudo (só PDF carregado, se houver); falha na geração ⇒ a conclusão falha sem efeitos e a UI oferece **Concluir sem laudo** (`generateReport=false`); laudo apagado pelo titular ⇒ clínica `NOT_FOUND` ao descarregar.
+- **Fluxo:** ao **Concluir** o exame com resultados estruturados (≥1 item em `results`, incluindo só de texto; a tabela do laudo mostra só os numéricos), a opção **"Gerar laudo em PDF"** (ligada) cria o PDF; a clínica vê **Laudo (PDF)** no exame e imprime-o; o paciente vê o laudo junto aos documentos do exame (rótulo "Laudo da clínica") e descarrega-o como qualquer PDF. Valores fora do intervalo de referência indicado aparecem com **"Fora da referência"** e o aviso de que não é interpretação.
+- **Alternativos:** sem resultados estruturados ⇒ não há laudo (só PDF carregado, se houver); falha na geração ⇒ o laudo é gerado **antes de qualquer escrita** do `complete`, logo a conclusão falha com `INTERNAL_ERROR` sem efeitos (se a transação reverter depois de o objeto escrito, este vai para `file_deletions` via `documents.discardStored`) e a UI oferece **Concluir sem laudo** (`generateReport=false`); laudo apagado pelo titular ⇒ clínica `NOT_FOUND` ao descarregar.
 - **Pós-condição:** `Document` `generatedBySystem` do exame (instantâneo); alerta `EXAM_RESULTS_AVAILABLE` como hoje; auditoria `EXAM_REPORT_GENERATED` (clínica) e `DOCUMENT_DOWNLOAD`/`EXAM_REPORT_DOWNLOAD`.
 
 ---

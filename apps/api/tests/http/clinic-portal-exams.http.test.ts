@@ -202,7 +202,7 @@ describe("fluxo completo conforme o contrato (UC-EXM-08, UC-CLN-09..10, ADR-023 
 
     // BR-CLN-03: só o mínimo; sem passo de confirmação — a agenda já mostra SCHEDULED.
     const agenda = await request(h.app).get(`${API}/clinic-portal/exam-agenda`).set("Authorization", clinicA);
-    expect(agenda.body).toEqual([{ id, status: "SCHEDULED", scheduledAt: SLOT_AT.toISOString(), examType: "Ecografia", patientName: "Maria Silva", notes: "em jejum", responseNote: null, resultsCount: 0, documents: [], resultsIssuedAt: null, receiptId: null }]);
+    expect(agenda.body).toEqual([{ id, status: "SCHEDULED", scheduledAt: SLOT_AT.toISOString(), examType: "Ecografia", patientName: "Maria Silva", notes: "em jejum", responseNote: null, resultsCount: 0, documents: [], resultsIssuedAt: null, receiptId: null, hasResultsDraft: false, reportAvailable: false }]);
     // As rotas de pedidos foram retiradas (ADR-023 revisto): não existem.
     expect((await request(h.app).get(`${API}/clinic-portal/exam-requests`).set("Authorization", clinicA)).status).toBe(404);
 
@@ -212,7 +212,7 @@ describe("fluxo completo conforme o contrato (UC-EXM-08, UC-CLN-09..10, ADR-023 
     expect((notPdf.body as { code: string }).code).toBe("FILE_TYPE_NOT_ALLOWED");
     const uploaded = await request(h.app).post(`${API}/clinic-portal/exam-agenda/${id}/documents`).set("Authorization", clinicA).attach("file", PDF, "resultados.pdf");
     expect(uploaded.status).toBe(201);
-    expect(Object.keys(uploaded.body as object).sort()).toEqual(["createdAt", "id", "originalName", "scanStatus", "sizeBytes"]);
+    expect(Object.keys(uploaded.body as object).sort()).toEqual(["createdAt", "generatedBySystem", "id", "originalName", "scanStatus", "sizeBytes"]);
     expect(uploaded.body).toMatchObject({ originalName: "resultados.pdf", scanStatus: "PENDING" });
 
     // O paciente ainda não vê o PDF (exame não COMPLETED).

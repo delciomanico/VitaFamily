@@ -231,6 +231,7 @@ describe("POST /clinic-portal/walk-in-appointments", () => {
       waitingMinutes: null,
       followUpDueOn: null,
       receiptId: null,
+      reportStatus: null,
     });
     const id = (created.body as { id: string }).id;
 

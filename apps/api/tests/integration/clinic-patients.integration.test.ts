@@ -121,6 +121,7 @@ describe("integração: pacientes da clínica (migração 0028)", () => {
         confirmVisit: createConfirmVisitUseCase(cp), arriveVisit: createArriveVisitUseCase(cp), startVisit: createStartVisitUseCase(cp), noShowVisit: createNoShowVisitUseCase(cp), setVisitFollowUp: createSetVisitFollowUpUseCase(cp), clearVisitFollowUp: createClearVisitFollowUpUseCase(cp),
         countActiveVisitsBySlot: createCountActiveVisitsBySlotUseCase(cp), findPatientIdsByMembers: createFindPatientIdsByMembersUseCase(cp),
       },
+      consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()) },
       walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
       audit: cp.audit, db, withTransaction: cp.withTransaction, clock,
     };

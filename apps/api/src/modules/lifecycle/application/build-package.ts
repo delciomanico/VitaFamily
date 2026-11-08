@@ -32,6 +32,15 @@ async function memberPackage(
     readable(() => readAll(sources.examinations, actor, familyId, memberId, context)),
   ]);
 
+  // M15 S (BR-CLN-50): o relatório PARTILHADO das consultas Vita do titular entra no pacote (a mesma autorização do endpoint).
+  const consultationReports: ApiObject[] = [];
+  for (const appointment of appointments ?? []) {
+    const read = sources.consultationReport;
+    if (appointment.reportAvailable !== true || !read) continue;
+    const report = await readable(() => read(actor, familyId, memberId, str(appointment, "id"), context));
+    if (report) consultationReports.push(report);
+  }
+
   const resources = [
     ...(prescriptions ?? []).map((p) => ({ resourceType: "PRESCRIPTION" as const, resourceId: str(p, "id") })),
     ...(examinations ?? []).map((e) => ({ resourceType: "EXAMINATION" as const, resourceId: str(e, "id") })),
@@ -63,6 +72,7 @@ async function memberPackage(
     ...(plans !== undefined ? { medicationPlans: plans } : {}),
     ...(doses !== undefined ? { doses } : {}),
     ...(appointments !== undefined ? { appointments } : {}),
+    ...(consultationReports.length > 0 ? { consultationReports } : {}),
     ...(examinations !== undefined ? { examinations } : {}),
     documents: documentEntries,
   };

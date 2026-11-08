@@ -734,7 +734,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **AUTHORIZATION:** como o anterior
 - **DESCRIPTION:** Descarregar o PDF do relatório.
 - **RESPONSE:** `200` `application/pdf` (`Content-Disposition: attachment`)
-- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED` (sem limite próprio; só o geral, OP-50)
 - **BUSINESS RULES:** BR-CLN-45/46. Sempre auditado (`CONSULT_REPORT_VIEWED`, `format=PDF`).
 
 ### `PATCH /families/{familyId}/members/{memberId}/appointments/{appointmentId}`  — updateAppointment

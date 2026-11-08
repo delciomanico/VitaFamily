@@ -54,5 +54,12 @@ Hoje a consulta concluída pela clínica guarda só `outcomeNote` (texto curto),
 - Mantêm-se: BR-CLN-06/08/09 (receita, resultados, recomendações), BR-RX-07, 404 sem enumeração, ausência de alertas por valor, ADR-020 (`ClinicAccount` separado de `User`).
 - Gate de lançamento: AIPD/DPA (M10) e validação jurídica da retenção (OP-46) **antes** de ativar em produção; não bloqueiam o desenvolvimento em mock.
 
+## Emendas de implementação (2026-11-08, M15 API; decididas pelo arquiteto, código já testado)
+- **Autorização da família:** `clinic-reports` usa a porta `PatientAccess` (composition root sobre `access`) com a nova ação `VIEW_CONSULTATION_REPORT` (só `SELF`/`TUTOR_OF`, como `VIEW_CLINIC_RECEIPTS`); `authorization.md` §6.6, `modules.md` nota 27.
+- **Rascunhos:** `clinic_exam_result_drafts` **sem `clinic_id`** (segue o exame/membro; apagar a clínica não os apaga); colunas `created_at`/`updated_at` nos relatórios, `created_at` nas adendas e `updated_at` nos rascunhos (`schema.md` §3g).
+- **BR-CLN-48:** "≥1 resultado" = ≥1 item em `results` (inclui só de texto); a tabela do laudo só mostra os numéricos.
+- **Geração do laudo:** antes de qualquer escrita do `complete`; falha ⇒ `INTERNAL_ERROR` sem efeitos; reversão posterior ⇒ objeto para `file_deletions` via `documents.discardStored`.
+- **Auditoria/exportação:** `APPOINTMENT_STATUS` do `complete` com `hasReport`; eventos de exame com `actorClinicId`; exportação do titular com `consultationReports` (fonte opcional). **Rate limit:** PDF da clínica 30/min; PDF da família só o limite geral (OP-50). **PDF da família:** `Content-Disposition: attachment`.
+
 ## Pontos em aberto
 OP-44..49 em `11-implementation/open-points.md` (relatório sem alerta ao paciente; Gestor como autor; retenção; correção de laudo e cópia da clínica; assinatura qualificada; alargar a outros leitores).

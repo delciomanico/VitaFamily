@@ -70,6 +70,8 @@ export function toClinicExamResponse(view: ClinicExamView) {
     documents: view.documents,
     resultsIssuedAt: view.resultsIssuedAt ?? null,
     receiptId: view.receiptId ?? null,
+    hasResultsDraft: view.hasResultsDraft,
+    reportAvailable: view.reportAvailable,
   };
 }
 

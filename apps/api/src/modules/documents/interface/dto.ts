@@ -10,6 +10,7 @@ export function toDocumentResponse(document: Document) {
     mimeType: document.mimeType,
     sizeBytes: document.sizeBytes,
     scanStatus: document.scanStatus,
+    generatedBySystem: document.generatedBySystem,
     createdAt: document.createdAt.toISOString(),
   };
 }

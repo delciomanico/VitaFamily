@@ -334,6 +334,8 @@ export interface ClinicVisitBookingView {
   slotId?: string;
   /** M14 R (BR-CLN-31): recibo `ISSUED` da visita; nunca para o Médico. */
   receiptId?: string;
+  /** M15 S (BR-CLN-41): estado do relatório da consulta. */
+  reportStatus?: "DRAFT" | "FINAL";
   /** M14 Q (BR-CLN-25/28/30). */
   confirmationStatus: ConfirmationStatus;
   confirmationSource?: ConfirmationSource;
@@ -376,6 +378,22 @@ export interface ReceiptIdsPort<Trx> {
   findIssuedReceiptIds(trx: Trx, clinicId: string, kind: "APPOINTMENT" | "VISIT", bookingIds: string[]): Promise<Map<string, string>>;
 }
 
+/**
+ * M15 S (ADR-027, BR-CLN-42/45, modules.md §2 nota 27): relatório da consulta. Definida aqui, implementada por `clinic-reports`
+ * e ligada no composition root (`appointments` nunca importa `clinic-reports`; sem aresta nova no grafo).
+ */
+export interface ConsultationReportsPort<Trx> {
+  /**
+   * `report` em `PUT …/complete`: grava e FINALIZA o relatório na transação do chamador (como a receita). Só o Médico da
+   * marcação; Admin/Gestor => `FORBIDDEN` (a transação do chamador reverte). `report` é validado por quem implementa.
+   */
+  finalizeWithComplete(trx: Trx, actor: ClinicPortalActor, kind: "APPOINTMENT" | "VISIT", bookingId: string, report: unknown, context: RequestContext): Promise<void>;
+  /** `ClinicBooking.reportStatus`: `bookingId -> DRAFT|FINAL` dos relatórios existentes. */
+  statuses(trx: Trx, clinicId: string, kind: "APPOINTMENT" | "VISIT", bookingIds: string[]): Promise<Map<string, "DRAFT" | "FINAL">>;
+  /** `Appointment.reportAvailable`: consultas Vita com relatório FINAL partilhado. */
+  sharedAvailability(trx: Trx, bookings: { clinicId: string; bookingId: string }[]): Promise<Set<string>>;
+}
+
 export interface AppointmentsDeps<Trx> {
   appointmentsRepo: AppointmentsRepository<Trx>;
   policy: AccessPolicyPort<Trx>;
@@ -392,6 +410,8 @@ export interface AppointmentsDeps<Trx> {
   clinicPatients: ClinicPatientDirectoryPort<Trx>;
   /** M14 R (BR-CLN-31/39): `receiptId` nas marcações concluídas (nunca para o Médico). */
   receipts: ReceiptIdsPort<Trx>;
+  /** M15 S (BR-CLN-42/45): relatório da consulta (implementada por `clinic-reports`). */
+  consultationReports: ConsultationReportsPort<Trx>;
   /** BR-CLN-10: rate limit dos endpoints walk-in (por conta, por IP, falhas 404). */
   walkInRateLimiter: WalkInRateLimiter;
   audit: AuditPort<Trx>;

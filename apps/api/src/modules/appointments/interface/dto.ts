@@ -20,6 +20,7 @@ export function toAppointmentResponse(appointment: Appointment) {
     notes: appointment.notes ?? null,
     confirmationStatus: appointment.confirmationStatus,
     followUpDueOn: appointment.followUpDueOn ?? null,
+    reportAvailable: appointment.reportAvailable ?? false,
   };
 }
 
@@ -71,6 +72,7 @@ export function toClinicAppointmentResponse(view: ClinicAppointmentView) {
     waitingMinutes: view.waitingMinutes ?? null,
     followUpDueOn: view.followUpDueOn ?? null,
     receiptId: view.receiptId ?? null,
+    reportStatus: view.reportStatus ?? null,
   };
 }
 

@@ -150,30 +150,32 @@ OP-24..30 foram decididos (ver `open-points.md`, Resolvidos). Em aberto de M14 R
 - **Exame (etapa T):** em **Exames → Resultados** (e no drawer do exame `SCHEDULED`) a página **`/clinic/exams/:examinationId/results`** mostra a tabela de parâmetros (parâmetro, valor numérico/texto, unidade, referência mín./máx.), **Guardar rascunho** (carrega o rascunho ao reabrir), **Descartar rascunho** e **Concluir**, com a caixa **"Gerar laudo em PDF"** (ligada) e a opção de PDF carregado como hoje. Depois de concluído: **Laudo (PDF)** (descarrega `exam-agenda/{id}/report/pdf`) e indicação "Gerado pelo sistema". O editor **não** assinala valores fora da referência (o realce existe só no PDF, BR-CLN-48); mostra apenas a nota "O laudo indica «Fora da referência» por comparação aritmética; não é interpretação clínica".
 
 ### 5.2 App do paciente
-- `AppointmentDetail` mostra o cartão **"Relatório da consulta"** quando `Appointment.reportAvailable` é `true` → rota **`/families/:familyId/members/:memberId/appointments/:appointmentId/report`** (vista só de leitura com secções e adendas, **Descarregar PDF**). Sem estados "indisponível": o cartão não aparece quando não há relatório partilhado ou o actor não pode lê-lo.
+- `AppointmentDetail` mostra o cartão **"Relatório da consulta"** quando `Appointment.reportAvailable` é `true` → rota **`/app/appointments/:id/report`** (vista só de leitura com secções e adendas, **Descarregar PDF**). Sem estados "indisponível": o cartão não aparece quando não há relatório partilhado ou o actor não pode lê-lo.
 - Na lista de documentos do exame, o `Document.generatedBySystem` mostra o rótulo **"Laudo da clínica"**; descarregar usa o fluxo existente.
 
-### 5.3 Nomes de componentes, serviços e mocks (`apps/web/src`)
+### 5.3 Nomes de componentes, serviços e mocks (`apps/web/src`; estrutura plana)
 ```
 pages/clinic/reports/ConsultationReportPage.tsx          editor / vista (por papel)
 pages/clinic/exams/ExamResultsPage.tsx                     rascunho, concluir e laudo
 components/clinic/reports/ConsultationReportEditor.tsx     4 secções, contadores, autosave
 components/clinic/reports/ReportSectionField.tsx           campo com limite e placeholder
+components/clinic/reports/ReportSectionsView.tsx           secções em só de leitura
 components/clinic/reports/ReportStatusBadge.tsx            Rascunho | Final
 components/clinic/reports/ReportAddendaList.tsx            adendas datadas
 components/clinic/reports/AddendumDialog.tsx
 components/clinic/reports/ReportPdfButton.tsx              abre/descarrega o PDF
+components/clinic/reports/ReportAction.tsx                 acção Relatório no drawer da marcação
 components/clinic/exams/ExamResultsDraftForm.tsx           tabela de parâmetros
 components/clinic/exams/ExamReportButton.tsx               Laudo (PDF)
 components/appointments/ConsultationReportCard.tsx         app: cartão no detalhe
 pages/appointments/ConsultationReportPage.tsx              app: vista só de leitura
 config/reportTemplates.ts                                  textos-guia por especialidade (estático)
-services/clinic/consultationReports.service.ts             get/save/finalize/addendum/pdf; complete com `report`
-services/clinic/examResultsDraft.service.ts                get/save/discard; pdf do laudo
-services/consultationReports.service.ts                    lado família (get/pdf)
-mocks/handlers/clinic/reports.ts · mocks/data/clinicReports.ts   MSW (DRAFT/FINAL/adendas, laudo, realce nunca no JSON)
+types/clinicReport.ts                                      tipos do relatório, adendas, rascunho
+services/clinicReport.service.ts                           clínica: get/save/finalize/addendum/pdf; complete com `report`; exporta também `examResultsDraftService` (get/save/discard; pdf do laudo)
+services/familyReport.service.ts                           lado família (get/pdf)
+mocks/clinicReports.ts · mocks/handlers/clinicReports.ts   MSW (DRAFT/FINAL/adendas, laudo, realce nunca no JSON)
 ```
-Rotas web (em inglês): `/clinic/consultations/:bookingId/report` · `/clinic/exams/:examinationId/results` · `/families/:familyId/members/:memberId/appointments/:appointmentId/report`. As guardas `RequireClinicAuth`/papel existentes aplicam-se (Médico escreve; Admin/Gestor leem). O mock valida a mesma matriz de papéis e os limites do contrato; **mock nunca substitui** os testes de autorização/isolamento/imutabilidade do backend.
+Rotas web (em inglês): `/clinic/consultations/:bookingId/report` · `/clinic/exams/:examinationId/results` · `/app/appointments/:id/report` (paciente; sob o prefixo `/app`, o contexto de família/membro vem da sessão e não do URL).
 
 ### 5.4 Acessibilidade e i18n
 Etiquetas, estados e erros em pt-PT via i18n (sem texto clínico em mensagens de erro); campos com `aria-describedby` do contador; o PDF é aberto num separador novo (`target=_blank`, `rel=noopener`); `Esc` fecha o diálogo de adenda; sem emojis.

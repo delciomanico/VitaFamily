@@ -121,6 +121,16 @@ export interface ClinicPatientsModule {
     /** BR-CLN-35: existe `ClinicConsent` (qualquer nível) da clínica para o membro. */
     hasConsent: (trx: Kysely<Database>, clinicId: string, memberId: string) => Promise<boolean>;
   };
+  /** M15 S (BR-CLN-41, `clinic-reports`, ligado no composition root): factos mínimos da visita manual e do paciente para o relatório. */
+  reportSource: {
+    findVisitFacts: (
+      trx: Kysely<Database>,
+      clinicId: string,
+      visitId: string,
+    ) => Promise<{ status: string; patientName: string; scheduledAt: Date; slotId?: string; clinicPatientId: string; patientBirthDate?: string } | null>;
+    /** Data de nascimento do `ClinicPatient` (se conhecida). */
+    findPatientBirthDate: (trx: Kysely<Database>, clinicId: string, clinicPatientId: string) => Promise<string | undefined>;
+  };
   directory: {
     resolvePatient: ReturnType<typeof createResolvePatientUseCase<Kysely<Database>>>;
     ensureLinkedByEmail: ReturnType<typeof createEnsureLinkedByEmailUseCase<Kysely<Database>>>;
@@ -210,6 +220,22 @@ export function createClinicPatientsModule(deps: ClinicPatientsModuleDeps): Clin
         return { status: visit.status, patientName: patient?.name ?? "Paciente", ...(visit.slotId ? { slotId: visit.slotId } : {}) };
       },
       hasConsent: async (trx, clinicId, memberId) => (await clinicPatientsDeps.consentsRepo.find(trx, clinicId, memberId)) !== null,
+    },
+    reportSource: {
+      findVisitFacts: async (trx, clinicId, visitId) => {
+        const visit = await clinicPatientsDeps.visitsRepo.findById(trx, clinicId, visitId);
+        if (!visit) return null;
+        const patient = await clinicPatientsDeps.patientsRepo.findById(trx, clinicId, visit.clinicPatientId);
+        return {
+          status: visit.status,
+          patientName: patient?.name ?? "Paciente",
+          scheduledAt: visit.scheduledAt,
+          clinicPatientId: visit.clinicPatientId,
+          ...(visit.slotId ? { slotId: visit.slotId } : {}),
+          ...(patient?.birthDate ? { patientBirthDate: patient.birthDate } : {}),
+        };
+      },
+      findPatientBirthDate: async (trx, clinicId, clinicPatientId) => (await clinicPatientsDeps.patientsRepo.findById(trx, clinicId, clinicPatientId))?.birthDate,
     },
     directory: {
       resolvePatient: createResolvePatientUseCase(clinicPatientsDeps),

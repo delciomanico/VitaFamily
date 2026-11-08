@@ -69,6 +69,10 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   // nem `documents`: marcação concluída, consentimento, perfil, catálogo e pedidos anexados entram por portas da sua
   // `application`, ligadas no composition root. `insurance` não importa `clinic-receipts` (só a porta `ClinicReceiptLookup`).
   "clinic-receipts": ["access", "clinics", "audit"],
+  // ADR-027 (modules.md §2 nota 27, M15 S/T): `clinic-reports` NÃO importa `auth`, `access`, `families`, `insurance`, `insurer-ops`,
+  // `clinic-receipts` nem módulos de saúde: marcação, perfil, profissionais e autorização do paciente entram por portas da sua
+  // `application`, ligadas no composition root (`appointments`/`examinations` chamam-no só por portas, sem aresta).
+  "clinic-reports": ["clinics", "audit"],
   // alerts -> notifications (modules.md §3 nota 15): a orquestração do pipeline
   // Evento→Regra→Alerta→Notificação fica em `alerts`, que chama `notifications` pela raiz para
   // criar/cancelar notificações — mesmo critério de `medications` ↔ `prescriptions` (nota 6).
@@ -112,10 +116,12 @@ const IO_PACKAGES_BANNED_IN_DOMAIN_AND_APPLICATION = [
   "nodemailer",
   "web-push",
   "clamd",
+  "pdfkit",
 ];
 
 /** `interface` liga ao contrato/HTTP, mas não acede a dados/filas/storage diretamente. */
 const IO_PACKAGES_BANNED_IN_INTERFACE = [
+  "pdfkit",
   "kysely",
   "pg",
   "pg-boss",

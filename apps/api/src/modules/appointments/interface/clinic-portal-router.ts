@@ -127,10 +127,11 @@ export function createAppointmentsClinicPortalRouter(controller: AppointmentsCli
   router.put(
     "/clinic-portal/agenda/:appointmentId/complete",
     asyncHandler(async (req, res) => {
-      const body = req.body as { outcomeNote?: string | null; prescription?: ClinicPrescriptionInput | null };
+      const body = req.body as { outcomeNote?: string | null; prescription?: ClinicPrescriptionInput | null; report?: unknown };
       const input: CompleteConsultationInput = {
         outcomeNote: body.outcomeNote ?? null,
         prescription: body.prescription ?? null,
+        ...(body.report !== undefined && body.report !== null ? { report: body.report } : {}),
       };
       const result = await controller.completeClinicAppointment(requireClinicPortalActor(), requireParam(req, "appointmentId"), input, buildRequestContext(req));
       res.json(toClinicAppointmentResponse(result));
