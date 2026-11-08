@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, FlaskConical } from 'lucide-react'
+import { ConfirmationBadge } from '@/components/clinic/ConfirmationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
@@ -10,6 +11,7 @@ import { useAsync } from '@/hooks/useAsync'
 import { cn } from '@/lib/cn'
 import { todayISO } from '@/lib/date'
 import { formatLongDate, formatTime } from '@/lib/format'
+import { dayStateLabel } from '@/lib/clinicDay'
 import { appointmentStatus } from '@/lib/labels'
 import { paths } from '@/routes/paths'
 import { clinicCatalogService } from '@/services/clinicCatalog.service'
@@ -37,7 +39,9 @@ const localDayOf = (iso: string) => todayISO(new Date(iso))
 type Item = { kind: 'entry'; at: string; entry: ClinicCalendarEntry } | { kind: 'free'; at: string; slot: ClinicCalendarFreeSlot }
 
 function EntryRow({ entry }: { entry: ClinicCalendarEntry }) {
-  const status = appointmentStatus[entry.status]
+  // Chegou / Em consulta vêm do estado do dia (BR-CLN-28); os restantes, do estado Vita.
+  const status =
+    entry.dayState === 'ARRIVED' || entry.dayState === 'IN_PROGRESS' ? dayStateLabel[entry.dayState] : appointmentStatus[entry.status]
   const body = (
     <>
       <span className="flex items-center gap-2">
@@ -45,14 +49,21 @@ function EntryRow({ entry }: { entry: ClinicCalendarEntry }) {
           {formatTime(entry.startsAt)}–{formatTime(entry.endsAt)}
         </span>
         {entry.kind === 'EXAM' && <FlaskConical className="size-3.5 text-primary" aria-label="Exame" />}
-        <Badge tone={status.tone} className="ml-auto">
-          {status.label}
-        </Badge>
+        <span className="ml-auto flex flex-wrap justify-end gap-1">
+          <ConfirmationBadge status={entry.status} confirmationStatus={entry.confirmationStatus} />
+          <Badge tone={status.tone}>{status.label}</Badge>
+        </span>
       </span>
       <span className="truncate text-sm font-medium">{entry.patientName}</span>
       <span className="truncate text-xs text-muted">
         {[entry.source === 'MANUAL' ? 'Visita presencial' : null, entry.specialty].filter(Boolean).join(' · ')}
       </span>
+      {entry.status === 'CANCELLED' && entry.confirmationStatus === 'DECLINED' && (
+        <span className="text-xs font-medium text-danger">Recusou – horário livre</span>
+      )}
+      {entry.dayState === 'ARRIVED' && entry.waitingMinutes != null && (
+        <span className="text-xs text-muted">À espera há {entry.waitingMinutes} min</span>
+      )}
     </>
   )
   const classes = 'flex flex-col gap-0.5 rounded-lg border border-border bg-surface px-3 py-2 text-left'

@@ -120,7 +120,33 @@ export interface ClinicBooking {
   /** M14 P: paciente da clínica a que pertence (ligação por membro ou visita manual). */
   clinicPatientId?: string
   slotId?: string
+  /** M14 Q (BR-CLN-25): independente do estado da consulta; ausente = PENDING. */
+  confirmationStatus?: ConfirmationStatus
+  /** PATIENT = "Vou" na app; CLINIC = "confirmado por telefone". */
+  confirmationSource?: 'PATIENT' | 'CLINIC'
+  /** M14 Q (BR-CLN-28): estado do dia derivado; ARRIVED/IN_PROGRESS não existem como estado Vita. */
+  dayState?: ClinicDayState
+  arrivedAt?: string
+  startedAt?: string
+  /** Minutos de espera (nulo/ausente sem `arrivedAt`). */
+  waitingMinutes?: number
+  /** M14 Q (BR-CLN-30): retorno proposto ainda por tratar (yyyy-mm-dd). */
+  followUpDueOn?: string
 }
+
+/** `ConfirmationStatus` (openapi.yaml): PENDING = "Sem resposta". */
+export type ConfirmationStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED'
+
+/** `dayState` (BR-CLN-28). */
+export type ClinicDayState =
+  | 'SCHEDULED'
+  | 'ARRIVED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'NO_SHOW'
+  | 'CANCELLED'
+  | 'REQUESTED'
+  | 'REJECTED'
 
 /** `ClinicRequestResponse` (openapi.yaml): confirmar ou recusar um pedido. */
 export type ClinicRequestDecision = 'CONFIRM' | 'REJECT'
@@ -450,6 +476,11 @@ export interface ClinicCalendarEntry {
   patientName: string
   clinicPatientId: string | null
   slotId: string | null
+  /** M14 Q: nulo em exames. */
+  confirmationStatus?: ConfirmationStatus | null
+  dayState?: ClinicDayState | null
+  arrivedAt?: string | null
+  waitingMinutes?: number | null
 }
 
 export interface ClinicCalendarFreeSlot {
@@ -492,10 +523,58 @@ export interface ClinicVisit {
   specialty?: string
   professionalId?: string
   professionalName?: string
-  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW'
   notes?: string
   responseNote?: string
   outcomeNote?: string
+  /** M14 Q: as visitas nunca ficam DECLINED; ausente = PENDING. */
+  confirmationStatus?: ConfirmationStatus
+  confirmationSource?: 'PATIENT' | 'CLINIC'
+  arrivedAt?: string
+  startedAt?: string
+  followUpDueOn?: string
+}
+
+/** `ClinicFollowUpRequest`: "voltar em N semanas/meses" (BR-CLN-30). */
+export interface ClinicFollowUpInput {
+  amount: number
+  unit: 'WEEKS' | 'MONTHS'
+}
+export const FOLLOW_UP_MAX_AMOUNT = 24
+
+/** `ClinicFollowUp` (BR-CLN-30): retorno por tratar; sem ids Vita. */
+export interface ClinicFollowUp {
+  bookingId: string
+  source: 'VITA' | 'MANUAL'
+  clinicPatientId: string | null
+  patientName: string
+  patientPhone: string | null
+  dueOn: string
+  patientNotified: boolean
+}
+
+/** `ReportCounts` (BR-CLN-29): só contagens e taxas (0..1). */
+export interface ClinicReportCounts {
+  slotsTotal: number
+  slotsBooked: number
+  occupancyRate: number | null
+  completed: number
+  noShows: number
+  noShowRate: number | null
+  cancellations: number
+  declinedByPatient: number
+}
+
+export interface ClinicReportRow extends ClinicReportCounts {
+  professionalId: string | null
+  professionalName: string | null
+}
+
+export interface ClinicReportSummary {
+  from: string
+  to: string
+  totals: ClinicReportCounts & { newPatients: number; examsCompleted: number }
+  byProfessional: ClinicReportRow[]
 }
 
 export const CLINIC_PATIENT_NOTES_MAX = 2000

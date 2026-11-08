@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  BarChart3,
   CalendarClock,
   ClipboardList,
   FlaskConical,
@@ -47,7 +48,13 @@ export const clinicNavGroups: ClinicNavGroup[] = [
   },
   { title: 'Pacientes', items: [{ to: paths.clinicPatients, label: 'Pacientes', icon: UserRound, end: false }] },
   { title: 'Exames', items: [{ to: paths.clinicExams, label: 'Exames', icon: FlaskConical, end: false }] },
-  { title: 'Gestão', items: [{ to: paths.clinicStaff, label: 'Contas', icon: Users, end: false, adminOnly: true }] },
+  {
+    title: 'Gestão',
+    items: [
+      { to: paths.clinicReports, label: 'Relatórios', icon: BarChart3, end: false },
+      { to: paths.clinicStaff, label: 'Contas', icon: Users, end: false, adminOnly: true },
+    ],
+  },
 ]
 
 /** Lista plana (separadores do telemóvel). */

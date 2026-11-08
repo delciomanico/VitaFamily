@@ -25,6 +25,7 @@ import { raiseAlerts } from '../alertRules'
 import { appointmentSlotTaken, bookingOf, examBookingsOf, expireRequests, notifyResponse, visitOf } from '../bookings'
 import { linkMember, patientOfMember } from '../clinicPatients'
 import { overlappingSlot, timeOffAt } from '../clinicSchedule'
+import { deriveDayState, waitingMinutesOf } from '@/lib/clinicDay'
 import { DEMO_PASSWORD } from '../data/users'
 import type { MockClinicAccountRecord } from '../data/clinicAccounts'
 import { db, newId } from '../db'
@@ -43,7 +44,7 @@ import { insertPrescription } from './medications'
  */
 
 /** Conta ativa da sessão; sem sessão válida → UNAUTHENTICATED (INVALID_CREDENTIALS na UI). */
-function requireAccount(clinicAccountId: string): MockClinicAccountRecord {
+export function requireAccount(clinicAccountId: string): MockClinicAccountRecord {
   const account = db.clinicAccounts.find((a) => a.id === clinicAccountId)
   if (!account) throw new AppError('INVALID_CREDENTIALS')
   if (account.status !== 'ACTIVE') throw new AppError('ACCOUNT_SUSPENDED')
@@ -75,7 +76,7 @@ function toPublicAccount({ id, clinicId, email, role, status }: MockClinicAccoun
 }
 
 /** `ClinicBooking`: mínimo necessário (BR-CLN-03). */
-export function toBooking(appointment: Appointment): ClinicBooking {
+export function toBooking(appointment: Appointment, now: Date = new Date()): ClinicBooking {
   return {
     id: appointment.id,
     status: appointment.status,
@@ -88,11 +89,40 @@ export function toBooking(appointment: Appointment): ClinicBooking {
     source: 'VITA',
     clinicPatientId: appointment.clinicId ? patientOfMember(appointment.clinicId, appointment.memberId)?.id : undefined,
     slotId: appointment.slotId,
+    ...dayFields(appointment, now),
+  }
+}
+
+/** Confirmação, estado do dia e retorno (M14 Q, BR-CLN-25/28/30), comuns a consultas e visitas. */
+function dayFields(
+  booking: Pick<
+    Appointment,
+    'status' | 'confirmationStatus' | 'confirmationSource' | 'arrivedAt' | 'startedAt' | 'followUpDueOn'
+  >,
+  now: Date,
+): Pick<
+  ClinicBooking,
+  | 'confirmationStatus'
+  | 'confirmationSource'
+  | 'dayState'
+  | 'arrivedAt'
+  | 'startedAt'
+  | 'waitingMinutes'
+  | 'followUpDueOn'
+> {
+  return {
+    confirmationStatus: booking.confirmationStatus ?? 'PENDING',
+    confirmationSource: booking.confirmationSource,
+    dayState: deriveDayState(booking.status, booking.arrivedAt, booking.startedAt),
+    arrivedAt: booking.arrivedAt,
+    startedAt: booking.startedAt,
+    waitingMinutes: waitingMinutesOf(booking.arrivedAt, booking.startedAt, now) ?? undefined,
+    followUpDueOn: booking.followUpDueOn,
   }
 }
 
 /** Visita presencial só da clínica (BR-CLN-18 c): `patientName` é o do paciente da clínica. */
-export function toVisitBooking(visit: ClinicVisit): ClinicBooking {
+export function toVisitBooking(visit: ClinicVisit, now: Date = new Date()): ClinicBooking {
   return {
     id: visit.id,
     status: visit.status,
@@ -105,6 +135,7 @@ export function toVisitBooking(visit: ClinicVisit): ClinicBooking {
     source: 'MANUAL',
     clinicPatientId: visit.clinicPatientId,
     slotId: visit.slotId,
+    ...dayFields(visit, now),
   }
 }
 
@@ -354,7 +385,7 @@ export function listClinicRequests(clinicAccountId: string, now: Date = new Date
     expireRequests(now)
     return db.appointments
       .filter((a) => a.clinicId === clinicId && a.status === 'REQUESTED')
-      .map(toBooking)
+      .map((a) => toBooking(a, now))
       .sort(byScheduledAt)
   })
 }
@@ -373,6 +404,7 @@ export function respondClinicRequest(
     const appointment = findBooking(clinicId, appointmentId)
     if (appointment.status !== 'REQUESTED') throw new AppError('CONFLICT')
     appointment.status = decision === 'CONFIRM' ? 'SCHEDULED' : 'REJECTED'
+    if (decision === 'CONFIRM') appointment.scheduledSince = now.toISOString()
     // O motivo só é relevante na recusa (`ClinicRequestResponse`).
     if (decision === 'REJECT') appointment.responseNote = note?.trim() || undefined
     notifyResponse(appointment, now.toISOString())
@@ -391,9 +423,9 @@ export function listClinicAgenda(clinicAccountId: string, now: Date = new Date()
     const { clinicId } = requireAccount(clinicAccountId)
     expireRequests(now)
     return [
-      ...db.appointments.filter((a) => a.clinicId === clinicId && AGENDA_STATUSES.includes(a.status)).map(toBooking),
+      ...db.appointments.filter((a) => a.clinicId === clinicId && AGENDA_STATUSES.includes(a.status)).map((a) => toBooking(a, now)),
       // BR-CLN-18/23: as visitas presenciais manuais também aparecem na agenda.
-      ...db.clinicVisits.filter((v) => v.clinicId === clinicId).map(toVisitBooking),
+      ...db.clinicVisits.filter((v) => v.clinicId === clinicId).map((v) => toVisitBooking(v, now)),
     ].sort(byScheduledAt)
   })
 }
@@ -791,6 +823,7 @@ export function createClinicWalkIn(clinicAccountId: string, input: ClinicWalkInI
       clinicId,
       clinicName: clinic?.name,
       notes: input.notes?.trim() || undefined,
+      scheduledSince: now.toISOString(),
     }
     db.appointments.push(appointment)
     return toBooking(appointment)

@@ -7,7 +7,7 @@ import { db } from '../db'
 import { respond } from '../respond'
 
 /** Resumo, data e recurso da origem (medicamento, consulta ou exame). */
-function source(alert: HealthAlert): Pick<AlertItem, 'sourceLabel' | 'sourceAt' | 'targetId'> {
+function source(alert: HealthAlert, now: Date): Pick<AlertItem, 'sourceLabel' | 'sourceAt' | 'targetId' | 'confirmable'> {
   switch (alert.sourceType) {
     case 'DOSE': {
       const dose = db.doses.find((d) => d.id === alert.sourceId)
@@ -16,10 +16,19 @@ function source(alert: HealthAlert): Pick<AlertItem, 'sourceLabel' | 'sourceAt' 
     }
     case 'APPOINTMENT': {
       const appointment = db.appointments.find((a) => a.id === alert.sourceId)
+      const asksConfirmation = alert.type === 'APPOINTMENT_CONFIRM_REQUEST' || alert.ruleKey === 'appointment.24h'
       return {
         sourceLabel: appointment?.specialty ?? appointment?.clinicName ?? '',
-        sourceAt: appointment?.scheduledAt,
+        sourceAt: alert.type === 'FOLLOWUP_REMINDER' ? undefined : appointment?.scheduledAt,
         targetId: appointment?.id,
+        // BR-ALR-09: "Vou / Não posso" enquanto a consulta de clínica parceira está sem resposta.
+        ...(asksConfirmation && {
+          confirmable:
+            appointment?.status === 'SCHEDULED' &&
+            Boolean(appointment.slotId) &&
+            (appointment.confirmationStatus ?? 'PENDING') === 'PENDING' &&
+            Date.parse(appointment.scheduledAt) > now.getTime(),
+        }),
       }
     }
     case 'EXAMINATION': {
@@ -32,8 +41,8 @@ function source(alert: HealthAlert): Pick<AlertItem, 'sourceLabel' | 'sourceAt' 
 }
 
 /** O destinatário e a chave ficam no servidor; a UI recebe o nome do membro e a origem. */
-function toItem({ recipientUserId: _recipient, dedupeKey: _key, ...alert }: MockAlert): AlertItem {
-  return { ...alert, memberName: memberName(alert.memberId), ...source(alert) }
+function toItem({ recipientUserId: _recipient, dedupeKey: _key, ...alert }: MockAlert, now: Date): AlertItem {
+  return { ...alert, memberName: memberName(alert.memberId), ...source(alert, now) }
 }
 
 /** Alertas de que o utilizador é destinatário (UC-ALR-03), já disparados. */
@@ -50,7 +59,9 @@ const newestFirst = (a: MockAlert, b: MockAlert) => b.triggerAt.localeCompare(a.
 
 /** Alertas mais recentes primeiro, lidos e por ler (Home). */
 export function findAlerts(familyId: string, userId: string, now: Date = new Date()): AlertItem[] {
-  return ownAlerts(familyId, userId, now).sort(newestFirst).map(toItem)
+  return ownAlerts(familyId, userId, now)
+    .sort(newestFirst)
+    .map((a) => toItem(a, now))
 }
 
 /** Centro de alertas: não lidos primeiro, depois por data (UC-ALR-03). */
@@ -58,7 +69,7 @@ export function listAlerts(familyId: string, userId: string, now: Date = new Dat
   return respond(() =>
     ownAlerts(familyId, userId, now)
       .sort((a, b) => Number(Boolean(a.readAt)) - Number(Boolean(b.readAt)) || newestFirst(a, b))
-      .map(toItem),
+      .map((a) => toItem(a, now)),
   )
 }
 

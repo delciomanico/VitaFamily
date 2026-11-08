@@ -5,13 +5,17 @@ import { Card } from '@/components/ui/Card'
 import { controlClasses, controlState } from '@/components/ui/Field'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { Switch } from '@/components/ui/Switch'
 import { Textarea } from '@/components/ui/Textarea'
 import { FormError } from '@/components/ui/states'
+import { useToast } from '@/components/ui/Toast'
+import { FOLLOW_UP_PRESETS } from '@/lib/clinicDay'
 import { cn } from '@/lib/cn'
 import { todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { formatTime } from '@/lib/format'
+import { clinicDayService } from '@/services/clinicDay.service'
 import { clinicPortalService } from '@/services/clinicPortal.service'
 import type { ClinicBooking, ClinicPrescriptionMedicationInput } from '@/types/clinic'
 
@@ -106,6 +110,9 @@ interface CompleteConsultationFormProps {
  * condições, alergias, medicação prévia nem o histórico do paciente.
  */
 export function CompleteConsultationForm({ booking, onClose, onCompleted }: CompleteConsultationFormProps) {
+  const toast = useToast()
+  /** Índice do atalho de "Voltar em…" (BR-CLN-30); vazio = sem retorno. */
+  const [followUp, setFollowUp] = useState('')
   const [outcomeNote, setOutcomeNote] = useState('')
   const [withPrescription, setWithPrescription] = useState(false)
   const [doctorName, setDoctorName] = useState(booking.professionalName ?? '')
@@ -174,6 +181,15 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
             }
           : {}),
       })
+      // Retorno opcional ("Voltar em…"): a consulta já está concluída, por isso uma falha só avisa.
+      const preset = followUp === '' ? undefined : FOLLOW_UP_PRESETS[Number(followUp)]
+      if (preset) {
+        try {
+          await clinicDayService.setFollowUp(booking.id, { amount: preset.amount, unit: preset.unit })
+        } catch {
+          toast.show('Consulta concluída, mas não foi possível registar o retorno.', 'error')
+        }
+      }
       onCompleted()
     } catch (err) {
       setError(errorMessage(err))
@@ -210,6 +226,14 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
             setOutcomeNote(event.target.value)
             setError(null)
           }}
+        />
+
+        <Select
+          label="Voltar em… (opcional)"
+          value={followUp}
+          placeholder="Sem retorno"
+          options={FOLLOW_UP_PRESETS.map((preset, index) => ({ value: String(index), label: preset.label }))}
+          onChange={(event) => setFollowUp(event.target.value)}
         />
 
         {/* Visita presencial manual: sem receita (BR-CLN-18, a receita exige consulta Vita). */}

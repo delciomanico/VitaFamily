@@ -23,6 +23,10 @@ export const DOSE_REPEAT_MINUTES = 15
 export const APPOINTMENT_REMINDER_HOURS = [24, 2] as const
 /** Lembrete de exame (R9). */
 export const EXAM_REMINDER_HOURS = 24
+/** Pedido de confirmação de consulta de clínica parceira (BR-ALR-09). */
+export const CONFIRM_REQUEST_HOURS = 48
+/** Alerta de retorno: dias antes do retorno sugerido (BR-CLN-30). */
+export const FOLLOWUP_REMINDER_DAYS = 7
 
 const HOUR = 3_600_000
 
@@ -45,6 +49,9 @@ const OPTIONAL_TYPES: Partial<Record<AlertType, keyof NotificationPreferences>> 
   MEDICATION_DUE: 'medicationDue',
   APPOINTMENT_REMINDER: 'appointmentReminder',
   EXAM_REMINDER: 'examReminder',
+  // M14 Q (BR-ALR-09): os dois tipos novos seguem o interruptor das consultas.
+  APPOINTMENT_CONFIRM_REQUEST: 'appointmentReminder',
+  FOLLOWUP_REMINDER: 'appointmentReminder',
 }
 
 /** O destinatário desativou este tipo de alerta? (aplica-se a ele, não ao membro). */
@@ -111,6 +118,22 @@ export function dueEvents(data: AlertSources, now: Date): AlertEvent[] {
       occurrence: appointment.scheduledAt,
     }
     if (start > t) {
+      // BR-ALR-09: um pedido de confirmação a 48 h, se ainda sem resposta e não marcada à última hora.
+      const confirmAt = start - CONFIRM_REQUEST_HOURS * HOUR
+      const lateBooking = appointment.scheduledSince && Date.parse(appointment.scheduledSince) > confirmAt
+      if (
+        appointment.slotId &&
+        (appointment.confirmationStatus ?? 'PENDING') === 'PENDING' &&
+        confirmAt <= t &&
+        !lateBooking
+      ) {
+        events.push({
+          ...base,
+          type: 'APPOINTMENT_CONFIRM_REQUEST',
+          ruleKey: 'appointment.confirm48h',
+          triggerAt: iso(confirmAt),
+        })
+      }
       // Só o lembrete mais próximo que já chegou à hora (marcada à última hora → não envia os dois).
       const due = APPOINTMENT_REMINDER_HOURS.filter((hours) => start - hours * HOUR <= t).at(-1)
       if (due) {
@@ -130,6 +153,23 @@ export function dueEvents(data: AlertSources, now: Date): AlertEvent[] {
         triggerAt: appointment.scheduledAt,
       })
     }
+  }
+
+  // BR-CLN-30: consulta Vita concluída com retorno sugerido → um alerta 7 dias antes.
+  for (const appointment of data.appointments) {
+    if (appointment.status !== 'COMPLETED' || !appointment.followUpDueOn || !appointment.clinicId) continue
+    const trigger = startOfDay(appointment.followUpDueOn) - FOLLOWUP_REMINDER_DAYS * 24 * HOUR
+    if (trigger > t) continue
+    events.push({
+      familyId: appointment.familyId,
+      memberId: appointment.memberId,
+      type: 'FOLLOWUP_REMINDER',
+      ruleKey: 'followup.due',
+      sourceType: 'APPOINTMENT',
+      sourceId: appointment.id,
+      triggerAt: iso(trigger),
+      occurrence: appointment.followUpDueOn,
+    })
   }
 
   for (const examination of data.examinations) {

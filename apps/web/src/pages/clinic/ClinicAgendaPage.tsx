@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { CalendarDays, UserPlus } from 'lucide-react'
 import { ClinicBookingList } from '@/components/domain/ClinicBookingList'
 import { RecommendationModal } from '@/components/domain/RecommendationModal'
+import { BookingDayActions } from '@/components/clinic/BookingDayActions'
+import { FollowUpModal } from '@/components/clinic/FollowUpModal'
 import { ClinicCalendarView } from '@/components/clinic/ClinicCalendarView'
 import { WalkInBookingModal } from '@/components/clinic/WalkInBookingModal'
 import { DaySelector } from '@/components/clinic/DaySelector'
@@ -40,6 +42,7 @@ export function ClinicAgendaPage() {
   const [completing, setCompleting] = useState<ClinicBooking | null>(null)
   const [recommending, setRecommending] = useState<ClinicBooking | null>(null)
   const [walkIn, setWalkIn] = useState(false)
+  const [followingUp, setFollowingUp] = useState<ClinicBooking | null>(null)
   const [view, setView] = useState<View>('calendar')
   const [slotToBook, setSlotToBook] = useState<string | undefined>()
   const [calendarVersion, setCalendarVersion] = useState(0)
@@ -50,6 +53,12 @@ export function ClinicAgendaPage() {
   const bookings = state.status === 'success' ? state.data : []
   const marked = new Set(bookings.map((b) => localDay(b.scheduledAt)))
   const shown = bookings.filter((b) => !day || localDay(b.scheduledAt) === day)
+
+  /** Recarrega a lista e o calendário (mostram o mesmo estado do dia). */
+  function refresh() {
+    setCalendarVersion((n) => n + 1)
+    reload()
+  }
 
   async function cancel() {
     if (!cancelling) return
@@ -116,29 +125,29 @@ export function ClinicAgendaPage() {
             <ClinicBookingList
               items={shown}
               showStatus
-              actions={(booking) =>
-                (booking.status === 'SCHEDULED' || booking.status === 'COMPLETED') && (
-                  <>
-                    {/* Visita presencial manual: sem recomendação (só para consultas Vita, BR-CLN-09). */}
-                    {booking.source !== 'MANUAL' && (
-                      <Button variant="ghost" size="sm" onClick={() => setRecommending(booking)}>
-                        Recomendação
-                      </Button>
-                    )}
-                    {booking.status === 'SCHEDULED' &&
-                      /* A consulta em curso (hora já passada) é a que se completa (ST4). */
-                      (Date.parse(booking.scheduledAt) <= Date.now() ? (
-                        <Button size="sm" className="flex-1 sm:flex-none" onClick={() => setCompleting(booking)}>
-                          Completar consulta
-                        </Button>
-                      ) : (
-                        <Button variant="danger-ghost" size="sm" onClick={() => setCancelling(booking)}>
-                          Cancelar consulta
-                        </Button>
-                      ))}
-                  </>
-                )
-              }
+              actions={(booking) => (
+                <>
+                  {/* Visita presencial manual: sem recomendação (só para consultas Vita, BR-CLN-09). */}
+                  {(booking.status === 'SCHEDULED' || booking.status === 'COMPLETED') && booking.source !== 'MANUAL' && (
+                    <Button variant="ghost" size="sm" onClick={() => setRecommending(booking)}>
+                      Recomendação
+                    </Button>
+                  )}
+                  {/* Chegou, Iniciar, Completar, Faltou, Confirmado por telefone, Voltar em… (M14 Q). */}
+                  <BookingDayActions
+                    booking={booking}
+                    completeLabel="Completar consulta"
+                    onChanged={refresh}
+                    onComplete={setCompleting}
+                    onFollowUp={setFollowingUp}
+                  />
+                  {booking.status === 'SCHEDULED' && Date.parse(booking.scheduledAt) > Date.now() && (
+                    <Button variant="danger-ghost" size="sm" onClick={() => setCancelling(booking)}>
+                      Cancelar consulta
+                    </Button>
+                  )}
+                </>
+              )}
             />
           ) : (
             <EmptyState icon={CalendarDays} title="Sem consultas neste dia." />
@@ -213,7 +222,19 @@ export function ClinicAgendaPage() {
           onCompleted={() => {
             setCompleting(null)
             toast.show('Consulta concluída.')
-            reload()
+            refresh()
+          }}
+        />
+      )}
+
+      {followingUp && (
+        <FollowUpModal
+          booking={followingUp}
+          onClose={() => setFollowingUp(null)}
+          onSaved={() => {
+            setFollowingUp(null)
+            toast.show('Retorno registado.')
+            refresh()
           }}
         />
       )}

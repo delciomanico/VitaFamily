@@ -1,6 +1,6 @@
 import type { ClinicPatient, ClinicVisit, ConsentLevel } from '@/types/clinic'
 import { HISTORY_CONSENT_MONTHS } from '@/types/clinicConsent'
-import { at } from '../time'
+import { at, day } from '../time'
 
 /*
  * Pacientes da clínica e consentimentos demo (M14 P, BR-CLN-17..21). Fictícios.
@@ -132,6 +132,8 @@ export function seedClinicVisits(now: Date = new Date()): MockClinicVisit[] {
       specialty: 'Medicina geral',
       status: 'COMPLETED',
       outcomeNote: 'Tensão arterial controlada. Voltar em 3 meses.',
+      // M14 Q (BR-CLN-30): retorno por contactar em "Hoje" (visita manual: sem alerta).
+      followUpDueOn: day(9, now),
     },
   ]
 }

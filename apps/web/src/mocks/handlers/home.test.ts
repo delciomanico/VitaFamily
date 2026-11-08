@@ -57,6 +57,7 @@ describe('resumo da Home (Monarca, tutor de Maria, João e Pedro)', () => {
       'dose.due',
       'dose.due',
       'exam.24h',
+      'appointment.confirm48h',
       'appointment.outcome',
     ])
     const amox = recentAlerts.find((a) => a.sourceId === 'dose_med_amox_0800')

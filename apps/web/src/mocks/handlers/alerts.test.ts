@@ -75,8 +75,9 @@ describe('regras (UC-ALR-01)', () => {
   })
 
   it('a consulta tem lembretes 24 h e 2 h antes; marcada à última hora só recebe o mais próximo', async () => {
-    expect(await rulesFor('apt_cardio')).toEqual(['appointment.24h'])
-    expect(await rulesFor('apt_cardio', new Date(at(1, '08:00', NOW)))).toEqual(['appointment.2h', 'appointment.24h'])
+    // M14 Q (BR-ALR-09): a consulta da clínica parceira, sem resposta, recebe também o pedido de confirmação a 48 h.
+    expect(await rulesFor('apt_cardio')).toEqual(['appointment.24h', 'appointment.confirm48h'])
+    expect(await rulesFor('apt_cardio', new Date(at(1, '08:00', NOW)))).toEqual(['appointment.2h', 'appointment.24h', 'appointment.confirm48h'])
 
     const soon = await apt.createAppointment(
       FAMILY,
@@ -102,7 +103,7 @@ describe('regras (UC-ALR-01)', () => {
 
   it('cancelar ou registar o desfecho deixa de gerar alertas da consulta', async () => {
     await apt.setAppointmentStatus(FAMILY, MONARCA, 'apt_cardio', 'CANCELLED', NOW)
-    expect(await rulesFor('apt_cardio', new Date(at(1, '08:00', NOW)))).toEqual(['appointment.24h'])
+    expect(await rulesFor('apt_cardio', new Date(at(1, '08:00', NOW)))).toEqual(['appointment.24h', 'appointment.confirm48h'])
     await apt.setAppointmentStatus(FAMILY, MONARCA, 'apt_endocrino', 'COMPLETED', NOW)
     expect(await rulesFor('apt_endocrino', later(60))).toEqual(['appointment.outcome'])
   })

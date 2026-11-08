@@ -1,7 +1,8 @@
 import * as api from '@/mocks/handlers/appointments'
 import { apiFetch, hasApiBackend } from '@/lib/apiClient'
 import { AppError } from '@/lib/errors'
-import type { Appointment, AppointmentItem } from '@/types/appointment'
+import type { Appointment, AppointmentItem, ConfirmationResponse } from '@/types/appointment'
+import type { ConfirmationStatus } from '@/types/clinic'
 import type { AvailableSlot, SlotKind } from '@/types/clinic'
 import { collectPerMember, findPerMember } from './apiMembers'
 import { clinicService } from './clinic.service'
@@ -24,6 +25,10 @@ export interface ApiAppointment {
   slotId?: string | null
   /** Motivo indicado pela clínica ao recusar ou cancelar (D17). */
   responseNote?: string | null
+  /** M14 Q (BR-CLN-25). */
+  confirmationStatus?: ConfirmationStatus | null
+  /** M14 Q (BR-CLN-30): retorno sugerido pela clínica. */
+  followUpDueOn?: string | null
 }
 
 export function toAppointment(familyId: string, a: ApiAppointment): Appointment {
@@ -41,6 +46,8 @@ export function toAppointment(familyId: string, a: ApiAppointment): Appointment 
     notes: a.notes ?? undefined,
     slotId: a.slotId ?? undefined,
     responseNote: a.responseNote ?? undefined,
+    confirmationStatus: a.confirmationStatus ?? undefined,
+    followUpDueOn: a.followUpDueOn ?? undefined,
   }
 }
 
@@ -100,6 +107,20 @@ async function apiSetStatus(
   const updated = await apiFetch<ApiAppointment>(`${aptPath(familyId, member.id)}/${id}/status`, {
     method: 'PUT',
     body: { status },
+  })
+  return toAppointment(familyId, updated)
+}
+
+/** `PUT …/confirmation` (M14 Q, BR-CLN-26): "Vou" ou "Não posso" (cancela a consulta). */
+async function apiSetConfirmation(
+  familyId: string,
+  memberId: string,
+  id: string,
+  response: ConfirmationResponse,
+): Promise<Appointment> {
+  const updated = await apiFetch<ApiAppointment>(`${aptPath(familyId, memberId)}/${id}/confirmation`, {
+    method: 'PUT',
+    body: { response },
   })
   return toAppointment(familyId, updated)
 }
@@ -208,6 +229,13 @@ export const appointmentService = hasApiBackend()
         id: string,
         status: 'CANCELLED' | 'COMPLETED' | 'NO_SHOW',
       ) => apiSetStatus(familyId, id, status),
+      // O caminho da API leva o membro; a UI tem-no na consulta/alerta (o mock ignora-o).
+      setConfirmation: (
+        familyId: string,
+        _userId: string,
+        target: { id: string; memberId: string },
+        response: ConfirmationResponse,
+      ) => apiSetConfirmation(familyId, target.memberId, target.id, response),
     }
   : {
       listAppointments: api.listAppointments,
@@ -224,4 +252,10 @@ export const appointmentService = hasApiBackend()
       createAppointment: api.createAppointment,
       updateAppointment: api.updateAppointment,
       setAppointmentStatus: api.setAppointmentStatus,
+      setConfirmation: (
+        familyId: string,
+        userId: string,
+        target: { id: string; memberId: string },
+        response: ConfirmationResponse,
+      ) => api.setAppointmentConfirmation(familyId, userId, target.id, response),
     }

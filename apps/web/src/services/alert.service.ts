@@ -28,6 +28,8 @@ const ruleKeyOf: Record<AlertType, AlertRuleKey> = {
   APPOINTMENT_REJECTED: 'appointment.rejected',
   APPOINTMENT_CANCELLED: 'appointment.cancelled',
   RECOMMENDATION_ADDED: 'recommendation.added',
+  APPOINTMENT_CONFIRM_REQUEST: 'appointment.confirm48h',
+  FOLLOWUP_REMINDER: 'followup.due',
 }
 
 export function toAlertItem(alert: ApiAlert): AlertItem {

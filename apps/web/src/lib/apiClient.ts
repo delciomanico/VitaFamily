@@ -18,6 +18,8 @@ export function apiBaseUrl(): string | undefined {
 const CODE_MAP: Record<string, ErrorCode> = {
   AUTH_INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
   UNAUTHENTICATED: 'INVALID_CREDENTIALS',
+  // M14 Q: transição inválida (ex.: "Chegou" fora do dia) — mesma mensagem que um conflito.
+  INVALID_STATE_TRANSITION: 'CONFLICT',
 }
 
 export function toErrorCode(code: string): ErrorCode {

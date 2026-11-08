@@ -2,8 +2,10 @@ import { useContext, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Check } from 'lucide-react'
 import { AlertCard } from '@/components/domain/AlertCard'
+import { ConfirmationButtons } from '@/components/domain/ConfirmationButtons'
 import { Page } from '@/components/layout/Page'
 import { RefreshUnreadAlertsContext } from '@/components/layout/UnreadAlertsContext'
+import { ButtonLink } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { DetailSection } from '@/components/ui/InfoList'
 import { Tabs, type TabItem } from '@/components/ui/Tabs'
@@ -42,17 +44,31 @@ function targetOf(alert: AlertItem): string | undefined {
   }
 }
 
+/**
+ * "Vou / Não posso" (BR-ALR-09): no pedido de confirmação e, no mock, no lembrete de 24 h enquanto
+ * a consulta está sem resposta. Com a API real o alerta não diz se já foi respondido, por isso o
+ * pedido de confirmação mostra sempre os botões (o servidor é idempotente).
+ */
+function asksConfirmation(alert: AlertItem): boolean {
+  if (alert.sourceType !== 'APPOINTMENT' || !alert.targetId) return false
+  if (alert.type === 'APPOINTMENT_CONFIRM_REQUEST') return alert.confirmable !== false
+  return alert.type === 'APPOINTMENT_REMINDER' && alert.confirmable === true
+}
+
 interface AlertRowsProps {
   alerts: AlertItem[]
   onOpen: (alert: AlertItem) => void
   onRead?: (alert: AlertItem) => void
+  /** Depois de responder "Vou" / "Não posso". */
+  onAnswered: (alert: AlertItem) => void
 }
 
-function AlertRows({ alerts, onOpen, onRead }: AlertRowsProps) {
+function AlertRows({ alerts, onOpen, onRead, onAnswered }: AlertRowsProps) {
   return (
     <Card className="divide-y divide-border py-1">
       {alerts.map((alert) => (
-        <div key={alert.id} className="flex items-center gap-1">
+        <div key={alert.id} className="flex flex-col">
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => onOpen(alert)}
@@ -71,6 +87,22 @@ function AlertRows({ alerts, onOpen, onRead }: AlertRowsProps) {
               <Check className="size-5" aria-hidden />
             </button>
           )}
+        </div>
+        {asksConfirmation(alert) && alert.targetId && (
+          <div className="pb-3 pl-13">
+            <ConfirmationButtons
+              appointment={{ id: alert.targetId, memberId: alert.memberId }}
+              onDone={() => onAnswered(alert)}
+            />
+          </div>
+        )}
+        {alert.type === 'FOLLOWUP_REMINDER' && (
+          <div className="pb-3 pl-13">
+            <ButtonLink to={paths.appointmentNew} size="sm" variant="soft">
+              Marcar retorno
+            </ButtonLink>
+          </div>
+        )}
         </div>
       ))}
     </Card>
@@ -96,6 +128,11 @@ export function AlertsPage() {
     } catch (error) {
       toast.show(errorMessage(error), 'error')
     }
+  }
+
+  /** Responder ao pedido conta como lê-lo. */
+  function answered(alert: AlertItem) {
+    void run(alertService.markAlertRead(familyId, userId, alert.id))
   }
 
   function open(alert: AlertItem) {
@@ -142,12 +179,13 @@ export function AlertsPage() {
                 alerts={unread}
                 onOpen={open}
                 onRead={(alert) => run(alertService.markAlertRead(familyId, userId, alert.id))}
+                onAnswered={answered}
               />
             </DetailSection>
           )}
           {read.length > 0 && (
             <DetailSection title="Lidos">
-              <AlertRows alerts={read} onOpen={open} />
+              <AlertRows alerts={read} onOpen={open} onAnswered={answered} />
             </DetailSection>
           )}
         </div>

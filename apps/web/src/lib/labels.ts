@@ -114,6 +114,10 @@ export function alertTitle({
       return `Consulta cancelada: ${sourceLabel}`
     case 'RECOMMENDATION_ADDED':
       return 'Recebeu uma nova recomendação de uma clínica.'
+    case 'APPOINTMENT_CONFIRM_REQUEST':
+      return sourceLabel ? `Confirma a consulta de ${sourceLabel}?` : 'Tem uma consulta para confirmar.'
+    case 'FOLLOWUP_REMINDER':
+      return sourceLabel ? `Está na altura de marcar o retorno: ${sourceLabel}` : 'Está na altura de marcar o retorno.'
   }
 }
 
@@ -127,6 +131,8 @@ export const alertCategoryOf: Record<AlertType, AlertCategory> = {
   EXAM_REMINDER: 'EXAMS',
   APPOINTMENT_OUTCOME_REQUEST: 'FOLLOW_UP',
   RECOMMENDATION_ADDED: 'FOLLOW_UP',
+  APPOINTMENT_CONFIRM_REQUEST: 'APPOINTMENTS',
+  FOLLOWUP_REMINDER: 'FOLLOW_UP',
 }
 
 export const alertCategoryLabels: Record<AlertCategory, string> = {

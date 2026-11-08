@@ -1,3 +1,5 @@
+import type { ConfirmationStatus } from './clinic'
+
 /** Consulta — categoria C5 (docs/04-domain/entities.md → Appointment). */
 /** REQUESTED/REJECTED só em clínicas parceiras (D17): pedido → confirmada ou recusada pela clínica. */
 export type AppointmentStatus = 'REQUESTED' | 'SCHEDULED' | 'REJECTED' | 'COMPLETED' | 'NO_SHOW' | 'CANCELLED'
@@ -21,7 +23,20 @@ export interface Appointment {
   slotId?: string
   /** Motivo indicado pela clínica ao recusar ou cancelar (D17). */
   responseNote?: string
+  /** M14 Q (BR-CLN-25): ausente = PENDING ("Sem resposta"). Independente do estado da consulta. */
+  confirmationStatus?: ConfirmationStatus
+  /** M14 Q (BR-CLN-30): retorno sugerido pela clínica (yyyy-mm-dd); só leitura para a família. */
+  followUpDueOn?: string
+  /** Só no backend simulado (a API da família não os devolve): origem da confirmação e o dia. */
+  confirmationSource?: 'PATIENT' | 'CLINIC'
+  arrivedAt?: string
+  startedAt?: string
+  /** Só no mock: quando passou a SCHEDULED (BR-ALR-09: sem pedido a 48 h se marcada com menos). */
+  scheduledSince?: string
 }
+
+/** Resposta ao pedido de confirmação (`AppointmentConfirmationRequest`). */
+export type ConfirmationResponse = 'GOING' | 'CANNOT'
 
 /** Consulta pronta a mostrar, com o nome do membro. */
 export interface AppointmentItem {

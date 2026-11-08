@@ -8,6 +8,8 @@ export type AlertType =
   | 'APPOINTMENT_REJECTED'
   | 'APPOINTMENT_CANCELLED'
   | 'RECOMMENDATION_ADDED'
+  | 'APPOINTMENT_CONFIRM_REQUEST'
+  | 'FOLLOWUP_REMINDER'
 
 /** Regra que gerou o alerta (Evento → Regra → Alerta, UC-ALR-01). */
 export type AlertRuleKey =
@@ -21,6 +23,8 @@ export type AlertRuleKey =
   | 'appointment.rejected'
   | 'appointment.cancelled'
   | 'recommendation.added'
+  | 'appointment.confirm48h'
+  | 'followup.due'
 
 export interface HealthAlert {
   id: string
@@ -46,6 +50,8 @@ export interface AlertItem extends HealthAlert {
   sourceAt?: string
   /** Recurso a abrir: plano do medicamento, consulta ou exame. */
   targetId?: string
+  /** Pedido de confirmação ainda por responder (mock); ausente na API real = desconhecido. */
+  confirmable?: boolean
 }
 
 /** Grupos do centro de alertas. */

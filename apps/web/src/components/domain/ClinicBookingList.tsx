@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
+import { ConfirmationBadge } from '@/components/clinic/ConfirmationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { dateBlock, formatTime } from '@/lib/format'
+import { dayStateLabel } from '@/lib/clinicDay'
 import { appointmentStatus } from '@/lib/labels'
 import type { ClinicBooking } from '@/types/clinic'
 
@@ -19,7 +21,11 @@ export function ClinicBookingList({ items, actions, showStatus = false }: Clinic
     <Card className="divide-y divide-border py-1">
       {items.map((booking) => {
         const { day, month } = dateBlock(booking.scheduledAt)
-        const status = appointmentStatus[booking.status]
+        // Chegou / Em consulta só existem como estado do dia (BR-CLN-28); os restantes são os de sempre.
+        const status =
+          booking.dayState === 'ARRIVED' || booking.dayState === 'IN_PROGRESS'
+            ? dayStateLabel[booking.dayState]
+            : appointmentStatus[booking.status]
         return (
           <div key={booking.id} className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:gap-6">
             <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -33,9 +39,16 @@ export function ClinicBookingList({ items, actions, showStatus = false }: Clinic
                   <span className="truncate font-medium">{booking.patientName}</span>
                   {booking.source === 'MANUAL' && <Badge>Visita presencial</Badge>}
                   {showStatus && (
-                    <Badge tone={status.tone} dot className="ml-auto">
-                      {status.label}
-                    </Badge>
+                    <span className="ml-auto flex items-center gap-1.5">
+                      <ConfirmationBadge
+                        status={booking.status}
+                        confirmationStatus={booking.confirmationStatus}
+                        confirmationSource={booking.confirmationSource}
+                      />
+                      <Badge tone={status.tone} dot>
+                        {status.label}
+                      </Badge>
+                    </span>
                   )}
                 </span>
                 <p className="truncate text-sm text-muted">
@@ -45,7 +58,7 @@ export function ClinicBookingList({ items, actions, showStatus = false }: Clinic
                 {booking.responseNote && <p className="text-sm text-muted">Motivo: {booking.responseNote}</p>}
               </div>
             </div>
-            {actions && <div className="flex shrink-0 gap-2 sm:justify-end">{actions(booking)}</div>}
+            {actions && <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">{actions(booking)}</div>}
           </div>
         )
       })}

@@ -3,6 +3,8 @@ import {
   CalendarCheck,
   CalendarDays,
   CalendarX,
+  CalendarClock,
+  Repeat,
   ClipboardCheck,
   FlaskConical,
   MessageSquareText,
@@ -23,6 +25,8 @@ const icons: Record<AlertType, LucideIcon> = {
   APPOINTMENT_REJECTED: CalendarX,
   APPOINTMENT_CANCELLED: CalendarX,
   RECOMMENDATION_ADDED: MessageSquareText,
+  APPOINTMENT_CONFIRM_REQUEST: CalendarClock,
+  FOLLOWUP_REMINDER: Repeat,
 }
 
 /** Quando acontece a origem (“Amanhã · 09:30”; exames só têm dia); senão, quando disparou. */

@@ -90,6 +90,14 @@ interface ApiClinicBooking {
   source?: 'VITA' | 'MANUAL'
   clinicPatientId?: string | null
   slotId?: string | null
+  /** M14 Q (BR-CLN-25/28/30). */
+  confirmationStatus?: ClinicBooking['confirmationStatus'] | null
+  confirmationSource?: ClinicBooking['confirmationSource'] | null
+  dayState?: ClinicBooking['dayState'] | null
+  arrivedAt?: string | null
+  startedAt?: string | null
+  waitingMinutes?: number | null
+  followUpDueOn?: string | null
 }
 
 const toSlot = (slot: ApiClinicSlot): ClinicSlot => ({
@@ -154,6 +162,13 @@ export const toBooking = (booking: ApiClinicBooking): ClinicBooking => ({
   source: booking.source,
   clinicPatientId: booking.clinicPatientId ?? undefined,
   slotId: booking.slotId ?? undefined,
+  confirmationStatus: booking.confirmationStatus ?? undefined,
+  confirmationSource: booking.confirmationSource ?? undefined,
+  dayState: booking.dayState ?? undefined,
+  arrivedAt: booking.arrivedAt ?? undefined,
+  startedAt: booking.startedAt ?? undefined,
+  waitingMinutes: booking.waitingMinutes ?? undefined,
+  followUpDueOn: booking.followUpDueOn ?? undefined,
 })
 
 const toAccount = (account: ApiClinicAccount): ClinicAccount => ({ ...account })

@@ -308,6 +308,82 @@ describe('fluxos de autenticação', () => {
     expect(await screen.findByRole('timer')).toHaveTextContent(/10:00|09:5\d/)
   })
 
+  it('Hoje: a fila do dia (Chegou → Iniciar → Concluir com "Voltar em…") e os indicadores (M14 Q)', async () => {
+    // Consulta de hoje, já iniciada a hora mas sempre no dia de hoje (senão, logo após a meia-noite, cairia em "ontem").
+    db.appointments.push({
+      id: 'apt_fila',
+      familyId: 'fam_monarca',
+      memberId: 'mem_maria',
+      scheduledAt: new Date(Math.max(Date.now() - 30 * 60_000, new Date().setHours(0, 0, 1, 0))).toISOString(),
+      status: 'SCHEDULED',
+      slotId: 'slot_fila',
+      specialty: 'Dermatologia',
+      clinicId: 'cln_horizonte',
+      clinicName: 'Clínica Horizonte',
+    })
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_rececao')
+    renderAt('/clinic')
+    await screen.findByRole('heading', { name: 'Hoje' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Chegou' }))
+    expect(await screen.findByText('Chegada registada.')).toBeInTheDocument()
+    expect(db.appointments.find((a) => a.id === 'apt_fila')).toMatchObject({ status: 'SCHEDULED' })
+    expect(db.appointments.find((a) => a.id === 'apt_fila')?.arrivedAt).toBeDefined()
+    // Estado derivado "Chegou" com a espera em minutos; já só se oferece Iniciar / Concluir.
+    expect(await screen.findByText(/^Chegou · \d+ min$/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Chegou' })).not.toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar' }))
+    expect(await screen.findByText('Consulta iniciada.')).toBeInTheDocument()
+    expect(await screen.findByText('Em consulta')).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Concluir' }))
+    fireEvent.input(await screen.findByLabelText('Resultado da consulta'), { target: { value: 'Tudo bem.' } })
+    fireEvent.change(screen.getByLabelText('Voltar em… (opcional)'), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Concluir consulta' }))
+    expect(await screen.findByText('Consulta concluída.')).toBeInTheDocument()
+    const done = db.appointments.find((a) => a.id === 'apt_fila')!
+    expect(done.status).toBe('COMPLETED')
+    expect(done.followUpDueOn).toBeDefined()
+    expect(await screen.findByText('Concluída')).toBeInTheDocument()
+
+    // Relatórios: só contagens, sem nomes de pacientes.
+    cleanup()
+    renderAt('/clinic/reports')
+    expect(await screen.findByRole('heading', { name: 'Relatórios' })).toBeInTheDocument()
+    expect(await screen.findByText('Consultas realizadas')).toBeInTheDocument()
+    expect(screen.getByText('Taxa de faltas: 0 %')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: '7 dias' }))
+    expect(await screen.findByText('Novos pacientes')).toBeInTheDocument()
+    expect(screen.queryByText('Maria', { exact: false })).not.toBeInTheDocument()
+  })
+
+  it('a família responde ao pedido de confirmação: "Vou" no alerta e "Não posso" na consulta (M14 Q)', async () => {
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+    renderAt('/app/alerts')
+    await screen.findByRole('heading', { name: 'Alertas' })
+    // A consulta de amanhã (clínica parceira, sem resposta) tem o pedido de confirmação a 48 h.
+    expect(await screen.findByText(/Confirma a consulta de Cardiologia\?/)).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Vou' })[0]!)
+    expect(await screen.findByText('Presença confirmada.')).toBeInTheDocument()
+    expect(db.appointments.find((a) => a.id === 'apt_cardio')).toMatchObject({
+      confirmationStatus: 'CONFIRMED',
+      confirmationSource: 'PATIENT',
+    })
+
+    // Na consulta: estado confirmado visível; "Não posso" cancela e oferece outro horário.
+    cleanup()
+    renderAt('/app/appointments/apt_cardio')
+    expect(await screen.findByText('Presença confirmada.')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Não posso' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sim, cancelar' }))
+    expect(await screen.findByText('Quer escolher outro horário?')).toBeInTheDocument()
+    expect(db.appointments.find((a) => a.id === 'apt_cardio')).toMatchObject({
+      status: 'CANCELLED',
+      confirmationStatus: 'DECLINED',
+    })
+  })
+
   it('registo valida idade mínima e confirmação da palavra-passe', async () => {
     renderAt('/register')
     await screen.findByRole('heading', { name: 'Criar conta' })

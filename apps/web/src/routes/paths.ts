@@ -65,6 +65,7 @@ export const paths = {
   clinicPatients: '/clinic/patients',
   clinicPatient: (id: string) => `/clinic/patients/${id}`,
   clinicExams: '/clinic/exams',
+  clinicReports: '/clinic/reports',
   clinicStaff: '/clinic/staff',
 
   // Portal da seguradora (ADR-021): terceiro espaço de identidade, login e sessão próprios.

@@ -203,9 +203,9 @@ export function getClinicPatientRecord(clinicAccountId: string, patientId: strin
     const newestFirst = (a: { scheduledAt: string }, b: { scheduledAt: string }) => b.scheduledAt.localeCompare(a.scheduledAt)
     const bookings: ClinicBooking[] = [
       ...(memberId
-        ? db.appointments.filter((a) => a.clinicId === clinicId && a.memberId === memberId).map(toBooking)
+        ? db.appointments.filter((a) => a.clinicId === clinicId && a.memberId === memberId).map((a) => toBooking(a, now))
         : []),
-      ...db.clinicVisits.filter((v) => v.clinicId === clinicId && v.clinicPatientId === patient.id).map(toVisitBooking),
+      ...db.clinicVisits.filter((v) => v.clinicId === clinicId && v.clinicPatientId === patient.id).map((v) => toVisitBooking(v, now)),
     ]
       .sort(newestFirst)
       .slice(0, MAX_RECORD_ITEMS)
@@ -320,8 +320,18 @@ export function linkClinicPatient(
 const DEFAULT_APPOINTMENT_MINUTES = 30
 const CALENDAR_APPOINTMENT_STATUSES = ['REQUESTED', 'SCHEDULED', 'COMPLETED', 'NO_SHOW']
 
+/** Confirmação e estado do dia de uma consulta/visita no calendário (M14 Q, BR-CLN-25/28). */
+function calendarDay(booking: ClinicBooking) {
+  return {
+    confirmationStatus: booking.confirmationStatus ?? 'PENDING',
+    dayState: booking.dayState ?? booking.status,
+    arrivedAt: booking.arrivedAt ?? null,
+    waitingMinutes: booking.waitingMinutes ?? null,
+  } as const
+}
+
 /** Todas as marcações da clínica como entradas de calendário (consultas, exames e visitas manuais). */
-function calendarEntries(clinicId: string): ClinicCalendarEntry[] {
+function calendarEntries(clinicId: string, now: Date = new Date()): ClinicCalendarEntry[] {
   const slotOf = (id?: string) => db.slots.find((s) => s.id === id)
   const ends = (startsAt: string, minutes: number) => new Date(Date.parse(startsAt) + minutes * 60_000).toISOString()
   const professionalOf = (slot?: { professionalId?: string; professionalName?: string }) => ({
@@ -330,7 +340,9 @@ function calendarEntries(clinicId: string): ClinicCalendarEntry[] {
   })
   const entries: ClinicCalendarEntry[] = []
   for (const a of db.appointments) {
-    if (a.clinicId !== clinicId || !CALENDAR_APPOINTMENT_STATUSES.includes(a.status)) continue
+    // BR-CLN-23 (emenda Q): as recusadas pelo paciente ("Não posso") também aparecem.
+    const declined = a.status === 'CANCELLED' && a.confirmationStatus === 'DECLINED'
+    if (a.clinicId !== clinicId || !(CALENDAR_APPOINTMENT_STATUSES.includes(a.status) || declined)) continue
     const slot = slotOf(a.slotId)
     entries.push({
       id: a.id,
@@ -345,6 +357,7 @@ function calendarEntries(clinicId: string): ClinicCalendarEntry[] {
       patientName: memberName(a.memberId),
       clinicPatientId: patientOfMember(clinicId, a.memberId)?.id ?? null,
       slotId: a.slotId ?? null,
+      ...calendarDay(toBooking(a, now)),
     })
   }
   for (const e of db.examinations) {
@@ -363,6 +376,10 @@ function calendarEntries(clinicId: string): ClinicCalendarEntry[] {
       patientName: memberName(e.memberId),
       clinicPatientId: patientOfMember(clinicId, e.memberId)?.id ?? null,
       slotId: e.slotId,
+      confirmationStatus: null,
+      dayState: null,
+      arrivedAt: null,
+      waitingMinutes: null,
     })
   }
   for (const v of db.clinicVisits) {
@@ -380,6 +397,7 @@ function calendarEntries(clinicId: string): ClinicCalendarEntry[] {
       patientName: db.clinicPatients.find((p) => p.id === v.clinicPatientId)?.name ?? '',
       clinicPatientId: v.clinicPatientId,
       slotId: v.slotId ?? null,
+      ...calendarDay(toVisitBooking(v, now)),
     })
   }
   return entries
@@ -403,7 +421,7 @@ export function getClinicCalendar(
       throw new AppError('NOT_FOUND')
     }
     const inWindow = (iso: string) => Date.parse(iso) >= from && Date.parse(iso) < to
-    const entries = calendarEntries(clinicId)
+    const entries = calendarEntries(clinicId, now)
       .filter((e) => inWindow(e.startsAt) && (!professionalId || e.professionalId === professionalId))
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
     const freeSlots = db.slots
@@ -446,7 +464,7 @@ export function clinicGlobalSearch(clinicAccountId: string, q: string, now: Date
       .map((p) => toPublicPatient(p, now))
       .sort(byName)
       .slice(0, MAX_SEARCH_ITEMS)
-    const matching = calendarEntries(clinicId).filter((e) =>
+    const matching = calendarEntries(clinicId, now).filter((e) =>
       [e.patientName, e.specialty, e.professionalName].some((field) => field && fold(field).includes(needle)),
     )
     // Futuras primeiro (mais próximas), depois as passadas (mais recentes).

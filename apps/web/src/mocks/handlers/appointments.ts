@@ -1,5 +1,5 @@
 import { AppError } from '@/lib/errors'
-import type { Appointment, AppointmentItem } from '@/types/appointment'
+import type { Appointment, AppointmentItem, ConfirmationResponse } from '@/types/appointment'
 import type { AvailableSlot, SlotKind } from '@/types/clinic'
 import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
@@ -213,6 +213,42 @@ export function setAppointmentStatus(
     const past = Date.parse(appointment.scheduledAt) <= now.getTime()
     if (status !== 'CANCELLED' && !past) throw new AppError('VALIDATION_ERROR')
     appointment.status = status
+    return appointment
+  })
+}
+
+/**
+ * `PUT …/appointments/{id}/confirmation` (M14 Q, BR-CLN-26): o titular/tutor responde "Vou" ou
+ * "Não posso". `GOING` → CONFIRMED (PATIENT), idempotente; `CANNOT` → consulta CANCELLED (liberta o
+ * horário, BR-APT-06) + DECLINED, sem motivo. `GOING` depois de `CANNOT` → conflito.
+ * Só consultas SCHEDULED, futuras e de clínica parceira (com horário).
+ */
+export function setAppointmentConfirmation(
+  familyId: string,
+  userId: string,
+  id: string,
+  response: ConfirmationResponse,
+  now: Date = new Date(),
+) {
+  return respond((): Appointment => {
+    expireRequests(now)
+    const appointment = findAppointment(familyId, userId, id)
+    if (!appointment.slotId) throw new AppError('VALIDATION_ERROR')
+    if (appointment.confirmationStatus === 'DECLINED') {
+      if (response === 'CANNOT') return appointment
+      throw new AppError('CONFLICT')
+    }
+    if (appointment.status !== 'SCHEDULED' || Date.parse(appointment.scheduledAt) <= now.getTime()) {
+      throw new AppError('CONFLICT')
+    }
+    if (response === 'GOING') {
+      appointment.confirmationStatus = 'CONFIRMED'
+      appointment.confirmationSource = 'PATIENT'
+    } else {
+      appointment.status = 'CANCELLED'
+      appointment.confirmationStatus = 'DECLINED'
+      appointment.confirmationSource = undefined
+    }
     return appointment
   })
 }

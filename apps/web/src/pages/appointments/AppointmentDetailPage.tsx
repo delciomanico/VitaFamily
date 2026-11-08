@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { Clock, Pencil } from 'lucide-react'
+import { CalendarCheck, Clock, Pencil, Repeat } from 'lucide-react'
+import { ConfirmationButtons } from '@/components/domain/ConfirmationButtons'
 import { NO_CLINIC, SpecialtyField } from '@/components/domain/AppointmentFields'
 import { RecommendationsSection } from '@/components/domain/RecommendationsSection'
 import { Page } from '@/components/layout/Page'
 import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
+import { Button, ButtonLink } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { DetailSection, InfoList, InfoRow } from '@/components/ui/InfoList'
@@ -101,12 +102,22 @@ interface ViewProps {
   selfMemberId?: string
   onCancel: () => void
   onOutcome: (outcome: Outcome) => void
+  onConfirmed: () => void
   saving: Outcome | null
 }
 
 /** Especialidade, clínica, profissional, data, hora e estado. */
-function AppointmentView({ item: { appointment, memberName }, selfMemberId, onCancel, onOutcome, saving }: ViewProps) {
+function AppointmentView({
+  item: { appointment, memberName },
+  selfMemberId,
+  onCancel,
+  onOutcome,
+  onConfirmed,
+  saving,
+}: ViewProps) {
   const status = appointmentStatusLabel(appointment)
+  // Só consultas SCHEDULED, futuras e de clínica parceira (com horário) se podem responder.
+  const canRespond = appointment.status === 'SCHEDULED' && Boolean(appointment.slotId) && isUpcoming(appointment)
   return (
     <>
       <div className="flex flex-col gap-1">
@@ -127,6 +138,42 @@ function AppointmentView({ item: { appointment, memberName }, selfMemberId, onCa
             responder até à hora, o pedido é cancelado.
           </span>
         </p>
+      )}
+      {/* M14 Q (BR-CLN-25/26): confirmar a presença nas consultas de clínica parceira. */}
+      {appointment.status === 'SCHEDULED' && appointment.confirmationStatus === 'CONFIRMED' && (
+        <p className="flex items-center gap-2.5 rounded-xl bg-success-soft px-3.5 py-3 text-sm text-success">
+          <CalendarCheck className="size-4 shrink-0" aria-hidden />
+          Presença confirmada.
+        </p>
+      )}
+      {canRespond && (
+        <DetailSection title="Vai à consulta?">
+          <p className="-mt-1 text-sm text-muted">
+            {appointment.confirmationStatus === 'CONFIRMED'
+              ? 'Se mudar de ideias, pode avisar a clínica.'
+              : 'Avise a clínica. Se não puder, o horário fica livre para outras pessoas.'}
+          </p>
+          <ConfirmationButtons appointment={appointment} onDone={onConfirmed} size="lg" />
+        </DetailSection>
+      )}
+      {appointment.confirmationStatus === 'DECLINED' && (
+        <div className="flex flex-col gap-3 rounded-xl bg-surface-muted px-3.5 py-3 text-sm">
+          <p>Avisou que não pode ir. A consulta foi cancelada e o horário ficou livre.</p>
+          <ButtonLink to={paths.appointmentNew} variant="soft">
+            Escolher outro horário
+          </ButtonLink>
+        </div>
+      )}
+      {appointment.status === 'COMPLETED' && appointment.followUpDueOn && (
+        <div className="flex flex-col gap-3 rounded-xl bg-primary-soft px-3.5 py-3 text-sm text-primary">
+          <p className="flex items-center gap-2.5">
+            <Repeat className="size-4 shrink-0" aria-hidden />
+            Retorno sugerido para {formatLongDate(appointment.followUpDueOn)}.
+          </p>
+          <ButtonLink to={paths.appointmentNew} variant="primary">
+            Marcar retorno
+          </ButtonLink>
+        </div>
       )}
       {appointment.responseNote && (
         <p className="rounded-xl bg-surface-muted px-3.5 py-3 text-sm">
@@ -266,6 +313,7 @@ export function AppointmentDetailPage() {
             selfMemberId={member?.id}
             onCancel={() => setConfirming(true)}
             onOutcome={setStatus}
+            onConfirmed={reload}
             saving={saving === 'CANCELLED' ? null : saving}
           />
         ))}
