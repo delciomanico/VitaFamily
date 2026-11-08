@@ -69,6 +69,7 @@ Tem 1+ MedicationPlan e 0..5 Documents.
 
 ### Appointment — categoria C5
 `scheduledAt` (UTC) · `status` (REQUESTED | SCHEDULED | REJECTED | COMPLETED | NO_SHOW | CANCELLED) · `professionalName?` · `specialty?` · `clinicId?` · `clinicName?` (texto de reserva, BR-CLN-02) · `slotId?` (horário da clínica parceira, D17) · `responseNote?` (motivo da clínica ao recusar/cancelar, D17) · `reason?` · `notes?` · `outcomeRequestedAt?`
+**M14 Q (BR-CLN-25..30):** `confirmationStatus` (PENDING | CONFIRMED | DECLINED; omissão PENDING) · `confirmationSource?` (PATIENT | CLINIC) · `confirmedAt?` · `arrivedAt?` · `startedAt?` (fluxo do dia; **sem estados Vita novos**) · `followUpDueOn?` (date; `patientNotified` na API é derivado: consulta Vita e hoje ≥ `followUpDueOn` − 7 dias). Estados de dia derivados (`dayState`) em `state-machines.md`.
 
 ### Examination — categoria C6
 `name` · `examDate` (date) · `scheduledAt?` (UTC; só em exame de horário da clínica, D19) · `status` (SCHEDULED | COMPLETED | CANCELLED; `REQUESTED`/`REJECTED` obsoletos, só no enum de BD, state-machines.md) · `clinicId?` · `clinicName?` · `slotId?` (horário `EXAM` de origem, D19) · `responseNote?` (motivo da clínica ao cancelar) · `notes?` · `issuedBy` (FAMILY | CLINIC, default FAMILY) · `issuedByClinicAccountId?` · `resultsIssuedAt?` · `clinicResultNote?` (nota livre da clínica ao completar)
@@ -131,8 +132,9 @@ Derivado: `vitaLink?` = `{via (EMAIL | CODE), consentLevel?, consentValidUntil?}
 **Regras:** BR-CLN-20. Uso único; um ativo por membro; apagado diariamente depois de expirar/usar.
 
 ### ClinicVisit — visita presencial de um paciente da clínica sem ligação Vita (M14 P)
-`clinicId` · `clinicPatientId` · `slotId?` · `scheduledAt` · `durationMinutes` · `status` (SCHEDULED | COMPLETED | CANCELLED) · `notes?` · `outcomeNote?` · `cancelNote?` · `bookedByClinicAccountId?`
+`clinicId` · `clinicPatientId` · `slotId?` · `scheduledAt` · `durationMinutes` · `status` (SCHEDULED | COMPLETED | CANCELLED | NO_SHOW — `NO_SHOW` desde M14 Q) · `notes?` · `outcomeNote?` · `cancelNote?` · `bookedByClinicAccountId?`
 **Regras:** BR-CLN-18. Só da clínica (não está na app Vita, sem lembretes); ocupa o horário (BR-APT-06); estados e janela como a consulta (ST4); sem receita.
+**M14 Q:** os mesmos campos de confirmação, chegada e retorno da consulta (`confirmationStatus` só PENDING | CONFIRMED, `confirmationSource` só CLINIC; `arrivedAt?` · `startedAt?` · `followUpDueOn?`); a visita não tem alertas, a clínica trata a confirmação por telefone e os retornos (BR-CLN-27/30).
 
 ### ClinicAccount — conta do portal da clínica (D18, ADR-020)
 **Correção (ADR-021):** esta secção referia-se antes a `ClinicStaff(userId, clinicId, role)`, suposição
@@ -208,7 +210,7 @@ Calculado a partir de `Beneficiary` + `Policy`; QR com token assinado, de valida
 ## Alertas
 
 ### Alert
-`recipientUserId` · `familyId` · `memberId` (sujeito) · `type` (MEDICATION_DUE | APPOINTMENT_REMINDER | EXAM_REMINDER | APPOINTMENT_OUTCOME_REQUEST | APPOINTMENT_CONFIRMED | APPOINTMENT_REJECTED | APPOINTMENT_CANCELLED | EXAM_CANCELLED | EXAM_RESULTS_AVAILABLE | RECOMMENDATION_ADDED) · `sourceType` (DOSE | APPOINTMENT | EXAMINATION | RECOMMENDATION) · `sourceId` · `ruleKey` (ex.: `dose.due`, `dose.repeat`, `appointment.24h`, `appointment.2h`, `exam.24h`, `appointment.outcome`, `appointment.confirmed`, `appointment.rejected`, `appointment.cancelled` — respostas da clínica parceira, D17/FR-APT-07; `exam.cancelled`, `exam.results`, `recommendation.added`, D19/FR-EXM-09) · `dedupeKey` (único) · `triggerAt` · `readAt?`
+`recipientUserId` · `familyId` · `memberId` (sujeito) · `type` (MEDICATION_DUE | APPOINTMENT_REMINDER | EXAM_REMINDER | APPOINTMENT_OUTCOME_REQUEST | APPOINTMENT_CONFIRMED | APPOINTMENT_REJECTED | APPOINTMENT_CANCELLED | EXAM_CANCELLED | EXAM_RESULTS_AVAILABLE | RECOMMENDATION_ADDED | APPOINTMENT_CONFIRM_REQUEST | FOLLOWUP_REMINDER) · `sourceType` (DOSE | APPOINTMENT | EXAMINATION | RECOMMENDATION) · `sourceId` · `ruleKey` (ex.: `dose.due`, `dose.repeat`, `appointment.24h`, `appointment.2h`, `exam.24h`, `appointment.outcome`, `appointment.confirmed`, `appointment.rejected`, `appointment.cancelled` — respostas da clínica parceira, D17/FR-APT-07; `exam.cancelled`, `exam.results`, `recommendation.added`, D19/FR-EXM-09; `appointment.confirm48h` e `followup.due`, M14 Q/BR-ALR-09, `sourceType=APPOINTMENT`) · `dedupeKey` (único) · `triggerAt` · `readAt?`
 
 ### Notification
 Entrega de um Alert num canal. `alertId` · `channel` (PUSH | EMAIL) · `status` (PENDING | SENT | FAILED | SKIPPED) · `attempts` · `nextAttemptAt?` · `lastErrorCode?` · `sentAt?`

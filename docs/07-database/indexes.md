@@ -24,6 +24,7 @@
 | `dose_occurrences` | `(plan_id, scheduled_at)` (único) | Geração e histórico por plano. |
 | `dose_occurrences` | `(member_id, scheduled_at DESC)` | Agenda do dia e histórico/adesão. |
 | `appointments` | `(member_id, scheduled_at)` · `(status, scheduled_at) WHERE status='SCHEDULED'` | Listar; scanner de lembretes/desfecho. |
+| `appointments` (M14 Q) | `(clinic_id, scheduled_at) WHERE clinic_id IS NOT NULL` · `(clinic_id, followup_due_on) WHERE followup_due_on IS NOT NULL` · `(scheduled_at) WHERE status='SCHEDULED' AND confirmation_status='PENDING' AND slot_id IS NOT NULL` | Agenda/Hoje/relatórios da clínica por período; lista de retornos; scanner do pedido de confirmação de 48 h. |
 | `examinations` | `(member_id, exam_date DESC)` · `(status, exam_date) WHERE status='SCHEDULED'` | Listar; scanner. |
 | `examinations` | `(slot_id) WHERE status = 'SCHEDULED'` (**não único**, `0022`) · `(slot_id, member_id) WHERE status = 'SCHEDULED'` (único, `0022`) · `(clinic_id, status, scheduled_at)` | Contagem de vagas ocupadas por horário (BR-APT-11; o limite é imposto pelo bloqueio da linha do horário, não por índice); um membro não ocupa 2 vagas do mesmo horário; agenda da clínica (D19). Substitui o único `(slot_id) WHERE status IN ('REQUESTED','SCHEDULED')` de `0021`. |
 | `clinic_slots` | `(clinic_id, kind, starts_at)` | Horários livres por tipo (D19). |
@@ -36,6 +37,7 @@
 | `clinic_consents` | UNIQUE `(clinic_id, member_id)` · `(member_id)` | Consentimento efetivo; "quem vê o quê" (M14 P). |
 | `clinic_link_codes` | UNIQUE `(code_hash)` · `(member_id) WHERE used_at IS NULL` · `(expires_at)` | Consumo do código, invalidar anteriores, job de limpeza (M14 P). |
 | `clinic_visits` | `(clinic_id, scheduled_at)` · `(clinic_patient_id, scheduled_at DESC)` · UNIQUE parcial `(slot_id) WHERE status='SCHEDULED' AND slot_id IS NOT NULL` | Calendário, ficha e ocupação do horário (M14 P). |
+| `clinic_visits` (M14 Q) | `(clinic_id, followup_due_on) WHERE followup_due_on IS NOT NULL` | Lista de retornos por tratar (as visitas já têm `(clinic_id, scheduled_at)` para Hoje e relatórios). |
 | `recommendations` | `(member_id, created_at DESC)` · `(appointment_id)` · `(examination_id)` · `(clinic_id, created_at DESC)` | Leitura pelo paciente; listagem da clínica (D19). |
 | `documents` | `(uploaded_by_clinic_account_id) WHERE uploaded_by_clinic_account_id IS NOT NULL` | Documentos emitidos pela clínica (D19). |
 | `exam_results` | `(examination_id)` · `(parameter)` por membro via join | Histórico de um parâmetro. |

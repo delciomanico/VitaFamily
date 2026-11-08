@@ -117,6 +117,35 @@
 - **Alternativos:** janela inválida ou > 31 dias → `VALIDATION_ERROR`; profissional de outra clínica → `NOT_FOUND`.
 - **Pós-condição:** só leitura; mínimo necessário (BR-CLN-03).
 
+### UC-CLN-20 Confirmar presença (paciente na app; clínica por telefone) (M14 Q)
+- **Atores:** titular/tutor (ou dependente com conta) · conta da clínica (Admin ou Gestor) · **FR:** CLN-11 · **BR:** CLN-25/26/27
+- **Fluxo (paciente):** recebe o alerta (UC-CLN-22) ou abre a consulta → vê **"Vou" / "Não posso"** → "Vou" ⇒ `CONFIRMED`; "Não posso" ⇒ confirma "Cancelar a consulta?" → a consulta fica `CANCELLED`, o horário volta a ficar livre e a app propõe **"Escolher outro horário"** (fluxo UC-APT-07 já existente).
+- **Fluxo (clínica):** em **Hoje**/**Agenda** vê cada marcação com o estado (**Confirmado / Recusou / Sem resposta / Confirmado por telefone**) e, nas que estão "Sem resposta", o botão **"Confirmado por telefone"** (também para visitas manuais).
+- **Alternativos:** consulta já passada/não `SCHEDULED` ⇒ `INVALID_STATE_TRANSITION`; consulta de clínica privada ⇒ `VALIDATION_ERROR` (a confirmação ativa só existe em clínica parceira); "Vou" depois de "Não posso" ⇒ `INVALID_STATE_TRANSITION`; a clínica não pode marcar "Recusou" (cancela com motivo, UC-CLN-06).
+- **Pós-condição:** `confirmationStatus` atualizado; "Não posso" liberta o horário e a clínica vê-o livre e a consulta como "Recusou" até ao fim do dia; auditoria sem dados pessoais.
+
+### UC-CLN-21 Fluxo do dia na página Hoje: chegou, iniciar, concluir, faltou (M14 Q)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-12 · **BR:** CLN-28, CLN-06
+- **Fluxo:** **Hoje** lista as marcações do dia por hora (consultas Vita e visitas manuais) com um **botão principal** conforme o estado: `SCHEDULED` → **Chegou** (e **Faltou** depois da hora); `ARRIVED` → **Iniciar** (mostra "a aguardar há N min"); `IN_PROGRESS` → **Concluir**, que abre o fluxo **existente** de resultado/receita (concluir consulta, BR-CLN-06; visita: só nota). Um toque, sem formulário, exceto Concluir.
+- **Alternativos:** marcar "Chegou" a quem já estava como `NO_SHOW` ⇒ volta a `SCHEDULED` com chegada; "Iniciar" sem "Chegou" ⇒ regista as duas; "Faltou" antes da hora ou após iniciar ⇒ `INVALID_STATE_TRANSITION`; fora do dia da marcação ⇒ `INVALID_STATE_TRANSITION`.
+- **Pós-condição:** `arrivedAt`/`startedAt` guardados; estado Vita só muda em Faltou (`NO_SHOW`) e Concluir (`COMPLETED`); tempo de espera calculado; auditoria sem dados pessoais.
+
+### UC-CLN-22 Pedido de confirmação e lembrete de retorno (sistema) (M14 Q)
+- **Ator:** Scheduler (módulo `alerts`) · **FR:** CLN-11, CLN-14 · **BR:** ALR-09, CLN-26, CLN-30
+- **Fluxo:** o scanner (UC-ALR-01) emite `APPOINTMENT_CONFIRM_REQUEST` 48 h antes das consultas `SCHEDULED` de clínica parceira ainda `PENDING`; o lembrete de 24 h existente mostra "Vou / Não posso" enquanto `PENDING`; 7 dias antes de `followUpDueOn` emite `FOLLOWUP_REMINDER`. Idempotente por `dedupeKey`; texto genérico.
+- **Alternativos:** marcação com <48 h de antecedência ⇒ só o lembrete de 24 h; já `CONFIRMED`/`CANCELLED` ⇒ não se emite; retorno limpo antes da hora ⇒ não se emite.
+
+### UC-CLN-23 Propor retorno (M14 Q)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-14 · **BR:** CLN-30
+- **Fluxo:** ao **concluir** (ou depois, na marcação concluída) escolhe **"Voltar em"** 2 semanas / 1 mês / 3 meses / 6 meses (atalhos) ou N semanas/meses → fica registado. Paciente Vita: recebe o lembrete 7 dias antes e toca para pedir horário (UC-APT-07). Visita manual: a clínica vê o retorno em **Hoje → Retornos a contactar** (nome, telefone do registo da clínica, data) e dá por tratado.
+- **Alternativos:** marcação não concluída ⇒ `INVALID_STATE_TRANSITION`; N fora de 1–24 ⇒ `VALIDATION_ERROR`; "Já tratado" limpa o retorno.
+
+### UC-CLN-24 Ver indicadores (M14 Q)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-13 · **BR:** CLN-29
+- **Fluxo:** em **Mais → Relatórios** escolhe o período (7 dias, 30 dias, mês, ou datas) e, opcionalmente, um profissional → vê cartões: **Ocupação**, **Consultas realizadas**, **Faltas** (e taxa), **Cancelamentos**, **Novos pacientes**, e a tabela por profissional.
+- **Alternativos:** janela inválida ou > 366 dias ⇒ `VALIDATION_ERROR`; profissional de outra clínica ⇒ `NOT_FOUND`; excesso de pedidos ⇒ `RATE_LIMITED`.
+- **Pós-condição:** só leitura; só contagens, sem dados de pacientes.
+
 ---
 
 ## Clínicas

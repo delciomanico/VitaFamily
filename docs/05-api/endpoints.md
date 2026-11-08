@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.5** (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.6** (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -729,6 +729,14 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION`, `NOT_FOUND`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** ST4.
 
+### `PUT /families/{familyId}/members/{memberId}/appointments/{appointmentId}/confirmation`  — setAppointmentConfirmation
+- **AUTHORIZATION:** WRITE(APPOINTMENTS)
+- **DESCRIPTION:** Responder ao pedido de confirmação: **"Vou"** (`GOING`) ou **"Não posso"** (`CANNOT`, cancela a consulta e liberta o horário) (UC-CLN-20, M14 Q).
+- **REQUEST:** `AppointmentConfirmationRequest` (`{ response: GOING\|CANNOT }`)
+- **RESPONSE:** `200` `Appointment` (com `confirmationStatus`)
+- **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION` (não `SCHEDULED`, já passou, ou `GOING` depois de `CANNOT`), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR` (consulta sem clínica parceira)
+- **BUSINESS RULES:** BR-CLN-25/26, BR-APT-06 (horário livre), BR-APT-09 (remarcar = pedir outro horário). Idempotente. Auditoria `APPOINTMENT_CONFIRMATION_SET`.
+
 ### `GET /families/{familyId}/clinics/{clinicId}/slots`  — listAvailableSlots
 - **AUTHORIZATION:** FAM_MEMBER
 - **DESCRIPTION:** Listar horários livres e futuros de uma clínica parceira, para escolher ao marcar (D17).
@@ -1107,6 +1115,50 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **BUSINESS RULES:** BR-CLN-23. O agrupamento por profissional faz-se no cliente com `professionalId` (nulo = "sem profissional").
 
 **Alterações a endpoints existentes (retrocompatíveis):** `POST /clinic-portal/walk-in-appointments` aceita **exatamente um** de `patientEmail` e `clinicPatientId` (BR-CLN-18); com `patientEmail` cria/liga o paciente da clínica; com `clinicPatientId` de paciente sem ligação Vita cria uma **visita presencial manual** (`ClinicBooking.source=MANUAL`). `GET /clinic-portal/agenda` passa a incluir as visitas manuais; `PUT /clinic-portal/agenda/{id}/cancel` e `/complete` aceitam também o id de uma visita manual (completar: só `outcomeNote`; `prescription` ⇒ `VALIDATION_ERROR`). `ClinicBooking` ganha `source`, `clinicPatientId`, `slotId`. A ocupação de horários (BR-APT-06) conta também visitas manuais `SCHEDULED`.
+
+### M14 fase (Q) — confirmação, fluxo do dia, indicadores e retorno (ADR-026; contrato 2026-11-08)
+
+> Tudo com `clinic_id` do token (404 sem enumeração). `{appointmentId}` é o id de uma consulta Vita **ou** de uma visita manual (mesmo despacho de `cancel`/`complete`, BR-CLN-18). `AUTHORIZATION: CLINIC_ACCOUNT` (`CLINIC_ADMIN` e `CLINIC_MANAGER`). Resposta das ações: `200` `ClinicBooking`. Erros comuns: `NOT_FOUND`, `UNAUTHENTICATED`, `INVALID_STATE_TRANSITION`.
+
+### `PUT /clinic-portal/agenda/{appointmentId}/confirm`  — confirmClinicAppointmentByPhone
+- **DESCRIPTION:** "Confirmado por telefone" (consulta ou visita `SCHEDULED` e futura). Sem corpo.
+- **BUSINESS RULES:** BR-CLN-27 (`CONFIRMED`, `confirmationSource=CLINIC`; a clínica nunca escreve `DECLINED`). Auditoria `CLINIC_APPOINTMENT_CONFIRM`/`CLINIC_VISIT_CONFIRM`.
+
+### `PUT /clinic-portal/agenda/{appointmentId}/arrive`  — arriveClinicAppointment
+- **DESCRIPTION:** "Chegou" (check-in). Sem corpo.
+- **BUSINESS RULES:** BR-CLN-28. `SCHEDULED` ou `NO_SHOW`, no dia local da marcação; define `arrivedAt` (idempotente). Auditoria `CLINIC_APPOINTMENT_ARRIVE`/`CLINIC_VISIT_ARRIVE`.
+
+### `PUT /clinic-portal/agenda/{appointmentId}/start`  — startClinicAppointment
+- **DESCRIPTION:** "Iniciar" o atendimento. Sem corpo.
+- **BUSINESS RULES:** BR-CLN-28. `SCHEDULED` no dia local; define `startedAt` (e `arrivedAt` se faltar). O estado Vita não muda. Auditoria `…_START`.
+
+### `PUT /clinic-portal/agenda/{appointmentId}/no-show`  — noShowClinicAppointment
+- **DESCRIPTION:** "Faltou". Sem corpo.
+- **BUSINESS RULES:** BR-CLN-28. `SCHEDULED`, hora passada e sem `startedAt` ⇒ `NO_SHOW`. Auditoria `…_NO_SHOW`.
+- **Concluir** continua a ser `PUT /clinic-portal/agenda/{id}/complete` (sem alterações; BR-CLN-06).
+
+### `PUT /clinic-portal/agenda/{appointmentId}/follow-up`  — setClinicFollowUp
+- **REQUEST:** `ClinicFollowUpRequest` (`{ amount: 1..24, unit: WEEKS\|MONTHS }`)
+- **ERRORS:** `INVALID_STATE_TRANSITION` (não `COMPLETED`), `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-30. Auditoria `CLINIC_FOLLOWUP_SET`.
+
+### `DELETE /clinic-portal/agenda/{appointmentId}/follow-up`  — clearClinicFollowUp
+- **DESCRIPTION:** Limpa o retorno ("já tratado"); idempotente. Cancela o alerta ainda não emitido. `200` `ClinicBooking`. Auditoria `CLINIC_FOLLOWUP_CLEAR`.
+
+### `GET /clinic-portal/follow-ups`  — listClinicFollowUps
+- **REQUEST:** Query `until?` (data; omissão hoje + 14 dias)
+- **RESPONSE:** `200` `[ClinicFollowUp]` (≤200, por `dueOn` crescente; retornos por tratar até `until`)
+- **ERRORS:** `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-30. Sem ids Vita; `patientPhone` só do registo da clínica. Não auditado.
+
+### `GET /clinic-portal/reports/summary`  — getClinicReportSummary
+- **DESCRIPTION:** Indicadores simples (UC-CLN-24).
+- **REQUEST:** Query `from`, `to` (datas locais inclusivas, ≤ 366 dias), `professionalId?`
+- **RESPONSE:** `200` `ClinicReportSummary` (`totals`, `byProfessional`)
+- **ERRORS:** `NOT_FOUND` (profissional de outra clínica), `VALIDATION_ERROR`, `RATE_LIMITED` (30/min por conta), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-29. Só contagens e taxas; sem PII. Não auditado.
+
+**Alterações a endpoints existentes (retrocompatíveis):** `ClinicBooking` e `ClinicCalendarEntry` ganham `confirmationStatus`, `dayState`, `arrivedAt`, `waitingMinutes` (e `ClinicBooking`: `confirmationSource`, `startedAt`, `followUpDueOn`); `GET /clinic-portal/calendar` e `/agenda` incluem as consultas `CANCELLED` com `confirmationStatus=DECLINED` (BR-CLN-23 emendada); `Appointment` (família) ganha `confirmationStatus` e `followUpDueOn`; `Alert.type` ganha `APPOINTMENT_CONFIRM_REQUEST` e `FOLLOWUP_REMINDER`; `clinic_visit_status` ganha `NO_SHOW` (visível em `ClinicBooking.status`).
 
 ### `GET /clinic-portal/exam-agenda`  — listClinicExamAgenda
 - **AUTHORIZATION:** CLINIC_ACCOUNT
@@ -1846,7 +1898,7 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **DoseCorrectionRequest** — `status`: TAKEN|NOT_TAKEN, `note?`: string
 
-**Appointment** — `id`: uuid, `memberId`: uuid, `scheduledAt`: datetime, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (horário de clínica parceira de origem, D17), `responseNote?`: string (motivo da clínica ao recusar/cancelar, D17), `reason?`: string, `notes?`: string
+**Appointment** — `id`: uuid, `memberId`: uuid, `scheduledAt`: datetime, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (horário de clínica parceira de origem, D17), `responseNote?`: string (motivo da clínica ao recusar/cancelar, D17), `reason?`: string, `notes?`: string, `confirmationStatus`: ConfirmationStatus, `followUpDueOn?`: date (M14 Q)
 
 **AppointmentInput** — `scheduledAt`: datetime, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (marcação de clínica parceira; incompatível com `clinicId`/`clinicName`, nasce `REQUESTED`, D17), `reason?`: string, `notes?`: string, `status?`: SCHEDULED|COMPLETED (ignorado se `slotId` presente — nasce sempre `REQUESTED`)
 
@@ -1886,7 +1938,19 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **ClinicSlotBatchInput** — `kind?`: APPOINTMENT|EXAM (default APPOINTMENT), `capacity?`: int (1–50, default 1; > 1 só com `kind=EXAM`, BR-APT-11), `date`: date (dia local), `times`: [string] (HH:mm locais), `specialty`: string, `professionalName?`: string, `durationMinutes`: int (15|20|30|45|60, BR-CLN-04)
 
-**ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família), `source?`: VITA|MANUAL, `clinicPatientId?`: uuid, `slotId?`: uuid (M14 P)
+**ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família), `source?`: VITA|MANUAL, `clinicPatientId?`: uuid, `slotId?`: uuid (M14 P), `confirmationStatus`, `confirmationSource?`: PATIENT|CLINIC, `dayState`: SCHEDULED|ARRIVED|IN_PROGRESS|COMPLETED|NO_SHOW|CANCELLED|REQUESTED|REJECTED, `arrivedAt?`, `startedAt?`: datetime, `waitingMinutes?`: int, `followUpDueOn?`: date (M14 Q)
+
+**ConfirmationStatus** — PENDING|CONFIRMED|DECLINED (M14 Q, BR-CLN-25)
+
+**AppointmentConfirmationRequest** — `response`: GOING|CANNOT
+
+**ClinicFollowUpRequest** — `amount`: int (1–24), `unit`: WEEKS|MONTHS
+
+**ClinicFollowUp** — `bookingId`: uuid, `source`: VITA|MANUAL, `clinicPatientId?`: uuid, `patientName`: string, `patientPhone?`: string, `dueOn`: date, `patientNotified`: bool (derivado)
+
+**ReportCounts** — `slotsTotal`, `slotsBooked`: int, `occupancyRate?`: number 0..1, `completed`, `noShows`: int, `noShowRate?`: number 0..1, `cancellations`, `declinedByPatient`: int (BR-CLN-29)
+
+**ClinicReportSummary** — `from`, `to`: date, `totals`: `ReportCounts` + `newPatients`, `examsCompleted`, `byProfessional`: [`ReportCounts` + `professionalId?`, `professionalName?`]
 
 **ClinicRequestResponse** — `decision`: CONFIRM|REJECT, `note?`: string (motivo, só relevante em `REJECT`)
 
@@ -1908,7 +1972,7 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **ClinicSharedHistory** — `active`: bool, `level?`, `validUntil?`, `medications`: [`name`, `dosage`, `startAt`, `endAt?`, `continuous`], `examinations`: [`name`, `examDate`, `status`: SCHEDULED|COMPLETED, `results`: [`parameter`, `valueNumeric?`, `valueText?`, `unit?`, `referenceMin?`, `referenceMax?`]] (BR-CLN-21)
 
-**ClinicCalendarEntry** — `id`, `source`: VITA|MANUAL, `kind`: APPOINTMENT|EXAM, `status`, `startsAt`, `endsAt`, `professionalId?`, `professionalName?`, `specialty?`, `patientName`, `clinicPatientId?`, `slotId?`
+**ClinicCalendarEntry** — `id`, `source`: VITA|MANUAL, `kind`: APPOINTMENT|EXAM, `status`, `startsAt`, `endsAt`, `professionalId?`, `professionalName?`, `specialty?`, `patientName`, `clinicPatientId?`, `slotId?`, `confirmationStatus?`, `dayState?`, `arrivedAt?`, `waitingMinutes?` (M14 Q; nulos em exames)
 
 **ClinicCalendarFreeSlot** — `slotId`, `kind`, `startsAt`, `endsAt`, `professionalId?`, `professionalName?`, `specialty`, `remaining`
 
@@ -1950,7 +2014,7 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **Document** — `id`: uuid, `resourceType`: PRESCRIPTION|EXAMINATION|INSURANCE_POLICY (ADR-021), `resourceId`: uuid, `originalName`: string, `mimeType`: string, `sizeBytes`: int, `scanStatus`: PENDING|CLEAN|INFECTED, `createdAt`: datetime
 
-**Alert** — `id`: uuid, `type`: MEDICATION_DUE|APPOINTMENT_REMINDER|EXAM_REMINDER|APPOINTMENT_OUTCOME_REQUEST|APPOINTMENT_CONFIRMED|APPOINTMENT_REJECTED|APPOINTMENT_CANCELLED|EXAM_CANCELLED|EXAM_RESULTS_AVAILABLE|RECOMMENDATION_ADDED, `familyId`: uuid, `memberId`: uuid, `memberName`: string, `message`: string, `sourceType`: DOSE|APPOINTMENT|EXAMINATION|RECOMMENDATION, `sourceId`: uuid, `triggerAt`: datetime, `readAt?`: datetime
+**Alert** — `id`: uuid, `type`: MEDICATION_DUE|APPOINTMENT_REMINDER|EXAM_REMINDER|APPOINTMENT_OUTCOME_REQUEST|APPOINTMENT_CONFIRMED|APPOINTMENT_REJECTED|APPOINTMENT_CANCELLED|EXAM_CANCELLED|EXAM_RESULTS_AVAILABLE|RECOMMENDATION_ADDED|APPOINTMENT_CONFIRM_REQUEST|FOLLOWUP_REMINDER, `familyId`: uuid, `memberId`: uuid, `memberName`: string, `message`: string, `sourceType`: DOSE|APPOINTMENT|EXAMINATION|RECOMMENDATION, `sourceId`: uuid, `triggerAt`: datetime, `readAt?`: datetime
 
 **AdherenceItem** — `planId`: uuid, `medicationName`: string, `taken`: int, `notTaken`: int, `unconfirmed`: int, `pending`: int
 

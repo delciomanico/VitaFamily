@@ -30,6 +30,8 @@ NOTIFICAÇÃO         entrega por canal (push/e-mail) conforme preferências
 | Exame AGENDADO | 24 h antes | idem |
 | Consulta AGENDADA já passada sem desfecho | à hora da consulta (Q4) | idem |
 | Resposta da clínica parceira a um pedido (D17): confirmada, recusada, cancelada (inclui pedido sem resposta até à hora, BR-APT-08) | no momento da resposta | idem |
+| Consulta AGENDADA de clínica parceira ainda sem resposta (M14 Q, BR-ALR-09, `APPOINTMENT_CONFIRM_REQUEST`) | 48 h antes (o lembrete de 24 h passa a mostrar "Vou / Não posso" enquanto `PENDING`) | idem |
+| Retorno proposto pela clínica (M14 Q, BR-CLN-30, `FOLLOWUP_REMINDER`) | 7 dias antes de `followUpDueOn` | idem |
 
 - **Regras:** cada ocorrência gera **no máximo um** alerta por regra (idempotência, NFR-AVL-02); cancelar/editar o recurso cancela ou recalcula alertas futuros.
 - **Pós-condição:** alerta criado; notificações pedidas para os canais ativos do destinatário.

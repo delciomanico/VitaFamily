@@ -3336,6 +3336,62 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/appointments/{appointmentId}/confirmation:
+    put:
+      tags: [Appointments]
+      operationId: setAppointmentConfirmation
+      summary: "Responder ao pedido de confirmação: 'Vou' ou 'Não posso' (cancela)."
+      description: "Autorização: WRITE(APPOINTMENTS) (como setAppointmentStatus). M14 Q, BR-CLN-25/26, UC-CLN-20. Só consultas SCHEDULED, futuras, de clínica parceira (com slotId). GOING -> confirmationStatus=CONFIRMED; CANNOT -> consulta CANCELLED + confirmationStatus=DECLINED (liberta o horário, BR-APT-06); remarcar é o fluxo existente (novo pedido de horário, BR-APT-09). Idempotente (repetir a mesma resposta -> 200). GOING depois de CANNOT -> INVALID_STATE_TRANSITION."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AppointmentConfirmationRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION (não SCHEDULED, já passou, ou GOING depois de CANNOT)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (consulta sem clínica parceira)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /families/{familyId}/clinics:
     get:
       tags: [Clinics]
@@ -4513,6 +4569,295 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '422':
           description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/confirm:
+    put:
+      tags: [Clinic Portal]
+      operationId: confirmClinicAppointmentByPhone
+      summary: "Marcar 'confirmado por telefone' (consulta ou visita)."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). M14 Q, BR-CLN-27, UC-CLN-20. SCHEDULED e futura: confirmationStatus=CONFIRMED, confirmationSource=CLINIC. Idempotente. Numa consulta Vita DECLINED (já CANCELLED) -> INVALID_STATE_TRANSITION."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: "Id de uma consulta Vita ou de uma visita manual da clínica (mesmo despacho de cancel/complete, BR-CLN-18)."
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (inexistente ou de outra clínica)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION (não SCHEDULED ou já passou)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/arrive:
+    put:
+      tags: [Clinic Portal]
+      operationId: arriveClinicAppointment
+      summary: "Check-in: 'Chegou'."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). M14 Q, BR-CLN-28, UC-CLN-21. SCHEDULED (ou NO_SHOW, correção) no dia local da clínica (CLINIC_TIMEZONE): define arrivedAt=agora (idempotente: repetir mantém o primeiro arrivedAt); a partir de NO_SHOW volta a SCHEDULED."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: "Id de uma consulta Vita ou de uma visita manual da clínica (mesmo despacho de cancel/complete, BR-CLN-18)."
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (inexistente ou de outra clínica)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION (estado terminal CANCELLED/COMPLETED/REQUESTED/REJECTED, ou fora do dia da marcação)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/start:
+    put:
+      tags: [Clinic Portal]
+      operationId: startClinicAppointment
+      summary: "Iniciar o atendimento: 'Iniciar'."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). M14 Q, BR-CLN-28, UC-CLN-21. SCHEDULED no dia local: define startedAt=agora (e arrivedAt=agora se ainda não houve 'Chegou'); idempotente. Não muda o estado Vita da consulta (continua SCHEDULED até concluir)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: "Id de uma consulta Vita ou de uma visita manual da clínica (mesmo despacho de cancel/complete, BR-CLN-18)."
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (inexistente ou de outra clínica)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION (não SCHEDULED ou fora do dia da marcação)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/no-show:
+    put:
+      tags: [Clinic Portal]
+      operationId: noShowClinicAppointment
+      summary: "Registar falta: 'Faltou'."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). M14 Q, BR-CLN-28, UC-CLN-21. SCHEDULED e já iniciada a hora (scheduledAt <= agora), sem startedAt: consulta SCHEDULED -> NO_SHOW (visita: SCHEDULED -> NO_SHOW). Idempotente. Não liberta nem reabre o horário."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: "Id de uma consulta Vita ou de uma visita manual da clínica (mesmo despacho de cancel/complete, BR-CLN-18)."
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (inexistente ou de outra clínica)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION (não SCHEDULED, ainda não é a hora, ou o atendimento já começou)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/follow-up:
+    put:
+      tags: [Clinic Portal]
+      operationId: setClinicFollowUp
+      summary: "Propor retorno ('voltar em N semanas/meses') numa consulta ou visita concluída."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). M14 Q, BR-CLN-30, UC-CLN-23. Só COMPLETED. followUpDueOn = dia local de scheduledAt (CLINIC_TIMEZONE) + N semanas ou N meses. Substitui um retorno anterior ainda não tratado. Numa consulta Vita, o paciente recebe o alerta FOLLOWUP_REMINDER 7 dias antes (texto genérico, BR-ALR-07/08); numa visita manual não há alerta (a clínica contacta, GET /clinic-portal/follow-ups)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicFollowUpRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION (não COMPLETED)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (amount fora de 1..24)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Clinic Portal]
+      operationId: clearClinicFollowUp
+      summary: "Remover/dar por tratado o retorno."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). M14 Q, BR-CLN-30. Limpa followUpDueOn (a clínica já contactou ou não é necessário). Idempotente. Cancela o alerta ainda não enviado."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/follow-ups:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicFollowUps
+      summary: "Retornos por tratar (a contactar/acompanhar)."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). M14 Q, BR-CLN-30, UC-CLN-23. Retornos com followUpDueOn <= until (omissão: hoje + 14 dias), ordenados por data; máx. 200. Só da própria clínica; sem ids Vita; contacto do paciente apenas se existir no registo da clínica (ClinicPatient)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: until
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 200
+                items: { $ref: "#/components/schemas/ClinicFollowUp" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (until inválido)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/reports/summary:
+    get:
+      tags: [Clinic Portal]
+      operationId: getClinicReportSummary
+      summary: "Indicadores simples da clínica (contagens): ocupação, realizadas, faltas, cancelamentos, novos pacientes."
+      description: "Autorização: CLINIC_ACCOUNT (ambos os papéis). M14 Q, BR-CLN-29, UC-CLN-24. Janela de dias locais [from, to] (CLINIC_TIMEZONE, inclusivos, to >= from, <= 366 dias). Só contagens e taxas, nunca nomes nem ids de pacientes. professionalId opcional filtra um profissional (de outra clínica: NOT_FOUND). Limite de 30 pedidos/min por conta (RATE_LIMITED). Só leitura; não auditado."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: professionalId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicReportSummary" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (profissional de outra clínica ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (to < from; janela > 366 dias)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED (Retry-After)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -8263,6 +8608,26 @@ components:
         notes:
           type: string
           nullable: true
+        confirmationStatus:
+          $ref: "#/components/schemas/ConfirmationStatus"
+        followUpDueOn:
+          type: string
+          format: date
+          nullable: true
+          description: "M14 Q (BR-CLN-30). Data de retorno sugerida pela clínica; só leitura para a família. Nulo se não houver."
+    ConfirmationStatus:
+      type: string
+      enum: [PENDING, CONFIRMED, DECLINED]
+      description: "M14 Q (BR-CLN-25). PENDING = sem resposta; CONFIRMED = o paciente disse 'Vou' ou a clínica confirmou por telefone; DECLINED = o paciente disse 'Não posso' (a consulta fica CANCELLED). Independente do estado da consulta."
+    AppointmentConfirmationRequest:
+      type: object
+      additionalProperties: false
+      required: [response]
+      properties:
+        response:
+          type: string
+          enum: [GOING, CANNOT]
+          description: "GOING = 'Vou' (CONFIRMED). CANNOT = 'Não posso': cancela a consulta (SCHEDULED -> CANCELLED, liberta o horário) e marca DECLINED. BR-CLN-26."
     AppointmentInput:
       type: object
       required: [scheduledAt]
@@ -8810,6 +9175,35 @@ components:
           type: string
           format: uuid
           nullable: true
+        confirmationStatus:
+          $ref: "#/components/schemas/ConfirmationStatus"
+        confirmationSource:
+          type: string
+          enum: [PATIENT, CLINIC]
+          nullable: true
+          description: "M14 Q (BR-CLN-25/27). PATIENT = 'Vou' na app; CLINIC = 'confirmado por telefone'. Nulo se PENDING ou DECLINED."
+        dayState:
+          type: string
+          enum: [SCHEDULED, ARRIVED, IN_PROGRESS, COMPLETED, NO_SHOW, CANCELLED, REQUESTED, REJECTED]
+          description: "M14 Q (BR-CLN-28). Estado do dia, derivado do estado + arrivedAt/startedAt; ARRIVED e IN_PROGRESS não existem como estado Vita (a consulta continua SCHEDULED)."
+        arrivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        waitingMinutes:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: "Espera: (startedAt ou agora) - arrivedAt, em minutos inteiros; nulo sem arrivedAt."
+        followUpDueOn:
+          type: string
+          format: date
+          nullable: true
+          description: "M14 Q (BR-CLN-30). Retorno proposto ainda por tratar."
     ClinicPatientLookupRequest:
       type: object
       additionalProperties: false
@@ -9014,6 +9408,17 @@ components:
         patientName: { type: string }
         clinicPatientId: { type: string, format: uuid, nullable: true }
         slotId: { type: string, format: uuid, nullable: true }
+        confirmationStatus:
+          allOf: [ { $ref: "#/components/schemas/ConfirmationStatus" } ]
+          nullable: true
+          description: "M14 Q. Nulo em exames."
+        dayState:
+          type: string
+          nullable: true
+          enum: [SCHEDULED, ARRIVED, IN_PROGRESS, COMPLETED, NO_SHOW, CANCELLED, REQUESTED, REJECTED]
+          description: "M14 Q (BR-CLN-28). Nulo em exames."
+        arrivedAt: { type: string, format: date-time, nullable: true }
+        waitingMinutes: { type: integer, minimum: 0, nullable: true }
     ClinicCalendarFreeSlot:
       type: object
       required: [slotId, kind, startsAt, endsAt, specialty, remaining]
@@ -9050,6 +9455,64 @@ components:
           type: array
           maxItems: 10
           items: { $ref: "#/components/schemas/ClinicCalendarEntry" }
+    ClinicFollowUpRequest:
+      type: object
+      additionalProperties: false
+      required: [amount, unit]
+      properties:
+        amount: { type: integer, minimum: 1, maximum: 24 }
+        unit: { type: string, enum: [WEEKS, MONTHS] }
+    ClinicFollowUp:
+      type: object
+      required: [bookingId, source, patientName, dueOn, patientNotified]
+      description: "BR-CLN-30. Retorno por tratar; sem ids Vita."
+      properties:
+        bookingId: { type: string, format: uuid, description: "Id da consulta/visita de origem (usar nas rotas /agenda)." }
+        source: { type: string, enum: [VITA, MANUAL] }
+        clinicPatientId: { type: string, format: uuid, nullable: true }
+        patientName: { type: string }
+        patientPhone: { type: string, nullable: true, description: "Do registo da clínica (ClinicPatient), se existir." }
+        dueOn: { type: string, format: date }
+        patientNotified: { type: boolean, description: "Derivado: true se a marcação é Vita e hoje (CLINIC_TIMEZONE) >= dueOn - 7 dias, isto é, o alerta de retorno já é devido; sempre false em visitas manuais." }
+    ReportCounts:
+      type: object
+      required: [slotsTotal, slotsBooked, completed, noShows, cancellations, declinedByPatient]
+      description: "BR-CLN-29. Só contagens e taxas (0..1), sem PII."
+      properties:
+        slotsTotal: { type: integer, minimum: 0, description: "Soma das vagas (capacity) dos horários com startsAt na janela." }
+        slotsBooked: { type: integer, minimum: 0, description: "Vagas ocupadas por marcações ativas ou realizadas (nunca > slotsTotal)." }
+        occupancyRate: { type: number, minimum: 0, maximum: 1, nullable: true, description: "slotsBooked / slotsTotal; nulo se slotsTotal = 0." }
+        completed: { type: integer, minimum: 0, description: "Consultas e visitas COMPLETED." }
+        noShows: { type: integer, minimum: 0, description: "Consultas e visitas NO_SHOW." }
+        noShowRate: { type: number, minimum: 0, maximum: 1, nullable: true, description: "noShows / (completed + noShows); nulo se o denominador é 0." }
+        cancellations: { type: integer, minimum: 0, description: "Consultas e visitas CANCELLED (inclui pedidos desistidos e 'Não posso'; não inclui REJECTED)." }
+        declinedByPatient: { type: integer, minimum: 0, description: "Subconjunto de cancellations com confirmationStatus=DECLINED ('Não posso')." }
+    ClinicReportRow:
+      allOf:
+        - $ref: "#/components/schemas/ReportCounts"
+        - type: object
+          required: [professionalName]
+          properties:
+            professionalId: { type: string, format: uuid, nullable: true, description: "Nulo = 'sem profissional'." }
+            professionalName: { type: string, nullable: true }
+    ClinicReportSummary:
+      type: object
+      required: [from, to, totals, byProfessional]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        totals:
+          allOf:
+            - $ref: "#/components/schemas/ReportCounts"
+            - type: object
+              required: [newPatients, examsCompleted]
+              properties:
+                newPatients: { type: integer, minimum: 0, description: "ClinicPatient criados na janela (sempre da clínica inteira; não se filtra por profissional)." }
+                examsCompleted: { type: integer, minimum: 0, description: "Exames COMPLETED com horário na janela." }
+        byProfessional:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicReportRow" }
+          description: "Uma linha por profissional com horários ou marcações na janela (mais 'sem profissional'). Com professionalId só essa linha."
     ClinicRequestResponse:
       type: object
       required: [decision]
@@ -9487,7 +9950,7 @@ components:
           format: uuid
         type:
           type: string
-          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED]
+          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED, APPOINTMENT_CONFIRM_REQUEST, FOLLOWUP_REMINDER]
         familyId:
           type: string
           format: uuid

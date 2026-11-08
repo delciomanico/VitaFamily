@@ -167,6 +167,10 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-CLN-08 | O paciente Vita (titular/tutor) decide, por clínica, o que ela vê — **Marcações** ou **Partilhar histórico** (medicação e exames; 12 meses, renovável) — e pode revogar a qualquer momento; liga-se à clínica por código/QR de uso único (BR-CLN-19/20/21). | D22, ADR-026 (M14 P) |
 | FR-CLN-09 | O portal tem **pesquisa global** única sobre os pacientes e marcações da própria clínica, sem pesquisar a base Vita (BR-CLN-22). | D22, ADR-026 (M14 P) |
 | FR-CLN-10 | A clínica vê um **calendário por profissional** (dia/semana) com marcações e horários livres (BR-CLN-23). | D22, ADR-026 (M14 P) |
+| FR-CLN-11 | O paciente Vita recebe um **pedido de confirmação** da consulta a ~48 h (e a ~24 h pelo lembrete existente) e responde **"Vou"** ou **"Não posso"** (cancela e liberta o horário); a clínica vê o estado (Confirmado / Recusou / Sem resposta) na agenda e em Hoje, e marca **"confirmado por telefone"** em visitas manuais (BR-CLN-25/26/27, BR-ALR-09). | D22, ADR-026 (M14 Q) |
+| FR-CLN-12 | A página **Hoje** tem a fila do dia com ações rápidas **Chegou / Iniciar / Concluir / Faltou** e o tempo de espera, sem formulários longos (BR-CLN-28). | D22, ADR-026 (M14 Q) |
+| FR-CLN-13 | A clínica consulta **indicadores simples** (ocupação, consultas realizadas, faltas e taxa, cancelamentos, novos pacientes; por profissional opcional), só contagens e sem dados pessoais (BR-CLN-29). | D22, ADR-026 (M14 Q) |
+| FR-CLN-14 | A clínica propõe **"voltar em N semanas/meses"** ao concluir; o paciente Vita recebe um lembrete de retorno e a clínica vê os retornos por tratar (BR-CLN-30). | D22, ADR-026 (M14 Q) |
 
 ---
 

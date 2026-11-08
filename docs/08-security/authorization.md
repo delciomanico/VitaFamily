@@ -78,6 +78,7 @@ Notas:
 | Contas do portal da clínica (`CLINIC_ADMIN`/`CLINIC_MANAGER`) | Fora de `AccessPolicy` — ver §6 (ADR-020). |
 | Marcar exame num horário de clínica parceira (nasce `SCHEDULED` se houver vaga) | WRITE(EXAMS): SELF ou TUTOR_OF (UC-EXM-08, BR-APT-11). |
 | Ler recomendações | READ da categoria da origem (APPOINTMENTS/EXAMS), ver §3. |
+| Responder ao pedido de confirmação de uma consulta ("Vou" / "Não posso", `PUT …/appointments/{id}/confirmation`; M14 Q, BR-CLN-26) | WRITE(APPOINTMENTS): a mesma permissão de `setAppointmentStatus` (SELF, TUTOR_OF; `DEPENDENT_SELF` com conta, FR-ALR-08); `OTHER` ⇒ `FORBIDDEN`. Sem categoria nova. Ler `confirmationStatus`/`followUpDueOn`: READ(APPOINTMENTS). |
 | Pesquisar/ver utilizador, repor acesso, listar/suspender contas de clínica, gerir seguradoras | PLATFORM_ADMIN — ver §7 (nunca dados de saúde). |
 | Criar/ver apólice (`InsurancePolicy`), criar/submeter pedido de reembolso (`ReimbursementClaim`) | SELF (adulto) ou TUTOR_OF (dependente); ADR-021. |
 | Criar seguradora parceira, ver/suspender a seguradora | PLATFORM_ADMIN. |
@@ -123,7 +124,12 @@ Notas:
 | Marcar presencial com `clinicPatientId` (paciente da clínica, ligado ou manual) e cancelar/completar a **visita manual** (BR-CLN-18) | sim | sim |
 | Ligar um paciente Vita com o código/QR do paciente (`POST /patients/link`, BR-CLN-20); rate limit partilhado com BR-CLN-10 | sim | sim |
 | Ler o **histórico partilhado** (medicação e exames) de um paciente ligado, só com consentimento `HISTORY` válido; leitura auditada (BR-CLN-21) | sim | sim |
-| Ver/gerir horários, pedidos, agenda, exames, documentos, recomendações, profissionais, serviços, regras, bloqueios, pacientes, ficha, calendário ou histórico partilhado de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
+| Marcar "confirmado por telefone", "Chegou", "Iniciar" e "Faltou" numa consulta ou visita da própria clínica (`PUT /agenda/{id}/confirm\|arrive\|start\|no-show`; M14 Q, BR-CLN-27/28) | sim | sim |
+| Propor/limpar retorno numa marcação concluída e listar retornos por tratar (`PUT\|DELETE /agenda/{id}/follow-up`, `GET /follow-ups`; BR-CLN-30) | sim | sim |
+| Ver indicadores da própria clínica (`GET /reports/summary`; só contagens, BR-CLN-29); rate limit 30/min por conta | sim | sim |
+| Ver/gerir horários, pedidos, agenda, exames, documentos, recomendações, profissionais, serviços, regras, bloqueios, pacientes, ficha, calendário, histórico partilhado, retornos ou indicadores de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
+
+> **M14 (Q):** confirmação por telefone, fluxo do dia, retorno e indicadores têm as mesmas permissões para `CLINIC_ADMIN` e `CLINIC_MANAGER` (a limitação de Relatórios/Financeiro e a de "Médico só os seus" é a fase (f), ADR-026). O portal só lê **contagens** nos indicadores e o **nome/telefone do registo da clínica** nos retornos; nunca ids Vita. A resposta "Vou / Não posso" é a **única** escrita do paciente sobre uma consulta de clínica parceira que altera o estado da consulta além de `setAppointmentStatus`; a clínica nunca escreve `DECLINED`.
 
 > **M14 (P):** pacientes, pesquisa, calendário, ligação e histórico partilhado têm as mesmas permissões para `CLINIC_ADMIN` e `CLINIC_MANAGER` (a diferenciação de receção vs. médico, "receção não vê notas clínicas", é a fase (f), ADR-026). O portal **nunca** recebe `userId`/`familyId`/`memberId`; `clinic_patient_links` é resolvida só no servidor. O histórico partilhado é a **única** leitura de dados de saúde Vita pelo portal para além de BR-CLN-06/08/09, só com consentimento válido, e é lido por **portas** dos módulos de saúde (não por `AccessPolicy`: o consentimento `ClinicConsent` é o critério, avaliado a cada pedido).
 

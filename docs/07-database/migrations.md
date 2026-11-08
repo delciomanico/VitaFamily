@@ -57,3 +57,10 @@
   2. `CREATE TABLE clinic_patients` (com `UNIQUE (clinic_id, id)`), `clinic_patient_links`, `clinic_consents`, `clinic_link_codes`, `clinic_visits` (CHECK, FKs e UNIQUE de `schema.md` §3d).
   3. Índices de `indexes.md` (M14 P).
   - Teste de integração obrigatório (`test-cases.md`, TC-CLN-08..12): apagar um `family_members` apaga ligação, consentimento e códigos mas **não** o `clinic_patients`/`clinic_visits`; apagar a clínica apaga as cinco tabelas; UNIQUE `(clinic_id, member_id)` e `(clinic_patient_id)`; consumo concorrente de um código (1 só vence); CHECK do `history_valid_until`.
+
+- **M14 Q (ADR-026, contrato 2026-11-08) — `0029_clinic_day_flow.sql`** (nome indicativo; próximo número livre depois de `0028`; única migração, transacional, retrocompatível). Por ordem:
+  1. `ALTER TYPE clinic_visit_status ADD VALUE 'NO_SHOW'`; `ALTER TYPE alert_type ADD VALUE 'APPOINTMENT_CONFIRM_REQUEST'`, `ADD VALUE 'FOLLOWUP_REMINDER'` (PostgreSQL ≥ 12 permite `ADD VALUE` em transação **desde que o valor não seja usado na mesma transação**: nenhum CHECK, índice ou `UPDATE` da migração os referencia; se o runner/PG alvo o não permitir, dividir em `0029_enum_values` + `0030_clinic_day_flow`).
+  2. `CREATE TYPE appointment_confirmation_status / confirmation_source`.
+  3. `ALTER TABLE appointments / clinic_visits ADD COLUMN …` (seis colunas de `schema.md` §3e; `confirmation_status` com `DEFAULT 'PENDING'` preenche as linhas existentes) e as CHECKs.
+  4. Índices de `indexes.md` (M14 Q).
+  - Teste de integração obrigatório (`test-cases.md`, TC-CLN-13..16): linhas antigas ficam `PENDING` com colunas nulas; CHECK `DECLINED ⇒ CANCELLED`; `started_at ≥ arrived_at`; `clinic_visits` rejeita `DECLINED`; apagar o membro apaga a consulta e o retorno; os valores de enum novos aceitam-se depois da migração.
