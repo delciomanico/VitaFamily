@@ -169,6 +169,19 @@ function DirectSchedule({ draft, set }: Omit<PartnerScheduleProps, 'slots'>) {
   )
 }
 
+/** Nome que o paciente vê: o de apresentação, se a clínica o definiu (BR-CLN-38). */
+const clinicTitle = (clinic: Clinic) => clinic.displayName ?? clinic.name
+
+/** Morada, telefone, horário e descrição da clínica, só o que existe. */
+function clinicDetails(clinic: Clinic): string[] {
+  return [
+    clinic.address,
+    clinic.phone,
+    clinic.openingHours ? `Horário: ${clinic.openingHours}` : undefined,
+    clinic.description,
+  ].filter((line): line is string => Boolean(line))
+}
+
 interface BookingSummaryProps {
   memberName: string
   specialty: string
@@ -259,8 +272,10 @@ function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) 
       .filter((c) => c.type === 'PARTNER' && freeAt(c.id) > 0)
       .map((c) => ({
         value: c.id,
-        title: c.name,
+        // M14 R (BR-CLN-38): nome de apresentação, morada, telefone, horário e descrição da clínica.
+        title: clinicTitle(c),
         description: `Marcação com confirmação · ${formatCount(freeAt(c.id), 'horário livre', 'horários livres')}`,
+        details: clinicDetails(c),
       })),
     ...clinics
       .filter((c) => c.type === 'PRIVATE')
@@ -390,7 +405,7 @@ function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) 
         <BookingSummary
           memberName={memberName}
           specialty={slot?.specialty ?? draft.specialty}
-          clinicName={clinic?.name}
+          clinicName={clinic ? clinicTitle(clinic) : undefined}
           partner={partner}
           professional={professional}
           when={when}

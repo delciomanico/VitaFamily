@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Camera, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
+import { Camera, Pencil, Plus, Receipt, ShieldCheck, Trash2 } from 'lucide-react'
 import { Page } from '@/components/layout/Page'
 import { Badge, type Tone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -17,7 +17,10 @@ import { useAsync } from '@/hooks/useAsync'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { formatLongDate, formatWhen } from '@/lib/format'
 import { paths } from '@/routes/paths'
+import { familyReceiptService } from '@/services/clinicReceipt.service'
 import { insuranceService } from '@/services/insurance.service'
+import { formatMinor, receiptNumber } from '@/lib/receipt'
+import type { FamilyClinicReceipt } from '@/types/clinicReceipt'
 import { DOCUMENT_MAX_BYTES, DOCUMENT_MIME_TYPES } from '@/types/document'
 import {
   INSURANCE_TEXT_MAX,
@@ -158,23 +161,50 @@ function ClaimForm({
   onSaved: () => void
 }) {
   const docs = useAsync(() => insuranceService.listMemberDocuments(scope.familyId, scope.memberId), [scope.familyId, scope.memberId])
+  // M14 R (BR-CLN-36): recibos das clínicas que o titular pode anexar, escolhidos um a um (opt-in).
+  const receipts = useAsync(
+    () => familyReceiptService.list(scope.familyId, scope.userId, scope.memberId, { limit: 100 }),
+    [scope.familyId, scope.userId, scope.memberId],
+  )
   const [amount, setAmount] = useState('')
+  const [suggested, setSuggested] = useState('')
   const [selected, setSelected] = useState<string[]>([])
+  const [selectedReceipts, setSelectedReceipts] = useState<FamilyClinicReceipt[]>([])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   const attachable = docs.state.status === 'success' ? docs.state.data.filter((d) => d.scanStatus !== 'INFECTED') : []
+  // Só recibos emitidos e ainda sem pedido ativo; a moeda é a do primeiro escolhido (sem conversão).
+  const currency = selectedReceipts[0]?.currency ?? 'EUR'
+  const attachableReceipts =
+    receipts.state.status === 'success'
+      ? receipts.state.data.items.filter((r) => r.status === 'ISSUED' && r.attachedToClaimIds.length === 0)
+      : []
+
+  function toggleReceipt(receipt: FamilyClinicReceipt, checked: boolean) {
+    const next = checked ? [...selectedReceipts, receipt] : selectedReceipts.filter((r) => r.id !== receipt.id)
+    setSelectedReceipts(next)
+    // A app sugere o total dos recibos como valor, sem substituir o que o titular já escreveu.
+    const total = next.reduce((sum, r) => sum + r.totalMinor, 0) / 100
+    const text = next.length > 0 ? String(total).replace('.', ',') : ''
+    if (amount.trim() === '' || amount === suggested) setAmount(text)
+    setSuggested(text)
+    setError(null)
+  }
 
   async function submit() {
     const value = Number(amount.replace(',', '.'))
     if (!(value > 0) || !/^\d+([.,]\d{1,2})?$/.test(amount.trim())) return setError('Indique um valor válido, com até 2 casas decimais.')
-    if (selected.length < 1) return setError('Escolha pelo menos um documento.')
-    if (selected.length > 10) return setError('No máximo 10 documentos.')
+    const count = selected.length + selectedReceipts.length
+    if (count < 1) return setError('Escolha pelo menos um documento ou recibo.')
+    if (count > 10) return setError('No máximo 10 documentos e recibos no total.')
     setSaving(true)
     try {
       await insuranceService.submitClaim(scope.familyId, scope.userId, scope.memberId, policy.id, {
         amount: value,
+        currency: selectedReceipts.length > 0 ? currency : undefined,
         documentIds: selected,
+        receiptIds: selectedReceipts.map((r) => r.id),
       })
       onSaved()
     } catch (err) {
@@ -205,7 +235,7 @@ function ClaimForm({
     >
       <div className="flex flex-col gap-4">
         <Input
-          label="Valor (€)"
+          label={`Valor (${currency === 'EUR' ? '€' : currency})`}
           inputMode="decimal"
           value={amount}
           onChange={(event) => {
@@ -245,9 +275,74 @@ function ClaimForm({
               </p>
             ))}
         </fieldset>
+        {attachableReceipts.length > 0 && (
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium">Anexar recibo da clínica</legend>
+            <p className="text-sm text-muted">
+              A seguradora só vê a clínica, o número, a data, as linhas e o total de cada recibo que escolher. Todos os
+              recibos têm de ser da mesma moeda.
+            </p>
+            {attachableReceipts.map((receipt) => (
+              <Checkbox
+                key={receipt.id}
+                label={`${receiptNumber(receipt.number)} · ${receipt.clinicName} · ${formatMinor(receipt.totalMinor, receipt.currency)}`}
+                checked={selectedReceipts.some((r) => r.id === receipt.id)}
+                disabled={selectedReceipts.length > 0 && !selectedReceipts.some((r) => r.id === receipt.id) && receipt.currency !== currency}
+                onChange={(event) => toggleReceipt(receipt, event.target.checked)}
+              />
+            ))}
+          </fieldset>
+        )}
         <FormError message={error} />
       </div>
     </Modal>
+  )
+}
+
+/** Recibos das clínicas recebidos pelo membro (UC-CLN-28): comprovativos imprimíveis. */
+function ClinicReceipts({ scope }: { scope: Scope }) {
+  const { state, reload } = useAsync(
+    () => familyReceiptService.list(scope.familyId, scope.userId, scope.memberId, { limit: 100 }),
+    [scope.familyId, scope.userId, scope.memberId],
+  )
+  if (state.status === 'loading') return <LoadingState rows={1} />
+  if (state.status === 'error') return <ErrorState onRetry={reload} />
+  return (
+    <section className="flex flex-col gap-2" aria-labelledby="clinic-receipts-title">
+      <h2 id="clinic-receipts-title" className="text-lg font-semibold">
+        Recibos das clínicas
+      </h2>
+      {state.data.items.length > 0 ? (
+        <Card className="divide-y divide-border py-1">
+          {state.data.items.map((receipt) => (
+            <Link
+              key={receipt.id}
+              to={paths.familyMemberReceipt(scope.memberId, receipt.id)}
+              className="flex items-center gap-3 py-3 hover:bg-surface-muted"
+            >
+              <Receipt className="size-5 shrink-0 text-primary" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">
+                  {receiptNumber(receipt.number)} · {receipt.clinicName}
+                </span>
+                <span className="block text-sm text-muted">{formatLongDate(receipt.issuedAt)}</span>
+              </span>
+              <span className="flex flex-col items-end gap-1">
+                <span className={`font-semibold tabular-nums ${receipt.status === 'VOIDED' ? 'text-muted line-through' : ''}`}>
+                  {formatMinor(receipt.totalMinor, receipt.currency)}
+                </span>
+                {receipt.status === 'VOIDED' && <Badge tone="danger">Anulado</Badge>}
+              </span>
+            </Link>
+          ))}
+        </Card>
+      ) : (
+        <p className="text-sm text-muted">
+          Ainda sem recibos. Os recibos de clínicas parceiras aparecem aqui quando a clínica os emite e a partilha das
+          marcações está ativa.
+        </p>
+      )}
+    </section>
   )
 }
 
@@ -286,6 +381,11 @@ function Claims({ scope, policy, reloadKey }: { scope: Scope; policy: InsuranceP
             </Badge>
           </div>
           <p className="text-sm text-muted">Pedido {formatWhen(claim.createdAt)}</p>
+          {claim.receipts && claim.receipts.length > 0 && (
+            <p className="text-sm text-muted">
+              Recibos anexados: {claim.receipts.map((r) => receiptNumber(r.number)).join(', ')}
+            </p>
+          )}
           {claim.decisionNote && <p className="text-sm">Nota da seguradora: {claim.decisionNote}</p>}
           {claim.status === 'APPROVED' && (
             <Button
@@ -515,6 +615,7 @@ export function MemberInsurancePage() {
             description="Guarde o cartão do seguro e, se a seguradora for parceira, peça reembolsos."
           />
         ))}
+      {state.status === 'success' && <ClinicReceipts scope={scope} />}
 
       {editing && state.status === 'success' && (
         <PolicyForm

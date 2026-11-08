@@ -2,7 +2,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import { ClinicSearch } from '@/components/clinic/ClinicSearch'
 import { ClinicSidebar } from '@/components/clinic/ClinicSidebar'
-import { clinicNav } from '@/components/clinic/clinicNav'
+import { clinicNav, visibleNavItems } from '@/components/clinic/clinicNav'
 import { ClinicAuthProvider, useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { cn } from '@/lib/cn'
@@ -25,9 +25,10 @@ export function ClinicPortalRoot() {
 }
 
 /** Pedidos por responder (contador na navegação); atualiza a cada navegação. */
-function usePendingRequests(): number {
+function usePendingRequests(enabled: boolean): number {
   const { pathname } = useLocation()
-  const { state } = useAsync(() => clinicPortalService.listRequests(), [pathname])
+  // O Médico não vê pedidos (BR-CLN-39): nem sequer se pergunta ao servidor.
+  const { state } = useAsync(() => (enabled ? clinicPortalService.listRequests() : Promise.resolve([])), [pathname, enabled])
   return state.status === 'success' ? state.data.length : 0
 }
 
@@ -37,10 +38,10 @@ function usePendingRequests(): number {
  * página usa o espaço em colunas em vez de uma só coluna estreita.
  */
 export function ClinicShell() {
-  const { session, isAdmin, logout } = useClinicAuth()
+  const { session, isAdmin, isDoctor, logout } = useClinicAuth()
   const navigate = useNavigate()
-  const pending = usePendingRequests()
-  const tabs = clinicNav.filter((item) => isAdmin || !item.adminOnly)
+  const pending = usePendingRequests(!isDoctor)
+  const tabs = visibleNavItems(clinicNav, { isAdmin, isDoctor })
 
   async function signOut() {
     await logout()
@@ -49,7 +50,7 @@ export function ClinicShell() {
 
   return (
     <div className="min-h-dvh">
-      <ClinicSidebar session={session} isAdmin={isAdmin} pending={pending} onSignOut={() => void signOut()} />
+      <ClinicSidebar session={session} isAdmin={isAdmin} isDoctor={isDoctor} pending={pending} onSignOut={() => void signOut()} />
 
       <header className="bg-brand pt-safe text-white lg:hidden">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
@@ -99,7 +100,8 @@ export function ClinicShell() {
         id="conteudo"
         className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-5 pb-[max(2rem,env(safe-area-inset-bottom))] lg:mx-0 lg:max-w-[calc(16rem+84rem)] lg:gap-6 lg:py-8 lg:pr-10 lg:pl-[calc(16rem+2.5rem)]"
       >
-        <ClinicSearch />
+        {/* Sem pesquisa global para o Médico (BR-CLN-39). */}
+        {!isDoctor && <ClinicSearch />}
         <Outlet />
       </main>
     </div>

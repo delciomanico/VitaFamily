@@ -15,6 +15,18 @@ import {
 } from '@/types/clinic'
 import { LINK_CODE_ALPHABET } from '@/types/clinicConsent'
 import { memberName } from '../access'
+import {
+  isDoctor,
+  ownsAppointment,
+  ownsExam,
+  ownsPatient,
+  ownsSlot,
+  ownsVisit,
+  recordClinicAudit,
+  requireAnyAccount,
+  requireStaffAccount,
+  scrubReceipt,
+} from '../clinicRoles'
 import { effectiveConsent, ensureBookingsConsent, linkMember, patientOfMember, toPublicPatient } from '../clinicPatients'
 import { todayISO } from '@/lib/date'
 import type { MockClinicAccountRecord } from '../data/clinicAccounts'
@@ -22,7 +34,14 @@ import type { MockClinicPatient } from '../data/clinicPatients'
 import { addMonths } from '../data/clinicPatients'
 import { db, newId } from '../db'
 import { respond } from '../respond'
-import { displayNameOf, toBooking, toClinicRecommendation, toExamBooking, toVisitBooking } from './clinicPortal'
+import {
+  displayNameOf,
+  recommendationOwned,
+  toBooking,
+  toClinicRecommendation,
+  toExamBooking,
+  toVisitBooking,
+} from './clinicPortal'
 
 /*
  * Pacientes da clínica, ficha, histórico partilhado, ligação por código, pesquisa e calendário
@@ -31,12 +50,8 @@ import { displayNameOf, toBooking, toClinicRecommendation, toExamBooking, toVisi
  * base Vita (BR-CLN-22) e nunca devolve ids Vita (BR-CLN-17).
  */
 
-function requireAccount(clinicAccountId: string): MockClinicAccountRecord {
-  const account = db.clinicAccounts.find((a) => a.id === clinicAccountId)
-  if (!account) throw new AppError('INVALID_CREDENTIALS')
-  if (account.status !== 'ACTIVE') throw new AppError('ACCOUNT_SUSPENDED')
-  return account
-}
+/** Qualquer papel: o Médico só passa nas rotas de leitura/ficha e vê os seus pacientes (BR-CLN-39). */
+const requireAccount = requireAnyAccount
 
 const PHONE_PATTERN = /^[+0-9 ()-]{5,30}$/
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -112,9 +127,10 @@ function cleanPatientFields(input: Partial<ClinicPatientInput>, now: Date) {
   return fields
 }
 
-function ownPatient(clinicId: string, id: string): MockClinicPatient {
-  const patient = db.clinicPatients.find((p) => p.id === id && p.clinicId === clinicId)
-  if (!patient) throw new AppError('NOT_FOUND')
+/** Paciente da clínica; o Médico só chega aos que tiveram marcação com o seu profissional (BR-CLN-39). */
+function ownPatient(account: MockClinicAccountRecord, id: string): MockClinicPatient {
+  const patient = db.clinicPatients.find((p) => p.id === id && p.clinicId === account.clinicId)
+  if (!patient || !ownsPatient(account, patient)) throw new AppError('NOT_FOUND')
   return patient
 }
 
@@ -125,14 +141,15 @@ export function listClinicPatients(
   now: Date = new Date(),
 ) {
   return respond((): ClinicPatientPage => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireAccount(clinicAccountId)
+    const { clinicId } = account
     const q = cleanQuery(params.q, false)
     const limit = params.limit ?? 25
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new AppError('VALIDATION_ERROR')
     const offset = params.cursor === undefined ? 0 : Number(params.cursor)
     if (!Number.isInteger(offset) || offset < 0) throw new AppError('VALIDATION_ERROR')
     const all = db.clinicPatients
-      .filter((p) => p.clinicId === clinicId && (!q || matchesPatient(p, q)))
+      .filter((p) => p.clinicId === clinicId && (!q || matchesPatient(p, q)) && ownsPatient(account, p))
       .map((p) => toPublicPatient(p, now))
       .sort(byName)
     const items = all.slice(offset, offset + limit)
@@ -143,7 +160,8 @@ export function listClinicPatients(
 /** `POST /clinic-portal/patients`: paciente de balcão (origin=MANUAL, sem ligação Vita). */
 export function createClinicPatient(clinicAccountId: string, input: ClinicPatientInput, now: Date = new Date()) {
   return respond((): ClinicPatient => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireStaffAccount(clinicAccountId)
+    const { clinicId } = account
     if (input.name === undefined) throw new AppError('VALIDATION_ERROR')
     const fields = cleanPatientFields(input, now)
     const stamp = now.toISOString()
@@ -161,6 +179,7 @@ export function createClinicPatient(clinicAccountId: string, input: ClinicPatien
       updatedAt: stamp,
     }
     db.clinicPatients.push(patient)
+    recordClinicAudit(account, 'CLINIC_PATIENT_CREATE', 'ClinicPatient', patient.id)
     return toPublicPatient(patient, now)
   })
 }
@@ -168,8 +187,7 @@ export function createClinicPatient(clinicAccountId: string, input: ClinicPatien
 /** `GET /clinic-portal/patients/{id}`. */
 export function getClinicPatient(clinicAccountId: string, patientId: string, now: Date = new Date()) {
   return respond((): ClinicPatient => {
-    const { clinicId } = requireAccount(clinicAccountId)
-    return toPublicPatient(ownPatient(clinicId, patientId), now)
+    return toPublicPatient(ownPatient(requireAccount(clinicAccountId), patientId), now)
   })
 }
 
@@ -181,8 +199,7 @@ export function updateClinicPatient(
   now: Date = new Date(),
 ) {
   return respond((): ClinicPatient => {
-    const { clinicId } = requireAccount(clinicAccountId)
-    const patient = ownPatient(clinicId, patientId)
+    const patient = ownPatient(requireStaffAccount(clinicAccountId), patientId)
     if (Object.keys(patch).length === 0) throw new AppError('VALIDATION_ERROR')
     if (patch.name === null) throw new AppError('VALIDATION_ERROR')
     const fields = cleanPatientFields(patch, now)
@@ -197,28 +214,33 @@ export function updateClinicPatient(
 /** `GET /clinic-portal/patients/{id}/record`: só atividade da própria clínica (BR-CLN-03/17). */
 export function getClinicPatientRecord(clinicAccountId: string, patientId: string, now: Date = new Date()) {
   return respond((): ClinicPatientRecord => {
-    const { clinicId } = requireAccount(clinicAccountId)
-    const patient = ownPatient(clinicId, patientId)
+    const account = requireAccount(clinicAccountId)
+    const { clinicId } = account
+    const patient = ownPatient(account, patientId)
     const memberId = patient.memberId
     const newestFirst = (a: { scheduledAt: string }, b: { scheduledAt: string }) => b.scheduledAt.localeCompare(a.scheduledAt)
     const bookings: ClinicBooking[] = [
       ...(memberId
-        ? db.appointments.filter((a) => a.clinicId === clinicId && a.memberId === memberId).map((a) => toBooking(a, now))
+        ? db.appointments
+            .filter((a) => a.clinicId === clinicId && a.memberId === memberId && ownsAppointment(account, a))
+            .map((a) => scrubReceipt(account, toBooking(a, now)))
         : []),
-      ...db.clinicVisits.filter((v) => v.clinicId === clinicId && v.clinicPatientId === patient.id).map((v) => toVisitBooking(v, now)),
+      ...db.clinicVisits
+        .filter((v) => v.clinicId === clinicId && v.clinicPatientId === patient.id && ownsVisit(account, v))
+        .map((v) => scrubReceipt(account, toVisitBooking(v, now))),
     ]
       .sort(newestFirst)
       .slice(0, MAX_RECORD_ITEMS)
     const examinations = memberId
       ? db.examinations
-          .filter((e) => e.clinicId === clinicId && e.slotId && e.memberId === memberId)
-          .map(toExamBooking)
+          .filter((e) => e.clinicId === clinicId && e.slotId && e.memberId === memberId && ownsExam(account, e))
+          .map((e) => scrubReceipt(account, toExamBooking(e)))
           .sort(newestFirst)
           .slice(0, MAX_RECORD_ITEMS)
       : []
     const recommendations = memberId
       ? db.recommendations
-          .filter((r) => r.clinicId === clinicId && r.memberId === memberId)
+          .filter((r) => r.clinicId === clinicId && r.memberId === memberId && recommendationOwned(account, r))
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
           .slice(0, MAX_RECORD_ITEMS)
           .map(toClinicRecommendation)
@@ -234,8 +256,9 @@ export function getClinicPatientRecord(clinicAccountId: string, patientId: strin
  */
 export function getClinicSharedHistory(clinicAccountId: string, patientId: string, now: Date = new Date()) {
   return respond((): ClinicSharedHistory => {
-    const { clinicId } = requireAccount(clinicAccountId)
-    const patient = ownPatient(clinicId, patientId)
+    const account = requireAccount(clinicAccountId)
+    const { clinicId } = account
+    const patient = ownPatient(account, patientId)
     const consent = patient.memberId ? effectiveConsent(patient.memberId, clinicId, now) : undefined
     if (!patient.memberId || consent?.level !== 'HISTORY') {
       return { active: false, level: consent?.level ?? null, validUntil: null, medications: [], examinations: [] }
@@ -286,14 +309,15 @@ export function linkClinicPatient(
   now: Date = new Date(),
 ) {
   return respond((): ClinicPatient => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireStaffAccount(clinicAccountId)
+    const { clinicId } = account
     const code = String(input.code ?? '').replace(/-/g, '').toUpperCase()
     if (code.length !== 8 || [...code].some((c) => !LINK_CODE_ALPHABET.includes(c))) throw new AppError('VALIDATION_ERROR')
     const entry = db.clinicLinkCodes.find((c) => c.code === code && !c.used && Date.parse(c.expiresAt) > now.getTime())
     if (!entry) throw new AppError('NOT_FOUND')
     const member = db.members.find((m) => m.id === entry.memberId && m.status === 'ACTIVE')
     if (!member) throw new AppError('NOT_FOUND')
-    const target = input.clinicPatientId ? ownPatient(clinicId, input.clinicPatientId) : undefined
+    const target = input.clinicPatientId ? ownPatient(account, input.clinicPatientId) : undefined
     const existing = patientOfMember(clinicId, member.id)
 
     if (target) {
@@ -403,6 +427,15 @@ function calendarEntries(clinicId: string, now: Date = new Date()): ClinicCalend
   return entries
 }
 
+/** Ids das marcações do Médico (consultas, exames e visitas do seu profissional). */
+function ownedBookingIds(account: MockClinicAccountRecord): Set<string> {
+  const ids = new Set<string>()
+  for (const a of db.appointments) if (a.clinicId === account.clinicId && ownsAppointment(account, a)) ids.add(a.id)
+  for (const e of db.examinations) if (e.clinicId === account.clinicId && ownsExam(account, e)) ids.add(e.id)
+  for (const v of db.clinicVisits) if (v.clinicId === account.clinicId && ownsVisit(account, v)) ids.add(v.id)
+  return ids
+}
+
 /** `GET /clinic-portal/calendar?from&to&professionalId`: janela [from, to) de até 31 dias. */
 export function getClinicCalendar(
   clinicAccountId: string,
@@ -410,7 +443,8 @@ export function getClinicCalendar(
   now: Date = new Date(),
 ) {
   return respond((): ClinicCalendar => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireAccount(clinicAccountId)
+    const { clinicId } = account
     const from = Date.parse(params.from)
     const to = Date.parse(params.to)
     if (Number.isNaN(from) || Number.isNaN(to) || to <= from || to - from > MAX_CALENDAR_DAYS * 86_400_000) {
@@ -420,13 +454,18 @@ export function getClinicCalendar(
     if (professionalId && !db.professionals.some((p) => p.id === professionalId && p.clinicId === clinicId)) {
       throw new AppError('NOT_FOUND')
     }
+    // Médico: só a sua coluna; o `professionalId` de outro → NOT_FOUND (BR-CLN-39).
+    if (isDoctor(account) && professionalId && professionalId !== account.professionalId) throw new AppError('NOT_FOUND')
+    const mine = isDoctor(account) ? ownedBookingIds(account) : null
     const inWindow = (iso: string) => Date.parse(iso) >= from && Date.parse(iso) < to
     const entries = calendarEntries(clinicId, now)
       .filter((e) => inWindow(e.startsAt) && (!professionalId || e.professionalId === professionalId))
+      .filter((e) => !mine || mine.has(e.id))
       .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
     const freeSlots = db.slots
       .filter((s) => s.clinicId === clinicId && inWindow(s.startsAt) && Date.parse(s.startsAt) > now.getTime())
       .filter((s) => !professionalId || s.professionalId === professionalId)
+      .filter((s) => isDoctor(account) === false || ownsSlot(account, s))
       .map((s) => ({ slot: s, remaining: remainingOf(s) }))
       .filter(({ remaining }) => remaining >= 1)
       .sort((a, b) => a.slot.startsAt.localeCompare(b.slot.startsAt))
@@ -456,7 +495,7 @@ function remainingOf(slot: (typeof db.slots)[number]): number {
 /** `GET /clinic-portal/search?q`: até 10 pacientes e 10 marcações da própria clínica; nunca a base Vita. */
 export function clinicGlobalSearch(clinicAccountId: string, q: string, now: Date = new Date()) {
   return respond((): ClinicSearchResult => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const { clinicId } = requireStaffAccount(clinicAccountId)
     const text = cleanQuery(q, true)!
     const needle = fold(text)
     const patients = db.clinicPatients

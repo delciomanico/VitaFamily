@@ -26,6 +26,8 @@ import {
   type ClinicPatientRecord,
   type ClinicSharedHistory,
 } from '@/types/clinic'
+import { ReceiptAction } from '@/components/clinic/ReceiptAction'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { LinkPatientModal } from './LinkPatientModal'
 import { PatientFormModal } from './PatientFormModal'
 import { sharingLabel } from './patientLabels'
@@ -41,6 +43,8 @@ const TABS: TabItem<TabValue>[] = [
 
 /** Estado do consentimento, em linguagem simples, e o que a clínica pode ver (BR-CLN-19/21). */
 function SharingCard({ patient, onLink }: { patient: ClinicPatient; onLink: () => void }) {
+  // Ligar um paciente Vita é de Admin e Gestor; o Médico só lê (BR-CLN-39).
+  const { isDoctor } = useClinicAuth()
   const link = patient.vitaLink
   if (!link) {
     return (
@@ -54,9 +58,11 @@ function SharingCard({ patient, onLink }: { patient: ClinicPatient; onLink: () =
             </p>
           </div>
         </div>
-        <Button size="sm" variant="secondary" onClick={onLink} icon={<Link2 className="size-4" aria-hidden />}>
-          Ligar paciente Vita
-        </Button>
+        {!isDoctor && (
+          <Button size="sm" variant="secondary" onClick={onLink} icon={<Link2 className="size-4" aria-hidden />}>
+            Ligar paciente Vita
+          </Button>
+        )}
       </Card>
     )
   }
@@ -77,6 +83,7 @@ function SharingCard({ patient, onLink }: { patient: ClinicPatient; onLink: () =
 }
 
 function InternalNotes({ patient, onSaved }: { patient: ClinicPatient; onSaved: (patient: ClinicPatient) => void }) {
+  const { isDoctor } = useClinicAuth()
   const [editing, setEditing] = useState(false)
   const [notes, setNotes] = useState(patient.notes ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -99,7 +106,8 @@ function InternalNotes({ patient, onSaved }: { patient: ClinicPatient; onSaved: 
     <DetailSection
       title="Notas internas"
       action={
-        !editing && (
+        !editing &&
+        !isDoctor && (
           <Button variant="ghost" size="sm" onClick={() => setEditing(true)} icon={<Pencil className="size-4" aria-hidden />}>
             {patient.notes ? 'Editar' : 'Adicionar'}
           </Button>
@@ -166,7 +174,7 @@ function Summary({ patient, onChanged, onLink }: { patient: ClinicPatient; onCha
   )
 }
 
-function BookingRow({ booking }: { booking: ClinicBooking }) {
+function BookingRow({ booking, onChanged }: { booking: ClinicBooking; onChanged: () => void }) {
   const status = appointmentStatus[booking.status]
   return (
     <div className="flex items-center gap-3 py-3">
@@ -181,11 +189,29 @@ function BookingRow({ booking }: { booking: ClinicBooking }) {
       <Badge tone={status.tone} dot>
         {status.label}
       </Badge>
+      {booking.status === 'COMPLETED' && (
+        <ReceiptAction
+          bookingKind={booking.source === 'MANUAL' ? 'VISIT' : 'APPOINTMENT'}
+          bookingId={booking.id}
+          receiptId={booking.receiptId}
+          patientName={booking.patientName}
+          serviceName={booking.specialty}
+          onChanged={onChanged}
+        />
+      )}
     </div>
   )
 }
 
-function ExamRow({ exam }: { exam: ClinicExamBooking }) {
+function ExamRow({
+  exam,
+  patientName,
+  onChanged,
+}: {
+  exam: ClinicExamBooking
+  patientName: string
+  onChanged: () => void
+}) {
   const status = examinationStatus[exam.status]
   return (
     <div className="flex items-center gap-3 py-3">
@@ -197,11 +223,30 @@ function ExamRow({ exam }: { exam: ClinicExamBooking }) {
       <Badge tone={status.tone} dot>
         {status.label}
       </Badge>
+      {exam.status === 'COMPLETED' && (
+        <ReceiptAction
+          bookingKind="EXAM"
+          bookingId={exam.id}
+          receiptId={exam.receiptId}
+          patientName={patientName}
+          serviceName={exam.examType}
+          onChanged={onChanged}
+        />
+      )}
     </div>
   )
 }
 
-function Activity({ record, onBook }: { record: ClinicPatientRecord; onBook: () => void }) {
+function Activity({
+  record,
+  onBook,
+  onChanged,
+}: {
+  record: ClinicPatientRecord
+  onBook: () => void
+  onChanged: () => void
+}) {
+  const { isDoctor } = useClinicAuth()
   const empty = record.bookings.length === 0 && record.examinations.length === 0
   if (empty) {
     return (
@@ -210,9 +255,11 @@ function Activity({ record, onBook }: { record: ClinicPatientRecord; onBook: () 
         title="Ainda sem consultas nem exames."
         description="Aqui aparece a atividade da clínica com este paciente."
         action={
-          <Button size="sm" onClick={onBook}>
-            Marcar consulta
-          </Button>
+          isDoctor ? undefined : (
+            <Button size="sm" onClick={onBook}>
+              Marcar consulta
+            </Button>
+          )
         }
       />
     )
@@ -223,7 +270,7 @@ function Activity({ record, onBook }: { record: ClinicPatientRecord; onBook: () 
         {record.bookings.length > 0 ? (
           <Card className="divide-y divide-border py-1">
             {record.bookings.map((booking) => (
-              <BookingRow key={booking.id} booking={booking} />
+              <BookingRow key={booking.id} booking={booking} onChanged={onChanged} />
             ))}
           </Card>
         ) : (
@@ -234,7 +281,7 @@ function Activity({ record, onBook }: { record: ClinicPatientRecord; onBook: () 
         {record.examinations.length > 0 ? (
           <Card className="divide-y divide-border py-1">
             {record.examinations.map((exam) => (
-              <ExamRow key={exam.id} exam={exam} />
+              <ExamRow key={exam.id} exam={exam} patientName={record.patient.name} onChanged={onChanged} />
             ))}
           </Card>
         ) : (
@@ -269,6 +316,7 @@ function Recommendations({ record }: { record: ClinicPatientRecord }) {
 
 /** Histórico partilhado (UC-CLN-17): só leitura, medicação ativa e exames, sem interpretação. */
 function SharedHistory({ patient, onLink }: { patient: ClinicPatient; onLink: () => void }) {
+  const { isDoctor } = useClinicAuth()
   const { state, reload } = useAsync(() => clinicPatientsService.getSharedHistory(patient.id), [patient.id])
   if (state.status === 'loading') return <LoadingState rows={3} />
   if (state.status === 'error') return <ErrorState onRetry={reload} />
@@ -285,7 +333,8 @@ function SharedHistory({ patient, onLink }: { patient: ClinicPatient; onLink: ()
             : 'Só os pacientes Vita ligados à clínica e com o consentimento ativo partilham a medicação e os exames.'
         }
         action={
-          !patient.vitaLink && (
+          !patient.vitaLink &&
+          !isDoctor && (
             <Button size="sm" variant="secondary" onClick={onLink} icon={<Link2 className="size-4" aria-hidden />}>
               Ligar paciente Vita
             </Button>
@@ -448,6 +497,7 @@ function PatientView({
   onChanged: () => void
 }) {
   const { patient } = record
+  const { isDoctor } = useClinicAuth()
   const sharing = sharingLabel(patient)
   return (
     <>
@@ -460,19 +510,21 @@ function PatientView({
             <Badge>{patient.origin === 'VITA' ? 'Veio da Vita Family' : 'Criado na clínica'}</Badge>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={onBook} icon={<CalendarPlus className="size-4" aria-hidden />}>
-            Marcar consulta
-          </Button>
-          <Button size="sm" variant="secondary" onClick={onEdit} icon={<Pencil className="size-4" aria-hidden />}>
-            Editar
-          </Button>
-        </div>
+        {!isDoctor && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={onBook} icon={<CalendarPlus className="size-4" aria-hidden />}>
+              Marcar consulta
+            </Button>
+            <Button size="sm" variant="secondary" onClick={onEdit} icon={<Pencil className="size-4" aria-hidden />}>
+              Editar
+            </Button>
+          </div>
+        )}
       </div>
       <Tabs items={TABS} value={tab} onChange={onTab} label="Secções da ficha" scrollable />
       <div role="tabpanel" className="max-w-3xl">
         {tab === 'summary' && <Summary patient={patient} onChanged={onChanged} onLink={onLink} />}
-        {tab === 'activity' && <Activity record={record} onBook={onBook} />}
+        {tab === 'activity' && <Activity record={record} onBook={onBook} onChanged={onChanged} />}
         {tab === 'recommendations' && <Recommendations record={record} />}
         {tab === 'shared' && <SharedHistory patient={patient} onLink={onLink} />}
       </div>

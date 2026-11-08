@@ -27,7 +27,9 @@ export interface ClinicTokenResponse {
   accessToken: string
   expiresIn: number
   clinicId: string
-  role: 'CLINIC_ADMIN' | 'CLINIC_MANAGER'
+  role: 'CLINIC_ADMIN' | 'CLINIC_MANAGER' | 'CLINIC_DOCTOR'
+  /** M14 R (BR-CLN-39): só em `CLINIC_DOCTOR`. */
+  professionalId?: string | null
 }
 
 /** Chama `/api/v1/clinic-portal/...` com o token da clínica (nunca o de `User`). */

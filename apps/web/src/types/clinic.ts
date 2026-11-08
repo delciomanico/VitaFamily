@@ -8,13 +8,19 @@ export interface Clinic {
   phone?: string
   email?: string
   status: 'ACTIVE' | 'ARCHIVED'
+  /** M14 R (BR-CLN-38): nome de apresentação da clínica parceira; a app mostra `displayName ?? name`. */
+  displayName?: string
+  /** M14 R: descrição curta (≤500). */
+  description?: string
+  /** M14 R: horário de funcionamento em texto livre (≤500). */
+  openingHours?: string
 }
 
 /**
  * Papéis do portal da clínica (authorization.md §6, D18): o Admin da clínica é criado pelo
  * Platform Admin e gere, por self-service, os Gestores da própria clínica.
  */
-export type ClinicRole = 'CLINIC_ADMIN' | 'CLINIC_MANAGER'
+export type ClinicRole = 'CLINIC_ADMIN' | 'CLINIC_MANAGER' | 'CLINIC_DOCTOR'
 
 /**
  * Conta do portal da clínica (`ClinicAccount`, ADR-020) — **não** é um `User`: outra tabela,
@@ -26,7 +32,16 @@ export interface ClinicAccount {
   clinicId: string
   email: string
   role: ClinicRole
+  /** M14 R (BR-CLN-39): só em `CLINIC_DOCTOR`, o profissional cuja agenda e pacientes a conta vê. */
+  professionalId?: string
   status: 'ACTIVE' | 'SUSPENDED'
+}
+
+/** `ClinicStaffInput` (BR-CLN-05/39): Gestor (omissão) ou Médico, este com `professionalId`. */
+export interface ClinicStaffInput {
+  email: string
+  role?: 'CLINIC_MANAGER' | 'CLINIC_DOCTOR'
+  professionalId?: string
 }
 
 /**
@@ -38,6 +53,8 @@ export interface ClinicAccount {
 export interface ClinicSession {
   clinicId: string
   role: ClinicRole
+  /** M14 R: só no Médico (também vai nos claims do token). */
+  professionalId?: string
   email?: string
   clinicName?: string
 }
@@ -132,6 +149,8 @@ export interface ClinicBooking {
   waitingMinutes?: number
   /** M14 Q (BR-CLN-30): retorno proposto ainda por tratar (yyyy-mm-dd). */
   followUpDueOn?: string
+  /** M14 R (BR-CLN-31): recibo `ISSUED` da marcação; nunca devolvido ao Médico (BR-CLN-39). */
+  receiptId?: string
 }
 
 /** `ConfirmationStatus` (openapi.yaml): PENDING = "Sem resposta". */
@@ -204,6 +223,8 @@ export interface ClinicExamBooking {
   responseNote?: string
   resultsCount: number
   documents: ClinicDocument[]
+  /** M14 R (BR-CLN-31): recibo `ISSUED` do exame; nunca devolvido ao Médico. */
+  receiptId?: string
 }
 
 /** Parâmetro de resultado emitido pela clínica (`ExamResultInput`). */

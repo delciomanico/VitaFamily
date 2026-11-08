@@ -3,7 +3,18 @@ import { at } from '../time'
 
 /** Clínicas fictícias. */
 export const clinics: Clinic[] = [
-  { id: 'cln_horizonte', type: 'PARTNER', name: 'Clínica Horizonte', status: 'ACTIVE' },
+  {
+    id: 'cln_horizonte',
+    type: 'PARTNER',
+    name: 'Clínica Horizonte',
+    status: 'ACTIVE',
+    displayName: 'Clínica Horizonte',
+    address: 'Rua da Missão 12, Luanda',
+    phone: '+244 923 000 111',
+    email: 'geral@clinicahorizonte.pt',
+    openingHours: 'Seg a Sex 08:00–18:00 · Sáb 09:00–13:00',
+    description: 'Consultas de especialidade e análises clínicas.',
+  },
   { id: 'cln_vidaplena', type: 'PARTNER', name: 'Laboratório Vida Plena', status: 'ACTIVE' },
   { id: 'cln_bairro', type: 'PRIVATE', familyId: 'fam_monarca', name: 'Centro de Saúde do Bairro', status: 'ACTIVE' },
 ]

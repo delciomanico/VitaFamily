@@ -3,6 +3,8 @@ import {
   BarChart3,
   CalendarClock,
   ClipboardList,
+  Receipt,
+  Settings,
   FlaskConical,
   Inbox,
   LayoutDashboard,
@@ -18,6 +20,8 @@ export interface ClinicNavItem {
   icon: LucideIcon
   /** Só o Admin da clínica (BR-CLN-05). */
   adminOnly?: boolean
+  /** Escondido ao Médico (BR-CLN-39): só Hoje, Agenda, Pacientes e Exames lhe aparecem. */
+  hiddenForDoctor?: boolean
   /** Correspondência exata (a raiz `/clinic` não pode ficar ativa nas filhas). */
   end: boolean
   /** Mostra o contador de pedidos por responder. */
@@ -40,10 +44,10 @@ export const clinicNavGroups: ClinicNavGroup[] = [
   {
     title: 'Agenda',
     items: [
-      { to: paths.clinicRequests, label: 'Pedidos', icon: Inbox, end: false, pending: true },
+      { to: paths.clinicRequests, label: 'Pedidos', icon: Inbox, end: false, pending: true, hiddenForDoctor: true },
       { to: paths.clinicAgenda, label: 'Calendário', icon: CalendarDays, end: false },
-      { to: paths.clinicSlots, label: 'Horários', icon: CalendarClock, end: false },
-      { to: paths.clinicServices, label: 'Serviços', icon: ClipboardList, end: false },
+      { to: paths.clinicSlots, label: 'Horários', icon: CalendarClock, end: false, hiddenForDoctor: true },
+      { to: paths.clinicServices, label: 'Serviços', icon: ClipboardList, end: false, hiddenForDoctor: true },
     ],
   },
   { title: 'Pacientes', items: [{ to: paths.clinicPatients, label: 'Pacientes', icon: UserRound, end: false }] },
@@ -51,7 +55,9 @@ export const clinicNavGroups: ClinicNavGroup[] = [
   {
     title: 'Gestão',
     items: [
-      { to: paths.clinicReports, label: 'Relatórios', icon: BarChart3, end: false },
+      { to: paths.clinicFinance, label: 'Financeiro', icon: Receipt, end: false, hiddenForDoctor: true },
+      { to: paths.clinicReports, label: 'Relatórios', icon: BarChart3, end: false, hiddenForDoctor: true },
+      { to: paths.clinicSettings, label: 'Definições', icon: Settings, end: false, hiddenForDoctor: true },
       { to: paths.clinicStaff, label: 'Contas', icon: Users, end: false, adminOnly: true },
     ],
   },
@@ -59,3 +65,8 @@ export const clinicNavGroups: ClinicNavGroup[] = [
 
 /** Lista plana (separadores do telemóvel). */
 export const clinicNav: ClinicNavItem[] = clinicNavGroups.flatMap((group) => group.items)
+
+/** O que o papel pode ver (a decisão real é do servidor; isto só poupa cliques inúteis). */
+export function visibleNavItems(items: ClinicNavItem[], role: { isAdmin: boolean; isDoctor: boolean }): ClinicNavItem[] {
+  return items.filter((item) => (role.isAdmin || !item.adminOnly) && (!role.isDoctor || !item.hiddenForDoctor))
+}

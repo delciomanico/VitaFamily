@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Check, Phone, Repeat } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { localDay } from '@/lib/appointment'
 import { todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
@@ -9,6 +10,7 @@ import { formatDayMonth } from '@/lib/format'
 import { clinicDayService } from '@/services/clinicDay.service'
 import type { ClinicBooking } from '@/types/clinic'
 import { deriveDayState } from '@/lib/clinicDay'
+import { ReceiptAction } from './ReceiptAction'
 
 interface BookingDayActionsProps {
   booking: ClinicBooking
@@ -36,6 +38,8 @@ export function BookingDayActions({
   completeLabel = 'Concluir',
 }: BookingDayActionsProps) {
   const toast = useToast()
+  // O Médico inicia, conclui e propõe retorno; não marca chegada, falta nem confirmação (BR-CLN-39).
+  const { isDoctor } = useClinicAuth()
   const [busy, setBusy] = useState<Action | null>(null)
   const now = Date.now()
   const state = booking.dayState ?? deriveDayState(booking.status, booking.arrivedAt, booking.startedAt)
@@ -72,10 +76,14 @@ export function BookingDayActions({
   const buttons: ReactNode[] = []
   if (state === 'SCHEDULED') {
     if (isToday) {
+      if (!isDoctor) {
+        buttons.push(
+          <Button key="arrive" size="sm" variant="soft" loading={busy === 'arrive'} onClick={() => void run('arrive')}>
+            Chegou
+          </Button>,
+        )
+      }
       buttons.push(
-        <Button key="arrive" size="sm" variant="soft" loading={busy === 'arrive'} onClick={() => void run('arrive')}>
-          Chegou
-        </Button>,
         <Button key="start" size="sm" variant="soft" loading={busy === 'start'} onClick={() => void run('start')}>
           Iniciar
         </Button>,
@@ -86,12 +94,16 @@ export function BookingDayActions({
         <Button key="done" size="sm" icon={<Check className="size-4" aria-hidden />} onClick={() => onComplete(booking)}>
           {completeLabel}
         </Button>,
-        <Button key="noShow" size="sm" variant="danger-ghost" loading={busy === 'noShow'} onClick={() => void run('noShow')}>
-          Faltou
-        </Button>,
       )
+      if (!isDoctor) {
+        buttons.push(
+          <Button key="noShow" size="sm" variant="danger-ghost" loading={busy === 'noShow'} onClick={() => void run('noShow')}>
+            Faltou
+          </Button>,
+        )
+      }
     }
-    if (future && (booking.confirmationStatus ?? 'PENDING') === 'PENDING') {
+    if (!isDoctor && future && (booking.confirmationStatus ?? 'PENDING') === 'PENDING') {
       buttons.push(
         <Button
           key="confirm"
@@ -120,7 +132,7 @@ export function BookingDayActions({
         {completeLabel}
       </Button>,
     )
-  } else if (state === 'NO_SHOW' && isToday) {
+  } else if (state === 'NO_SHOW' && isToday && !isDoctor) {
     // Desfazer a falta: o paciente chegou tarde (BR-CLN-28).
     buttons.push(
       <Button key="arrive" size="sm" variant="soft" loading={busy === 'arrive'} onClick={() => void run('arrive')}>
@@ -138,6 +150,15 @@ export function BookingDayActions({
       >
         {booking.followUpDueOn ? `Retorno: ${formatDayMonth(booking.followUpDueOn)}` : 'Voltar em…'}
       </Button>,
+      <ReceiptAction
+        key="receipt"
+        bookingKind={booking.source === 'MANUAL' ? 'VISIT' : 'APPOINTMENT'}
+        bookingId={booking.id}
+        receiptId={booking.receiptId}
+        patientName={booking.patientName}
+        serviceName={booking.specialty}
+        onChanged={onChanged}
+      />,
     )
   }
 

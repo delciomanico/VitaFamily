@@ -55,7 +55,12 @@ const apiImpl = {
   submitClaim: (familyId: string, _userId: string, memberId: string, policyId: string, input: ClaimInput) =>
     apiFetch<ReimbursementClaim>(`${policiesPath(familyId, memberId)}/${policyId}/reimbursement-claims`, {
       method: 'POST',
-      body: { amount: input.amount, currency: input.currency ?? 'EUR', documentIds: input.documentIds },
+      body: {
+        amount: input.amount,
+        currency: input.currency ?? 'EUR',
+        documentIds: input.documentIds,
+        receiptIds: input.receiptIds ?? [],
+      },
     }),
   markClaimPaid: (familyId: string, _userId: string, memberId: string, policyId: string, claimId: string) =>
     apiFetch<ReimbursementClaim>(`${policiesPath(familyId, memberId)}/${policyId}/reimbursement-claims/${claimId}/paid`, {

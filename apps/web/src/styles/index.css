@@ -162,3 +162,30 @@
     }
   }
 }
+
+/*
+ * Impressão de recibos (M14 R, BR-CLN-37): só o documento `.print-area` é impresso; o botão
+ * "Imprimir / Guardar PDF" usa a impressão do navegador (sem PDF no servidor, OP-41).
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

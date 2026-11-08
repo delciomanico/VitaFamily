@@ -2,6 +2,7 @@ import { AppError } from '@/lib/errors'
 import type { ClaimDecision, ClaimStatus, InsuranceAccount, InsuranceClaimView, InsuranceSession } from '@/types/insurance'
 import { DEMO_PASSWORD } from '../data/users'
 import type { MockInsuranceAccountRecord } from '../data/insurers'
+import { insuranceReceiptSummaries } from '../clinicReceipts'
 import { db, newId } from '../db'
 import { respond } from '../respond'
 
@@ -110,6 +111,7 @@ function toView(claim: (typeof db.reimbursementClaims)[number]): InsuranceClaimV
     policyNumber: policy?.policyNumber ?? '',
     decisionNote: claim.decisionNote,
     documentIds: claim.documentIds,
+    receipts: insuranceReceiptSummaries(claim.receiptIds),
   }
 }
 

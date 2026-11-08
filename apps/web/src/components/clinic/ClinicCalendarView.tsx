@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { Tabs } from '@/components/ui/Tabs'
 import { ErrorState, LoadingState } from '@/components/ui/states'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { cn } from '@/lib/cn'
 import { todayISO } from '@/lib/date'
@@ -133,7 +134,12 @@ export function ClinicCalendarView({ onBookSlot, version = 0 }: ClinicCalendarVi
   const [day, setDay] = useState(todayISO())
   const [professionalId, setProfessionalId] = useState('')
 
-  const professionals = useAsync(() => clinicCatalogService.listProfessionals({ active: true }), [])
+  // O Médico vê só a sua coluna e não lê o catálogo (BR-CLN-39).
+  const { isDoctor, session } = useClinicAuth()
+  const professionals = useAsync(
+    () => (isDoctor ? Promise.resolve([]) : clinicCatalogService.listProfessionals({ active: true })),
+    [isDoctor],
+  )
   const start = range === 'week' ? weekStart(day) : day
   const end = addDays(start, range === 'week' ? 7 : 1)
   const { state, reload } = useAsync(
@@ -146,7 +152,12 @@ export function ClinicCalendarView({ onBookSlot, version = 0 }: ClinicCalendarVi
     [start, end, professionalId, version],
   )
 
-  const list = professionals.state.status === 'success' ? professionals.state.data : []
+  const list =
+    isDoctor && session?.professionalId
+      ? [{ id: session.professionalId, name: 'A minha agenda', specialty: undefined }]
+      : professionals.state.status === 'success'
+        ? professionals.state.data
+        : []
   const shift = range === 'week' ? 7 : 1
   const title =
     range === 'week' ? `${formatLongDate(parseDay(start).toISOString())} – ${formatLongDate(parseDay(addDays(start, 6)).toISOString())}` : formatLongDate(parseDay(day).toISOString())
@@ -175,7 +186,7 @@ export function ClinicCalendarView({ onBookSlot, version = 0 }: ClinicCalendarVi
             <ChevronRight className="size-4" aria-hidden />
           </Button>
         </div>
-        <div className="min-w-44 flex-1 sm:max-w-64">
+        {!isDoctor && <div className="min-w-44 flex-1 sm:max-w-64">
           <Select
             label="Profissional"
             value={professionalId}
@@ -183,7 +194,7 @@ export function ClinicCalendarView({ onBookSlot, version = 0 }: ClinicCalendarVi
             options={list.map((p) => ({ value: p.id, label: p.name }))}
             onChange={(event) => setProfessionalId(event.target.value)}
           />
-        </div>
+        </div>}
       </div>
       <p className="font-medium first-letter:uppercase">{title}</p>
 

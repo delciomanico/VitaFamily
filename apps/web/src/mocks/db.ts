@@ -22,7 +22,19 @@ import type { Recommendation } from '@/types/recommendation'
 import type { DataExport, NotificationPreferences } from '@/types/settings'
 import { scanAlerts, type MockAlert } from './alertRules'
 import { generateRules } from './clinicSchedule'
+import type { ClinicAuditEntry, ClinicReceipt } from '@/types/clinicReceipt'
 import type { ClinicProfessional, ClinicScheduleRule, ClinicServiceType, ClinicTimeOff } from '@/types/clinic'
+
+/** Recibo no mock: `clinicId` e a ligação ao paciente (`clinic_receipt_links`, BR-CLN-35) nunca saem. */
+export interface MockClinicReceipt extends ClinicReceipt {
+  clinicId: string
+  link: { familyId: string; memberId: string } | null
+}
+
+/** Entrada de auditoria da clínica (`audit_logs.actor_clinic_id`, BR-CLN-40): sem PII por construção. */
+export interface MockClinicAuditEntry extends ClinicAuditEntry {
+  clinicId: string
+}
 
 export interface MockNotificationPreferences extends NotificationPreferences {
   userId: string
@@ -70,7 +82,15 @@ function seed(now: Date = new Date()) {
     /** Apólices dos membros (BR-INS-01); `familyId` só no mock, o contrato não o devolve. */
     insurancePolicies: [] as Array<InsurancePolicy & { familyId: string }>,
     /** Pedidos de reembolso (BR-INS-03); `insurerId` congelado na submissão, `decidedAt` só no mock. */
-    reimbursementClaims: [] as Array<ReimbursementClaim & { familyId: string; memberId: string; insurerId: string }>,
+    reimbursementClaims: [] as Array<
+      ReimbursementClaim & { familyId: string; memberId: string; insurerId: string; receiptIds?: string[] }
+    >,
+    /** Recibos das clínicas (M14 R, BR-CLN-31..35). */
+    clinicReceipts: [] as MockClinicReceipt[],
+    /** Contador sequencial por clínica (BR-CLN-32): último número atribuído. */
+    clinicReceiptCounters: {} as Record<string, number>,
+    /** Auditoria das contas do portal (BR-CLN-40). */
+    clinicAudit: [] as MockClinicAuditEntry[],
     /** Catálogo da clínica (M14, BR-CLN-11); `clinicId` só no mock (o contrato usa a clínica da sessão). */
     professionals: structuredClone(seedProfessionals) as Array<ClinicProfessional & { clinicId: string }>,
     services: structuredClone(seedServices) as Array<ClinicServiceType & { clinicId: string }>,

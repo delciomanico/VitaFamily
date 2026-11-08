@@ -1,3 +1,5 @@
+import type { ClinicReceiptLine, ReceiptStatus } from './clinicReceipt'
+
 /** `Insurer` (openapi.yaml): seguradora parceira gerida pelo Platform Admin (ADR-021, BR-ADM-05). */
 export interface Insurer {
   id: string
@@ -62,13 +64,37 @@ export interface ReimbursementClaim {
   status: ClaimStatus
   decisionNote: string | null
   documentIds: string[]
+  /** M14 R (BR-CLN-36): recibos de clínica anexados; vazio se não houver. */
+  receipts?: ClaimReceiptRef[]
   createdAt: string
+}
+
+/** `ClaimReceiptRef`: referência a um recibo anexado a um pedido (lado do titular). */
+export interface ClaimReceiptRef {
+  receiptId: string
+  number: number
+  status: ReceiptStatus
+  totalMinor: number
+  currency: string
 }
 
 export interface ClaimInput {
   amount: number
   currency?: string
   documentIds: string[]
+  /** M14 R: `documentIds` + `receiptIds` entre 1 e 10 no total. */
+  receiptIds?: string[]
+}
+
+/** `InsuranceClaimReceipt`: resumo mínimo visto pela seguradora (BR-CLN-36) — sem ids, profissional nem método. */
+export interface InsuranceClaimReceipt {
+  number: number
+  issuedAt: string
+  clinicName: string
+  lines: Array<Pick<ClinicReceiptLine, 'description' | 'amountMinor'>>
+  totalMinor: number
+  currency: string
+  status: ReceiptStatus
 }
 
 export const INSURANCE_TEXT_MAX = 200
@@ -90,6 +116,7 @@ export interface InsuranceClaimView {
   policyNumber: string
   decisionNote: string | null
   documentIds: string[]
+  receipts?: InsuranceClaimReceipt[]
 }
 
 export type ClaimDecision = 'APPROVE' | 'REJECT'

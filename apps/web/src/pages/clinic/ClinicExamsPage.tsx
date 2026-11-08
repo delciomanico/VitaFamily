@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FileText, FlaskConical } from 'lucide-react'
 import { RecommendationModal } from '@/components/domain/RecommendationModal'
 import { DaySelector } from '@/components/clinic/DaySelector'
+import { ReceiptAction } from '@/components/clinic/ReceiptAction'
 import { nextDays } from '@/components/domain/DatePickers'
 import { Badge, type Tone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -11,6 +12,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { localDay } from '@/lib/appointment'
 import { todayISO } from '@/lib/date'
@@ -35,6 +37,8 @@ const statuses: Record<ClinicExamBooking['status'], { label: string; tone: Tone 
  */
 export function ClinicExamsPage() {
   const toast = useToast()
+  // O Médico vê e conclui os seus exames, mas não os cancela nem emite recibos (BR-CLN-39).
+  const { isDoctor } = useClinicAuth()
   const { state, reload } = useAsync(() => clinicPortalService.listExamAgenda(), [])
   const [day, setDay] = useState<string | null>(todayISO())
   const [cancelling, setCancelling] = useState<ClinicExamBooking | null>(null)
@@ -122,9 +126,21 @@ export function ClinicExamsPage() {
                             Emitir resultados
                           </Button>
                         ) : (
-                          <Button variant="danger-ghost" size="sm" onClick={() => setCancelling(exam)}>
-                            Cancelar exame
-                          </Button>
+                          !isDoctor && (
+                            <Button variant="danger-ghost" size="sm" onClick={() => setCancelling(exam)}>
+                              Cancelar exame
+                            </Button>
+                          )
+                        )}
+                        {exam.status === 'COMPLETED' && (
+                          <ReceiptAction
+                            bookingKind="EXAM"
+                            bookingId={exam.id}
+                            receiptId={exam.receiptId}
+                            patientName={exam.patientName}
+                            serviceName={exam.examType}
+                            onChanged={reload}
+                          />
                         )}
                       </div>
                     )}

@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom'
 import { CalendarDays, FlaskConical, Inbox, Ticket } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { localDay } from '@/lib/appointment'
 import { todayISO } from '@/lib/date'
@@ -23,12 +24,14 @@ function Stat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; v
 /** Resumo do dia : pedidos por responder, consultas e exames de hoje, vagas livres. Atualiza a cada navegação. */
 export function ClinicStatsBar() {
   const { pathname } = useLocation()
+  const { isDoctor } = useClinicAuth()
   const { state } = useAsync(async () => {
+    // O Médico só vê a sua agenda: sem pedidos nem vagas (BR-CLN-39).
     const [requests, agenda, exams, slots] = await Promise.all([
-      clinicPortalService.listRequests(),
+      isDoctor ? Promise.resolve([]) : clinicPortalService.listRequests(),
       clinicPortalService.listAgenda(),
       clinicPortalService.listExamAgenda(),
-      clinicPortalService.listSlots(),
+      isDoctor ? Promise.resolve([]) : clinicPortalService.listSlots(),
     ])
     const today = todayISO()
     return {
@@ -37,15 +40,15 @@ export function ClinicStatsBar() {
       exams: exams.filter((b) => b.status === 'SCHEDULED' && localDay(b.scheduledAt) === today).length,
       freeSlots: slots.reduce((sum, slot) => sum + slot.remaining, 0),
     }
-  }, [pathname])
+  }, [pathname, isDoctor])
   const data = state.status === 'success' ? state.data : null
 
   return (
-    <section aria-label="Resumo" className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-      <Stat icon={Inbox} label="Pedidos por responder" value={data?.requests ?? null} />
+    <section aria-label="Resumo" className={`grid grid-cols-2 gap-3 lg:gap-4 ${isDoctor ? 'lg:grid-cols-2' : 'lg:grid-cols-4'}`}>
+      {!isDoctor && <Stat icon={Inbox} label="Pedidos por responder" value={data?.requests ?? null} />}
       <Stat icon={CalendarDays} label="Consultas hoje" value={data?.consultations ?? null} />
       <Stat icon={FlaskConical} label="Exames hoje" value={data?.exams ?? null} />
-      <Stat icon={Ticket} label="Vagas livres" value={data?.freeSlots ?? null} />
+      {!isDoctor && <Stat icon={Ticket} label="Vagas livres" value={data?.freeSlots ?? null} />}
     </section>
   )
 }

@@ -39,6 +39,7 @@ export const roleLabels: Record<FamilyRole, string> = {
 export const clinicRole: Record<ClinicRole, string> = {
   CLINIC_ADMIN: 'Admin da clínica',
   CLINIC_MANAGER: 'Gestor da clínica',
+  CLINIC_DOCTOR: 'Médico',
 }
 
 /** Categorias de partilha C2–C6 (C1 é sempre visível). */

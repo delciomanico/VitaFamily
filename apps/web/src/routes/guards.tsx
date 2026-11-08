@@ -59,6 +59,17 @@ export function RequireClinicAdmin() {
   return <Outlet />
 }
 
+/**
+ * Áreas de gestão (Financeiro, Relatórios, Pedidos, Horários, Serviços, Definições): Admin e
+ * Gestor. O Médico não as vê (BR-CLN-39, authorization.md §6.2b) — a navegação esconde-as e a
+ * rota redireciona para "Hoje"; a decisão real é do servidor.
+ */
+export function RequireClinicStaff() {
+  const { isStaff } = useClinicAuth()
+  if (!isStaff) return <Navigate to={paths.clinic} replace />
+  return <Outlet />
+}
+
 /** Login do portal: com sessão de clínica já iniciada, segue para os pedidos. */
 export function ClinicGuestOnly() {
   const { status, session } = useClinicAuth()

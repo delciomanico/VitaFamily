@@ -49,7 +49,7 @@ export function SpecialtyField({ value, onChange, error }: SpecialtyFieldProps) 
 
 interface ChoiceListProps<T extends string> {
   label: string
-  options: Array<{ value: T; title: string; description?: string }>
+  options: Array<{ value: T; title: string; description?: string; details?: string[] }>
   value: T | null
   onChange: (value: T) => void
 }
@@ -81,6 +81,11 @@ export function ChoiceList<T extends string>({ label, options, value, onChange }
               <span className="min-w-0 flex-1">
                 <span className="block font-medium">{option.title}</span>
                 {option.description && <span className="block text-sm text-muted">{option.description}</span>}
+                {option.details?.map((line) => (
+                  <span key={line} className="block text-sm text-muted">
+                    {line}
+                  </span>
+                ))}
               </span>
               <span
                 className={cn(

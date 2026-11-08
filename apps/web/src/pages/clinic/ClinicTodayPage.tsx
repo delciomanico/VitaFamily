@@ -5,6 +5,7 @@ import { BookingDayActions } from '@/components/clinic/BookingDayActions'
 import { ConfirmationBadge } from '@/components/clinic/ConfirmationBadge'
 import { FollowUpModal } from '@/components/clinic/FollowUpModal'
 import { ClinicStatsBar } from '@/components/clinic/ClinicStatsBar'
+import { IssueReceiptModal } from '@/components/clinic/IssueReceiptModal'
 import { WalkInBookingModal } from '@/components/clinic/WalkInBookingModal'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -12,6 +13,7 @@ import { Card } from '@/components/ui/Card'
 import { DetailSection } from '@/components/ui/InfoList'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { localDay } from '@/lib/appointment'
 import { todayISO } from '@/lib/date'
@@ -20,6 +22,7 @@ import { dayStateLabel } from '@/lib/clinicDay'
 import { errorMessage } from '@/lib/errors'
 import { appointmentStatus } from '@/lib/labels'
 import { paths } from '@/routes/paths'
+import { useNavigate } from 'react-router-dom'
 import { clinicCatalogService } from '@/services/clinicCatalog.service'
 import { clinicDayService } from '@/services/clinicDay.service'
 import { clinicPortalService } from '@/services/clinicPortal.service'
@@ -156,17 +159,21 @@ const PENDING_PREVIEW = 5
  */
 export function ClinicTodayPage() {
   const toast = useToast()
+  const navigate = useNavigate()
+  // O Médico só vê o seu dia: sem pedidos, vagas, serviços nem marcação presencial (BR-CLN-39).
+  const { isDoctor } = useClinicAuth()
   const [walkIn, setWalkIn] = useState(false)
   const [completing, setCompleting] = useState<ClinicBooking | null>(null)
+  const [receiptFor, setReceiptFor] = useState<ClinicBooking | null>(null)
   const [followingUp, setFollowingUp] = useState<ClinicBooking | null>(null)
   const { state, reload } = useAsync(async () => {
     const [requests, agenda, exams, slots, services, followUps] = await Promise.all([
-      clinicPortalService.listRequests(),
+      isDoctor ? Promise.resolve([]) : clinicPortalService.listRequests(),
       clinicPortalService.listAgenda(),
       clinicPortalService.listExamAgenda(),
-      clinicPortalService.listSlots(),
+      isDoctor ? Promise.resolve([]) : clinicPortalService.listSlots(),
       // Aviso opcional: se o catálogo falhar, a página "Hoje" continua a funcionar sem ele.
-      clinicCatalogService.listServices({ active: true }).catch(() => null),
+      isDoctor ? Promise.resolve(null) : clinicCatalogService.listServices({ active: true }).catch(() => null),
       // Idem para os retornos a contactar (M14 Q).
       clinicDayService.listFollowUps().catch((): ClinicFollowUp[] => []),
     ])
@@ -206,7 +213,7 @@ export function ClinicTodayPage() {
       freeSlots: slots.reduce((sum, slot) => sum + slot.remaining, 0),
       noServices: services !== null && services.length === 0,
     }
-  }, [])
+  }, [isDoctor])
 
   return (
     <>
@@ -216,19 +223,23 @@ export function ClinicTodayPage() {
           <p className="text-sm text-muted first-letter:uppercase">{formatLongDate(new Date().toISOString())}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => setWalkIn(true)} icon={<UserPlus className="size-4" aria-hidden />}>
-            Consulta presencial
-          </Button>
+          {!isDoctor && (
+            <Button size="sm" onClick={() => setWalkIn(true)} icon={<UserPlus className="size-4" aria-hidden />}>
+              Consulta presencial
+            </Button>
+          )}
           <Link to={paths.clinicPatients}>
             <Button size="sm" variant="secondary" icon={<Search className="size-4" aria-hidden />}>
               Pesquisar paciente
             </Button>
           </Link>
-          <Link to={paths.clinicSlots}>
-            <Button size="sm" variant="secondary" icon={<CalendarClock className="size-4" aria-hidden />}>
-              Novo horário
-            </Button>
-          </Link>
+          {!isDoctor && (
+            <Link to={paths.clinicSlots}>
+              <Button size="sm" variant="secondary" icon={<CalendarClock className="size-4" aria-hidden />}>
+                Novo horário
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -277,39 +288,43 @@ export function ClinicTodayPage() {
                 icon={CalendarDays}
                 title="Sem consultas nem exames hoje."
                 description={
-                  state.data.freeSlots === 0
-                    ? 'Não há vagas livres: publique horários para receber pedidos.'
-                    : 'Marque uma consulta presencial ou aguarde pedidos.'
+                  isDoctor
+                    ? 'A sua agenda de hoje está vazia.'
+                    : state.data.freeSlots === 0
+                      ? 'Não há vagas livres: publique horários para receber pedidos.'
+                      : 'Marque uma consulta presencial ou aguarde pedidos.'
                 }
               />
             )}
           </DetailSection>
 
-          <DetailSection title={`Pedidos por responder (${state.data.requests.length})`}>
-            {state.data.requests.length > 0 ? (
-              <Card className="divide-y divide-border py-1">
-                {state.data.requests.slice(0, PENDING_PREVIEW).map((request) => (
-                  <div key={request.id} className="flex items-center gap-3 py-3">
-                    <Inbox className="size-5 shrink-0 text-primary" aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{request.patientName}</p>
-                      <p className="truncate text-sm text-muted">
-                        {formatWhen(request.scheduledAt)}
-                        {request.specialty ? ` · ${request.specialty}` : ''}
-                      </p>
+          {!isDoctor && (
+            <DetailSection title={`Pedidos por responder (${state.data.requests.length})`}>
+              {state.data.requests.length > 0 ? (
+                <Card className="divide-y divide-border py-1">
+                  {state.data.requests.slice(0, PENDING_PREVIEW).map((request) => (
+                    <div key={request.id} className="flex items-center gap-3 py-3">
+                      <Inbox className="size-5 shrink-0 text-primary" aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{request.patientName}</p>
+                        <p className="truncate text-sm text-muted">
+                          {formatWhen(request.scheduledAt)}
+                          {request.specialty ? ` · ${request.specialty}` : ''}
+                        </p>
+                      </div>
                     </div>
+                  ))}
+                  <div className="flex justify-end pt-3 pb-2">
+                    <Link to={paths.clinicRequests} className="text-sm font-medium text-primary">
+                      {state.data.requests.length > PENDING_PREVIEW ? 'Ver todos e responder' : 'Responder'}
+                    </Link>
                   </div>
-                ))}
-                <div className="flex justify-end pt-3 pb-2">
-                  <Link to={paths.clinicRequests} className="text-sm font-medium text-primary">
-                    {state.data.requests.length > PENDING_PREVIEW ? 'Ver todos e responder' : 'Responder'}
-                  </Link>
-                </div>
-              </Card>
-            ) : (
-              <EmptyState icon={Inbox} title="Sem pedidos por responder." />
-            )}
-          </DetailSection>
+                </Card>
+              ) : (
+                <EmptyState icon={Inbox} title="Sem pedidos por responder." />
+              )}
+            </DetailSection>
+          )}
 
           <FollowUps items={state.data.followUps} onChanged={reload} />
         </div>
@@ -320,9 +335,27 @@ export function ClinicTodayPage() {
           booking={completing}
           onClose={() => setCompleting(null)}
           onCompleted={() => {
+            const done = completing
             setCompleting(null)
             toast.show('Consulta concluída.')
             reload()
+            // Ao concluir, oferece-se logo o recibo (um toque); o Médico não emite (BR-CLN-39).
+            if (!isDoctor) setReceiptFor(done)
+          }}
+        />
+      )}
+
+      {receiptFor && (
+        <IssueReceiptModal
+          bookingKind={receiptFor.source === 'MANUAL' ? 'VISIT' : 'APPOINTMENT'}
+          bookingId={receiptFor.id}
+          patientName={receiptFor.patientName}
+          serviceName={receiptFor.specialty}
+          onClose={() => setReceiptFor(null)}
+          onIssued={(receipt) => {
+            setReceiptFor(null)
+            toast.show('Recibo emitido.')
+            navigate(paths.clinicReceipt(receipt.id))
           }}
         />
       )}

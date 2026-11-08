@@ -55,7 +55,7 @@ describe('portal da seguradora', () => {
     const [view] = await portal.listInsuranceClaims(AGENT)
     expect(view).toMatchObject({ id: claim.id, policyHolderName: 'Maria', policyNumber: 'P-9', status: 'SUBMITTED' })
     expect(Object.keys(view!).sort()).toEqual(
-      ['amount', 'currency', 'decisionNote', 'documentIds', 'id', 'policyHolderName', 'policyNumber', 'status'],
+      ['amount', 'currency', 'decisionNote', 'documentIds', 'id', 'policyHolderName', 'policyNumber', 'receipts', 'status'],
     )
   })
 

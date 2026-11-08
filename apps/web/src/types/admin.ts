@@ -25,7 +25,7 @@ export interface AdminClinicAccount {
   id: string
   clinicId: string
   email: string
-  role: 'CLINIC_ADMIN' | 'CLINIC_MANAGER'
+  role: 'CLINIC_ADMIN' | 'CLINIC_MANAGER' | 'CLINIC_DOCTOR'
   status: 'ACTIVE' | 'SUSPENDED'
   createdAt: string
   lastLoginAt: string | null

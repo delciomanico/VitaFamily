@@ -18,8 +18,12 @@ import type { ClinicSession } from '@/types/clinic'
 interface ClinicAuthContextValue {
   status: 'loading' | 'ready'
   session: ClinicSession | null
-  /** Só o Admin da clínica gere os Gestores (BR-CLN-05). */
+  /** Só o Admin da clínica gere a equipa, edita o perfil e vê a auditoria (BR-CLN-05/38/40). */
   isAdmin: boolean
+  /** Médico (BR-CLN-39): só Hoje, Agenda, Pacientes e Exames, e só os seus. */
+  isDoctor: boolean
+  /** Admin ou Gestor: Financeiro, Relatórios, Definições (leitura), pedidos, horários e serviços. */
+  isStaff: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -58,7 +62,15 @@ export function ClinicAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<ClinicAuthContextValue>(
-    () => ({ status, session, isAdmin: session?.role === 'CLINIC_ADMIN', login, logout }),
+    () => ({
+      status,
+      session,
+      isAdmin: session?.role === 'CLINIC_ADMIN',
+      isDoctor: session?.role === 'CLINIC_DOCTOR',
+      isStaff: session?.role === 'CLINIC_ADMIN' || session?.role === 'CLINIC_MANAGER',
+      login,
+      logout,
+    }),
     [status, session, login, logout],
   )
 

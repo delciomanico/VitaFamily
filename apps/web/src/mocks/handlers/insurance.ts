@@ -8,6 +8,7 @@ import type {
 } from '@/types/insurance'
 import { INSURANCE_TEXT_MAX } from '@/types/insurance'
 import { memberAccess } from '../access'
+import { activeClaimsOfReceipt, claimReceiptRefs } from '../clinicReceipts'
 import { db, newId } from '../db'
 import { respond } from '../respond'
 
@@ -31,8 +32,14 @@ const publicClaim = ({
   familyId: _f,
   memberId: _m,
   insurerId: _i,
+  receiptIds,
   ...claim
-}: ReimbursementClaim & { familyId: string; memberId: string; insurerId: string }): ReimbursementClaim => claim
+}: ReimbursementClaim & {
+  familyId: string
+  memberId: string
+  insurerId: string
+  receiptIds?: string[]
+}): ReimbursementClaim => ({ ...claim, receipts: claimReceiptRefs(receiptIds) })
 
 function validatePolicy(input: InsurancePolicyInput) {
   const texts = [input.insurerName, input.policyNumber, input.holderName]
@@ -149,9 +156,26 @@ export function submitReimbursementClaim(
     const cents = Math.round(input.amount * 100)
     if (!(input.amount > 0) || Math.abs(cents - input.amount * 100) > 1e-6) throw new AppError('VALIDATION_ERROR')
     const ids = [...new Set(input.documentIds)]
+    const receiptIds = [...new Set(input.receiptIds ?? [])]
     const own = db.documents.filter((d) => d.familyId === familyId && d.memberId === memberId)
-    if (ids.length < 1 || ids.length > 10 || ids.some((id) => !own.some((d) => d.id === id && d.scanStatus !== 'INFECTED'))) {
+    // M14 R (BR-CLN-36): documentos + recibos entre 1 e 10 no total.
+    if (
+      ids.length + receiptIds.length < 1 ||
+      ids.length + receiptIds.length > 10 ||
+      receiptIds.length > 10 ||
+      ids.some((id) => !own.some((d) => d.id === id && d.scanStatus !== 'INFECTED'))
+    ) {
       throw new AppError('VALIDATION_ERROR')
+    }
+    const currency = input.currency ?? 'EUR'
+    for (const receiptId of receiptIds) {
+      // Só os recibos visíveis ao membro (BR-CLN-35); outro → NOT_FOUND.
+      const receipt = db.clinicReceipts.find(
+        (r) => r.id === receiptId && r.link?.familyId === familyId && r.link.memberId === memberId,
+      )
+      if (!receipt) throw new AppError('NOT_FOUND')
+      if (receipt.status !== 'ISSUED' || activeClaimsOfReceipt(receipt.id).length > 0) throw new AppError('CONFLICT')
+      if (receipt.currency !== currency) throw new AppError('VALIDATION_ERROR')
     }
     const claim = {
       id: newId('clm'),
@@ -160,10 +184,11 @@ export function submitReimbursementClaim(
       insurerId: insurer.id,
       policyId,
       amount: input.amount,
-      currency: input.currency ?? 'EUR',
+      currency,
       status: 'SUBMITTED' as const,
       decisionNote: null,
       documentIds: ids,
+      receiptIds,
       createdAt: new Date().toISOString(),
     }
     db.reimbursementClaims.push(claim)

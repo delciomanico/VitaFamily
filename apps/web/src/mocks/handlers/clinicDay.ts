@@ -16,8 +16,10 @@ import { memberName } from '../access'
 import { FOLLOWUP_REMINDER_DAYS } from '../alertRules'
 import { expireRequests } from '../bookings'
 import { patientOfMember } from '../clinicPatients'
+import { ownsAppointment, ownsVisit, requireStaffAccount, scrubReceipt } from '../clinicRoles'
 import { db } from '../db'
 import { respond } from '../respond'
+import type { MockClinicAccountRecord } from '../data/clinicAccounts'
 import { requireAccount, toBooking, toVisitBooking } from './clinicPortal'
 
 /*
@@ -42,13 +44,20 @@ interface Target {
   view: (now: Date) => ClinicBooking
 }
 
-/** Marcação desta clínica (consulta Vita ou visita manual); de outra → NOT_FOUND (sem enumeração). */
-function findTarget(clinicId: string, id: string): Target {
+/**
+ * Marcação desta clínica (consulta Vita ou visita manual); de outra → NOT_FOUND (sem enumeração).
+ * O Médico só chega às suas (BR-CLN-39) e nunca recebe `receiptId`.
+ */
+function findTarget(account: MockClinicAccountRecord, id: string): Target {
+  const { clinicId } = account
   const visit = db.clinicVisits.find((v) => v.id === id && v.clinicId === clinicId)
-  if (visit) return { record: visit, view: (now) => toVisitBooking(visit, now) }
+  if (visit) {
+    if (!ownsVisit(account, visit)) throw new AppError('NOT_FOUND')
+    return { record: visit, view: (now) => scrubReceipt(account, toVisitBooking(visit, now)) }
+  }
   const appointment = db.appointments.find((a) => a.id === id && a.clinicId === clinicId)
-  if (!appointment) throw new AppError('NOT_FOUND')
-  return { record: appointment, view: (now) => toBooking(appointment, now) }
+  if (!appointment || !ownsAppointment(account, appointment)) throw new AppError('NOT_FOUND')
+  return { record: appointment, view: (now) => scrubReceipt(account, toBooking(appointment, now)) }
 }
 
 const isFuture = (record: DayRecord, now: Date) => Date.parse(record.scheduledAt) > now.getTime()
@@ -56,9 +65,9 @@ const isFuture = (record: DayRecord, now: Date) => Date.parse(record.scheduledAt
 /** `PUT /clinic-portal/agenda/{id}/confirm` (BR-CLN-27): SCHEDULED e futura → CONFIRMED (CLINIC). */
 export function confirmClinicBookingByPhone(clinicAccountId: string, id: string, now: Date = new Date()) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireStaffAccount(clinicAccountId)
     expireRequests(now)
-    const { record, view } = findTarget(clinicId, id)
+    const { record, view } = findTarget(account, id)
     if (record.status !== 'SCHEDULED' || !isFuture(record, now)) throw new AppError('CONFLICT')
     record.confirmationStatus = 'CONFIRMED'
     record.confirmationSource = 'CLINIC'
@@ -72,9 +81,9 @@ export function confirmClinicBookingByPhone(clinicAccountId: string, id: string,
  */
 export function arriveClinicBooking(clinicAccountId: string, id: string, now: Date = new Date()) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireStaffAccount(clinicAccountId)
     expireRequests(now)
-    const { record, view } = findTarget(clinicId, id)
+    const { record, view } = findTarget(account, id)
     if ((record.status !== 'SCHEDULED' && record.status !== 'NO_SHOW') || !isSameLocalDay(record.scheduledAt, now)) {
       throw new AppError('CONFLICT')
     }
@@ -87,9 +96,9 @@ export function arriveClinicBooking(clinicAccountId: string, id: string, now: Da
 /** `PUT …/start` (BR-CLN-28): SCHEDULED no dia local; `startedAt` (e `arrivedAt` se faltar) uma só vez. */
 export function startClinicBooking(clinicAccountId: string, id: string, now: Date = new Date()) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireAccount(clinicAccountId)
     expireRequests(now)
-    const { record, view } = findTarget(clinicId, id)
+    const { record, view } = findTarget(account, id)
     if (record.status !== 'SCHEDULED' || !isSameLocalDay(record.scheduledAt, now)) throw new AppError('CONFLICT')
     record.arrivedAt ??= now.toISOString()
     record.startedAt ??= now.toISOString()
@@ -100,9 +109,9 @@ export function startClinicBooking(clinicAccountId: string, id: string, now: Dat
 /** `PUT …/no-show` (BR-CLN-28): SCHEDULED, hora já iniciada e sem `startedAt` → NO_SHOW. Idempotente. */
 export function noShowClinicBooking(clinicAccountId: string, id: string, now: Date = new Date()) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireStaffAccount(clinicAccountId)
     expireRequests(now)
-    const { record, view } = findTarget(clinicId, id)
+    const { record, view } = findTarget(account, id)
     if (record.status === 'NO_SHOW') return view(now)
     if (record.status !== 'SCHEDULED' || isFuture(record, now) || record.startedAt) throw new AppError('CONFLICT')
     record.status = 'NO_SHOW'
@@ -115,8 +124,8 @@ export function noShowClinicBooking(clinicAccountId: string, id: string, now: Da
 /** `PUT …/follow-up`: "voltar em N semanas/meses" numa marcação COMPLETED; substitui o anterior. */
 export function setClinicFollowUp(clinicAccountId: string, id: string, input: ClinicFollowUpInput, now: Date = new Date()) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
-    const { record, view } = findTarget(clinicId, id)
+    const account = requireAccount(clinicAccountId)
+    const { record, view } = findTarget(account, id)
     const validAmount = Number.isInteger(input.amount) && input.amount >= 1 && input.amount <= FOLLOW_UP_MAX_AMOUNT
     if (!validAmount || (input.unit !== 'WEEKS' && input.unit !== 'MONTHS')) throw new AppError('VALIDATION_ERROR')
     if (record.status !== 'COMPLETED') throw new AppError('CONFLICT')
@@ -128,8 +137,8 @@ export function setClinicFollowUp(clinicAccountId: string, id: string, input: Cl
 /** `DELETE …/follow-up`: dá o retorno por tratado (idempotente). */
 export function clearClinicFollowUp(clinicAccountId: string, id: string, now: Date = new Date()) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
-    const { record, view } = findTarget(clinicId, id)
+    const account = requireAccount(clinicAccountId)
+    const { record, view } = findTarget(account, id)
     record.followUpDueOn = undefined
     return view(now)
   })
@@ -143,7 +152,8 @@ const addDays = (day: string, days: number) => {
 /** `GET /clinic-portal/follow-ups?until`: retornos por tratar até `until` (omissão: hoje + 14 dias). */
 export function listClinicFollowUps(clinicAccountId: string, until?: string, now: Date = new Date()) {
   return respond((): ClinicFollowUp[] => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireAccount(clinicAccountId)
+    const { clinicId } = account
     if (until !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new AppError('VALIDATION_ERROR')
     const today = todayISO(now)
     const limit = until ?? addDays(today, 14)
@@ -151,6 +161,7 @@ export function listClinicFollowUps(clinicAccountId: string, until?: string, now
     const items: ClinicFollowUp[] = []
     for (const a of db.appointments) {
       if (a.clinicId !== clinicId || a.status !== 'COMPLETED' || !a.followUpDueOn || a.followUpDueOn > limit) continue
+      if (!ownsAppointment(account, a)) continue
       const patient = patientOfMember(clinicId, a.memberId)
       items.push({
         bookingId: a.id,
@@ -164,6 +175,7 @@ export function listClinicFollowUps(clinicAccountId: string, until?: string, now
     }
     for (const v of db.clinicVisits) {
       if (v.clinicId !== clinicId || v.status !== 'COMPLETED' || !v.followUpDueOn || v.followUpDueOn > limit) continue
+      if (!ownsVisit(account, v)) continue
       const patient = db.clinicPatients.find((p) => p.id === v.clinicPatientId)
       items.push({
         bookingId: v.id,
@@ -215,7 +227,7 @@ export function getClinicReportSummary(
   now: Date = new Date(),
 ) {
   return respond((): ClinicReportSummary => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const { clinicId } = requireStaffAccount(clinicAccountId)
     const { from, to, professionalId } = params
     const valid = /^\d{4}-\d{2}-\d{2}$/
     if (!valid.test(from) || !valid.test(to) || to < from) throw new AppError('VALIDATION_ERROR')

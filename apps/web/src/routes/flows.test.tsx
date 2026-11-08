@@ -215,7 +215,7 @@ describe('fluxos de autenticação', () => {
     renderAt('/clinic/staff')
     expect(await screen.findByRole('heading', { name: 'Contas da clínica' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Novo Gestor' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Nova conta' }))
     type('E-mail', 'nova@clinicahorizonte.pt')
     fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
 
@@ -394,5 +394,125 @@ describe('fluxos de autenticação', () => {
     expect(await screen.findByText(/18 anos ou mais/)).toBeInTheDocument()
     expect(screen.getByText('As palavras-passe não coincidem.')).toBeInTheDocument()
     expect(screen.getByText('É necessário aceitar os termos para continuar.')).toBeInTheDocument()
+  })
+})
+
+describe('M14 R: recibos, perfil, Médico e auditoria', () => {
+  const completedToday = () => {
+    db.slots.push({
+      id: 'slot_r_flow',
+      clinicId: 'cln_horizonte',
+      kind: 'APPOINTMENT',
+      capacity: 1,
+      specialty: 'Consulta de cardiologia',
+      professionalId: 'pro_ana',
+      professionalName: 'Dr.ª Ana Costa',
+      serviceTypeId: 'svc_cardio',
+      startsAt: new Date().toISOString(),
+      durationMinutes: 30,
+    })
+    db.appointments.push({
+      id: 'apt_r_flow',
+      familyId: 'fam_monarca',
+      memberId: 'mem_maria',
+      scheduledAt: new Date(Math.max(Date.now() - 30 * 60_000, new Date().setHours(0, 0, 1, 0))).toISOString(),
+      status: 'COMPLETED',
+      slotId: 'slot_r_flow',
+      specialty: 'Consulta de cardiologia',
+      clinicId: 'cln_horizonte',
+      clinicName: 'Clínica Horizonte',
+    })
+  }
+
+  it('emitir recibo com um toque, ver o documento não fiscal e o total no Financeiro', async () => {
+    completedToday()
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_rececao')
+    renderAt('/clinic')
+    fireEvent.click(await screen.findByRole('button', { name: 'Emitir recibo' }))
+    const emit = await screen.findByRole('button', { name: 'Emitir' })
+    await waitFor(() => expect(emit).toBeEnabled())
+    fireEvent.click(emit)
+    expect(await screen.findByLabelText('Recibo R-000001', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getAllByText('Documento não fiscal').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /Imprimir/ })).toBeInTheDocument()
+    expect(db.clinicReceipts).toHaveLength(1)
+
+    cleanup()
+    renderAt('/clinic/finance')
+    expect(await screen.findByText('R-000001', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByText('Total emitido')).toBeInTheDocument()
+  })
+
+  it('anular com motivo tira o recibo do total', async () => {
+    completedToday()
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_rececao')
+    const { issueClinicReceipt } = await import('@/mocks/handlers/clinicReceipts')
+    const receipt = await issueClinicReceipt('cac_horizonte_rececao', {
+      bookingKind: 'APPOINTMENT',
+      bookingId: 'apt_r_flow',
+      paymentMethod: 'CASH',
+    })
+    renderAt(`/clinic/finance/${receipt.id}`)
+    fireEvent.click(await screen.findByRole('button', { name: 'Anular' }))
+    fireEvent.input(await screen.findByLabelText('Motivo da anulação'), { target: { value: 'Valor errado' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Anular recibo' }))
+    expect(await screen.findByText('Recibo anulado.')).toBeInTheDocument()
+    expect(db.clinicReceipts[0]).toMatchObject({ status: 'VOIDED', voidReason: 'Valor errado' })
+  })
+
+  it('o Médico só vê Hoje, Agenda, Pacientes e Exames; Financeiro e Definições redirecionam', async () => {
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_medica')
+    const router = renderAt('/clinic/finance')
+    expect(await screen.findByRole('heading', { name: 'Hoje' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/clinic')
+    for (const name of ['Financeiro', 'Relatórios', 'Definições', 'Contas', 'Pedidos', 'Horários', 'Serviços']) {
+      expect(screen.queryByRole('link', { name })).not.toBeInTheDocument()
+    }
+    expect(screen.getAllByRole('link', { name: 'Pacientes' }).length).toBeGreaterThan(0)
+    expect(screen.queryByLabelText('Pesquisa global')).not.toBeInTheDocument()
+    router.navigate('/clinic/settings')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/clinic'))
+  })
+
+  it('perfil: o Admin edita e o Gestor só lê', async () => {
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_admin')
+    renderAt('/clinic/settings')
+    const field = await screen.findByLabelText('Telefone')
+    fireEvent.input(field, { target: { value: '+244 900 111 222' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(await screen.findByText('Perfil atualizado.')).toBeInTheDocument()
+    expect(db.clinics.find((c) => c.id === 'cln_horizonte')?.phone).toBe('+244 900 111 222')
+
+    cleanup()
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_rececao')
+    renderAt('/clinic/settings')
+    expect(await screen.findByLabelText('Telefone')).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
+  })
+
+  it('auditoria: só o Admin, com ações traduzidas', async () => {
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_rececao')
+    const router = renderAt('/clinic/settings/audit')
+    await screen.findByRole('heading', { name: 'Hoje' })
+    expect(router.state.location.pathname).toBe('/clinic')
+
+    cleanup()
+    window.sessionStorage.setItem('vf.clinic.session.accountId', 'cac_horizonte_admin')
+    const { updateClinicProfile } = await import('@/mocks/handlers/clinicReceipts')
+    await updateClinicProfile('cac_horizonte_admin', { phone: '1 2 3 4 5' })
+    renderAt('/clinic/settings/audit')
+    expect(await screen.findByText('Atualizou o perfil da clínica')).toBeInTheDocument()
+  })
+
+  it('família: recibo recebido aparece em Seguro e reembolsos como comprovativo imprimível', async () => {
+    db.clinicConsents.push({ memberId: 'mem_maria', clinicId: 'cln_horizonte', level: 'BOOKINGS' })
+    completedToday()
+    const { issueClinicReceipt } = await import('@/mocks/handlers/clinicReceipts')
+    await issueClinicReceipt('cac_horizonte_rececao', { bookingKind: 'APPOINTMENT', bookingId: 'apt_r_flow', paymentMethod: 'CARD' })
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+    renderAt('/app/family/mem_maria/insurance')
+    fireEvent.click(await screen.findByRole('link', { name: /R-000001/ }))
+    expect(await screen.findByLabelText('Recibo R-000001', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Imprimir/ })).toBeInTheDocument()
   })
 })

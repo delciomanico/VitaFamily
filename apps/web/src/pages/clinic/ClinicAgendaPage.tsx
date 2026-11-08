@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { CalendarDays, UserPlus } from 'lucide-react'
 import { ClinicBookingList } from '@/components/domain/ClinicBookingList'
 import { RecommendationModal } from '@/components/domain/RecommendationModal'
 import { BookingDayActions } from '@/components/clinic/BookingDayActions'
 import { FollowUpModal } from '@/components/clinic/FollowUpModal'
 import { ClinicCalendarView } from '@/components/clinic/ClinicCalendarView'
+import { IssueReceiptModal } from '@/components/clinic/IssueReceiptModal'
 import { WalkInBookingModal } from '@/components/clinic/WalkInBookingModal'
 import { DaySelector } from '@/components/clinic/DaySelector'
 import { nextDays } from '@/components/domain/DatePickers'
@@ -15,11 +17,13 @@ import { Tabs } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { localDay } from '@/lib/appointment'
 import { todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { formatRelativeDay } from '@/lib/format'
+import { paths } from '@/routes/paths'
 import { clinicPortalService } from '@/services/clinicPortal.service'
 import type { ClinicBooking } from '@/types/clinic'
 import { CompleteConsultationForm } from './CompleteConsultationForm'
@@ -36,6 +40,10 @@ type View = 'calendar' | 'list'
  */
 export function ClinicAgendaPage() {
   const toast = useToast()
+  const navigate = useNavigate()
+  // Médico: só a sua agenda, sem consulta presencial nem cancelar (BR-CLN-39).
+  const { isDoctor } = useClinicAuth()
+  const [receiptFor, setReceiptFor] = useState<ClinicBooking | null>(null)
   const { state, reload } = useAsync(() => clinicPortalService.listAgenda(), [])
   const [day, setDay] = useState<string | null>(todayISO())
   const [cancelling, setCancelling] = useState<ClinicBooking | null>(null)
@@ -81,9 +89,11 @@ export function ClinicAgendaPage() {
     <>
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Agenda da clínica</h1>
-        <Button size="sm" onClick={() => setWalkIn(true)} icon={<UserPlus className="size-4" aria-hidden />}>
-          Consulta presencial
-        </Button>
+        {!isDoctor && (
+          <Button size="sm" onClick={() => setWalkIn(true)} icon={<UserPlus className="size-4" aria-hidden />}>
+            Consulta presencial
+          </Button>
+        )}
       </div>
       <Tabs
         label="Vista da agenda"
@@ -98,10 +108,14 @@ export function ClinicAgendaPage() {
       {view === 'calendar' && (
         <ClinicCalendarView
           version={calendarVersion}
-          onBookSlot={(slotId) => {
-            setSlotToBook(slotId)
-            setWalkIn(true)
-          }}
+          onBookSlot={
+            isDoctor
+              ? undefined
+              : (slotId) => {
+                  setSlotToBook(slotId)
+                  setWalkIn(true)
+                }
+          }
         />
       )}
       {view === 'list' && (
@@ -141,7 +155,7 @@ export function ClinicAgendaPage() {
                     onComplete={setCompleting}
                     onFollowUp={setFollowingUp}
                   />
-                  {booking.status === 'SCHEDULED' && Date.parse(booking.scheduledAt) > Date.now() && (
+                  {!isDoctor && booking.status === 'SCHEDULED' && Date.parse(booking.scheduledAt) > Date.now() && (
                     <Button variant="danger-ghost" size="sm" onClick={() => setCancelling(booking)}>
                       Cancelar consulta
                     </Button>
@@ -220,9 +234,26 @@ export function ClinicAgendaPage() {
           booking={completing}
           onClose={() => setCompleting(null)}
           onCompleted={() => {
+            const done = completing
             setCompleting(null)
             toast.show('Consulta concluída.')
             refresh()
+            if (!isDoctor) setReceiptFor(done)
+          }}
+        />
+      )}
+
+      {receiptFor && (
+        <IssueReceiptModal
+          bookingKind={receiptFor.source === 'MANUAL' ? 'VISIT' : 'APPOINTMENT'}
+          bookingId={receiptFor.id}
+          patientName={receiptFor.patientName}
+          serviceName={receiptFor.specialty}
+          onClose={() => setReceiptFor(null)}
+          onIssued={(receipt) => {
+            setReceiptFor(null)
+            toast.show('Recibo emitido.')
+            navigate(paths.clinicReceipt(receipt.id))
           }}
         />
       )}

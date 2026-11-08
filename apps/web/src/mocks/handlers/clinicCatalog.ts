@@ -22,8 +22,8 @@ import {
   type TimeOffResult,
 } from '@/types/clinic'
 import { CLINIC_CURRENCY } from '../data/clinicCatalog'
-import type { MockClinicAccountRecord } from '../data/clinicAccounts'
 import { bookedCountOf, generateRule, generateRules, rulesOverlap } from '../clinicSchedule'
+import { requireStaffAccount } from '../clinicRoles'
 import { db, newId } from '../db'
 import { respond } from '../respond'
 
@@ -33,12 +33,8 @@ import { respond } from '../respond'
  * outra clínica responde `NOT_FOUND`, como na API real.
  */
 
-function requireAccount(clinicAccountId: string): MockClinicAccountRecord {
-  const account = db.clinicAccounts.find((a) => a.id === clinicAccountId)
-  if (!account) throw new AppError('INVALID_CREDENTIALS')
-  if (account.status !== 'ACTIVE') throw new AppError('ACCOUNT_SUSPENDED')
-  return account
-}
+/** Catálogo, regras e bloqueios: Admin e Gestor; o Médico recebe `FORBIDDEN` (BR-CLN-39). */
+const requireAccount = requireStaffAccount
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/

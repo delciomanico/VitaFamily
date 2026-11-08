@@ -14,6 +14,8 @@ export interface MockClinicAccountRecord extends ClinicAccount {
 export const DEMO_CLINIC_ADMIN_EMAIL = 'admin@clinicahorizonte.pt'
 /** Gestor da Clínica Horizonte (criado por self-service pelo Admin da clínica). */
 export const DEMO_CLINIC_MANAGER_EMAIL = 'rececao@clinicahorizonte.pt'
+/** Médica da Clínica Horizonte (M14 R, BR-CLN-39): ligada ao profissional `pro_ana`. */
+export const DEMO_CLINIC_DOCTOR_EMAIL = 'medica@clinicahorizonte.pt'
 
 export const clinicAccounts: MockClinicAccountRecord[] = [
   {
@@ -30,6 +32,15 @@ export const clinicAccounts: MockClinicAccountRecord[] = [
     email: DEMO_CLINIC_MANAGER_EMAIL,
     password: DEMO_PASSWORD,
     role: 'CLINIC_MANAGER',
+    status: 'ACTIVE',
+  },
+  {
+    id: 'cac_horizonte_medica',
+    clinicId: 'cln_horizonte',
+    email: DEMO_CLINIC_DOCTOR_EMAIL,
+    password: DEMO_PASSWORD,
+    role: 'CLINIC_DOCTOR',
+    professionalId: 'pro_ana',
     status: 'ACTIVE',
   },
 ]

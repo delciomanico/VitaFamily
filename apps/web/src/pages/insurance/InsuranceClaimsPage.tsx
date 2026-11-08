@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, FileText, Inbox, X } from 'lucide-react'
+import { Check, FileText, Inbox, Receipt, X } from 'lucide-react'
 import { Badge, type Tone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -10,6 +10,8 @@ import { EmptyState, ErrorState, FormError, LoadingState } from '@/components/ui
 import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
 import { errorMessage, isAppError } from '@/lib/errors'
+import { formatShortDate } from '@/lib/format'
+import { formatMinor, receiptNumber } from '@/lib/receipt'
 import { insurancePortalService } from '@/services/insurancePortal.service'
 import type { ClaimDecision, ClaimStatus, InsuranceClaimView } from '@/types/insurance'
 
@@ -139,6 +141,31 @@ export function InsuranceClaimsPage() {
                   <FileText className="size-4" aria-hidden />
                   {claim.documentIds.length === 1 ? '1 documento anexado' : `${claim.documentIds.length} documentos anexados`}
                 </p>
+                {/* Resumo mínimo dos recibos que o titular anexou (BR-CLN-36): sem PDF, ids, profissional nem método. */}
+                {claim.receipts && claim.receipts.length > 0 && (
+                  <ul className="flex flex-col gap-2" aria-label="Recibos anexados">
+                    {claim.receipts.map((receipt) => (
+                      <li key={`${receipt.clinicName}-${receipt.number}`} className="rounded-lg bg-surface-muted p-3 text-sm">
+                        <p className="flex flex-wrap items-center gap-2 font-medium">
+                          <Receipt className="size-4" aria-hidden />
+                          {receiptNumber(receipt.number)} · {receipt.clinicName}
+                          {receipt.status === 'VOIDED' && <Badge tone="danger">Anulado</Badge>}
+                        </p>
+                        <p className="text-muted">
+                          {formatShortDate(receipt.issuedAt)} · {formatMinor(receipt.totalMinor, receipt.currency)}
+                        </p>
+                        <ul className="mt-1">
+                          {receipt.lines.map((line, index) => (
+                            <li key={index} className="flex justify-between gap-3">
+                              <span>{line.description}</span>
+                              <span className="tabular-nums">{formatMinor(line.amountMinor, receipt.currency)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {claim.decisionNote && <p className="text-sm">Nota: {claim.decisionNote}</p>}
                 {claim.status === 'SUBMITTED' && (
                   <div className="flex gap-2">

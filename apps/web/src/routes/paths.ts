@@ -34,6 +34,7 @@ export const paths = {
   family: '/app/family',
   familyMember: (id: string) => `/app/family/${id}`,
   familyMemberInsurance: (id: string) => `/app/family/${id}/insurance`,
+  familyMemberReceipt: (id: string, receiptId: string) => `/app/family/${id}/insurance/receipts/${receiptId}`,
   familyMemberHistory: (id: string) => `/app/family/${id}/history`,
 
   watch: '/app/watch',
@@ -67,6 +68,10 @@ export const paths = {
   clinicExams: '/clinic/exams',
   clinicReports: '/clinic/reports',
   clinicStaff: '/clinic/staff',
+  clinicFinance: '/clinic/finance',
+  clinicReceipt: (id: string) => `/clinic/finance/${id}`,
+  clinicSettings: '/clinic/settings',
+  clinicAudit: '/clinic/settings/audit',
 
   // Portal da seguradora (ADR-021): terceiro espaço de identidade, login e sessão próprios.
   insuranceLogin: '/insurance/login',

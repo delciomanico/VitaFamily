@@ -150,7 +150,7 @@ describe('contas e sessões do portal da clínica (D18, ADR-020)', () => {
   })
 
   it('só o Admin da clínica gere os Gestores (BR-CLN-05)', async () => {
-    const manager = (await portal.listClinicStaff(ADMIN))[0]!
+    const manager = (await portal.listClinicStaff(ADMIN)).find((a) => a.role === 'CLINIC_MANAGER')!
     expect(manager.role).toBe('CLINIC_MANAGER')
     // O Gestor não gere contas.
     expect(await code(portal.listClinicStaff(manager.id))).toBe('FORBIDDEN')

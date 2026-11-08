@@ -13,6 +13,7 @@ import { errorMessage } from '@/lib/errors'
 import { paths } from '@/routes/paths'
 import { clinicPatientsService } from '@/services/clinicPatients.service'
 import type { ClinicPatient } from '@/types/clinic'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { LinkPatientModal } from './LinkPatientModal'
 import { PatientFormModal } from './PatientFormModal'
 import { contactLine, sharingLabel } from './patientLabels'
@@ -32,6 +33,8 @@ type LoadState =
 export function ClinicPatientsPage() {
   const navigate = useNavigate()
   const toast = useToast()
+  // O Médico só lê os seus pacientes: não cria nem liga (BR-CLN-39).
+  const { isDoctor } = useClinicAuth()
   const [q, setQ] = useState('')
   const [term, setTerm] = useState('')
   const [state, setState] = useState<LoadState>({ status: 'loading' })
@@ -86,12 +89,14 @@ export function ClinicPatientsPage() {
           <h1 className="text-xl font-semibold">Pacientes</h1>
           <p className="text-sm text-muted">O registo da clínica, separado das contas Vita Family.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setLinking(true)} icon={<Link2 className="size-4" aria-hidden />}>
-            Ligar paciente Vita
-          </Button>
-          {createButton}
-        </div>
+        {!isDoctor && (
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setLinking(true)} icon={<Link2 className="size-4" aria-hidden />}>
+              Ligar paciente Vita
+            </Button>
+            {createButton}
+          </div>
+        )}
       </div>
 
       <div className="max-w-xl">
@@ -118,7 +123,7 @@ export function ClinicPatientsPage() {
               ? 'Confirme o nome, o telefone ou o e-mail. A pesquisa é só no registo da clínica.'
               : 'Crie o primeiro paciente ou ligue um paciente da Vita Family com o código dele.'
           }
-          action={createButton}
+          action={isDoctor ? undefined : createButton}
         />
       )}
       {!tooShort && state.status === 'success' && state.items.length > 0 && (

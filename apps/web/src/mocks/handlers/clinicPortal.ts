@@ -10,6 +10,7 @@ import type {
   ClinicSession,
   ClinicSlot,
   ClinicSlotView,
+  ClinicStaffInput,
   ClinicVisit,
   ClinicWalkInInput,
   PublishSlotsInput,
@@ -26,6 +27,18 @@ import { appointmentSlotTaken, bookingOf, examBookingsOf, expireRequests, notify
 import { linkMember, patientOfMember } from '../clinicPatients'
 import { overlappingSlot, timeOffAt } from '../clinicSchedule'
 import { deriveDayState, waitingMinutesOf } from '@/lib/clinicDay'
+import { issuedReceiptOf } from '../clinicReceipts'
+import {
+  isDoctor,
+  ownsAppointment,
+  ownsExam,
+  ownsVisit,
+  recordClinicAudit,
+  requireAdminAccount,
+  requireAnyAccount,
+  requireStaffAccount,
+  scrubReceipt,
+} from '../clinicRoles'
 import { DEMO_PASSWORD } from '../data/users'
 import type { MockClinicAccountRecord } from '../data/clinicAccounts'
 import { db, newId } from '../db'
@@ -44,19 +57,10 @@ import { insertPrescription } from './medications'
  */
 
 /** Conta ativa da sessão; sem sessão válida → UNAUTHENTICATED (INVALID_CREDENTIALS na UI). */
-export function requireAccount(clinicAccountId: string): MockClinicAccountRecord {
-  const account = db.clinicAccounts.find((a) => a.id === clinicAccountId)
-  if (!account) throw new AppError('INVALID_CREDENTIALS')
-  if (account.status !== 'ACTIVE') throw new AppError('ACCOUNT_SUSPENDED')
-  return account
-}
+export const requireAccount = requireAnyAccount
 
-/** Só o Admin da clínica gere os Gestores da própria clínica (BR-CLN-05). */
-function requireAdmin(clinicAccountId: string): MockClinicAccountRecord {
-  const account = requireAccount(clinicAccountId)
-  if (account.role !== 'CLINIC_ADMIN') throw new AppError('FORBIDDEN')
-  return account
-}
+/** Só o Admin da clínica gere as contas da própria clínica (BR-CLN-05). */
+const requireAdmin = requireAdminAccount
 
 function clinicNameOf(clinicId: string): string | undefined {
   return db.clinics.find((c) => c.id === clinicId && c.type === 'PARTNER')?.name
@@ -66,13 +70,14 @@ function toSession(account: MockClinicAccountRecord): ClinicSession {
   return {
     clinicId: account.clinicId,
     role: account.role,
+    professionalId: account.professionalId,
     email: account.email,
     clinicName: clinicNameOf(account.clinicId),
   }
 }
 
-function toPublicAccount({ id, clinicId, email, role, status }: MockClinicAccountRecord): ClinicAccount {
-  return { id, clinicId, email, role, status }
+function toPublicAccount({ id, clinicId, email, role, professionalId, status }: MockClinicAccountRecord): ClinicAccount {
+  return { id, clinicId, email, role, ...(professionalId ? { professionalId } : {}), status }
 }
 
 /** `ClinicBooking`: mínimo necessário (BR-CLN-03). */
@@ -90,6 +95,7 @@ export function toBooking(appointment: Appointment, now: Date = new Date()): Cli
     clinicPatientId: appointment.clinicId ? patientOfMember(appointment.clinicId, appointment.memberId)?.id : undefined,
     slotId: appointment.slotId,
     ...dayFields(appointment, now),
+    receiptId: issuedReceiptOf('APPOINTMENT', appointment.id)?.id,
   }
 }
 
@@ -136,6 +142,7 @@ export function toVisitBooking(visit: ClinicVisit, now: Date = new Date()): Clin
     clinicPatientId: visit.clinicPatientId,
     slotId: visit.slotId,
     ...dayFields(visit, now),
+    receiptId: issuedReceiptOf('VISIT', visit.id)?.id,
   }
 }
 
@@ -168,6 +175,7 @@ export function clinicLogin(email: string, password: string) {
     const account = db.clinicAccounts.find((a) => a.email === email.trim().toLowerCase())
     if (!account || account.password !== password) throw new AppError('INVALID_CREDENTIALS')
     if (account.status !== 'ACTIVE') throw new AppError('ACCOUNT_SUSPENDED')
+    recordClinicAudit(account, 'CLINIC_ACCOUNT_LOGIN', 'ClinicAccount', account.id)
     return { clinicAccountId: account.id, ...toSession(account) }
   })
 }
@@ -180,51 +188,77 @@ export function clinicRefresh(clinicAccountId: string) {
   })
 }
 
-// --- Hierarquia de staff (`/clinic-portal/staff`, BR-CLN-05) ---
+// --- Hierarquia de staff (`/clinic-portal/staff`, BR-CLN-05/39) ---
 
-/** `GET /clinic-portal/staff`: Gestores da própria clínica (nunca os de outra). */
+const STAFF_ROLES: ClinicAccount['role'][] = ['CLINIC_MANAGER', 'CLINIC_DOCTOR']
+
+/** `GET /clinic-portal/staff`: Gestores e Médicos da própria clínica (nunca os de outra). */
 export function listClinicStaff(clinicAccountId: string) {
   return respond((): ClinicAccount[] => {
     const admin = requireAdmin(clinicAccountId)
     return db.clinicAccounts
-      .filter((a) => a.clinicId === admin.clinicId && a.role === 'CLINIC_MANAGER')
+      .filter((a) => a.clinicId === admin.clinicId && STAFF_ROLES.includes(a.role))
       .map(toPublicAccount)
       .sort((a, b) => a.email.localeCompare(b.email, 'pt-PT'))
   })
 }
 
 /**
- * `POST /clinic-portal/staff`: cria sempre um `CLINIC_MANAGER` (BR-CLN-05). Na API real a
- * palavra-passe inicial vai por e-mail; no modo demo é a palavra-passe de demonstração.
+ * `POST /clinic-portal/staff`: cria um `CLINIC_MANAGER` (omissão) ou um `CLINIC_DOCTOR` (BR-CLN-05/39).
+ * O Médico exige `professionalId` de um profissional ativo da própria clínica (outro → `NOT_FOUND`),
+ * ainda sem conta Médico (`CONFLICT`); o Gestor com `professionalId` → `VALIDATION_ERROR`. Na API
+ * real a palavra-passe inicial vai por e-mail; no modo demo é a palavra-passe de demonstração.
  */
-export function createClinicStaff(clinicAccountId: string, email: string) {
+export function createClinicStaff(clinicAccountId: string, input: ClinicStaffInput | string) {
   return respond((): ClinicAccount => {
     const admin = requireAdmin(clinicAccountId)
+    const { email, role = 'CLINIC_MANAGER', professionalId } = typeof input === 'string' ? { email: input } : input
     const address = email.trim().toLowerCase()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) throw new AppError('VALIDATION_ERROR')
+    if (role !== 'CLINIC_MANAGER' && role !== 'CLINIC_DOCTOR') throw new AppError('VALIDATION_ERROR')
+    if (role === 'CLINIC_MANAGER' && professionalId) throw new AppError('VALIDATION_ERROR')
+    if (role === 'CLINIC_DOCTOR') {
+      if (!professionalId) throw new AppError('VALIDATION_ERROR')
+      const professional = db.professionals.find(
+        (p) => p.id === professionalId && p.clinicId === admin.clinicId && p.active,
+      )
+      if (!professional) throw new AppError('NOT_FOUND')
+      if (db.clinicAccounts.some((a) => a.role === 'CLINIC_DOCTOR' && a.professionalId === professionalId)) {
+        throw new AppError('CONFLICT')
+      }
+    }
     if (db.clinicAccounts.some((a) => a.email === address)) throw new AppError('VALIDATION_ERROR')
     const account: MockClinicAccountRecord = {
       id: newId('cac'),
       clinicId: admin.clinicId,
       email: address,
       password: DEMO_PASSWORD,
-      role: 'CLINIC_MANAGER',
+      role,
+      ...(role === 'CLINIC_DOCTOR' ? { professionalId } : {}),
       status: 'ACTIVE',
     }
     db.clinicAccounts.push(account)
+    recordClinicAudit(admin, 'CLINIC_STAFF_CREATE', 'ClinicAccount', account.id)
     return toPublicAccount(account)
   })
 }
 
-/** `DELETE /clinic-portal/staff/{clinicAccountId}`: só remove Gestores da própria clínica. */
+/** `DELETE /clinic-portal/staff/{clinicAccountId}`: só remove Gestores e Médicos da própria clínica. */
 export function removeClinicStaff(clinicAccountId: string, targetId: string) {
   return respond(() => {
     const admin = requireAdmin(clinicAccountId)
     const target = db.clinicAccounts.find(
-      (a) => a.id === targetId && a.clinicId === admin.clinicId && a.role === 'CLINIC_MANAGER',
+      (a) => a.id === targetId && a.clinicId === admin.clinicId && STAFF_ROLES.includes(a.role),
     )
     if (!target) throw new AppError('NOT_FOUND')
     db.clinicAccounts = db.clinicAccounts.filter((a) => a.id !== targetId)
+    recordClinicAudit(admin, 'CLINIC_STAFF_REMOVE', 'ClinicAccount', targetId)
+    // A conta removida deixa de ser identificável na auditoria (anonimização, BR-AUD-02).
+    for (const entry of db.clinicAudit) if (entry.actorAccountId === targetId) entry.actorAccountId = null
+    for (const receipt of db.clinicReceipts) {
+      if (receipt.issuedByClinicAccountId === targetId) receipt.issuedByClinicAccountId = null
+      if (receipt.voidedByClinicAccountId === targetId) receipt.voidedByClinicAccountId = null
+    }
   })
 }
 
@@ -250,7 +284,7 @@ function toSlotView(slot: ClinicSlot): ClinicSlotView {
 /** `GET /clinic-portal/slots?kind`: horários futuros da clínica, com a ocupação de cada um (UC-CLN-04). */
 export function listOwnClinicSlots(clinicAccountId: string, kind?: SlotKind, now: Date = new Date()) {
   return respond((): ClinicSlotView[] => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const { clinicId } = requireStaffAccount(clinicAccountId)
     expireRequests(now)
     return db.slots
       .filter(
@@ -269,7 +303,7 @@ export function listOwnClinicSlots(clinicAccountId: string, kind?: SlotKind, now
  */
 export function publishClinicSlots(clinicAccountId: string, input: PublishSlotsInput, now: Date = new Date()) {
   return respond((): ClinicSlot[] => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const { clinicId } = requireStaffAccount(clinicAccountId)
     const professional = input.professionalId
       ? db.professionals.find((p) => p.id === input.professionalId && p.clinicId === clinicId)
       : undefined
@@ -351,7 +385,7 @@ export function publishClinicSlots(clinicAccountId: string, input: PublishSlotsI
 /** `PATCH /clinic-portal/slots/{slotId}`: altera as vagas de um horário de exame (BR-APT-11). */
 export function updateClinicSlotCapacity(clinicAccountId: string, slotId: string, capacity: number) {
   return respond((): ClinicSlotView => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const { clinicId } = requireStaffAccount(clinicAccountId)
     const slot = db.slots.find((s) => s.id === slotId && s.clinicId === clinicId)
     if (!slot) throw new AppError('NOT_FOUND')
     if (slot.kind !== 'EXAM' || !Number.isInteger(capacity) || capacity < 1 || capacity > MAX_SLOT_CAPACITY) {
@@ -366,7 +400,7 @@ export function updateClinicSlotCapacity(clinicAccountId: string, slotId: string
 /** `DELETE /clinic-portal/slots/{slotId}`: só horários sem marcação ativa (BR-CLN-04). */
 export function removeClinicSlot(clinicAccountId: string, slotId: string) {
   return respond(() => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const { clinicId } = requireStaffAccount(clinicAccountId)
     const slot = db.slots.find((s) => s.id === slotId && s.clinicId === clinicId)
     if (!slot) throw new AppError('NOT_FOUND')
     // Gerado por regra: não se remove individualmente (BR-CLN-12); usar bloqueio ou desativar a regra.
@@ -381,7 +415,7 @@ export function removeClinicSlot(clinicAccountId: string, slotId: string) {
 /** `GET /clinic-portal/requests`: só os pedidos por responder (`REQUESTED`). */
 export function listClinicRequests(clinicAccountId: string, now: Date = new Date()) {
   return respond((): ClinicBooking[] => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const { clinicId } = requireStaffAccount(clinicAccountId)
     expireRequests(now)
     return db.appointments
       .filter((a) => a.clinicId === clinicId && a.status === 'REQUESTED')
@@ -399,7 +433,7 @@ export function respondClinicRequest(
   now: Date = new Date(),
 ) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const { clinicId } = requireStaffAccount(clinicAccountId)
     expireRequests(now)
     const appointment = findBooking(clinicId, appointmentId)
     if (appointment.status !== 'REQUESTED') throw new AppError('CONFLICT')
@@ -420,12 +454,17 @@ const AGENDA_STATUSES: Appointment['status'][] = ['SCHEDULED', 'COMPLETED', 'NO_
 /** `GET /clinic-portal/agenda`: consultas confirmadas da própria clínica, por ordem cronológica. */
 export function listClinicAgenda(clinicAccountId: string, now: Date = new Date()) {
   return respond((): ClinicBooking[] => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireAccount(clinicAccountId)
+    const { clinicId } = account
     expireRequests(now)
     return [
-      ...db.appointments.filter((a) => a.clinicId === clinicId && AGENDA_STATUSES.includes(a.status)).map((a) => toBooking(a, now)),
+      ...db.appointments
+        .filter((a) => a.clinicId === clinicId && AGENDA_STATUSES.includes(a.status) && ownsAppointment(account, a))
+        .map((a) => scrubReceipt(account, toBooking(a, now))),
       // BR-CLN-18/23: as visitas presenciais manuais também aparecem na agenda.
-      ...db.clinicVisits.filter((v) => v.clinicId === clinicId).map((v) => toVisitBooking(v, now)),
+      ...db.clinicVisits
+        .filter((v) => v.clinicId === clinicId && ownsVisit(account, v))
+        .map((v) => scrubReceipt(account, toVisitBooking(v, now))),
     ].sort(byScheduledAt)
   })
 }
@@ -438,7 +477,8 @@ export function cancelClinicAppointment(
   now: Date = new Date(),
 ) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireStaffAccount(clinicAccountId)
+    const { clinicId } = account
     const visit = findVisit(clinicId, appointmentId)
     if (visit) {
       if (!note.trim()) throw new AppError('VALIDATION_ERROR')
@@ -455,6 +495,7 @@ export function cancelClinicAppointment(
     appointment.status = 'CANCELLED'
     appointment.responseNote = note.trim()
     notifyResponse(appointment, now.toISOString())
+    recordClinicAudit(account, 'CLINIC_CANCEL', 'Appointment', appointment.id)
     return toBooking(appointment)
   })
 }
@@ -471,8 +512,10 @@ export function completeClinicAppointment(
   now: Date = new Date(),
 ) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireAccount(clinicAccountId)
+    const { clinicId } = account
     const visit = findVisit(clinicId, appointmentId)
+    if (visit && !ownsVisit(account, visit)) throw new AppError('NOT_FOUND')
     if (visit) {
       // Visita manual: só `outcomeNote`, sem receita (BR-CLN-18).
       if (visit.status !== 'SCHEDULED' || input.prescription) {
@@ -480,9 +523,11 @@ export function completeClinicAppointment(
       }
       visit.status = 'COMPLETED'
       visit.outcomeNote = input.outcomeNote?.trim() || undefined
-      return toVisitBooking(visit)
+      recordClinicAudit(account, 'CLINIC_COMPLETE', 'ClinicVisit', visit.id)
+      return scrubReceipt(account, toVisitBooking(visit))
     }
     const appointment = findBooking(clinicId, appointmentId)
+    if (!ownsAppointment(account, appointment)) throw new AppError('NOT_FOUND')
     // Só a consulta em curso: nunca completa duas vezes nem uma que não esteja confirmada (ST4).
     if (appointment.status !== 'SCHEDULED') throw new AppError('CONFLICT')
 
@@ -517,7 +562,8 @@ export function completeClinicAppointment(
     if (outcomeNote) {
       db.appointmentOutcomes.push({ appointmentId, outcomeNote, recordedAt: now.toISOString() })
     }
-    return toBooking(appointment)
+    recordClinicAudit(account, 'CLINIC_COMPLETE', 'Appointment', appointment.id)
+    return scrubReceipt(account, toBooking(appointment))
   })
 }
 
@@ -539,13 +585,14 @@ export function toExamBooking(exam: Examination): ClinicExamBooking {
     documents: db.documents
       .filter((d) => d.resourceType === 'EXAMINATION' && d.resourceId === exam.id && d.uploadedByClinic)
       .map((d) => ({ id: d.id, originalName: d.originalName, sizeBytes: d.sizeBytes, scanStatus: d.scanStatus ?? 'CLEAN' })),
+    receiptId: issuedReceiptOf('EXAM', exam.id)?.id,
   }
 }
 
 /** Exame desta clínica marcado num dos seus horários; de outra → NOT_FOUND (sem enumeração). */
-function findExam(clinicId: string, id: string): Examination {
-  const exam = db.examinations.find((e) => e.id === id && e.slotId && e.clinicId === clinicId)
-  if (!exam) throw new AppError('NOT_FOUND')
+function findExam(account: MockClinicAccountRecord, id: string): Examination {
+  const exam = db.examinations.find((e) => e.id === id && e.slotId && e.clinicId === account.clinicId)
+  if (!exam || !ownsExam(account, exam)) throw new AppError('NOT_FOUND')
   return exam
 }
 
@@ -554,10 +601,10 @@ const byExamTime = (a: ClinicExamBooking, b: ClinicExamBooking) => a.scheduledAt
 /** `GET /clinic-portal/exam-agenda`: exames marcados nos horários da clínica, por ordem cronológica. */
 export function listClinicExamAgenda(clinicAccountId: string) {
   return respond((): ClinicExamBooking[] => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireAccount(clinicAccountId)
     return db.examinations
-      .filter((e) => e.slotId && e.clinicId === clinicId)
-      .map(toExamBooking)
+      .filter((e) => e.slotId && e.clinicId === account.clinicId && ownsExam(account, e))
+      .map((e) => scrubReceipt(account, toExamBooking(e)))
       .sort(byExamTime)
   })
 }
@@ -565,8 +612,8 @@ export function listClinicExamAgenda(clinicAccountId: string) {
 /** `PUT /clinic-portal/exam-agenda/{id}/cancel`: exame SCHEDULED, com motivo; liberta a vaga. */
 export function cancelClinicExam(clinicAccountId: string, examinationId: string, note: string) {
   return respond((): ClinicExamBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
-    const exam = findExam(clinicId, examinationId)
+    const account = requireStaffAccount(clinicAccountId)
+    const exam = findExam(account, examinationId)
     if (!note.trim()) throw new AppError('VALIDATION_ERROR')
     if (exam.status !== 'SCHEDULED') throw new AppError('CONFLICT')
     exam.status = 'CANCELLED'
@@ -578,8 +625,8 @@ export function cancelClinicExam(clinicAccountId: string, examinationId: string,
 /** `POST /clinic-portal/exam-agenda/{id}/documents`: PDF dos resultados (BR-CLN-08). */
 export function uploadClinicExamDocument(clinicAccountId: string, examinationId: string, upload: DocumentUpload) {
   return respond((): ClinicExamBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
-    const exam = findExam(clinicId, examinationId)
+    const account = requireAccount(clinicAccountId)
+    const exam = findExam(account, examinationId)
     if (exam.status === 'CANCELLED' || upload.mimeType !== 'application/pdf') throw new AppError('VALIDATION_ERROR')
     db.documents.push({
       ...upload,
@@ -592,7 +639,7 @@ export function uploadClinicExamDocument(clinicAccountId: string, examinationId:
       scanStatus: 'CLEAN',
       uploadedByClinic: true,
     })
-    return toExamBooking(exam)
+    return scrubReceipt(account, toExamBooking(exam))
   })
 }
 
@@ -607,8 +654,8 @@ export function completeClinicExam(
   now: Date = new Date(),
 ) {
   return respond((): ClinicExamBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
-    const exam = findExam(clinicId, examinationId)
+    const account = requireAccount(clinicAccountId)
+    const exam = findExam(account, examinationId)
     if (exam.status !== 'SCHEDULED') throw new AppError('CONFLICT')
     const hasPdf = toExamBooking(exam).documents.length > 0
     if (input.results.length === 0 && !hasPdf) throw new AppError('VALIDATION_ERROR')
@@ -632,7 +679,8 @@ export function completeClinicExam(
     }
     exam.status = 'COMPLETED'
     exam.responseNote = input.resultNote?.trim() || exam.responseNote
-    return toExamBooking(exam)
+    recordClinicAudit(account, 'EXAM_CLINIC_COMPLETE', 'Examination', exam.id)
+    return scrubReceipt(account, toExamBooking(exam))
   })
 }
 
@@ -645,7 +693,8 @@ export function createClinicRecommendation(
   now: Date = new Date(),
 ) {
   return respond((): ClinicRecommendation => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireAccount(clinicAccountId)
+    const { clinicId } = account
     const text = input.text.trim()
     const appointmentId = 'appointmentId' in input ? input.appointmentId : undefined
     const examinationId = 'examinationId' in input ? input.examinationId : undefined
@@ -656,6 +705,9 @@ export function createClinicRecommendation(
       ? db.appointments.find((a) => a.id === appointmentId && a.clinicId === clinicId)
       : db.examinations.find((e) => e.id === examinationId && e.slotId && e.clinicId === clinicId)
     if (!origin) throw new AppError('NOT_FOUND')
+    if (appointmentId ? !ownsAppointment(account, origin as Appointment) : !ownsExam(account, origin as Examination)) {
+      throw new AppError('NOT_FOUND')
+    }
     if (origin.status !== 'SCHEDULED' && origin.status !== 'COMPLETED') throw new AppError('CONFLICT')
     const recommendation = {
       id: newId('rec'),
@@ -686,6 +738,14 @@ export function createClinicRecommendation(
   })
 }
 
+/** O Médico só vê as recomendações das suas marcações (BR-CLN-39). */
+export function recommendationOwned(account: MockClinicAccountRecord, r: (typeof db.recommendations)[number]): boolean {
+  if (!isDoctor(account)) return true
+  const appointment = r.appointmentId ? db.appointments.find((a) => a.id === r.appointmentId) : undefined
+  const exam = r.examinationId ? db.examinations.find((e) => e.id === r.examinationId) : undefined
+  return (appointment !== undefined && ownsAppointment(account, appointment)) || (exam !== undefined && ownsExam(account, exam))
+}
+
 export function toClinicRecommendation(r: (typeof db.recommendations)[number]): ClinicRecommendation {
   return {
     id: r.id,
@@ -700,12 +760,14 @@ export function toClinicRecommendation(r: (typeof db.recommendations)[number]): 
 /** `GET /clinic-portal/recommendations`: só as da própria clínica, mais recentes primeiro. */
 export function listClinicRecommendations(clinicAccountId: string, origin?: Partial<RecommendationOrigin>) {
   return respond((): ClinicRecommendation[] => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireAccount(clinicAccountId)
+    const { clinicId } = account
     const o = origin as { appointmentId?: string; examinationId?: string } | undefined
     return db.recommendations
       .filter(
         (r) =>
           r.clinicId === clinicId &&
+          recommendationOwned(account, r) &&
           (!o?.appointmentId || r.appointmentId === o.appointmentId) &&
           (!o?.examinationId || r.examinationId === o.examinationId),
       )
@@ -739,7 +801,7 @@ function resolveWalkInPatient(email: string) {
 /** `POST /clinic-portal/patient-lookup`: só o nome de apresentação, nunca ids. */
 export function lookupClinicPatient(clinicAccountId: string, email: string) {
   return respond((): { displayName: string } => {
-    requireAccount(clinicAccountId)
+    requireStaffAccount(clinicAccountId)
     return { displayName: displayNameOf(resolveWalkInPatient(email).name) }
   })
 }
@@ -752,7 +814,8 @@ export function lookupClinicPatient(clinicAccountId: string, email: string) {
  */
 export function createClinicWalkIn(clinicAccountId: string, input: ClinicWalkInInput, now: Date = new Date()) {
   return respond((): ClinicBooking => {
-    const { clinicId } = requireAccount(clinicAccountId)
+    const account = requireStaffAccount(clinicAccountId)
+    const { clinicId } = account
     expireRequests(now)
     if (Boolean(input.patientEmail) === Boolean(input.clinicPatientId)) throw new AppError('VALIDATION_ERROR')
     const slot = db.slots.find((s) => s.id === input.slotId && s.clinicId === clinicId)
@@ -798,6 +861,7 @@ export function createClinicWalkIn(clinicAccountId: string, input: ClinicWalkInI
         notes: input.notes?.trim() || undefined,
       }
       db.clinicVisits.push(visit)
+      recordClinicAudit(account, 'CLINIC_VISIT_BOOK', 'ClinicVisit', visit.id)
       return toVisitBooking(visit)
     }
 
@@ -826,6 +890,7 @@ export function createClinicWalkIn(clinicAccountId: string, input: ClinicWalkInI
       scheduledSince: now.toISOString(),
     }
     db.appointments.push(appointment)
+    recordClinicAudit(account, 'CLINIC_WALKIN_BOOK', 'Appointment', appointment.id)
     return toBooking(appointment)
   })
 }

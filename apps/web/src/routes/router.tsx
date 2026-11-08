@@ -26,6 +26,7 @@ import {
   RequireAuth,
   RequireClinicAccount,
   RequireClinicAdmin,
+  RequireClinicStaff,
   RequireFamily,
   RequirePendingVerification,
   RequirePlatformAdmin,
@@ -151,6 +152,10 @@ export const routes: RouteObject[] = [
               {
                 path: 'family/:id/insurance',
                 ...page(() => import('@/pages/family/MemberInsurancePage'), 'MemberInsurancePage'),
+              },
+              {
+                path: 'family/:id/insurance/receipts/:receiptId',
+                ...page(() => import('@/pages/family/MemberReceiptPage'), 'MemberReceiptPage'),
               },
               { path: 'family/:id', ...page(() => import('@/pages/family/MemberProfilePage'), 'MemberProfilePage') },
               {
@@ -279,11 +284,8 @@ export const routes: RouteObject[] = [
             element: <ClinicShell />,
             children: [
               { index: true, ...page(() => import('@/pages/clinic/ClinicTodayPage'), 'ClinicTodayPage') },
-              { path: 'requests', ...page(() => import('@/pages/clinic/ClinicRequestsPage'), 'ClinicRequestsPage') },
               { path: 'agenda', ...page(() => import('@/pages/clinic/ClinicAgendaPage'), 'ClinicAgendaPage') },
-              { path: 'reports', ...page(() => import('@/pages/clinic/ClinicReportsPage'), 'ClinicReportsPage') },
               { path: 'exams', ...page(() => import('@/pages/clinic/ClinicExamsPage'), 'ClinicExamsPage') },
-              { path: 'slots', ...page(() => import('@/pages/clinic/ClinicSlotsPage'), 'ClinicSlotsPage') },
               {
                 path: 'patients',
                 ...page(() => import('@/pages/clinic/patients/ClinicPatientsPage'), 'ClinicPatientsPage'),
@@ -293,12 +295,33 @@ export const routes: RouteObject[] = [
                 ...page(() => import('@/pages/clinic/patients/ClinicPatientPage'), 'ClinicPatientPage'),
               },
               {
-                path: 'services',
-                ...page(() => import('@/pages/clinic/services/ClinicServicesPage'), 'ClinicServicesPage'),
+                // Admin e Gestor (BR-CLN-39): o Médico não vê pedidos, horários, serviços, financeiro nem definições.
+                element: <RequireClinicStaff />,
+                children: [
+                  { path: 'requests', ...page(() => import('@/pages/clinic/ClinicRequestsPage'), 'ClinicRequestsPage') },
+                  { path: 'reports', ...page(() => import('@/pages/clinic/ClinicReportsPage'), 'ClinicReportsPage') },
+                  { path: 'slots', ...page(() => import('@/pages/clinic/ClinicSlotsPage'), 'ClinicSlotsPage') },
+                  {
+                    path: 'services',
+                    ...page(() => import('@/pages/clinic/services/ClinicServicesPage'), 'ClinicServicesPage'),
+                  },
+                  { path: 'finance', ...page(() => import('@/pages/clinic/ClinicFinancePage'), 'ClinicFinancePage') },
+                  {
+                    path: 'finance/:receiptId',
+                    ...page(() => import('@/pages/clinic/ClinicReceiptPage'), 'ClinicReceiptPage'),
+                  },
+                  { path: 'settings', ...page(() => import('@/pages/clinic/ClinicSettingsPage'), 'ClinicSettingsPage') },
+                ],
               },
               {
                 element: <RequireClinicAdmin />,
-                children: [{ path: 'staff', ...page(() => import('@/pages/clinic/ClinicStaffPage'), 'ClinicStaffPage') }],
+                children: [
+                  { path: 'staff', ...page(() => import('@/pages/clinic/ClinicStaffPage'), 'ClinicStaffPage') },
+                  {
+                    path: 'settings/audit',
+                    ...page(() => import('@/pages/clinic/ClinicAuditPage'), 'ClinicAuditPage'),
+                  },
+                ],
               },
             ],
           },

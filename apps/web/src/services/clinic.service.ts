@@ -10,6 +10,9 @@ interface ApiClinic {
   email?: string | null
   type: 'PARTNER' | 'PRIVATE'
   status: 'ACTIVE' | 'ARCHIVED'
+  displayName?: string | null
+  description?: string | null
+  openingHours?: string | null
 }
 
 /** `GET /families/{id}/clinics` (API real): parceiras e privadas da família, só as ativas. */
@@ -26,6 +29,9 @@ async function apiListClinics(familyId: string): Promise<Clinic[]> {
       phone: c.phone ?? undefined,
       email: c.email ?? undefined,
       status: c.status,
+      displayName: c.displayName ?? undefined,
+      description: c.description ?? undefined,
+      openingHours: c.openingHours ?? undefined,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-PT'))
 }

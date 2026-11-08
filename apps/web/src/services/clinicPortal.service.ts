@@ -18,6 +18,7 @@ import type {
   ClinicSession,
   ClinicSlot,
   ClinicSlotView,
+  ClinicStaffInput,
   ClinicWalkInInput,
   PublishSlotsInput,
   SlotKind,
@@ -43,6 +44,7 @@ interface ApiClinicAccount {
   clinicId: string
   email: string
   role: ClinicAccount['role']
+  professionalId?: string | null
   status: ClinicAccount['status']
 }
 
@@ -76,6 +78,7 @@ interface ApiClinicExamBooking {
   responseNote?: string | null
   resultsCount?: number
   documents?: ClinicExamBooking['documents']
+  receiptId?: string | null
 }
 
 interface ApiClinicBooking {
@@ -98,6 +101,8 @@ interface ApiClinicBooking {
   startedAt?: string | null
   waitingMinutes?: number | null
   followUpDueOn?: string | null
+  /** M14 R (BR-CLN-31): nunca devolvido ao Médico. */
+  receiptId?: string | null
 }
 
 const toSlot = (slot: ApiClinicSlot): ClinicSlot => ({
@@ -131,6 +136,7 @@ export const toExamBooking = (exam: ApiClinicExamBooking): ClinicExamBooking => 
   responseNote: exam.responseNote ?? undefined,
   resultsCount: exam.resultsCount ?? 0,
   documents: exam.documents ?? [],
+  receiptId: exam.receiptId ?? undefined,
 })
 
 const byExamTime = (a: ClinicExamBooking, b: ClinicExamBooking) => a.scheduledAt.localeCompare(b.scheduledAt)
@@ -169,9 +175,20 @@ export const toBooking = (booking: ApiClinicBooking): ClinicBooking => ({
   startedAt: booking.startedAt ?? undefined,
   waitingMinutes: booking.waitingMinutes ?? undefined,
   followUpDueOn: booking.followUpDueOn ?? undefined,
+  receiptId: booking.receiptId ?? undefined,
 })
 
-const toAccount = (account: ApiClinicAccount): ClinicAccount => ({ ...account })
+const toAccount = ({ professionalId, ...account }: ApiClinicAccount): ClinicAccount => ({
+  ...account,
+  ...(professionalId ? { professionalId } : {}),
+})
+
+const sessionOf = (tokens: ClinicTokenResponse, email?: string): ClinicSession => ({
+  clinicId: tokens.clinicId,
+  role: tokens.role,
+  ...(tokens.professionalId ? { professionalId: tokens.professionalId } : {}),
+  ...(email ? { email } : {}),
+})
 
 const byScheduledAt = (a: ClinicBooking, b: ClinicBooking) => a.scheduledAt.localeCompare(b.scheduledAt)
 
@@ -241,13 +258,13 @@ const apiImpl = {
       auth: false,
     })
     setClinicAccessToken(tokens.accessToken)
-    return { clinicId: tokens.clinicId, role: tokens.role, email: email.trim().toLowerCase() }
+    return sessionOf(tokens, email.trim().toLowerCase())
   },
 
   /** Retoma a sessão ao abrir o portal: cookie `clinic_refresh_token` (nunca o de `User`). */
   async restore(): Promise<ClinicSession | null> {
     const tokens = await refreshClinicAccessToken()
-    return tokens ? { clinicId: tokens.clinicId, role: tokens.role } : null
+    return tokens ? sessionOf(tokens) : null
   },
 
   async logout(): Promise<void> {
@@ -262,9 +279,17 @@ const apiImpl = {
     return (await clinicApiFetch<ApiClinicAccount[]>('/staff')).map(toAccount)
   },
 
-  async createStaff(email: string): Promise<ClinicAccount> {
+  async createStaff(input: ClinicStaffInput): Promise<ClinicAccount> {
     return toAccount(
-      await clinicApiFetch<ApiClinicAccount>('/staff', { method: 'POST', body: { email: email.trim().toLowerCase() } }),
+      await clinicApiFetch<ApiClinicAccount>('/staff', {
+        method: 'POST',
+        body: {
+          email: input.email.trim().toLowerCase(),
+          role: input.role ?? 'CLINIC_MANAGER',
+          // Só o Médico leva `professionalId` (o Gestor com ele → VALIDATION_ERROR).
+          professionalId: input.role === 'CLINIC_DOCTOR' ? input.professionalId : undefined,
+        },
+      }),
     )
   },
 
@@ -442,7 +467,7 @@ const mockImpl = {
   },
 
   listStaff: () => mock.listClinicStaff(mockAccountId()),
-  createStaff: (email: string) => mock.createClinicStaff(mockAccountId(), email),
+  createStaff: (input: ClinicStaffInput) => mock.createClinicStaff(mockAccountId(), input),
   removeStaff: (clinicAccountId: string) => mock.removeClinicStaff(mockAccountId(), clinicAccountId),
 
   listSlots: (kind?: SlotKind) => mock.listOwnClinicSlots(mockAccountId(), kind),

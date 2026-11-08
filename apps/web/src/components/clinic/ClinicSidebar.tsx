@@ -4,17 +4,18 @@ import { LogoMark } from '@/components/layout/Logo'
 import { cn } from '@/lib/cn'
 import { clinicRole } from '@/lib/labels'
 import type { ClinicSession } from '@/types/clinic'
-import { clinicNavGroups } from './clinicNav'
+import { clinicNavGroups, visibleNavItems } from './clinicNav'
 
 interface ClinicSidebarProps {
   session: ClinicSession | null
   isAdmin: boolean
+  isDoctor: boolean
   pending: number
   onSignOut: () => void
 }
 
 /** Barra lateral fixa do portal da clínica (desktop, `lg`): navegação, conta em sessão e Sair. */
-export function ClinicSidebar({ session, isAdmin, pending, onSignOut }: ClinicSidebarProps) {
+export function ClinicSidebar({ session, isAdmin, isDoctor, pending, onSignOut }: ClinicSidebarProps) {
   return (
     <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-border bg-surface lg:flex">
       <div className="flex items-center gap-3 px-5 py-5">
@@ -26,7 +27,7 @@ export function ClinicSidebar({ session, isAdmin, pending, onSignOut }: ClinicSi
       </div>
       <nav aria-label="Portal da clínica" className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-2">
         {clinicNavGroups.map((group, index) => {
-          const items = group.items.filter((item) => isAdmin || !item.adminOnly)
+          const items = visibleNavItems(group.items, { isAdmin, isDoctor })
           if (items.length === 0) return null
           return (
             <div key={group.title ?? index} className="flex flex-col gap-1">
