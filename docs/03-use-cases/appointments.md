@@ -189,6 +189,50 @@
 - **Alternativos:** outro papel ⇒ `FORBIDDEN`; janela inválida/fora da retenção ⇒ `VALIDATION_ERROR`.
 - **Pós-condição:** só leitura; sem endereços IP, e-mails, nomes nem dados de pacientes.
 
+### UC-CLN-32 Escrever o relatório da consulta e guardar rascunho (M15 S)
+- **Ator:** `CLINIC_DOCTOR` (marcações do seu profissional) · **FR:** CLN-21 · **BR:** CLN-41, CLN-42, CLN-44
+- **Pré-condição:** marcação (consulta Vita ou visita manual) da clínica, `SCHEDULED` ou `COMPLETED` sem relatório `FINAL`.
+- **Fluxo:** em **Hoje** ou na **Agenda**, na marcação em curso, **Relatório** abre o editor com 4 campos (Motivo, Achados, Diagnóstico/impressão, Conduta/plano; textos-guia da especialidade como placeholder) e a opção **"Partilhar com o paciente na app"** (ligada por omissão, só em consultas Vita) → escreve → **Guardar rascunho** (também automático) → pode sair e voltar.
+- **Alternativos:** sem nenhuma secção preenchida ⇒ `VALIDATION_ERROR`; secção acima do limite ⇒ `VALIDATION_ERROR`; relatório já `FINAL` ⇒ `INVALID_STATE_TRANSITION` (usar adenda); marcação cancelada/faltou/pedida ⇒ `INVALID_STATE_TRANSITION`; marcação de outro profissional ou de outra clínica ⇒ `NOT_FOUND`; Admin/Gestor ⇒ `FORBIDDEN`; excesso de pedidos ⇒ `RATE_LIMITED`.
+- **Pós-condição:** relatório `DRAFT` (visível só à clínica); auditoria `CONSULT_REPORT_SAVED` sem texto.
+
+### UC-CLN-33 Concluir a consulta com relatório (finalizar) (M15 S)
+- **Ator:** `CLINIC_DOCTOR` · **FR:** CLN-21 · **BR:** CLN-42, CLN-43, CLN-45
+- **Fluxo:** **Concluir** abre o diálogo existente (resumo de uma linha `outcomeNote`, receita e retorno opcionais, BR-CLN-06/30, UC-CLN-23) com o editor do relatório → **Concluir e finalizar** grava tudo numa só ação; ou **Concluir sem relatório** (o rascunho fica). Depois de concluída, **Finalizar relatório** na marcação finaliza o rascunho.
+- **Alternativos:** `report` enviado por Admin/Gestor ⇒ `FORBIDDEN` (nada se grava); consulta fora do estado/janela ⇒ `CONFLICT`/`INVALID_STATE_TRANSITION`; relatório já `FINAL` ⇒ `200` idempotente em `finalize`, `INVALID_STATE_TRANSITION` ao reenviar `report` no `complete`; erro na receita ⇒ nada muda.
+- **Pós-condição:** consulta `COMPLETED` e relatório `FINAL` imutável (retrato do perfil da clínica e do profissional); `sharedWithPatient` fixo; auditoria `CONSULT_REPORT_FINALIZED`.
+
+### UC-CLN-34 Acrescentar adenda a um relatório final (M15 S)
+- **Ator:** `CLINIC_DOCTOR` (autor da marcação do seu profissional) · **FR:** CLN-21 · **BR:** CLN-43
+- **Fluxo:** abre o relatório `FINAL` → **Acrescentar adenda** → escreve (≤1500) → confirma → a adenda aparece datada por baixo, sem alterar o texto final.
+- **Alternativos:** relatório `DRAFT` ⇒ `INVALID_STATE_TRANSITION`; 20 adendas ⇒ `LIMIT_EXCEEDED`; texto vazio/longo ⇒ `VALIDATION_ERROR`; Admin/Gestor ⇒ `FORBIDDEN`.
+- **Pós-condição:** adenda imutável; se o relatório é partilhado, o paciente vê-a; auditoria `CONSULT_REPORT_AMENDED`.
+
+### UC-CLN-35 Ver e imprimir o relatório (clínica) (M15 S)
+- **Atores:** `CLINIC_ADMIN`, `CLINIC_MANAGER`, `CLINIC_DOCTOR` (suas) · **FR:** CLN-22 · **BR:** CLN-44, CLN-46
+- **Fluxo:** na marcação, **Ver relatório** (leitura) → **Imprimir / PDF** abre o PDF gerado (cabeçalho da clínica, paciente, secções, adendas, assinatura textual, rodapé "Documento não fiscal. Não substitui receita médica nem atestado"). Um `DRAFT` mostra "RASCUNHO — sem valor".
+- **Alternativos:** sem relatório ⇒ `NOT_FOUND`; Médico noutra marcação ⇒ `NOT_FOUND`; excesso de pedidos ⇒ `RATE_LIMITED`.
+- **Pós-condição:** só leitura; auditoria `CONSULT_REPORT_VIEWED`.
+
+### UC-CLN-36 Ler o relatório da consulta na app (paciente) (M15 S)
+- **Atores:** titular (`SELF`) ou tutor (`TUTOR_OF`) · **FR:** CLN-22 · **BR:** CLN-45, CLN-46
+- **Pré-condição:** consulta marcada via Vita, `COMPLETED`, com relatório `FINAL` partilhado.
+- **Fluxo:** no **detalhe da consulta** aparece **"Relatório da consulta"** → abre o texto (secções e adendas) → **Descarregar PDF**.
+- **Alternativos:** sem relatório partilhado, `DRAFT` ou visita manual ⇒ `NOT_FOUND` (a UI não mostra o botão: `reportAvailable=false`); dependente com conta ou `OTHER` ⇒ `FORBIDDEN`.
+- **Pós-condição:** só leitura; o download do PDF e a leitura por tutor são auditados. Sem consentimento prévio (BR-CLN-45).
+
+### UC-CLN-37 Guardar resultados de exame como rascunho e concluir (M15 T)
+- **Atores:** `CLINIC_ADMIN`, `CLINIC_MANAGER`, `CLINIC_DOCTOR` (suas) · **FR:** CLN-23 · **BR:** CLN-47, CLN-08
+- **Fluxo:** em **Exames → Resultados**, no exame `SCHEDULED` preenche parâmetros (valor, unidade, referência) e **Guardar rascunho** → mais tarde reabre (os campos voltam preenchidos) → **Concluir** (UC-CLN-10) usa o rascunho; pode **Descartar rascunho**.
+- **Alternativos:** sem resultados nem nota ⇒ `VALIDATION_ERROR`; exame não `SCHEDULED` ⇒ `INVALID_STATE_TRANSITION`; exame de outra clínica/profissional ⇒ `NOT_FOUND`.
+- **Pós-condição:** o paciente não vê nada até concluir; o rascunho desaparece ao concluir ou cancelar; auditoria `EXAM_RESULTS_DRAFT_SAVED/DISCARDED` sem valores.
+
+### UC-CLN-38 Gerar e ver o laudo do exame (M15 T)
+- **Atores:** conta da clínica (Admin, Gestor, Médico suas); titular/tutor (e `OTHER` com partilha de `EXAMS`) · **FR:** CLN-24 · **BR:** CLN-48, CLN-49
+- **Fluxo:** ao **Concluir** o exame com resultados estruturados, a opção **"Gerar laudo em PDF"** (ligada) cria o PDF; a clínica vê **Laudo (PDF)** no exame e imprime-o; o paciente vê o laudo junto aos documentos do exame (rótulo "Laudo da clínica") e descarrega-o como qualquer PDF. Valores fora do intervalo de referência indicado aparecem com **"Fora da referência"** e o aviso de que não é interpretação.
+- **Alternativos:** sem resultados estruturados ⇒ não há laudo (só PDF carregado, se houver); falha na geração ⇒ a conclusão falha sem efeitos e a UI oferece **Concluir sem laudo** (`generateReport=false`); laudo apagado pelo titular ⇒ clínica `NOT_FOUND` ao descarregar.
+- **Pós-condição:** `Document` `generatedBySystem` do exame (instantâneo); alerta `EXAM_RESULTS_AVAILABLE` como hoje; auditoria `EXAM_REPORT_GENERATED` (clínica) e `DOCUMENT_DOWNLOAD`/`EXAM_REPORT_DOWNLOAD`.
+
 ---
 
 ## Clínicas

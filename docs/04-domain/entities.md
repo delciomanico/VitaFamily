@@ -1,6 +1,6 @@
 # Vita Family — Entidades (Fase 9)
 
-> Estado: **v0.6** — M14 R: `ClinicReceipt`, `ClinicReceiptLink`, `ClinicAccount.professionalId`/`CLINIC_DOCTOR`, perfil da `Clinic` (ADR-026); v0.5 — módulo operacional de seguradoras (ADR-025: secção própria; `InsurerAccount.currency`/`operationalModuleEnabled`; papéis alargados); v0.4 — `ClinicSlot.capacity` e exame marcado diretamente (`SCHEDULED`, sem pedido/recusa; ADR-023 revisto 2026-11-04); v0.3: `ClinicSlot.kind`, `Examination` emitido pela clínica, `Recommendation`, `InsurancePolicy.insurerId` (ADR-023, D19); v0.2 acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
+> Estado: **v0.7** — M15 S/T: `ConsultationReport`, `ConsultationReportAddendum`, `ExamResultsDraft`, `Document.generatedBySystem` (ADR-027); v0.6 — M14 R: `ClinicReceipt`, `ClinicReceiptLink`, `ClinicAccount.professionalId`/`CLINIC_DOCTOR`, perfil da `Clinic` (ADR-026); v0.5 — módulo operacional de seguradoras (ADR-025: secção própria; `InsurerAccount.currency`/`operationalModuleEnabled`; papéis alargados); v0.4 — `ClinicSlot.capacity` e exame marcado diretamente (`SCHEDULED`, sem pedido/recusa; ADR-023 revisto 2026-11-04); v0.3: `ClinicSlot.kind`, `Examination` emitido pela clínica, `Recommendation`, `InsurancePolicy.insurerId` (ADR-023, D19); v0.2 acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
 > Convenções: `id` UUID; `createdAt`/`updatedAt` em UTC em todas, salvo indicação; `?` = opcional.
 > **Categoria** indica a categoria de privacidade (C2–C6) dos registos de saúde.
 
@@ -150,6 +150,16 @@ Derivado: `notice` fixo "Documento não fiscal — não substitui fatura"; `avai
 
 ### ClinicReceiptLink — ponte do recibo para o paciente Vita (M14 R)
 `receiptId` (único) · `familyId` · `memberId`. Só existe para marcações Vita com consentimento na emissão (BR-CLN-35); nunca exposta pelo portal; apagada com o membro/família.
+
+### ConsultationReport — relatório da consulta (M15 S, ADR-027) — registo **da clínica**
+`clinicId` · `bookingKind` (APPOINTMENT | VISIT) · `bookingId` (**sem FK**; 1:1 com a marcação) · `clinicPatientId?` (se a marcação resolve para um `ClinicPatient`) · `status` (DRAFT | FINAL) · `reason?` (≤300) · `findings?` (≤1500) · `impression?` (≤500) · `plan?` (≤1500) — ≥1 preenchida · `sharedWithPatient` (omissão `true`; sempre `false` em VISIT; imutável em FINAL) · retrato: `patientName`, `patientBirthDate?`, `consultationAt`, `specialty?`, `authorName` (nome do `ClinicProfessional` da conta Médico, assinatura textual), `issuer?` (perfil da clínica, fixado em FINAL) · `authorAccountId?` · `finalizedAt?` · `addenda`: [`ConsultationReportAddendum`: `text` (1–1500) · `authorName` · `authorAccountId?` · `createdAt`]
+Derivado: `Appointment.reportAvailable` (lado família: existe relatório FINAL partilhado **e** o actor é SELF/TUTOR_OF); `ClinicBooking.reportStatus` (DRAFT | FINAL | nulo).
+**Regras:** BR-CLN-41..46, BR-CLN-50. `FINAL` e adendas imutáveis; sobrevive ao apagamento do membro (sem ids Vita); texto = dado de saúde (BR-HLT-05). Categoria de privacidade da leitura pelo paciente: `APPOINTMENTS`, restringida a SELF/TUTOR_OF (`authorization.md` §6.6).
+
+### ExamResultsDraft — rascunho de resultados de exame (M15 T, ADR-027)
+`examinationId` (único) · `clinicId` · `results` (0–50 × `ExamResultInput`) · `resultNote?` (≤2000) · `updatedByClinicAccountId?`. Existe só com o exame `SCHEDULED`; **não** é visível ao paciente nem cria `ExamResult`; apaga-se ao concluir, cancelar ou apagar o exame. **Regras:** BR-CLN-47.
+
+**`Document` (M15 T):** novo `generatedBySystem` (bool, omissão false): laudo PDF gerado pelo servidor (BR-CLN-49); implica `uploadedByClinic`, recurso EXAMINATION, `scanStatus=CLEAN`; um por exame. **`Appointment` (M15 S):** `reportAvailable` (derivado, só leitura). **`ClinicBooking`/`ClinicExamBooking`:** `reportStatus` · `hasResultsDraft`, `reportAvailable` (derivados).
 
 **`Clinic` (M14 R):** campos de perfil `displayName?` · `description?` · `openingHours?` (BR-CLN-38) e `address?`/`phone?`/`email?` editáveis pela própria clínica parceira. **`ReimbursementClaim` (M14 R):** associação opcional a recibos (`receiptIds`, BR-CLN-36), sem `Encounter` nem despesa novos.
 

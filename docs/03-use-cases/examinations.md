@@ -58,7 +58,7 @@
 ### UC-CLN-10 Completar exame com resultados e PDF
 - **Ator:** conta da clínica · **FR:** EXM-08, EXM-09 · **BR:** BR-CLN-08
 - **Fluxo:** (opcional) carrega 1–5 PDF no exame `SCHEDULED` (quarentena + antivírus; vê só estado de verificação; pode remover os seus) → completa com 0–50 parâmetros (parâmetro, valor numérico e/ou texto, unidade, intervalo de referência opcional **informado pela clínica**) e nota opcional → `COMPLETED`, `issuedBy=CLINIC` → o paciente é notificado (`EXAM_RESULTS_AVAILABLE`).
-- **Regras:** pelo menos um resultado ou um PDF; sem interpretação nem alertas por valor (D11); só exame `SCHEDULED` da própria clínica (senão `CONFLICT`/`NOT_FOUND`); PDF infetado é eliminado e auditado (UC-DOC-01).
+- **Regras:** pelo menos um resultado ou um PDF; sem interpretação nem alertas por valor (D11); só exame `SCHEDULED` da própria clínica (senão `CONFLICT`/`NOT_FOUND`); PDF infetado é eliminado e auditado (UC-DOC-01). **M15 T (ADR-027):** os resultados podem ser guardados antes como rascunho (UC-CLN-37) e, ao concluir, o sistema gera o laudo em PDF (UC-CLN-38, BR-CLN-47..49) — o realce "Fora da referência" é aritmético e só existe nesse PDF (emenda a BR-EXM-02).
 
 ---
 

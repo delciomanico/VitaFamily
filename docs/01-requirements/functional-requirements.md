@@ -1,6 +1,6 @@
 # Vita Family — Requisitos Funcionais (Fase 3)
 
-> Estado: **v0.2 (+FR-CLN-15..20, M14 R) — R1–R10 respondidas (secção 14); R11 resolvido na Fase 8**
+> Estado: **v0.3 (+FR-CLN-21..24, M15 S/T, ADR-027) — v0.2 (+FR-CLN-15..20, M14 R) — R1–R10 respondidas (secção 14); R11 resolvido na Fase 8**
 > Base: `scope.md` v0.2 e `discovery.md` v0.2. Nada aqui acrescenta funcionalidade fora do âmbito aprovado.
 > Formato: ID · requisito · origem. Linguagem: "o sistema deve…".
 > **Permissões detalhadas (quem pode o quê) ficam na Fase 5**; aqui só se indicam restrições já decididas.
@@ -177,6 +177,10 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-CLN-18 | A clínica mantém o seu **perfil** (nome de apresentação, morada, telefone, e-mail, horário em texto, descrição curta), visível ao paciente ao escolher clínica (BR-CLN-38). | D22, ADR-026 (M14 R) |
 | FR-CLN-19 | O `CLINIC_ADMIN` cria contas de **Médico** (`CLINIC_DOCTOR`) ligadas a um profissional, com acesso restrito à sua agenda e pacientes, e as permissões de cada papel estão definidas endpoint a endpoint (BR-CLN-39, `authorization.md` §6.2). | D22, ADR-026 (M14 R) |
 | FR-CLN-20 | O `CLINIC_ADMIN` consulta a **auditoria da própria clínica** (ações dos seus funcionários, sem dados pessoais) (BR-CLN-40). | D22, ADR-026 (M14 R) |
+| FR-CLN-21 | O **Médico** escreve o **relatório da consulta** (motivo, achados, diagnóstico/impressão, conduta/plano), guarda **rascunho** enquanto atende, **finaliza** ao concluir e corrige com **adendas** datadas; Admin e Gestor apenas o leem (BR-CLN-41..44). | D23, ADR-027 (M15 S) |
+| FR-CLN-22 | A clínica imprime o **relatório em PDF** gerado pelo sistema (cabeçalho da clínica, paciente, secções, assinatura textual) e o paciente Vita (titular/tutor) lê-o e descarrega-o na consulta, se a clínica o partilhar (BR-CLN-45/46). | D23, ADR-027 (M15 S) |
+| FR-CLN-23 | A clínica guarda os **resultados de um exame como rascunho** e conclui depois, sem o paciente ver nada antes (BR-CLN-47). | D23, ADR-027 (M15 T) |
+| FR-CLN-24 | Ao concluir um exame com resultados estruturados, o sistema gera o **laudo em PDF** (tabela parâmetro/valor/unidade/referência, com a indicação aritmética "Fora da referência", sem interpretação), que fica como documento do exame visível ao paciente e descarregável pela clínica (BR-CLN-48/49). | D23, ADR-027 (M15 T) |
 
 ---
 

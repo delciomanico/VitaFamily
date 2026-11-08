@@ -1,6 +1,6 @@
 # Vita Family — Autorização (Fase 14)
 
-> Estado: **v0.6** — papel `CLINIC_DOCTOR` e matriz por papel de **todas** as rotas do portal da clínica (M14 R, ADR-026: §6.2b, §6.3, §6.5); v0.5 — papéis e matriz do módulo operacional de seguradoras (ADR-025: §8.2b, §8.4, §8.5); v0.4 — exames, resultados e recomendações da clínica e administração de contas (ADR-023, D19: §3 nota, §4, §6.2–6.4, novo §7); v0.3 acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
+> Estado: **v0.7** — relatório da consulta, rascunho de resultados e laudo gerado (M15 S/T, ADR-027: §6.2b linhas novas e nota 6, novo §6.6); v0.6 — papel `CLINIC_DOCTOR` e matriz por papel de **todas** as rotas do portal da clínica (M14 R, ADR-026: §6.2b, §6.3, §6.5); v0.5 — papéis e matriz do módulo operacional de seguradoras (ADR-025: §8.2b, §8.4, §8.5); v0.4 — exames, resultados e recomendações da clínica e administração de contas (ADR-023, D19: §3 nota, §4, §6.2–6.4, novo §7); v0.3 acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
 
 ## 1. Entradas e saída da decisão
 
@@ -156,14 +156,17 @@ Legenda: **sim** · **não** = `FORBIDDEN` (papel insuficiente; não revela mais
 | `agenda/{id}/cancel`, `confirm`, `arrive`, `no-show` | sim | sim | não |
 | `agenda/{id}/start`, `complete` (consulta ou visita; resultado, receita, BR-CLN-06) | sim | sim | suas |
 | `agenda/{id}/follow-up` (`PUT`/`DELETE`), `follow-ups` `GET` | sim | sim | suas |
+| `agenda/{id}/report` `GET`, `agenda/{id}/report/pdf` `GET` (relatório da consulta, M15 S, BR-CLN-44) | sim (lê) | sim (lê) | suas |
+| `agenda/{id}/report` `PUT` (rascunho), `report/finalize` `PUT`, `report/addenda` `POST`; e `report` no corpo de `agenda/{id}/complete` | **não** | **não** | suas (**só o Médico escreve**) |
 | `calendar` | sim | sim | só a sua coluna (`professionalId` de outro ⇒ `NOT_FOUND`) |
 | `exam-agenda` `GET`, `complete`, `documents` (upload/remover) | sim | sim | suas |
+| `exam-agenda/{id}/results-draft` (`GET`/`PUT`/`DELETE`) e `exam-agenda/{id}/report/pdf` `GET` (laudo, M15 T, BR-CLN-47..49) | sim | sim | suas |
 | `exam-agenda/{id}/cancel` | sim | sim | não |
 | `recommendations` (`GET`/`POST`) | sim | sim | suas |
 | `patients` `GET` (lista/`q`) e `GET /{id}`, `record`, `shared-history` | sim | sim | suas |
 | `patients` `POST`/`PATCH`, `patients/link` | sim | sim | não |
 | `patient-lookup`, `walk-in-appointments`, `search` | sim | sim | não |
-Notas: (1) o Médico nunca recebe `receiptId`/preços de recibos nem a lista de contas; (2) as `notes` do `ClinicPatient` são administrativas e visíveis aos três (BR-CLN-39); (3) o Médico não tem permissões no módulo operacional de seguradoras (ADR-025/Q6); (4) a regra "uma conta Médico por profissional" e a criação de contas são exclusivas do Admin; (5) o token de Médico traz `professionalId`; um token sem ele num papel Médico é inválido (`UNAUTHENTICATED`). Testes gerados a partir desta matriz: `TC-AZ-CLN-V5`.
+Notas: (1) o Médico nunca recebe `receiptId`/preços de recibos nem a lista de contas; (2) as `notes` do `ClinicPatient` são administrativas e visíveis aos três (BR-CLN-39); (3) o Médico não tem permissões no módulo operacional de seguradoras (ADR-025/Q6); (4) a regra "uma conta Médico por profissional" e a criação de contas são exclusivas do Admin; (5) o token de Médico traz `professionalId`; um token sem ele num papel Médico é inválido (`UNAUTHENTICATED`). (6) **Relatório da consulta (M15 S, ADR-027):** o Médico é o **único** que escreve (rascunho, finalizar, adenda, `report` em `complete`), só nas marcações cujo `clinic_slots.professional_id` é o seu; Admin e Gestor **leem** (relatório e PDF) mas **não escrevem** — uma escrita ou um `complete` com `report` por Admin/Gestor responde `FORBIDDEN` **sem efeito parcial**; marcação sem horário/profissional ⇒ `NOT_FOUND` para o Médico. Recomendação adotada: separar autoria clínica (assinatura textual, só o profissional) de leitura/impressão (receção); alargar a escrita ao Gestor é change control (OP-45). O rascunho/laudo do **exame** mantêm as permissões de `complete` de exame (Admin, Gestor, Médico suas): é entrada de valores, não autoria clínica. Testes gerados a partir desta matriz: `TC-AZ-CLN-V5` e, para M15, `TC-AZ-CLN-V6`.
 
 ### 6.3 Hierarquia de contas (BR-CLN-05) — quem administra quem
 | Ação | Quem |
@@ -189,6 +192,13 @@ Sem categoria de partilha nova nem `SharingGrant` (como `InsurancePolicy`, §3):
 | Listar e ver recibos recebidos (`GET`) | sim (do próprio) | sim (do dependente) | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
 | Anexar recibo a um pedido de reembolso (`receiptIds`, BR-CLN-36) | sim | sim | não | não |
 Sem categoria de partilha nem `SharingGrant` (como o seguro, §3): documento financeiro, só `SELF`/`TUTOR_OF`. Recibo sem `clinic_receipt_links` para o membro (ou de outra família) ⇒ `NOT_FOUND`. A clínica nunca vê nem altera estas ligações nem os pedidos de reembolso; a seguradora só vê o resumo mínimo dos recibos que o titular anexou (BR-CLN-36).
+
+### 6.6 Relatório da consulta — lado família (M15 S, ADR-027)
+| Ação (rotas `/families/{f}/members/{m}/appointments/{id}/report` e `…/report/pdf`) | `SELF` (adulto) | `TUTOR_OF` | `DEPENDENT_SELF` | `OTHER` / Family Admin como OTHER |
+|---|---|---|---|---|
+| Ler o relatório e descarregar o PDF (só `FINAL`, partilhado, consulta Vita) | sim (do próprio; leitura JSON não auditada, **PDF auditado**) | sim (do dependente; auditado) | não (`FORBIDDEN`) | não (`FORBIDDEN`), **mesmo com `SharingGrant` de `APPOINTMENTS`** |
+Critério: `READ(APPOINTMENTS)` do membro **e** relação `SELF`/`TUTOR_OF` (o relatório contém diagnóstico: mais sensível que a marcação e que a `Recommendation`, que herda `APPOINTMENTS` e é legível por `DEPENDENT_SELF`/`OTHER` com partilha, §3). **Não** depende de `ClinicConsent` (BR-CLN-45). Sem relatório `FINAL` partilhado, visita manual ou consulta de outra família ⇒ `NOT_FOUND`; `Appointment.reportAvailable` é `false` para quem não pode ler (as listas filtram, §5.3). A clínica nunca escreve nem lê por esta via; a conta autora e os ids da clínica não são expostos.
+O **laudo de exame gerado** (`Document.generatedBySystem`) segue as regras de documentos de `EXAMS` (§3 nota, BR-DOC-04, BR-CLN-08): lista e download mediado/auditado como o PDF atual; **não** há rota nova.
 
 ## 7. Administração da plataforma (`PLATFORM_ADMIN`, ADR-023)
 

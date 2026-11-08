@@ -43,6 +43,9 @@
 | `clinic_accounts` (M14 R) | UNIQUE parcial `(professional_id) WHERE professional_id IS NOT NULL` | Uma conta Médico por profissional (BR-CLN-39). |
 | `audit_logs` (M14 R) | `(actor_clinic_id, occurred_at DESC, id DESC) WHERE actor_clinic_id IS NOT NULL` | `GET /clinic-portal/audit` (BR-CLN-40); sem custo para as restantes entradas (índice parcial). |
 | `clinic_slots` / `appointments` / `clinic_visits` (M14 R, filtro do Médico) | reutiliza `clinic_slots (professional_id, starts_at)` (a2) e o UNIQUE parcial `clinic_visits (slot_id)`; acrescenta `appointments (slot_id) WHERE slot_id IS NOT NULL` (`CREATE INDEX IF NOT EXISTS`) | Filtrar marcações e pacientes por `slot.professional_id` (BR-CLN-39) sem varrimento. |
+| `clinic_consultation_reports` (M15 S) | UNIQUE `(clinic_id, booking_kind, booking_id)` · `(clinic_id, clinic_patient_id) WHERE clinic_patient_id IS NOT NULL` · `(clinic_id, id)` (alvo da FK composta) | Relatório por marcação (portal e leitura do paciente, BR-CLN-41/45); relatórios na ficha do paciente. |
+| `clinic_consultation_report_addenda` (M15 S) | `(clinic_id, report_id, created_at)` | Adendas por relatório (≤20). |
+| `documents` (M15 T) | UNIQUE parcial `(examination_id) WHERE generated_by_system` | Um laudo gerado por exame (BR-CLN-49). |
 | `recommendations` | `(member_id, created_at DESC)` · `(appointment_id)` · `(examination_id)` · `(clinic_id, created_at DESC)` | Leitura pelo paciente; listagem da clínica (D19). |
 | `documents` | `(uploaded_by_clinic_account_id) WHERE uploaded_by_clinic_account_id IS NOT NULL` | Documentos emitidos pela clínica (D19). |
 | `exam_results` | `(examination_id)` · `(parameter)` por membro via join | Histórico de um parâmetro. |

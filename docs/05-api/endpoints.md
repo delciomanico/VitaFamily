@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.7** (+M14 R, 2026-11-08: recibos `/clinic-portal/receipts*` e `…/clinic-receipts*`, `profile`, `audit`, papel `CLINIC_DOCTOR` e matriz por papel em `authorization.md` §6.2b, `receiptIds` nos pedidos de reembolso) — v0.6 (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.8** (+M15 S/T, 2026-11-08, ADR-027: relatório da consulta `/clinic-portal/agenda/{id}/report*` e `…/appointments/{id}/report*`, rascunho de resultados `…/exam-agenda/{id}/results-draft` e laudo `…/report/pdf`; `report` em `complete`, `generateReport`) — v0.7 (+M14 R, 2026-11-08: recibos `/clinic-portal/receipts*` e `…/clinic-receipts*`, `profile`, `audit`, papel `CLINIC_DOCTOR` e matriz por papel em `authorization.md` §6.2b, `receiptIds` nos pedidos de reembolso) — v0.6 (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -723,6 +723,20 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** —
 
+### `GET /families/{familyId}/members/{memberId}/appointments/{appointmentId}/report`  — getFamilyConsultationReport
+- **AUTHORIZATION:** Titular (SELF adulto) ou tutor (TUTOR_OF) com READ(APPOINTMENTS) (`authorization.md` §6.6)
+- **DESCRIPTION:** Ler o relatório da consulta emitido pela clínica (UC-CLN-36, M15 S).
+- **RESPONSE:** `200` `FamilyConsultationReport`
+- **ERRORS:** `FORBIDDEN` (DEPENDENT_SELF, OTHER), `NOT_FOUND` (sem relatório `FINAL` partilhado, visita manual, outra família), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-45: independente de `ClinicConsent`; sem ids da clínica/conta. Auditado quando lido por tutor.
+
+### `GET /families/{familyId}/members/{memberId}/appointments/{appointmentId}/report/pdf`  — getFamilyConsultationReportPdf
+- **AUTHORIZATION:** como o anterior
+- **DESCRIPTION:** Descarregar o PDF do relatório.
+- **RESPONSE:** `200` `application/pdf` (`Content-Disposition: attachment`)
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-45/46. Sempre auditado (`CONSULT_REPORT_VIEWED`, `format=PDF`).
+
 ### `PATCH /families/{familyId}/members/{memberId}/appointments/{appointmentId}`  — updateAppointment
 - **AUTHORIZATION:** WRITE(APPOINTMENTS)
 - **DESCRIPTION:** Alterar/reagendar consulta.
@@ -1043,6 +1057,45 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `CONFLICT` (consulta não está `SCHEDULED` ou já passou da janela, ST4), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** BR-CLN-06, BR-RX-07: a receita (se incluída) é criada no módulo `prescriptions` com `issuedBy=CLINIC` e `appointmentId` de origem, e passa a aparecer no histórico do paciente; a clínica só pode completar a consulta em curso que a própria clínica está a atender.
 
+### `GET /clinic-portal/agenda/{appointmentId}/report`  — getClinicConsultationReport
+- **AUTHORIZATION:** CLINIC_ACCOUNT (Admin e Gestor qualquer marcação; Médico as suas — `authorization.md` §6.2b)
+- **DESCRIPTION:** Ver o relatório da consulta (rascunho ou final) de uma consulta Vita ou visita manual (UC-CLN-35, M15 S).
+- **RESPONSE:** `200` `ConsultationReport`
+- **ERRORS:** `NOT_FOUND` (inexistente, de outra clínica/profissional ou sem relatório), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-41/44. A lista de marcações traz `reportStatus`. Leitura auditada (`CONSULT_REPORT_VIEWED`, sem texto).
+
+### `PUT /clinic-portal/agenda/{appointmentId}/report`  — saveClinicConsultationReport
+- **AUTHORIZATION:** `CLINIC_DOCTOR` (suas); Admin/Gestor ⇒ `FORBIDDEN`
+- **DESCRIPTION:** Guardar (criar ou atualizar) o **rascunho** do relatório (UC-CLN-32).
+- **REQUEST:** `ConsultationReportInput` (`reason?`, `findings?`, `impression?`, `plan?`, `sharedWithPatient?`)
+- **RESPONSE:** `200` `ConsultationReport` (`status=DRAFT`)
+- **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION` (relatório `FINAL` ou marcação cancelada/faltou/pedida), `NOT_FOUND`, `RATE_LIMITED` (60/min por conta), `UNAUTHENTICATED`, `VALIDATION_ERROR` (nenhuma secção, limites, caracteres de controlo)
+- **BUSINESS RULES:** BR-CLN-41/42/44. Última escrita ganha. Marcação `SCHEDULED` ou `COMPLETED`. Auditoria `CONSULT_REPORT_SAVED` (sem texto).
+
+### `PUT /clinic-portal/agenda/{appointmentId}/report/finalize`  — finalizeClinicConsultationReport
+- **AUTHORIZATION:** `CLINIC_DOCTOR` (suas)
+- **DESCRIPTION:** Finalizar o relatório (`DRAFT → FINAL`, imutável) numa consulta já concluída ou em curso (UC-CLN-33).
+- **RESPONSE:** `200` `ConsultationReport`
+- **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION`, `NOT_FOUND` (inclui sem relatório), `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-42/43. Idempotente. Fixa o retrato do perfil e `finalizedAt`. Auditoria `CONSULT_REPORT_FINALIZED`.
+
+### `POST /clinic-portal/agenda/{appointmentId}/report/addenda`  — addClinicConsultationReportAddendum
+- **AUTHORIZATION:** `CLINIC_DOCTOR` (suas)
+- **DESCRIPTION:** Acrescentar adenda datada a um relatório `FINAL` (UC-CLN-34).
+- **REQUEST:** `ConsultationReportAddendumInput` (`text` 1–1500)
+- **RESPONSE:** `201` `ConsultationReport`
+- **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION` (relatório `DRAFT`), `LIMIT_EXCEEDED` (20 adendas), `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-43. Imutável. Auditoria `CONSULT_REPORT_AMENDED`.
+
+### `GET /clinic-portal/agenda/{appointmentId}/report/pdf`  — getClinicConsultationReportPdf
+- **AUTHORIZATION:** CLINIC_ACCOUNT (como `GET …/report`)
+- **DESCRIPTION:** PDF imprimível gerado pelo sistema (UC-CLN-35).
+- **RESPONSE:** `200` `application/pdf` (`Cache-Control: private, no-store`; `Content-Disposition: inline; filename="relatorio-AAAAMMDD.pdf"`)
+- **ERRORS:** `NOT_FOUND`, `RATE_LIMITED` (30/min por conta), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-46. Gerado a pedido (não guardado); `DRAFT` leva "RASCUNHO — sem valor". Auditoria `CONSULT_REPORT_VIEWED` (`format=PDF`).
+
+**Alterações a endpoints existentes (retrocompatíveis, M15 S):** `PUT /clinic-portal/agenda/{id}/complete` aceita `report` (`ConsultationReportInput`; só `CLINIC_DOCTOR`, senão `FORBIDDEN`; grava e finaliza atomicamente); `ClinicBooking` (agenda, Hoje, ficha) ganha `reportStatus` (`DRAFT`\|`FINAL`\|nulo); `Appointment` (família) ganha `reportAvailable`.
+
 ### `POST /clinic-portal/patient-lookup`  — clinicPatientLookup
 - **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
 - **DESCRIPTION:** Pesquisar um utilizador por e-mail exato para marcação presencial (UC-CLN-08, ADR-024).
@@ -1261,6 +1314,37 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **RESPONSE:** `200` `ClinicExamBooking`
 - **ERRORS:** `CONFLICT` (exame não está `SCHEDULED`), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR` (sem resultados nem PDF)
 - **BUSINESS RULES:** BR-CLN-08: `SCHEDULED → COMPLETED` atómico com os `ExamResult`; `issuedBy=CLINIC`, `issuedByClinicAccountId`, `resultsIssuedAt`; sem interpretação nem alertas por valor (D11); dispara `exam.results`; só exame da própria clínica.
+
+### `GET /clinic-portal/exam-agenda/{examinationId}/results-draft`  — getClinicExamResultsDraft
+- **AUTHORIZATION:** CLINIC_ACCOUNT (Admin, Gestor; Médico os seus)
+- **DESCRIPTION:** Ver o rascunho de resultados de um exame `SCHEDULED` (UC-CLN-37, M15 T).
+- **RESPONSE:** `200` `ClinicExamResultsDraft`
+- **ERRORS:** `NOT_FOUND` (sem rascunho, exame de outra clínica/profissional), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-47. Nunca visível ao paciente; valores fora de logs/auditoria.
+
+### `PUT /clinic-portal/exam-agenda/{examinationId}/results-draft`  — saveClinicExamResultsDraft
+- **AUTHORIZATION:** CLINIC_ACCOUNT (Admin, Gestor; Médico os seus)
+- **DESCRIPTION:** Guardar (substituir) o rascunho sem concluir o exame.
+- **REQUEST:** `ClinicExamResultsDraftInput` (`results?` 0–50, `resultNote?` ≤2000; ≥1 resultado ou nota)
+- **RESPONSE:** `200` `ClinicExamResultsDraft`
+- **ERRORS:** `INVALID_STATE_TRANSITION` (exame não `SCHEDULED`), `NOT_FOUND`, `RATE_LIMITED` (60/min por conta), `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-47. O exame continua `SCHEDULED`; não cria `exam_results`. Auditoria `EXAM_RESULTS_DRAFT_SAVED` (sem valores).
+
+### `DELETE /clinic-portal/exam-agenda/{examinationId}/results-draft`  — discardClinicExamResultsDraft
+- **AUTHORIZATION:** CLINIC_ACCOUNT (Admin, Gestor; Médico os seus)
+- **DESCRIPTION:** Descartar o rascunho (idempotente).
+- **RESPONSE:** `204`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-47. Auditoria `EXAM_RESULTS_DRAFT_DISCARDED`.
+
+### `GET /clinic-portal/exam-agenda/{examinationId}/report/pdf`  — getClinicExamReportPdf
+- **AUTHORIZATION:** CLINIC_ACCOUNT (Admin, Gestor; Médico os seus)
+- **DESCRIPTION:** Descarregar o laudo PDF gerado pelo sistema, com o exame `COMPLETED` (UC-CLN-38).
+- **RESPONSE:** `200` `application/pdf`
+- **ERRORS:** `NOT_FOUND` (exame não concluído, sem laudo ou laudo apagado pelo titular), `RATE_LIMITED` (30/min por conta), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-48/49: única exceção a "a clínica nunca descarrega" (BR-CLN-08). O paciente vê o mesmo documento pelas rotas de documentos de `EXAMS`. Auditoria `EXAM_REPORT_DOWNLOAD`.
+
+**Alterações a endpoints existentes (retrocompatíveis, M15 T):** `PUT /clinic-portal/exam-agenda/{id}/complete` aceita `generateReport` (omissão `true`) e, sem `results` no corpo, usa o rascunho; `ClinicExamBooking` ganha `hasResultsDraft` e `reportAvailable`; `ClinicDocumentView` e `Document` ganham `generatedBySystem`.
 
 ### `POST /clinic-portal/exam-agenda/{examinationId}/documents`  — uploadClinicExamDocument
 - **AUTHORIZATION:** CLINIC_ACCOUNT
@@ -2033,7 +2117,7 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **ClinicCancelRequest** — `note`: string (motivo obrigatório, UC-CLN-06)
 
-**ClinicCompleteAppointmentRequest** — `outcomeNote?`: string (resultado da consulta, BR-CLN-06), `prescription?`: `PrescriptionInput` (opcional; se presente, cria a receita com `issuedBy=CLINIC`, BR-RX-07)
+**ClinicCompleteAppointmentRequest** — `outcomeNote?`: string (resultado da consulta, BR-CLN-06), `prescription?`: `PrescriptionInput` (opcional; se presente, cria a receita com `issuedBy=CLINIC`, BR-RX-07) **M15 S:** `report?`: `ConsultationReportInput` (só `CLINIC_DOCTOR`; grava e finaliza atomicamente).
 
 **ClinicPatient** — `id`: uuid, `name`: string, `phone?`: string, `email?`: string, `birthDate?`: date, `notes?`: string, `origin`: MANUAL|VITA, `vitaLink?`: `ClinicPatientVitaLink`, `createdAt`, `updatedAt` (BR-CLN-17; nunca ids Vita)
 
@@ -2079,7 +2163,15 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **ClinicExamDocumentUploadRequest** — `file`: binary (só PDF)
 
-**ClinicCompleteExaminationRequest** — `results?`: [ExamResultInput] (0–50), `resultNote?`: string (≤2000); pelo menos um resultado ou um PDF carregado (BR-CLN-08)
+**ClinicCompleteExaminationRequest** — `results?`: [ExamResultInput] (0–50), `resultNote?`: string (≤2000); pelo menos um resultado ou um PDF carregado (BR-CLN-08) **M15 T:** `generateReport?`: bool (omissão `true`); sem `results` usa o rascunho.
+
+**ConsultationReportInput** (M15 S) — `reason?` (≤300), `findings?` (≤1500), `impression?` (≤500), `plan?` (≤1500), `sharedWithPatient?`: bool (omissão `true`); ≥1 secção; texto simples · **ConsultationReportAddendumInput** — `text` (1–1500) · **ConsultationReportAddendum** — `id`, `text`, `authorName`, `createdAt`
+
+**ConsultationReport** (clínica) — `id`, `bookingKind`: APPOINTMENT|VISIT, `bookingId`, `status`: DRAFT|FINAL, `reason?`, `findings?`, `impression?`, `plan?`, `sharedWithPatient`, `patientName`, `patientBirthDate?`, `consultationAt`, `specialty?`, `authorName` (assinatura textual), `authorAccountId?`, `finalizedAt?`, `addenda`: [ConsultationReportAddendum], `createdAt`, `updatedAt` · **FamilyConsultationReport** (titular/tutor) — `appointmentId`, `clinicName`, `consultationAt`, `specialty?`, `authorName`, `reason?`, `findings?`, `impression?`, `plan?`, `finalizedAt`, `addenda`, `notice` (sem ids da clínica/conta)
+
+**ClinicExamResultsDraftInput** (M15 T) — `results?`: [ExamResultInput] (0–50), `resultNote?` (≤2000); ≥1 resultado ou nota · **ClinicExamResultsDraft** — `examinationId`, `status`: DRAFT, `results`, `resultNote?`, `updatedAt`
+
+**Campos acrescentados (M15):** `ClinicBooking.reportStatus?`: DRAFT|FINAL · `ClinicExamBooking.hasResultsDraft?`, `reportAvailable?` · `ClinicDocumentView.generatedBySystem?`, `Document.generatedBySystem?` · `Appointment.reportAvailable?`
 
 **ClinicRecommendationInput** — `appointmentId?`: uuid, `examinationId?`: uuid (exatamente um, BR-CLN-09), `text`: string (1–2000)
 
