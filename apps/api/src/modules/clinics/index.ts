@@ -77,6 +77,7 @@ import { createResolveClinicActorStateUseCase } from "./application/resolve-clin
 import { createSetPrivateClinicStatusUseCase } from "./application/set-private-clinic-status.js";
 import { createUpdatePrivateClinicUseCase } from "./application/update-private-clinic.js";
 import type { ClinicSigningKey } from "./domain/clinic-jwt.js";
+import type { ClinicSlot } from "./domain/clinic-slot.js";
 import { ClinicInMemoryRateLimiter } from "./domain/clinic-rate-limiter.js";
 import { ClinicTtlCache } from "./domain/clinic-ttl-cache.js";
 import { KyselyClinicAccountRepository, KyselyClinicSessionRepository } from "./infrastructure/clinic-account-repo.js";
@@ -147,6 +148,14 @@ export interface ClinicsModule {
   lockClinicSlot: ReturnType<typeof createLockClinicSlotUseCase<Kysely<Database>>>;
   /** BR-CLN-13 (`appointments`, walk-in): horários do profissional que se sobrepõem a `[from, to)`, sem `excludeSlotId`. */
   listProfessionalSlotsOverlapping: (trx: Kysely<Database>, professionalId: string, from: Date, to: Date, excludeSlotId: string) => Promise<string[]>;
+  /** M14 P (BR-CLN-19, `clinic-patients`): clínica PARCEIRA pelo id (qualquer estado); `null` se não existe ou é privada. */
+  getPartnerClinic: (trx: Kysely<Database>, clinicId: string) => Promise<{ id: string; name: string; active: boolean } | null>;
+  /** M14 P (BR-CLN-23, `clinic-patients`): horários da clínica que começam em `[from, to)`. */
+  listClinicSlotsInWindow: (trx: Kysely<Database>, clinicId: string, from: Date, to: Date) => Promise<ClinicSlot[]>;
+  /** M14 P (`clinic-patients`): horários da clínica pelos ids. */
+  findClinicSlotsByIds: (trx: Kysely<Database>, clinicId: string, slotIds: string[]) => Promise<ClinicSlot[]>;
+  /** M14 P (BR-CLN-23, `clinic-patients`): profissional da clínica (ativo ou não); `null` se de outra clínica/inexistente. */
+  findClinicProfessional: (trx: Kysely<Database>, clinicId: string, professionalId: string) => Promise<{ id: string; name: string } | null>;
   /** Para `admin` (BR-ADM-03/04, ADR-023): listar, suspender e reativar contas do portal de uma clínica parceira. */
   adminListClinicAccounts: ReturnType<typeof createAdminListClinicAccountsUseCase<Kysely<Database>>>;
   adminSuspendClinicAccount: ReturnType<typeof createAdminSuspendClinicAccountUseCase<Kysely<Database>>>;
@@ -253,6 +262,17 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     lockClinicSlot: createLockClinicSlotUseCase(clinicsDeps),
     listProfessionalSlotsOverlapping: async (trx, professionalId, from, to, excludeSlotId) =>
       (await clinicSlotsRepo.listByProfessional(trx, professionalId, { endsAfter: from, startsBefore: to })).filter((slot) => slot.id !== excludeSlotId).map((slot) => slot.id),
+    getPartnerClinic: async (trx, clinicId) => {
+      const clinic = await clinicsRepo.findById(trx, clinicId);
+      return clinic?.type === "PARTNER" ? { id: clinic.id, name: clinic.name, active: clinic.status === "ACTIVE" } : null;
+    },
+    listClinicSlotsInWindow: async (trx, clinicId, from, to) =>
+      (await clinicSlotsRepo.listByClinic(trx, clinicId, { from, to })).filter((slot) => slot.startsAt.getTime() < to.getTime()),
+    findClinicSlotsByIds: (trx, clinicId, slotIds) => clinicSlotsRepo.listByIds(trx, clinicId, slotIds),
+    findClinicProfessional: async (trx, clinicId, professionalId) => {
+      const professional = await catalogRepo.findProfessional(trx, clinicId, professionalId);
+      return professional ? { id: professional.id, name: professional.name } : null;
+    },
     adminListClinicAccounts: createAdminListClinicAccountsUseCase(clinicsDeps),
     adminSuspendClinicAccount: createAdminSuspendClinicAccountUseCase(clinicsDeps),
     adminReactivateClinicAccount: createAdminReactivateClinicAccountUseCase(clinicsDeps),

@@ -203,3 +203,15 @@ describe("checkArchitecture (dados sintéticos)", () => {
     expect(checkArchitecture(files, deps)).toEqual([]);
   });
 });
+
+describe("clinic-patients (ADR-026, modules.md §2 nota 24)", () => {
+  const files = (target: string): FileImports[] => [{ file: "modules/clinic-patients/application/x", relativeImports: [target], bareImports: [] }];
+
+  it.each(["medications", "examinations", "appointments", "recommendations", "families", "auth"])("não pode importar modules/%s (só por portas no composition root)", (module) => {
+    expect(checkArchitecture(files(`modules/${module}/index`)).join("\n")).toContain(`não pode depender de modules/${module}`);
+  });
+
+  it.each(["access", "clinics", "audit"])("pode importar a raiz de modules/%s", (module) => {
+    expect(checkArchitecture(files(`modules/${module}/index`))).toEqual([]);
+  });
+});

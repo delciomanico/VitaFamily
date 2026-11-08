@@ -16,7 +16,7 @@ import type { DataCategory } from "../domain/sharing-grant.js";
 import type { AccessDeps, MemberFacts } from "./ports.js";
 
 /** authorization.md §1 (ações sobre dados de saúde) + §4 (partilha) + VIEW_SHARED_WITH_ME (UC-PRV-02). */
-export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_INSURANCE" | "VIEW_SHARED_WITH_ME";
+export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_INSURANCE" | "MANAGE_CLINIC_CONSENT" | "VIEW_SHARED_WITH_ME";
 
 export interface CanInput {
   userId: string;
@@ -40,7 +40,7 @@ export interface AccessContext {
 }
 
 function isHealthAction(action: Action): action is HealthAction {
-  return action !== "MANAGE_SHARING" && action !== "MANAGE_INSURANCE" && action !== "VIEW_SHARED_WITH_ME";
+  return action !== "MANAGE_SHARING" && action !== "MANAGE_INSURANCE" && action !== "MANAGE_CLINIC_CONSENT" && action !== "VIEW_SHARED_WITH_ME";
 }
 
 export interface AccessPolicy<Trx> {
@@ -109,6 +109,15 @@ export function createAccessPolicy<Trx>(deps: Pick<AccessDeps<Trx>, "familiesPor
         return { actor, subject, relation };
       }
       throw new ForbiddenError({ detail: "Sem permissão sobre os seguros deste membro." });
+    }
+
+    if (input.action === "MANAGE_CLINIC_CONSENT") {
+      // ADR-026/BR-CLN-19, authorization.md §6.4: consentimento e códigos de ligação a clínicas NÃO são categoria
+      // (sem SharingGrant): só SELF (adulto) ou TUTOR_OF; nunca OTHER (nem Family Admin como OTHER) nem DEPENDENT_SELF (N2).
+      if (relation === "SELF" || relation === "TUTOR_OF") {
+        return { actor, subject, relation };
+      }
+      throw new ForbiddenError({ detail: "Sem permissão sobre o consentimento deste membro." });
     }
 
     if (!input.category) {

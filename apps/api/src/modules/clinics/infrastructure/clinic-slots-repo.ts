@@ -155,6 +155,14 @@ export class KyselyClinicSlotsRepository implements ClinicSlotsRepository<Kysely
     return rows.map(toClinicSlot);
   }
 
+  async listByIds(trx: Kysely<Database>, clinicId: string, slotIds: string[]): Promise<ClinicSlot[]> {
+    if (slotIds.length === 0) {
+      return [];
+    }
+    const rows = await trx.selectFrom("clinic_slots").select(CLINIC_SLOT_COLUMNS).where("clinic_id", "=", clinicId).where("id", "in", slotIds).execute();
+    return rows.map(toClinicSlot);
+  }
+
   async deleteMany(trx: Kysely<Database>, slotIds: string[]): Promise<void> {
     if (slotIds.length === 0) {
       return;

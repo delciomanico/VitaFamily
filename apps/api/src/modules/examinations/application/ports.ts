@@ -144,6 +144,14 @@ export interface ExaminationListFilter {
 }
 
 /** `examinations` (schema.md §3) — propriedade exclusiva deste módulo (conventions.md §3.5). */
+export interface ClinicExamsFilter {
+  from?: Date;
+  /** Exclusivo. */
+  to?: Date;
+  familyId?: string;
+  memberId?: string;
+}
+
 export interface ExaminationsRepository<Trx> {
   insert(trx: Trx, record: NewExaminationRecord): Promise<Examination>;
   findById(trx: Trx, familyId: string, memberId: string, examinationId: string): Promise<Examination | null>;
@@ -165,6 +173,11 @@ export interface ExaminationsRepository<Trx> {
    * e tiver nascido de um horário (`scheduled_at`) — nunca um exame que a família registou à mão. */
   findByClinicId(trx: Trx, clinicId: string, examinationId: string): Promise<Examination | null>;
   listByClinicAndStatus(trx: Trx, clinicId: string, statuses: ExaminationStatus[], filter: { from?: Date; to?: Date }): Promise<Examination[]>;
+  /** M14 P (`clinic-patients`, leitura): exames `SCHEDULED|COMPLETED` da clínica com horário, por `scheduled_at`
+   * (`[from, to)`), opcionalmente de um membro; com `limit` devolve os mais recentes primeiro. */
+  listForClinic(trx: Trx, clinicId: string, filter: ClinicExamsFilter, limit?: number): Promise<Examination[]>;
+  /** M14 P (BR-CLN-21, `clinic-patients`): exames `SCHEDULED|COMPLETED` do membro com `exam_date >= since` (AAAA-MM-DD). */
+  listSharedByMember(trx: Trx, familyId: string, memberId: string, since: string): Promise<Examination[]>;
   /** Único escritor de `status`+`response_note` para o portal/sistema — nunca `familyId`/`memberId`. */
   updateStatusByClinic(trx: Trx, examinationId: string, change: ClinicExamStatusChange): Promise<Examination>;
   completeByClinic(trx: Trx, examinationId: string, completion: ClinicExamCompletion): Promise<Examination>;

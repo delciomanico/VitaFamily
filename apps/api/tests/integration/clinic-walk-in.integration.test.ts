@@ -92,6 +92,17 @@ describe("integração: marcação presencial (walk-in) — migração 0026 e re
           return row ? { familyId: row.familyId, memberId: row.memberId, fullName: row.name } : null;
         },
       },
+      // M14 P: este teste só usa o caminho `patientEmail`; o diretório real de `clinic-patients` testa-se em clinic-patients.integration.
+      clinicPatients: {
+        resolvePatient: unused,
+        ensureLinkedByEmail: () => Promise.resolve({ clinicPatientId: randomUUID() }),
+        bookVisit: unused,
+        listVisits: () => Promise.resolve([]),
+        cancelVisit: unused,
+        completeVisit: unused,
+        countActiveVisitsBySlot: () => Promise.resolve([]),
+        findPatientIdsByMembers: () => Promise.resolve(new Map()),
+      },
       walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
       audit: { record: (_trx, event) => Promise.resolve(void audit.push(event)) },
       db,

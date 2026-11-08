@@ -216,6 +216,14 @@ export interface CursorPage<T> {
   nextCursor: string | null;
 }
 
+export interface ClinicAppointmentsFilter {
+  from?: Date;
+  /** Exclusivo. */
+  to?: Date;
+  familyId?: string;
+  memberId?: string;
+}
+
 /** `appointments` (schema.md §3) — propriedade exclusiva deste módulo (conventions.md §3.5). */
 export interface AppointmentsRepository<Trx> {
   insert(trx: Trx, record: NewAppointmentRecord): Promise<Appointment>;
@@ -254,6 +262,9 @@ export interface AppointmentsRepository<Trx> {
   /** `completeConsultation` (D18, BR-CLN-06): marca `COMPLETED` e grava o resultado da consulta,
    * sempre com quem o registou — nunca escrito pela família. */
   completeByClinic(trx: Trx, appointmentId: string, change: ClinicOutcomeChange): Promise<Appointment>;
+  /** M14 P (`clinic-patients`, leitura): consultas da clínica por `scheduled_at` (`[from, to)`), opcionalmente de um membro;
+   * com `limit` devolve as mais recentes primeiro. */
+  listForClinic(trx: Trx, clinicId: string, filter: ClinicAppointmentsFilter, limit?: number): Promise<Appointment[]>;
   /** BR-CLN-10/16 (walk-in): consultas `SCHEDULED` do membro cujo intervalo `[início, início + duração)` sobrepõe `[from, to)`. */
   findScheduledOverlapping(trx: Trx, familyId: string, memberId: string, from: Date, to: Date): Promise<Appointment[]>;
 }
@@ -268,6 +279,42 @@ export interface PatientDirectoryPort<Trx> {
   findSelfByEmail(trx: Trx, email: string): Promise<{ familyId: string; memberId: string; fullName: string } | null>;
 }
 
+/**
+ * `ClinicPatientDirectory` (M14 P, BR-CLN-18, modules.md §2): o que o walk-in e a agenda pedem ao módulo
+ * `clinic-patients` — definida aqui e implementada lá (ligada no composition root; `appointments` nunca importa
+ * `clinic-patients` nem lê as suas tabelas). Todas as operações correm na transação do chamador.
+ */
+export interface ClinicVisitBookingView {
+  id: string;
+  status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
+  scheduledAt: string;
+  specialty?: string;
+  professionalName?: string;
+  patientName: string;
+  notes?: string;
+  responseNote?: string;
+  source: "MANUAL";
+  clinicPatientId: string;
+  slotId?: string;
+}
+
+export interface ClinicPatientDirectoryPort<Trx> {
+  /** Paciente da clínica; `null` se de outra clínica/inexistente. `link` só no servidor (nunca sai para o portal). */
+  resolvePatient(trx: Trx, clinicId: string, clinicPatientId: string): Promise<{ clinicPatientId: string; name: string; link: { familyId: string; memberId: string } | null } | null>;
+  /** BR-CLN-18 (a): cria/reutiliza o paciente ligado ao membro `SELF` (`via=EMAIL`) e garante `BOOKINGS`. */
+  ensureLinkedByEmail(trx: Trx, actor: ClinicPortalActor, input: { familyId: string; memberId: string; fullName: string }, context: RequestContext): Promise<{ clinicPatientId: string }>;
+  /** BR-CLN-18 (c): visita presencial manual (bloqueia o horário, valida sobreposições, audita `CLINIC_VISIT_BOOK`). */
+  bookVisit(trx: Trx, actor: ClinicPortalActor, input: { clinicPatientId: string; slotId: string; notes?: string | null }, context: RequestContext): Promise<ClinicVisitBookingView>;
+  listVisits(trx: Trx, clinicId: string, filter: { from?: Date; to?: Date }): Promise<ClinicVisitBookingView[]>;
+  /** `null` se o id não é uma visita da clínica (o chamador decide o 404). */
+  cancelVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, note: string, context: RequestContext): Promise<ClinicVisitBookingView | null>;
+  completeVisit(trx: Trx, actor: ClinicPortalActor, visitId: string, input: { outcomeNote?: string | null; prescription?: unknown }, context: RequestContext): Promise<ClinicVisitBookingView | null>;
+  /** BR-APT-06: visitas `SCHEDULED` por horário (ocupam-no). */
+  countActiveVisitsBySlot(trx: Trx, slotIds: string[]): Promise<{ slotId: string; count: number }[]>;
+  /** `memberId -> clinicPatientId` na clínica (consultas Vita associam-se ao paciente pela ligação). */
+  findPatientIdsByMembers(trx: Trx, clinicId: string, memberIds: string[]): Promise<Map<string, string>>;
+}
+
 export interface AppointmentsDeps<Trx> {
   appointmentsRepo: AppointmentsRepository<Trx>;
   policy: AccessPolicyPort<Trx>;
@@ -280,6 +327,8 @@ export interface AppointmentsDeps<Trx> {
   prescriptions: PrescriptionsPort<Trx>;
   /** D20 (ADR-024): pesquisa de paciente por e-mail exato (walk-in). */
   patients: PatientDirectoryPort<Trx>;
+  /** M14 P (BR-CLN-18): pacientes da clínica e visitas manuais (implementada por `clinic-patients`). */
+  clinicPatients: ClinicPatientDirectoryPort<Trx>;
   /** BR-CLN-10: rate limit dos endpoints walk-in (por conta, por IP, falhas 404). */
   walkInRateLimiter: WalkInRateLimiter;
   audit: AuditPort<Trx>;

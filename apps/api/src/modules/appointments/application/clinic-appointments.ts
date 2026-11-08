@@ -20,15 +20,29 @@ export interface ClinicAppointmentView {
   patientName: string;
   notes?: string;
   responseNote?: string;
+  /** M14 P (BR-CLN-18): `VITA` por omissão; `MANUAL` = visita presencial só da clínica. */
+  source?: "VITA" | "MANUAL";
+  clinicPatientId?: string;
+  slotId?: string;
 }
 
-export async function toView<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, appointment: Appointment): Promise<ClinicAppointmentView> {
+/** `memberId -> clinicPatientId` em lote (M14 P): consultas Vita associam-se ao paciente da clínica pela ligação. */
+export async function patientIdsOf<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, clinicId: string, appointments: Appointment[]): Promise<Map<string, string>> {
+  return deps.clinicPatients.findPatientIdsByMembers(trx, clinicId, [...new Set(appointments.map((a) => a.memberId))]);
+}
+
+export async function toView<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, appointment: Appointment, patientIds?: Map<string, string>): Promise<ClinicAppointmentView> {
   const patientName = (await deps.memberNames.getMemberName(trx, appointment.familyId, appointment.memberId)) ?? "Membro da família";
+  const ids = appointment.clinicId ? (patientIds ?? (await patientIdsOf(deps, trx, appointment.clinicId, [appointment]))) : new Map<string, string>();
+  const clinicPatientId = ids.get(appointment.memberId);
   return {
     id: appointment.id,
     status: appointment.status,
     scheduledAt: appointment.scheduledAt.toISOString(),
     patientName,
+    source: "VITA",
+    ...(clinicPatientId ? { clinicPatientId } : {}),
+    ...(appointment.slotId ? { slotId: appointment.slotId } : {}),
     ...(appointment.specialty ? { specialty: appointment.specialty } : {}),
     ...(appointment.professionalName ? { professionalName: appointment.professionalName } : {}),
     ...(appointment.notes ? { notes: appointment.notes } : {}),
@@ -41,7 +55,8 @@ export function createListClinicRequestsUseCase<Trx>(deps: AppointmentsDeps<Trx>
   return async function listClinicRequests(actor: ClinicPortalActor): Promise<ClinicAppointmentView[]> {
     return deps.withTransaction(async (trx) => {
       const appointments = await deps.appointmentsRepo.listByClinicAndStatus(trx, actor.clinicId, ["REQUESTED"], {});
-      return Promise.all(appointments.map((appointment) => toView(deps, trx, appointment)));
+      const patientIds = await patientIdsOf(deps, trx, actor.clinicId, appointments);
+      return Promise.all(appointments.map((appointment) => toView(deps, trx, appointment, patientIds)));
     });
   };
 }
@@ -53,12 +68,15 @@ export interface ListClinicAgendaQuery {
 
 const AGENDA_STATUSES: AppointmentStatus[] = ["SCHEDULED", "COMPLETED", "NO_SHOW", "CANCELLED"];
 
-/** `GET /clinic-portal/agenda` (UC-CLN-06): consultas confirmadas (e os seus desfechos) da própria clínica. */
+/** `GET /clinic-portal/agenda` (UC-CLN-06; M14 P: inclui as visitas manuais, BR-CLN-18): consultas confirmadas (e os seus desfechos) da própria clínica. */
 export function createListClinicAgendaUseCase<Trx>(deps: AppointmentsDeps<Trx>) {
   return async function listClinicAgenda(actor: ClinicPortalActor, query: ListClinicAgendaQuery): Promise<ClinicAppointmentView[]> {
     return deps.withTransaction(async (trx) => {
       const appointments = await deps.appointmentsRepo.listByClinicAndStatus(trx, actor.clinicId, AGENDA_STATUSES, query);
-      return Promise.all(appointments.map((appointment) => toView(deps, trx, appointment)));
+      const patientIds = await patientIdsOf(deps, trx, actor.clinicId, appointments);
+      const views = await Promise.all(appointments.map((appointment) => toView(deps, trx, appointment, patientIds)));
+      const visits = await deps.clinicPatients.listVisits(trx, actor.clinicId, query);
+      return [...views, ...visits].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
     });
   };
 }
@@ -128,7 +146,16 @@ export function createCancelClinicAppointmentUseCase<Trx>(deps: AppointmentsDeps
     }
 
     return deps.withTransaction(async (trx) => {
-      const existing = await requireOwnRequest(deps, trx, actor, appointmentId);
+      const found = await deps.appointmentsRepo.findByClinicId(trx, actor.clinicId, appointmentId);
+      if (!found) {
+        // M14 P (BR-CLN-18): o id pode ser o de uma visita manual da própria clínica.
+        const visit = await deps.clinicPatients.cancelVisit(trx, actor, appointmentId, note, context);
+        if (!visit) {
+          throw new NotFoundError({ detail: "Pedido não encontrado." });
+        }
+        return visit;
+      }
+      const existing = found;
       const now = deps.clock.now();
       if (existing.status !== "SCHEDULED" || existing.scheduledAt.getTime() <= now.getTime()) {
         throw new ConflictError({ detail: "Só consultas confirmadas e futuras podem ser canceladas pela clínica." });
@@ -170,7 +197,16 @@ export interface CompleteConsultationInput {
 export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>) {
   return async function completeClinicAppointment(actor: ClinicPortalActor, appointmentId: string, input: CompleteConsultationInput, context: RequestContext): Promise<ClinicAppointmentView> {
     return deps.withTransaction(async (trx) => {
-      const existing = await requireOwnRequest(deps, trx, actor, appointmentId);
+      const found = await deps.appointmentsRepo.findByClinicId(trx, actor.clinicId, appointmentId);
+      if (!found) {
+        // M14 P (BR-CLN-18): visita manual — só `outcomeNote`; com `prescription` => `VALIDATION_ERROR`.
+        const visit = await deps.clinicPatients.completeVisit(trx, actor, appointmentId, { outcomeNote: input.outcomeNote ?? null, prescription: input.prescription }, context);
+        if (!visit) {
+          throw new NotFoundError({ detail: "Pedido não encontrado." });
+        }
+        return visit;
+      }
+      const existing = found;
       // endpoints.md (completeClinicAppointment): "CONFLICT (consulta não está SCHEDULED, ST4)" —
       // só a consulta em curso (nunca repete a mesma conclusão nem completa duas vezes).
       if (existing.status !== "SCHEDULED") {

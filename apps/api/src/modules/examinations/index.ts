@@ -60,8 +60,40 @@ export interface ClinicExamOrigin {
   clinicName?: string;
 }
 
+/** M14 P (`clinic-patients`, calendário/ficha/pesquisa): facto mínimo de um exame da clínica (nunca o registo completo). */
+export interface ClinicExamFact {
+  id: string;
+  status: "SCHEDULED" | "COMPLETED";
+  startsAt: Date;
+  examType?: string;
+  slotId?: string;
+  familyId: string;
+  memberId: string;
+  notes?: string;
+  responseNote?: string;
+  /** Nº de parâmetros emitidos pela clínica (nunca os valores); 0 se não pedido. */
+  resultsCount: number;
+}
+
+/** M14 P (BR-CLN-21, histórico partilhado): exame com os parâmetros de resultado, sem documentos, notas nem interpretação (D11). */
+export interface SharedExamFact {
+  name: string;
+  examDate: string;
+  status: "SCHEDULED" | "COMPLETED";
+  results: { parameter: string; valueNumeric: number | null; valueText: string | null; unit: string | null; referenceMin: number | null; referenceMax: number | null }[];
+}
+
 export interface ExaminationsModule {
   router: Router;
+  /** M14 P (`clinic-patients`, só leitura; ligado no composition root): exames da própria clínica por janela/membro. */
+  listClinicFacts: (
+    trx: Kysely<Database>,
+    clinicId: string,
+    filter: { from?: Date; to?: Date; familyId?: string; memberId?: string },
+    options?: { limit?: number; withResultsCount?: boolean },
+  ) => Promise<ClinicExamFact[]>;
+  /** M14 P (BR-CLN-21, `clinic-patients`, só leitura): exames do membro desde `since` (AAAA-MM-DD) e futuros, com parâmetros de resultado. */
+  listSharedExams: (trx: Kysely<Database>, familyId: string, memberId: string, since: string) => Promise<SharedExamFact[]>;
   /** `/clinic-portal/exam-*` (D19) — ver `interface/clinic-portal-router.ts` para a decisão de onde vive. */
   clinicPortalRouter: Router;
   /** BR-APT-11 (`appointments.listAvailableSlots` kind=EXAM e `clinics` `ClinicSlotView`): exames `SCHEDULED` por horário. */
@@ -123,6 +155,49 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
     router: createExaminationsRouter(controller),
     clinicPortalRouter: createExaminationsClinicPortalRouter(clinicPortalController),
     countScheduledBySlot: (trx, slotIds) => examinationsRepo.countScheduledBySlot(trx, slotIds),
+    listClinicFacts: async (trx, clinicId, filter, options = {}) => {
+      const exams = await examinationsRepo.listForClinic(trx, clinicId, filter, options.limit);
+      const facts: ClinicExamFact[] = [];
+      for (const exam of exams) {
+        if (exam.scheduledAt === undefined || exam.status === "CANCELLED") continue;
+        const resultsCount = options.withResultsCount && exam.issuedBy === "CLINIC" ? (await examResultsRepo.listByExamination(trx, exam.id)).length : 0;
+        facts.push({
+          id: exam.id,
+          status: exam.status,
+          startsAt: exam.scheduledAt,
+          familyId: exam.familyId,
+          memberId: exam.memberId,
+          resultsCount,
+          ...(exam.name ? { examType: exam.name } : {}),
+          ...(exam.slotId ? { slotId: exam.slotId } : {}),
+          ...(exam.notes ? { notes: exam.notes } : {}),
+          ...(exam.responseNote ? { responseNote: exam.responseNote } : {}),
+        });
+      }
+      return facts;
+    },
+    listSharedExams: async (trx, familyId, memberId, since) => {
+      const exams = await examinationsRepo.listSharedByMember(trx, familyId, memberId, since);
+      const shared: SharedExamFact[] = [];
+      for (const exam of exams) {
+        if (exam.status === "CANCELLED") continue;
+        const results = await examResultsRepo.listByExamination(trx, exam.id);
+        shared.push({
+          name: exam.name,
+          examDate: exam.examDate,
+          status: exam.status,
+          results: results.map((r) => ({
+            parameter: r.parameter,
+            valueNumeric: r.valueNumeric ?? null,
+            valueText: r.valueText ?? null,
+            unit: r.unit ?? null,
+            referenceMin: r.referenceMin ?? null,
+            referenceMax: r.referenceMax ?? null,
+          })),
+        });
+      }
+      return shared;
+    },
     findClinicOrigin: async (trx, clinicId, examinationId) => {
       const examination = await examinationsRepo.findByClinicId(trx, clinicId, examinationId);
       return examination

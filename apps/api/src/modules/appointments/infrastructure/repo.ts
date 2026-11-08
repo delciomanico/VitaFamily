@@ -6,6 +6,7 @@ import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
 import type { Appointment, AppointmentStatus } from "../domain/appointment.js";
 import type {
   AppointmentChanges,
+  ClinicAppointmentsFilter,
   AppointmentSlotBookingCount,
   AppointmentListFilter,
   AppointmentsRepository,
@@ -286,6 +287,15 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
     }
     const rows = await query.orderBy("scheduled_at", "asc").execute();
     return rows.map(toAppointment);
+  }
+
+  async listForClinic(trx: Kysely<Database>, clinicId: string, filter: ClinicAppointmentsFilter, limit?: number): Promise<Appointment[]> {
+    let query = trx.selectFrom("appointments").select(APPOINTMENT_COLUMNS).where("clinic_id", "=", clinicId);
+    if (filter.from) query = query.where("scheduled_at", ">=", filter.from);
+    if (filter.to) query = query.where("scheduled_at", "<", filter.to);
+    if (filter.familyId && filter.memberId) query = query.where("family_id", "=", filter.familyId).where("member_id", "=", filter.memberId);
+    const ordered = limit === undefined ? query.orderBy("scheduled_at", "asc").orderBy("id", "asc") : query.orderBy("scheduled_at", "desc").orderBy("id", "desc").limit(limit);
+    return (await ordered.execute()).map(toAppointment);
   }
 
   async updateStatusByClinic(trx: Kysely<Database>, appointmentId: string, change: ClinicStatusChange): Promise<Appointment> {

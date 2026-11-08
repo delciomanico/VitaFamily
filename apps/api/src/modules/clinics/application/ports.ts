@@ -217,6 +217,8 @@ export interface ClinicSlotsRepository<Trx> {
   listFutureByRule(trx: Trx, scheduleRuleId: string, after: Date): Promise<ClinicSlot[]>;
   /** `SELECT … FOR UPDATE` por ordem de id (serializa com reservas, BR-APT-11). */
   lockMany(trx: Trx, slotIds: string[]): Promise<ClinicSlot[]>;
+  /** M14 P: horários (da clínica) pelos ids — leitura para o calendário/ficha de `clinic-patients`. */
+  listByIds(trx: Trx, clinicId: string, slotIds: string[]): Promise<ClinicSlot[]>;
   deleteMany(trx: Trx, slotIds: string[]): Promise<void>;
 }
 

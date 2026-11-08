@@ -94,7 +94,9 @@ describe("createWalkInAppointment", () => {
     const { fx, book } = setup();
     const view = await book(ACTOR, input, CTX);
     expect(view).toMatchObject({ status: "SCHEDULED", scheduledAt: SLOT_AT.toISOString(), specialty: "Cardiologia", professionalName: "Dr. Costa", patientName: "Maria Santos Silva", notes: "trazer exames" });
-    expect(Object.keys(view).sort()).toEqual(["id", "notes", "patientName", "professionalName", "scheduledAt", "specialty", "status"]);
+    // M14 P: `source`, `clinicPatientId` e `slotId` (BR-CLN-18); continua a não haver nenhum id Vita.
+    expect(Object.keys(view).sort()).toEqual(["clinicPatientId", "id", "notes", "patientName", "professionalName", "scheduledAt", "slotId", "source", "specialty", "status"]);
+    expect(view).toMatchObject({ source: "VITA", slotId: "slot-1" });
     const stored = [...fx.appointmentsRepo.byId.values()][0];
     expect(stored).toMatchObject({ familyId: FAMILY, memberId: MEMBER, slotId: "slot-1", clinicId: CLINIC, clinicName: "Clínica Sol", walkIn: true, bookedByClinicAccountId: "acc-a", status: "SCHEDULED" });
     expect(await fx.appointmentsRepo.findActiveBySlot({}, "slot-1")).toBeTruthy();

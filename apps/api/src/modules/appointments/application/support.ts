@@ -92,8 +92,15 @@ export async function resolveSlotBooking<Trx>(deps: AppointmentsDeps<Trx>, trx: 
   if (!clinic) {
     throw new ValidationError([{ field: "clinicId", message: "clínica inválida ou arquivada" }], { detail: "Clínica inválida." });
   }
+  // BR-APT-06/BR-APT-11: o bloqueio da linha do horário serializa a marcação da família com a do portal (consulta,
+  // exame e visita manual): a seguir só um vence a corrida.
+  await deps.clinics.lockSlot(trx, slotId);
   const active = await deps.appointmentsRepo.findActiveBySlot(trx, slotId);
   if (active) {
+    throw new DomainError("CONFLICT", { detail: "Esse horário já tem uma marcação ativa." });
+  }
+  // M14 P (BR-APT-06): uma visita presencial manual `SCHEDULED` também ocupa o horário.
+  if ((await deps.clinicPatients.countActiveVisitsBySlot(trx, [slotId])).some((row) => row.count > 0)) {
     throw new DomainError("CONFLICT", { detail: "Esse horário já tem uma marcação ativa." });
   }
   return {

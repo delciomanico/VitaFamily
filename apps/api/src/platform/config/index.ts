@@ -44,6 +44,10 @@ const envSchema = z.object({
   REFRESH_TTL: z.string().default("30d"),
   COOKIE_DOMAIN: z.string().default(""),
 
+  // Portal da clínica (M14 P, BR-CLN-20): segredo do HMAC dos códigos de ligação. Obrigatório em staging/production
+  // (ver `loadConfig`); em local/test usa-se um valor fixo de desenvolvimento.
+  CLINIC_LINK_CODE_SECRET: z.string().min(16, "CLINIC_LINK_CODE_SECRET deve ter pelo menos 16 caracteres").optional(),
+
   // E-mail
   SMTP_URL: z.string().min(1, "SMTP_URL é obrigatória"),
   MAIL_FROM: z.string().min(1, "MAIL_FROM é obrigatória"),
@@ -62,7 +66,10 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional(),
 });
 
-export type Config = Readonly<z.infer<typeof envSchema>>;
+/** Valor só para `local`/`test` (nunca produção: `loadConfig` exige o segredo real em staging/production). */
+const DEV_CLINIC_LINK_CODE_SECRET = "dev-only-clinic-link-code-secret-change-me";
+
+export type Config = Readonly<Omit<z.infer<typeof envSchema>, "CLINIC_LINK_CODE_SECRET"> & { CLINIC_LINK_CODE_SECRET: string }>;
 
 /** Nomes de variáveis cujo valor nunca deve ser registado em logs/erros (ver platform/logger). */
 export const SENSITIVE_ENV_VARS = [
@@ -71,6 +78,7 @@ export const SENSITIVE_ENV_VARS = [
   "S3_ACCESS_KEY",
   "S3_SECRET_KEY",
   "JWT_SIGNING_KEYS",
+  "CLINIC_LINK_CODE_SECRET",
   "SMTP_URL",
   "VAPID_PRIVATE_KEY",
   "SENTRY_DSN",
@@ -88,5 +96,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       .join("; ");
     throw new Error(`Configuração inválida: ${issues}`);
   }
-  return result.data;
+  const secret = result.data.CLINIC_LINK_CODE_SECRET;
+  if (secret === undefined && (result.data.NODE_ENV === "production" || result.data.NODE_ENV === "staging")) {
+    throw new Error("Configuração inválida: CLINIC_LINK_CODE_SECRET: obrigatória em staging/production (BR-CLN-20)");
+  }
+  return { ...result.data, CLINIC_LINK_CODE_SECRET: secret ?? DEV_CLINIC_LINK_CODE_SECRET };
 }

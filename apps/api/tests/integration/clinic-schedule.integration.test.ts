@@ -422,6 +422,7 @@ describe("integração: catálogo, regras, bloqueios e duração (migração 002
             return row ? { familyId: row.familyId, memberId: row.memberId, fullName: row.name } : null;
           },
         },
+        clinicPatients: { resolvePatient: () => Promise.resolve(null), ensureLinkedByEmail: () => Promise.resolve({ clinicPatientId: randomUUID() }), bookVisit: () => Promise.reject(new Error("não usado")), listVisits: () => Promise.resolve([]), cancelVisit: () => Promise.resolve(null), completeVisit: () => Promise.resolve(null), countActiveVisitsBySlot: () => Promise.resolve([]), findPatientIdsByMembers: () => Promise.resolve(new Map()) },
         walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
         audit: { record: () => Promise.resolve() },
         db,
@@ -490,6 +491,7 @@ describe("integração: catálogo, regras, bloqueios e duração (migração 002
         examSlotOccupancy: { countScheduledBySlot: () => Promise.resolve([]) },
         patients: { findSelfByEmail: () => Promise.resolve({ familyId: ids.family, memberId, fullName: "Rui Dias" }) },
         memberNames: { getMemberName: () => Promise.resolve("Rui Dias") },
+        clinicPatients: { resolvePatient: () => Promise.resolve(null), ensureLinkedByEmail: () => Promise.resolve({ clinicPatientId: randomUUID() }), bookVisit: () => Promise.reject(new Error("não usado")), listVisits: () => Promise.resolve([]), cancelVisit: () => Promise.resolve(null), completeVisit: () => Promise.resolve(null), countActiveVisitsBySlot: () => Promise.resolve([]), findPatientIdsByMembers: () => Promise.resolve(new Map()) },
         walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
         audit: { record: () => Promise.resolve() },
         db,

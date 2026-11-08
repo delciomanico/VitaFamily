@@ -212,6 +212,9 @@ describe("POST /clinic-portal/walk-in-appointments", () => {
       patientName: "Maria Santos Silva",
       notes: "trazer exames",
       responseNote: null,
+      source: "VITA",
+      clinicPatientId: (created.body as { clinicPatientId: string }).clinicPatientId,
+      slotId: SLOT,
     });
     const id = (created.body as { id: string }).id;
 

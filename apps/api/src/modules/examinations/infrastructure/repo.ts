@@ -11,6 +11,7 @@ import type { Examination, ExaminationStatus } from "../domain/examination.js";
 import type {
   ClinicExamCompletion,
   ClinicExamStatusChange,
+  ClinicExamsFilter,
   CursorPage,
   ExaminationChanges,
   ExaminationListFilter,
@@ -256,6 +257,34 @@ export class KyselyExaminationsRepository implements ExaminationsRepository<Kyse
       query = query.where("scheduled_at", "<=", filter.to);
     }
     const rows = await query.orderBy("scheduled_at", "asc").execute();
+    return rows.map(toExamination);
+  }
+
+  async listForClinic(trx: Kysely<Database>, clinicId: string, filter: ClinicExamsFilter, limit?: number): Promise<Examination[]> {
+    let query = trx
+      .selectFrom("examinations")
+      .select(EXAMINATION_COLUMNS)
+      .where("clinic_id", "=", clinicId)
+      .where("scheduled_at", "is not", null)
+      .where("status", "in", ["SCHEDULED", "COMPLETED"]);
+    if (filter.from) query = query.where("scheduled_at", ">=", filter.from);
+    if (filter.to) query = query.where("scheduled_at", "<", filter.to);
+    if (filter.familyId && filter.memberId) query = query.where("family_id", "=", filter.familyId).where("member_id", "=", filter.memberId);
+    const ordered = limit === undefined ? query.orderBy("scheduled_at", "asc").orderBy("id", "asc") : query.orderBy("scheduled_at", "desc").orderBy("id", "desc").limit(limit);
+    return (await ordered.execute()).map(toExamination);
+  }
+
+  async listSharedByMember(trx: Kysely<Database>, familyId: string, memberId: string, since: string): Promise<Examination[]> {
+    const rows = await trx
+      .selectFrom("examinations")
+      .select(EXAMINATION_COLUMNS)
+      .where("family_id", "=", familyId)
+      .where("member_id", "=", memberId)
+      .where("status", "in", ["SCHEDULED", "COMPLETED"])
+      .where("exam_date", ">=", since)
+      .orderBy("exam_date", "desc")
+      .orderBy("id", "asc")
+      .execute();
     return rows.map(toExamination);
   }
 

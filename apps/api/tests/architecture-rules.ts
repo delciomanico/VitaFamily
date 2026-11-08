@@ -60,6 +60,11 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   // ADR-023 (modules.md §2): lê a origem (consulta/exame) pelas raízes de `appointments`/`examinations`.
   recommendations: ["access", "appointments", "examinations", "audit"],
   documents: ["access", "audit"],
+  // ADR-026 (modules.md §2 nota 24, M14 P): `clinic-patients` NÃO importa os módulos de saúde (`medications`,
+  // `examinations`, `appointments`, `recommendations`) nem `families`/`auth`: os dados Vita entram por portas da sua
+  // `application`, ligadas no composition root. `access` (política/nome do membro), `clinics` (horários, profissionais,
+  // clínica parceira) e `audit`.
+  "clinic-patients": ["access", "clinics", "audit"],
   // alerts -> notifications (modules.md §3 nota 15): a orquestração do pipeline
   // Evento→Regra→Alerta→Notificação fica em `alerts`, que chama `notifications` pela raiz para
   // criar/cancelar notificações — mesmo critério de `medications` ↔ `prescriptions` (nota 6).

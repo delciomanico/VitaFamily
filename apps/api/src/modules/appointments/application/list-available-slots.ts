@@ -51,6 +51,10 @@ export function createListAvailableSlotsUseCase<Trx>(deps: AppointmentsDeps<Trx>
         return { clinicName: clinic.name, items };
       }
       const activeSlotIds = new Set(await deps.appointmentsRepo.listActiveSlotIds(trx, slotIds));
+      // BR-APT-06 (M14 P): visitas manuais `SCHEDULED` também ocupam o horário.
+      for (const row of await deps.clinicPatients.countActiveVisitsBySlot(trx, slotIds)) {
+        if (row.count > 0) activeSlotIds.add(row.slotId);
+      }
       return { clinicName: clinic.name, items: slots.filter((slot) => !activeSlotIds.has(slot.id)).map((slot) => ({ ...slot, remaining: 1 })) };
     });
   };

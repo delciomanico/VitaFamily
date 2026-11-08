@@ -34,6 +34,7 @@ import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPu
 import { createAlertsModule } from "../modules/alerts/index.js";
 import { createInsuranceModule, parseInsuranceSigningKeys } from "../modules/insurance/index.js";
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
+import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
 /**
  * Sobe a partir deste ficheiro até encontrar `relativePath`. Não usa um número fixo de "..": em
@@ -103,7 +104,7 @@ export function main(): void {
   // da criação do User.
   // `families` precisa de `documents` (ficheiros) e `lifecycle` (pacote de dados), que dependem dele:
   // a porta `memberData` resolve-os tardiamente (atribuídos mais abaixo, antes de o servidor ouvir).
-  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule } = {};
+  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule } = {};
   const required = <T>(module: T | undefined, name: string): T => {
     if (!module) throw new Error(`${name} ainda não inicializado`);
     return module;
@@ -200,6 +201,8 @@ export function main(): void {
       countActiveBySlot: async (trx, slotIds) => [
         ...(await required(late.appointments, "appointments").countActiveBySlot(trx, slotIds)),
         ...(await required(late.examinations, "examinations").countScheduledBySlot(trx, slotIds)).map(({ slotId, count }) => ({ slotId, requested: 0, scheduled: count })),
+        // M14 P (BR-APT-06/BR-CLN-18): as visitas manuais `SCHEDULED` também ocupam o horário (remover, bloqueios, vagas).
+        ...(await required(late.clinicPatients, "clinicPatients").directory.countActiveVisitsBySlot(trx, slotIds)).map(({ slotId, count }) => ({ slotId, requested: 0, scheduled: count })),
       ],
     },
   });
@@ -255,6 +258,18 @@ export function main(): void {
         return member ? { familyId: member.familyId, memberId: member.id, fullName: user.name } : null;
       },
     },
+    // M14 P (BR-CLN-18, modules.md §2 nota 24): `clinic-patients` depende de `appointments` (calendário), por isso a
+    // porta resolve-se tardiamente; `appointments` nunca importa `clinic-patients`.
+    clinicPatients: {
+      resolvePatient: (trx, clinicId, id) => required(late.clinicPatients, "clinicPatients").directory.resolvePatient(trx, clinicId, id),
+      ensureLinkedByEmail: (trx, actor, input, context) => required(late.clinicPatients, "clinicPatients").directory.ensureLinkedByEmail(trx, actor, input, context),
+      bookVisit: (trx, actor, input, context) => required(late.clinicPatients, "clinicPatients").directory.bookVisit(trx, actor, input, context),
+      listVisits: (trx, clinicId, filter) => required(late.clinicPatients, "clinicPatients").directory.listVisits(trx, clinicId, filter),
+      cancelVisit: (trx, actor, visitId, note, context) => required(late.clinicPatients, "clinicPatients").directory.cancelVisit(trx, actor, visitId, note, context),
+      completeVisit: (trx, actor, visitId, input, context) => required(late.clinicPatients, "clinicPatients").directory.completeVisit(trx, actor, visitId, input, context),
+      countActiveVisitsBySlot: (trx, slotIds) => required(late.clinicPatients, "clinicPatients").directory.countActiveVisitsBySlot(trx, slotIds),
+      findPatientIdsByMembers: (trx, clinicId, memberIds) => required(late.clinicPatients, "clinicPatients").directory.findPatientIdsByMembers(trx, clinicId, memberIds),
+    },
     clock,
   });
   late.appointments = appointments;
@@ -270,6 +285,38 @@ export function main(): void {
     alerts: { raiseRecommendationAdded: (trx, input) => alerts.raiseRecommendationEvent(trx, input) },
     clock,
   });
+
+  // M14 P (ADR-026, modules.md §2 nota 24): `clinic-patients` não importa módulos de saúde; liga-se a eles só aqui, por portas
+  // (`SharedHistoryReader`, `CalendarSource`, ocupação de horários, recomendações) sobre as suas APIs públicas, só leitura.
+  const clinicPatients = createClinicPatientsModule({
+    db,
+    audit,
+    access,
+    clinics,
+    clock,
+    occupancy: {
+      countActiveBySlot: async (trx, slotIds) => [
+        ...(await appointments.countActiveBySlot(trx, slotIds)),
+        ...(await examinations.countScheduledBySlot(trx, slotIds)).map(({ slotId, count }) => ({ slotId, requested: 0, scheduled: count })),
+      ],
+    },
+    sharedHistory: {
+      listActiveMedications: (trx, familyId, memberId) => medications.listActivePlansForSharing(trx, familyId, memberId),
+      listExams: (trx, familyId, memberId, since) => examinations.listSharedExams(trx, familyId, memberId, since),
+    },
+    calendar: {
+      listAppointments: (trx, clinicId, window) => appointments.listClinicFacts(trx, clinicId, window),
+      listExaminations: (trx, clinicId, window) => examinations.listClinicFacts(trx, clinicId, window),
+      listRecentAppointments: (trx, clinicId, limit) => appointments.listClinicFacts(trx, clinicId, {}, limit),
+      listRecentExaminations: (trx, clinicId, limit) => examinations.listClinicFacts(trx, clinicId, {}, { limit }),
+      listAppointmentsOfMember: (trx, clinicId, familyId, memberId, limit) => appointments.listClinicFacts(trx, clinicId, { familyId, memberId }, limit),
+      listExaminationsOfMember: (trx, clinicId, familyId, memberId, limit) => examinations.listClinicFacts(trx, clinicId, { familyId, memberId }, { limit, withResultsCount: true }),
+    },
+    recommendations: { listOfMember: (trx, clinicId, familyId, memberId, limit) => recommendations.listOfMemberForClinic(trx, clinicId, familyId, memberId, limit) },
+    sharedLimiter: appointments.walkInRateLimiter,
+    linkCodeSecret: config.CLINIC_LINK_CODE_SECRET,
+  });
+  late.clinicPatients = clinicPatients;
 
   // M9 (plan.md §4): `reports` lê pelas APIs públicas dos módulos dono (modules.md §2); cada
   // leitura aplica a sua `AccessPolicy` e auditoria, por isso reports não decide permissões.
@@ -419,6 +466,8 @@ export function main(): void {
       router.use(examinations.clinicPortalRouter);
       router.use(recommendations.router);
       router.use(recommendations.clinicPortalRouter);
+      router.use(clinicPatients.router);
+      router.use(clinicPatients.clinicPortalRouter);
       router.use(notifications.router);
       router.use(alerts.router);
       router.use(reports.router);

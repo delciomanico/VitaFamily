@@ -20,6 +20,7 @@ import { createNotificationsWorkerModule, SmtpMailer as NotificationsSmtpMailer,
 import { createAlertsWorkerModule } from "../modules/alerts/index.js";
 import { createLifecycleWorkerModule } from "../modules/lifecycle/index.js";
 import { createClinicsWorkerModule } from "../modules/clinics/index.js";
+import { createClinicPatientsWorkerModule } from "../modules/clinic-patients/index.js";
 
 export function main(): void {
   const config = loadConfig();
@@ -121,6 +122,8 @@ export function main(): void {
 
   // M14 a2 (BR-CLN-12): geração diária de horários por regra; só precisa de BD, auditoria e relógio.
   const clinicsWorker = createClinicsWorkerModule({ db, audit, clock, logger, boss });
+  // M14 P (BR-CLN-20): limpeza diária dos códigos de ligação expirados/usados.
+  const clinicPatientsWorker = createClinicPatientsWorkerModule({ db, audit, clock, boss });
 
   boss
     .start()
@@ -131,6 +134,7 @@ export function main(): void {
       await alertsWorker.registerWorkers();
       await lifecycleWorker.registerWorkers();
       await clinicsWorker.registerWorkers();
+      await clinicPatientsWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

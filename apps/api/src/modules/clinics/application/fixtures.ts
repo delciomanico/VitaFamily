@@ -313,6 +313,13 @@ export class FakeClinicSlotsRepository implements ClinicSlotsRepository<FakeTrx>
     return Promise.resolve(slotIds.flatMap((id) => this.byId.get(id) ?? []));
   }
 
+  async listByIds(_trx: FakeTrx, clinicId: string, slotIds: string[]): Promise<ClinicSlot[]> {
+    return Promise.resolve(slotIds.flatMap((id) => {
+      const slot = this.byId.get(id);
+      return slot?.clinicId === clinicId ? [slot] : [];
+    }));
+  }
+
   async deleteMany(_trx: FakeTrx, slotIds: string[]): Promise<void> {
     for (const id of slotIds) this.byId.delete(id);
     return Promise.resolve();

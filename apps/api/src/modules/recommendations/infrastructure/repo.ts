@@ -67,6 +67,20 @@ export class KyselyRecommendationsRepository implements RecommendationsRepositor
     return rows.map(toRecommendation);
   }
 
+  async listByClinicAndMember(trx: Kysely<Database>, clinicId: string, familyId: string, memberId: string, limit: number): Promise<Recommendation[]> {
+    const rows = await trx
+      .selectFrom("recommendations")
+      .select(COLUMNS)
+      .where("clinic_id", "=", clinicId)
+      .where("family_id", "=", familyId)
+      .where("member_id", "=", memberId)
+      .orderBy("created_at", "desc")
+      .orderBy("id", "desc")
+      .limit(limit)
+      .execute();
+    return rows.map(toRecommendation);
+  }
+
   async listByMember(trx: Kysely<Database>, familyId: string, memberId: string, filter: MemberRecommendationFilter, limit: number, cursor?: string): Promise<CursorPage<Recommendation>> {
     let query = trx.selectFrom("recommendations").select(COLUMNS).where("family_id", "=", familyId).where("member_id", "=", memberId);
     // Categoria da origem (authorization.md §3): consulta ⇒ APPOINTMENTS, exame ⇒ EXAMS; omite as não permitidas.

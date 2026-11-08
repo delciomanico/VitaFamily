@@ -117,6 +117,10 @@ export class FakeRecommendationsRepository implements RecommendationsRepository<
     );
   }
 
+  async listByClinicAndMember(_trx: FakeTrx, clinicId: string, familyId: string, memberId: string, limit: number): Promise<Recommendation[]> {
+    return Promise.resolve(this.sorted([...this.byId.values()].filter((r) => r.clinicId === clinicId && r.familyId === familyId && r.memberId === memberId)).slice(0, limit));
+  }
+
   async listByMember(_trx: FakeTrx, familyId: string, memberId: string, filter: MemberRecommendationFilter, limit: number, cursor?: string): Promise<CursorPage<Recommendation>> {
     const items = this.sorted(
       [...this.byId.values()].filter(

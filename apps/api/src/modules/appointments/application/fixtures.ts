@@ -1,5 +1,6 @@
 // Fakes em memória das portas de `appointments` (mesmo padrão de `prescriptions`/`medications`
 // `application/fixtures.ts`). Não é ficheiro de teste.
+import { ValidationError } from "../../../platform/errors/index.js";
 import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput, Relation } from "../../access/index.js";
@@ -16,6 +17,10 @@ import type {
   ClinicOutcomeChange,
   ClinicPrescriptionInput,
   AppointmentSlotBookingCount,
+  ClinicAppointmentsFilter,
+  ClinicPatientDirectoryPort,
+  ClinicPortalActor,
+  ClinicVisitBookingView,
   ClinicSlotLite,
   ExamSlotOccupancyPort,
   ClinicStatusChange,
@@ -342,6 +347,16 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     return Promise.resolve(items.sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime()));
   }
 
+  async listForClinic(_trx: FakeTrx, clinicId: string, filter: ClinicAppointmentsFilter, limit?: number): Promise<Appointment[]> {
+    const rows = [...this.byId.values()]
+      .filter((a) => a.clinicId === clinicId)
+      .filter((a) => !filter.from || a.scheduledAt.getTime() >= filter.from.getTime())
+      .filter((a) => !filter.to || a.scheduledAt.getTime() < filter.to.getTime())
+      .filter((a) => !(filter.familyId && filter.memberId) || (a.familyId === filter.familyId && a.memberId === filter.memberId))
+      .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
+    return Promise.resolve(limit === undefined ? rows : rows.reverse().slice(0, limit));
+  }
+
   async updateStatusByClinic(_trx: FakeTrx, appointmentId: string, change: ClinicStatusChange): Promise<Appointment> {
     const appointment = this.byId.get(appointmentId);
     if (!appointment) {
@@ -410,7 +425,95 @@ export interface AppointmentsFixtures {
   examSlotOccupancy: FakeExamSlotOccupancyPort;
   prescriptions: FakePrescriptionsPort;
   patients: FakePatientDirectory;
+  clinicPatients: FakeClinicPatientDirectory;
   audit: FakeAuditPort;
+}
+
+/** Fake de `ClinicPatientDirectoryPort` (M14 P): pacientes semeados, visitas em memória; regras reais testam-se em `clinic-patients`. */
+export class FakeClinicPatientDirectory implements ClinicPatientDirectoryPort<FakeTrx> {
+  readonly patients = new Map<string, { clinicId: string; name: string; link: { familyId: string; memberId: string } | null }>();
+  readonly visits = new Map<string, ClinicVisitBookingView & { clinicId: string }>();
+  readonly ensured: { clinicId: string; familyId: string; memberId: string; clinicPatientId: string }[] = [];
+  readonly calls: string[] = [];
+  private counter = 0;
+
+  constructor(private readonly clinics: FakeClinicsPort) {}
+
+  seedPatient(id: string, clinicId: string, name: string, link: { familyId: string; memberId: string } | null = null): void {
+    this.patients.set(id, { clinicId, name, link });
+  }
+
+  async resolvePatient(_trx: FakeTrx, clinicId: string, clinicPatientId: string) {
+    const patient = this.patients.get(clinicPatientId);
+    return Promise.resolve(patient?.clinicId === clinicId ? { clinicPatientId, name: patient.name, link: patient.link } : null);
+  }
+
+  async ensureLinkedByEmail(_trx: FakeTrx, actor: ClinicPortalActor, input: { familyId: string; memberId: string; fullName: string }): Promise<{ clinicPatientId: string }> {
+    const existing = [...this.patients.entries()].find(([, p]) => p.clinicId === actor.clinicId && p.link?.memberId === input.memberId);
+    const clinicPatientId = existing?.[0] ?? `auto-patient-${String(++this.counter)}`;
+    if (!existing) this.seedPatient(clinicPatientId, actor.clinicId, input.fullName, { familyId: input.familyId, memberId: input.memberId });
+    this.ensured.push({ clinicId: actor.clinicId, familyId: input.familyId, memberId: input.memberId, clinicPatientId });
+    return Promise.resolve({ clinicPatientId });
+  }
+
+  async bookVisit(_trx: FakeTrx, actor: ClinicPortalActor, input: { clinicPatientId: string; slotId: string; notes?: string | null }): Promise<ClinicVisitBookingView> {
+    this.calls.push("bookVisit");
+    const slot = this.clinics.slots.get(input.slotId);
+    const patient = this.patients.get(input.clinicPatientId);
+    if (!slot || !patient) throw new Error("slot/paciente em falta no fake");
+    const view: ClinicVisitBookingView & { clinicId: string } = {
+      id: `visit-${String(++this.counter)}`,
+      clinicId: actor.clinicId,
+      status: "SCHEDULED",
+      scheduledAt: slot.startsAt.toISOString(),
+      specialty: slot.specialty,
+      patientName: patient.name,
+      source: "MANUAL",
+      clinicPatientId: input.clinicPatientId,
+      slotId: slot.id,
+      ...(input.notes ? { notes: input.notes } : {}),
+    };
+    this.visits.set(view.id, view);
+    return Promise.resolve(view);
+  }
+
+  async listVisits(_trx: FakeTrx, clinicId: string): Promise<ClinicVisitBookingView[]> {
+    return Promise.resolve([...this.visits.values()].filter((v) => v.clinicId === clinicId));
+  }
+
+  async cancelVisit(_trx: FakeTrx, actor: ClinicPortalActor, visitId: string, note: string): Promise<ClinicVisitBookingView | null> {
+    const visit = this.visits.get(visitId);
+    if (visit?.clinicId !== actor.clinicId) return Promise.resolve(null);
+    const updated = { ...visit, status: "CANCELLED" as const, responseNote: note };
+    this.visits.set(visitId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async completeVisit(_trx: FakeTrx, actor: ClinicPortalActor, visitId: string, input: { outcomeNote?: string | null; prescription?: unknown }): Promise<ClinicVisitBookingView | null> {
+    const visit = this.visits.get(visitId);
+    if (visit?.clinicId !== actor.clinicId) return Promise.resolve(null);
+    if (input.prescription !== undefined && input.prescription !== null) {
+      throw new ValidationError([{ field: "prescription", message: "não aplicável" }], { detail: "Visitas manuais não têm receita." });
+    }
+    const updated = { ...visit, status: "COMPLETED" as const };
+    this.visits.set(visitId, updated);
+    return Promise.resolve(updated);
+  }
+
+  async countActiveVisitsBySlot(_trx: FakeTrx, slotIds: string[]): Promise<{ slotId: string; count: number }[]> {
+    return Promise.resolve(slotIds.flatMap((slotId) => {
+      const count = [...this.visits.values()].filter((v) => v.slotId === slotId && v.status === "SCHEDULED").length;
+      return count > 0 ? [{ slotId, count }] : [];
+    }));
+  }
+
+  async findPatientIdsByMembers(_trx: FakeTrx, clinicId: string, memberIds: string[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    for (const [id, p] of this.patients) {
+      if (p.clinicId === clinicId && p.link && memberIds.includes(p.link.memberId)) map.set(p.link.memberId, id);
+    }
+    return Promise.resolve(map);
+  }
 }
 
 export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
@@ -422,6 +525,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const examSlotOccupancy = new FakeExamSlotOccupancyPort();
   const prescriptions = new FakePrescriptionsPort();
   const patients = new FakePatientDirectory();
+  const clinicPatients = new FakeClinicPatientDirectory(clinics);
   const audit = new FakeAuditPort();
   const deps: AppointmentsDeps<FakeTrx> = {
     appointmentsRepo,
@@ -432,11 +536,12 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     examSlotOccupancy,
     prescriptions,
     patients,
+    clinicPatients,
     walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, audit };
+  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, clinicPatients, audit };
 }

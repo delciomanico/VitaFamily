@@ -33,6 +33,14 @@ export interface RecommendationsModuleDeps {
 }
 
 export interface RecommendationsModule {
+  /** M14 P (`clinic-patients`, ficha; só leitura, ligado no composition root): recomendações da clínica a este membro. */
+  listOfMemberForClinic: (
+    trx: Kysely<Database>,
+    clinicId: string,
+    familyId: string,
+    memberId: string,
+    limit: number,
+  ) => Promise<{ id: string; appointmentId?: string; examinationId?: string; text: string; createdAt: Date }[]>;
   /** `GET /families/{f}/members/{m}/recommendations`. */
   router: Router;
   /** `/clinic-portal/recommendations` (ADR-020/023). */
@@ -56,6 +64,14 @@ export function createRecommendationsModule(deps: RecommendationsModuleDeps): Re
   };
 
   return {
+    listOfMemberForClinic: async (trx, clinicId, familyId, memberId, limit) =>
+      (await recommendationsDeps.recommendationsRepo.listByClinicAndMember(trx, clinicId, familyId, memberId, limit)).map((r) => ({
+        id: r.id,
+        text: r.text,
+        createdAt: r.createdAt,
+        ...(r.appointmentId ? { appointmentId: r.appointmentId } : {}),
+        ...(r.examinationId ? { examinationId: r.examinationId } : {}),
+      })),
     router: createRecommendationsRouter({ listRecommendations: createListRecommendationsUseCase(recommendationsDeps) }),
     clinicPortalRouter: createRecommendationsClinicPortalRouter({
       createClinicRecommendation: createCreateClinicRecommendationUseCase(recommendationsDeps),

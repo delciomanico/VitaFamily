@@ -134,6 +134,19 @@ export type AuditAction =
   | "CLINIC_SCHEDULE_GENERATE"
   | "CLINIC_TIME_OFF_CREATE"
   | "CLINIC_TIME_OFF_DELETE"
+  // Pacientes da clínica, consentimento e ligação (M14 P, ADR-026, audit.md §3): `metadata` só com ids internos,
+  // `origin`, `level`, `via`, flags, nomes de campos e contagens — nunca nome, telefone, e-mail, notas, `q`, código.
+  | "CLINIC_PATIENT_CREATE"
+  | "CLINIC_PATIENT_UPDATE"
+  | "CLINIC_PATIENT_LINK"
+  | "CLINIC_SHARED_HISTORY_VIEW"
+  | "CLINIC_VISIT_BOOK"
+  | "CLINIC_VISIT_CANCEL"
+  | "CLINIC_VISIT_COMPLETE"
+  | "CLINIC_CONSENT_SET"
+  | "CLINIC_CONSENT_REVOKE"
+  | "CLINIC_LINK_CODE_CREATE"
+  | "CLINIC_LINK_CODES_PURGE"
   // Seguradoras e portal da seguradora (ADR-021/ADR-023, BR-ADM-05/06, BR-INS-06): sem PII no metadata.
   | "ADMIN_INSURER_CREATE"
   | "ADMIN_INSURER_UPDATE"

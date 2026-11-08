@@ -8898,6 +8898,7 @@ components:
         notes: { type: string, maxLength: 2000, nullable: true, description: "Notas internas da clínica." }
         origin: { type: string, enum: [MANUAL, VITA] }
         vitaLink:
+          type: object
           nullable: true
           allOf:
             - $ref: "#/components/schemas/ClinicPatientVitaLink"

@@ -58,6 +58,9 @@ export function toClinicAppointmentResponse(view: ClinicAppointmentView) {
     patientName: view.patientName,
     notes: view.notes ?? null,
     responseNote: view.responseNote ?? null,
+    source: view.source ?? "VITA",
+    clinicPatientId: view.clinicPatientId ?? null,
+    slotId: view.slotId ?? null,
   };
 }
 

@@ -25,10 +25,10 @@ import { createDeleteAppointmentUseCase } from "./application/delete-appointment
 import { createGetAppointmentUseCase } from "./application/get-appointment.js";
 import { createListAppointmentsUseCase } from "./application/list-appointments.js";
 import { createListAvailableSlotsUseCase } from "./application/list-available-slots.js";
-import type { AppointmentsDeps, ClinicPrescriptionInput, PatientDirectoryPort, RequestContext } from "./application/ports.js";
+import type { AppointmentsDeps, ClinicAppointmentsFilter, ClinicPatientDirectoryPort, ClinicPrescriptionInput, PatientDirectoryPort, RequestContext } from "./application/ports.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
-import { WalkInInMemoryRateLimiter } from "./domain/walk-in.js";
+import { WalkInInMemoryRateLimiter, type WalkInRateLimiter } from "./domain/walk-in.js";
 import { KyselyAppointmentsRepository } from "./infrastructure/repo.js";
 import { createAppointmentsClinicPortalRouter, type AppointmentsClinicPortalController } from "./interface/clinic-portal-router.js";
 import { toAppointmentPage } from "./interface/dto.js";
@@ -68,6 +68,9 @@ export interface AppointmentsModuleDeps {
   /** D20 (ADR-024): resolução do paciente por e-mail exato, ligada no composition root a `users`+`families`
    * (nenhuma aresta nova no grafo; `appointments` não importa esses módulos). */
   patients: PatientDirectoryPort<Kysely<Database>>;
+  /** M14 P (BR-CLN-18, modules.md §2 nota 24): pacientes da clínica e visitas manuais — ligada no composition root à
+   * API pública de `clinic-patients` (`appointments` não a importa). */
+  clinicPatients: ClinicPatientDirectoryPort<Kysely<Database>>;
   clock: Clock;
 }
 
@@ -80,8 +83,27 @@ export interface AppointmentsModule {
   reads: { appointments: MemberPageRead };
   /** BR-CLN-04/BR-APT-11 (`clinics`, ligado no composition root): consultas `REQUESTED`/`SCHEDULED` por horário. */
   countActiveBySlot: (trx: Kysely<Database>, slotIds: string[]) => Promise<{ slotId: string; requested: number; scheduled: number }[]>;
+  /** M14 P (BR-CLN-20, `clinic-patients`): o limiter do walk-in (BR-CLN-10), partilhado com a ligação por código. */
+  walkInRateLimiter: WalkInRateLimiter;
+  /** M14 P (`clinic-patients`, só leitura): consultas da própria clínica por janela/membro (calendário, ficha, pesquisa). */
+  listClinicFacts: (trx: Kysely<Database>, clinicId: string, filter: ClinicAppointmentsFilter, limit?: number) => Promise<ClinicAppointmentFact[]>;
   /** BR-CLN-09 (`recommendations`, ligado no composition root): "esta consulta pertence à clínica X e está no estado Y". */
   findClinicOrigin: (trx: Kysely<Database>, clinicId: string, appointmentId: string) => Promise<ClinicOrigin | null>;
+}
+
+/** M14 P: facto mínimo de uma consulta da clínica para o calendário/ficha/pesquisa (nunca o registo completo). */
+export interface ClinicAppointmentFact {
+  id: string;
+  status: "REQUESTED" | "SCHEDULED" | "REJECTED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
+  startsAt: Date;
+  durationMinutes: number;
+  specialty?: string;
+  professionalName?: string;
+  slotId?: string;
+  familyId: string;
+  memberId: string;
+  notes?: string;
+  responseNote?: string;
 }
 
 /** Facto mínimo de uma origem de recomendação (modules.md §3 nota 22): nunca o registo completo. */
@@ -95,6 +117,7 @@ export interface ClinicOrigin {
 /** Composition root chama isto uma vez por processo (main/api.ts). */
 export function createAppointmentsModule(deps: AppointmentsModuleDeps): AppointmentsModule {
   const appointmentsRepo = new KyselyAppointmentsRepository();
+  const walkInRateLimiter = new WalkInInMemoryRateLimiter(deps.clock);
 
   const appointmentsDeps: AppointmentsDeps<Kysely<Database>> = {
     appointmentsRepo,
@@ -111,7 +134,8 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     examSlotOccupancy: deps.examSlotOccupancy,
     prescriptions: { issueForClinic: deps.prescriptions.issuePrescriptionForClinic },
     patients: deps.patients,
-    walkInRateLimiter: new WalkInInMemoryRateLimiter(deps.clock),
+    clinicPatients: deps.clinicPatients,
+    walkInRateLimiter,
     audit: deps.audit,
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
@@ -142,6 +166,21 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     router: createAppointmentsRouter(controller),
     clinicPortalRouter: createAppointmentsClinicPortalRouter(clinicPortalController),
     countActiveBySlot: (trx, slotIds) => appointmentsRepo.countActiveBySlot(trx, slotIds),
+    walkInRateLimiter,
+    listClinicFacts: async (trx, clinicId, filter, limit) =>
+      (await appointmentsRepo.listForClinic(trx, clinicId, filter, limit)).map((a) => ({
+        id: a.id,
+        status: a.status,
+        startsAt: a.scheduledAt,
+        durationMinutes: a.durationMinutes ?? 30,
+        familyId: a.familyId,
+        memberId: a.memberId,
+        ...(a.specialty ? { specialty: a.specialty } : {}),
+        ...(a.professionalName ? { professionalName: a.professionalName } : {}),
+        ...(a.slotId ? { slotId: a.slotId } : {}),
+        ...(a.notes ? { notes: a.notes } : {}),
+        ...(a.responseNote ? { responseNote: a.responseNote } : {}),
+      })),
     findClinicOrigin: async (trx, clinicId, appointmentId) => {
       const appointment = await appointmentsRepo.findByClinicId(trx, clinicId, appointmentId);
       return appointment

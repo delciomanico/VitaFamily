@@ -91,15 +91,27 @@ export function createClinicPatientLookupUseCase<Trx>(deps: AppointmentsDeps<Trx
 }
 
 export interface CreateWalkInAppointmentInput {
-  patientEmail: unknown;
+  /** Exatamente um de `patientEmail` e `clinicPatientId` (BR-CLN-18; `VALIDATION_ERROR` caso contrário). */
+  patientEmail?: unknown;
+  clinicPatientId?: unknown;
   slotId: string;
   notes?: string | null;
 }
 
-/** `POST /clinic-portal/walk-in-appointments`: ordem horário -> paciente -> estado do horário -> sobreposição. */
+function isPresent(value: unknown): boolean {
+  return value !== undefined && value !== null;
+}
+
+/** `POST /clinic-portal/walk-in-appointments`: ordem horário -> paciente -> estado do horário -> sobreposição.
+ * M14 P (BR-CLN-18): `patientEmail` cria/liga o paciente da clínica; `clinicPatientId` ligado => consulta no membro;
+ * sem ligação (manual/revogada) => visita presencial só da clínica (`clinic-patients`). */
 export function createCreateWalkInAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>) {
   return async function createWalkInAppointment(actor: ClinicPortalActor, input: CreateWalkInAppointmentInput, context: RequestContext): Promise<ClinicAppointmentView> {
-    const email = normalizeWalkInEmail(input.patientEmail, "patientEmail");
+    if (isPresent(input.patientEmail) === isPresent(input.clinicPatientId)) {
+      throw new ValidationError([{ field: "patientEmail", message: "indique exatamente um de patientEmail e clinicPatientId" }], { detail: "Indique exatamente um identificador do paciente." });
+    }
+    const email = isPresent(input.patientEmail) ? normalizeWalkInEmail(input.patientEmail, "patientEmail") : undefined;
+    const clinicPatientId = typeof input.clinicPatientId === "string" ? input.clinicPatientId : undefined;
     const notes = input.notes?.trim() ? input.notes.trim() : undefined;
     if (notes && notes.length > WALK_IN_NOTES_MAX) {
       throw new ValidationError([{ field: "notes", message: `máximo ${String(WALK_IN_NOTES_MAX)} caracteres` }], { detail: "Observações demasiado longas." });
@@ -113,7 +125,17 @@ export function createCreateWalkInAppointmentUseCase<Trx>(deps: AppointmentsDeps
         throw new NotFoundError({ detail: "Horário não encontrado." });
       }
       // 2. Paciente (404 genérico; contado à parte para o rate limit, fora da transação que falha).
-      const patient = await deps.patients.findSelfByEmail(trx, email);
+      let patient: { familyId: string; memberId: string; fullName: string } | null = null;
+      if (email !== undefined) {
+        patient = await deps.patients.findSelfByEmail(trx, email);
+      } else if (clinicPatientId !== undefined) {
+        const resolved = await deps.clinicPatients.resolvePatient(trx, actor.clinicId, clinicPatientId);
+        if (resolved && !resolved.link) {
+          // BR-CLN-18 (c): sem ligação Vita => visita presencial só da clínica.
+          return deps.clinicPatients.bookVisit(trx, actor, { clinicPatientId: resolved.clinicPatientId, slotId: found.id, notes: notes ?? null }, context);
+        }
+        patient = resolved?.link ? { ...resolved.link, fullName: resolved.name } : null;
+      }
       if (!patient) {
         return null;
       }
@@ -132,6 +154,10 @@ export function createCreateWalkInAppointmentUseCase<Trx>(deps: AppointmentsDeps
       if (await deps.appointmentsRepo.findActiveBySlot(trx, slot.id)) {
         throw new ConflictError({ detail: "Esse horário já tem uma marcação ativa." });
       }
+      // BR-APT-06 (M14 P): uma visita manual `SCHEDULED` também ocupa o horário.
+      if ((await deps.clinicPatients.countActiveVisitsBySlot(trx, [slot.id])).some((row) => row.count > 0)) {
+        throw new ConflictError({ detail: "Esse horário já tem uma marcação ativa." });
+      }
       // 4. Sobreposição por duração (BR-CLN-16): consulta SCHEDULED do paciente cujo intervalo
       // `[início, início + duração)` sobrepõe o do horário.
       const endsAt = new Date(slot.startsAt.getTime() + slot.durationMinutes * 60_000);
@@ -146,7 +172,8 @@ export function createCreateWalkInAppointmentUseCase<Trx>(deps: AppointmentsDeps
         if (others.length > 0) {
           const consultations = await deps.appointmentsRepo.countActiveBySlot(trx, others);
           const exams = await deps.examSlotOccupancy.countScheduledBySlot(trx, others);
-          if (consultations.length > 0 || exams.some((row) => row.count > 0)) {
+          const visits = await deps.clinicPatients.countActiveVisitsBySlot(trx, others);
+          if (consultations.length > 0 || exams.some((row) => row.count > 0) || visits.some((row) => row.count > 0)) {
             throw new ConflictError({ detail: "O profissional já tem uma marcação nesse período." });
           }
         }
@@ -154,6 +181,11 @@ export function createCreateWalkInAppointmentUseCase<Trx>(deps: AppointmentsDeps
       const clinic = await deps.clinics.getBookableClinic(trx, patient.familyId, actor.clinicId);
       if (!clinic) {
         throw new ConflictError({ detail: "Clínica indisponível." });
+      }
+
+      // BR-CLN-18 (a)/BR-CLN-19: com e-mail, cria/reutiliza o paciente da clínica ligado ao membro e garante `BOOKINGS`.
+      if (email !== undefined) {
+        await deps.clinicPatients.ensureLinkedByEmail(trx, actor, { familyId: patient.familyId, memberId: patient.memberId, fullName: patient.fullName }, context);
       }
 
       const appointment = await deps.appointmentsRepo.insert(trx, {

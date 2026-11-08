@@ -12,6 +12,7 @@ import type {
   AuditPort,
   ClinicExamCompletion,
   ClinicExamStatusChange,
+  ClinicExamsFilter,
   ClinicSlotLite,
   ClinicsPort,
   CursorPage,
@@ -288,6 +289,20 @@ export class FakeExaminationsRepository implements ExaminationsRepository<FakeTr
         .filter((e) => !filter.to || scheduledMs(e) <= filter.to.getTime())
         .sort((a, b) => scheduledMs(a) - scheduledMs(b)),
     );
+  }
+
+  async listForClinic(_trx: FakeTrx, clinicId: string, filter: ClinicExamsFilter, limit?: number): Promise<Examination[]> {
+    const rows = [...this.byId.values()]
+      .filter((e) => e.clinicId === clinicId && e.scheduledAt !== undefined && (e.status === "SCHEDULED" || e.status === "COMPLETED"))
+      .filter((e) => !filter.from || scheduledMs(e) >= filter.from.getTime())
+      .filter((e) => !filter.to || scheduledMs(e) < filter.to.getTime())
+      .filter((e) => !(filter.familyId && filter.memberId) || (e.familyId === filter.familyId && e.memberId === filter.memberId))
+      .sort((a, b) => scheduledMs(a) - scheduledMs(b));
+    return Promise.resolve(limit === undefined ? rows : rows.reverse().slice(0, limit));
+  }
+
+  async listSharedByMember(_trx: FakeTrx, familyId: string, memberId: string, since: string): Promise<Examination[]> {
+    return Promise.resolve([...this.byId.values()].filter((e) => e.familyId === familyId && e.memberId === memberId && (e.status === "SCHEDULED" || e.status === "COMPLETED") && e.examDate >= since));
   }
 
   async updateStatusByClinic(_trx: FakeTrx, examinationId: string, change: ClinicExamStatusChange): Promise<Examination> {

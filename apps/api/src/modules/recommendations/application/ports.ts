@@ -89,6 +89,8 @@ export interface RecommendationsRepository<Trx> {
   insert(trx: Trx, record: NewRecommendationRecord): Promise<Recommendation>;
   /** UC-REC-02: só as da própria clínica (`clinic_id`), mais recentes primeiro. */
   listByClinic(trx: Trx, clinicId: string, filter: OriginFilter, limit: number): Promise<Recommendation[]>;
+  /** M14 P (ficha do paciente da clínica): só as da própria clínica a este membro, mais recentes primeiro. */
+  listByClinicAndMember(trx: Trx, clinicId: string, familyId: string, memberId: string, limit: number): Promise<Recommendation[]>;
   /** UC-REC-03: exige `familyId` (conventions.md §3.4); mais recentes primeiro. */
   listByMember(trx: Trx, familyId: string, memberId: string, filter: MemberRecommendationFilter, limit: number, cursor?: string): Promise<CursorPage<Recommendation>>;
 }

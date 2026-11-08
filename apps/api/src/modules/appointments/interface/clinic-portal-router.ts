@@ -141,8 +141,13 @@ export function createAppointmentsClinicPortalRouter(controller: AppointmentsCli
   router.post(
     "/clinic-portal/walk-in-appointments",
     asyncHandler(async (req, res) => {
-      const body = req.body as { patientEmail?: unknown; slotId?: unknown; notes?: string | null };
-      const input: CreateWalkInAppointmentInput = { patientEmail: body.patientEmail, slotId: typeof body.slotId === "string" ? body.slotId : "", notes: body.notes ?? null };
+      const body = req.body as { patientEmail?: unknown; clinicPatientId?: unknown; slotId?: unknown; notes?: string | null };
+      const input: CreateWalkInAppointmentInput = {
+        patientEmail: body.patientEmail,
+        clinicPatientId: body.clinicPatientId,
+        slotId: typeof body.slotId === "string" ? body.slotId : "",
+        notes: body.notes ?? null,
+      };
       const result = await controller.createClinicWalkInAppointment(requireClinicPortalActor(), input, buildRequestContext(req));
       res.status(201).json(toClinicAppointmentResponse(result));
     }),

@@ -61,6 +61,9 @@ export interface MedicationsModule {
   };
   /** API pública para `prescriptions` (modules.md §3.6) — recebem `trx` já aberto. */
   createPlan: ReturnType<typeof createPlanWithTrx<Kysely<Database>>>;
+  /** M14 P (BR-CLN-21, `clinic-patients`, só leitura; ligado no composition root): planos `ACTIVE` do membro — o consentimento
+   * `HISTORY` é verificado por quem chama a cada pedido (não é `AccessPolicy`); expõe só nome, dosagem e vigência. */
+  listActivePlansForSharing: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<{ name: string; dosage: string; startAt: Date; endAt: Date | null; continuous: boolean }[]>;
   /** Portal da clínica (D18, BR-CLN-06/BR-RX-07): nunca chama `AccessPolicy` (ator `ClinicAccount`,
    * ver `application/create-plan.js#createPlanForClinicWithTrx`). */
   createPlanForClinic: ReturnType<typeof createPlanForClinicWithTrx<Kysely<Database>>>;
@@ -107,6 +110,10 @@ export function createMedicationsModule(deps: MedicationsModuleDeps): Medication
       adherence: async (actor, familyId, memberId, query, context) => toAdherenceResponse(await controller.medicationAdherence(actor, familyId, memberId, query, context)),
     },
     createPlan: createPlanWithTrx(medicationsDeps),
+    listActivePlansForSharing: async (trx, familyId, memberId) => {
+      const page = await medicationsDeps.plansRepo.listByMember(trx, familyId, memberId, { status: "ACTIVE" }, 200);
+      return page.items.map((plan) => ({ name: plan.name, dosage: plan.dosage, startAt: plan.startAt, endAt: plan.endAt ?? null, continuous: plan.continuous }));
+    },
     createPlanForClinic: createPlanForClinicWithTrx(medicationsDeps),
     listPlansForPrescription: createListPlansForPrescriptionUseCase(medicationsDeps),
     endPlansForPrescription: createEndPlansForPrescriptionUseCase(medicationsDeps),
