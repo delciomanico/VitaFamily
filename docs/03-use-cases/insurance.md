@@ -7,7 +7,7 @@
 ### UC-INS-02 Ver/editar/eliminar apólice
 - **Ator:** titular/tutor · Eliminar apaga também a foto (outbox) e os pedidos.
 ### UC-INS-03 Submeter pedido de reembolso
-- **Ator:** titular/tutor · **BR:** BR-INS-03/04 · **Fluxo:** apólice com seguradora parceira ativa → valor e 1–10 documentos já carregados → `SUBMITTED`. Apólice sem parceira ou seguradora suspensa ⇒ `VALIDATION_ERROR`/`CONFLICT`.
+- **Ator:** titular/tutor · **BR:** BR-INS-03/04 · **Fluxo:** apólice com seguradora parceira ativa → valor e 1–10 itens entre documentos já carregados **e recibos de clínica** (M14 R, BR-CLN-36, UC-CLN-28) → `SUBMITTED`. Apólice sem parceira ou seguradora suspensa ⇒ `VALIDATION_ERROR`/`CONFLICT`.
 ### UC-INS-04 Confirmar pagamento
 - **Ator:** titular/tutor · `APPROVED → PAID` (BR-INS-05).
 ### UC-INS-05 Gerir agentes da seguradora

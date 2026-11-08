@@ -64,3 +64,12 @@
   3. `ALTER TABLE appointments / clinic_visits ADD COLUMN …` (seis colunas de `schema.md` §3e; `confirmation_status` com `DEFAULT 'PENDING'` preenche as linhas existentes) e as CHECKs.
   4. Índices de `indexes.md` (M14 Q).
   - Teste de integração obrigatório (`test-cases.md`, TC-CLN-13..16): linhas antigas ficam `PENDING` com colunas nulas; CHECK `DECLINED ⇒ CANCELLED`; `started_at ≥ arrived_at`; `clinic_visits` rejeita `DECLINED`; apagar o membro apaga a consulta e o retorno; os valores de enum novos aceitam-se depois da migração.
+
+- **M14 R (ADR-026, contrato 2026-11-08) — `0030_clinic_receipts_profile_roles.sql`** (**PROPOSTA**, ainda não escrita; próximo número livre depois de `0029`; única migração, transacional, retrocompatível). Por ordem:
+  1. `ALTER TYPE clinic_account_role ADD VALUE 'CLINIC_DOCTOR'` (sem usar o valor na própria migração; a CHECK usa `role::text`; se o runner/PG alvo não o permitir, dividir em `0030_clinic_doctor_role` + `0031_clinic_receipts_profile`).
+  2. `CREATE TYPE receipt_booking_kind / clinic_receipt_status / receipt_payment_method`.
+  3. `CREATE TABLE clinic_receipt_counters`, `clinic_receipts` (com `UNIQUE (clinic_id, id)`), `clinic_receipt_lines`, `clinic_receipt_links`, `reimbursement_claim_receipts` (`schema.md` §3f).
+  4. `ALTER TABLE clinic_accounts ADD COLUMN professional_id` + CHECK + UNIQUE parcial; `ALTER TABLE clinics ADD COLUMN display_name, description, opening_hours` + CHECKs.
+  5. `ALTER TABLE audit_logs ADD COLUMN actor_clinic_id uuid` + backfill `UPDATE audit_logs a SET actor_clinic_id = c.clinic_id FROM clinic_accounts c WHERE a.actor_type = 'CLINIC_ACCOUNT' AND a.actor_clinic_account_id = c.id` (corre uma vez, com o papel dono) + índice parcial.
+  6. Índices de `indexes.md` (M14 R).
+  - Teste de integração obrigatório (`test-cases.md`, TC-CLN-17..20): numeração sem buracos nem duplicados com 20 emissões concorrentes e com rollback a meio; UNIQUE parcial um `ISSUED` por marcação e reemissão após anular; CHECK `VOIDED`; imutabilidade (linhas e total) por teste de serviço; apagar o membro apaga `clinic_receipt_links` e **não** o recibo; apagar a clínica apaga recibos/linhas/ligações/anexos; CHECK e UNIQUE de `professional_id`; contas existentes intactas; `actor_clinic_id` preenchido para entradas antigas de contas existentes; os valores de enum novos aceitam-se depois da migração.

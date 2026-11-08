@@ -146,6 +146,49 @@
 - **Alternativos:** janela inválida ou > 366 dias ⇒ `VALIDATION_ERROR`; profissional de outra clínica ⇒ `NOT_FOUND`; excesso de pedidos ⇒ `RATE_LIMITED`.
 - **Pós-condição:** só leitura; só contagens, sem dados de pacientes.
 
+### UC-CLN-25 Emitir recibo (M14 R)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-15 · **BR:** CLN-31, CLN-32, CLN-34, CLN-35
+- **Pré-condição:** marcação da própria clínica `COMPLETED` (consulta Vita, exame ou visita manual) sem recibo `ISSUED`.
+- **Fluxo:** em **Hoje** (após Concluir), na **Agenda** ou na **Ficha**, a marcação concluída mostra **"Emitir recibo"** → abre com a linha do serviço (nome e preço do catálogo) já preenchida e o **método de pagamento** (Dinheiro / Cartão / Transferência / Seguro) → um toque em **Emitir** (opcionalmente ajusta o valor, acrescenta linhas livres ou uma nota) → o sistema atribui o número seguinte (`R-000123`) e mostra o recibo com **Imprimir / Guardar PDF** (impressão do navegador) e o aviso "Documento não fiscal".
+- **Alternativos:** marcação não concluída ⇒ `INVALID_STATE_TRANSITION`; já existe recibo `ISSUED` ⇒ `CONFLICT` (a UI mostra "Ver recibo"); sem serviço no horário e sem linhas ⇒ `VALIDATION_ERROR`; linha de catálogo sem preço ⇒ `VALIDATION_ERROR`; total 0 ⇒ `VALIDATION_ERROR`; marcação de outra clínica ⇒ `NOT_FOUND`; Médico ⇒ `FORBIDDEN`.
+- **Pós-condição:** recibo `ISSUED` imutável com retrato; se a marcação é Vita e há consentimento, fica disponível na app do paciente (UC-CLN-28); auditoria `CLINIC_RECEIPT_ISSUE` sem dados pessoais.
+
+### UC-CLN-26 Anular recibo (M14 R)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-15 · **BR:** CLN-33
+- **Fluxo:** abre o recibo → **Anular** → escreve o motivo (3–200) → confirma → estado **ANULADO** (carimbo visível, número mantido) → pode emitir um novo recibo para a mesma marcação.
+- **Alternativos:** já anulado ⇒ `INVALID_STATE_TRANSITION`; motivo curto ⇒ `VALIDATION_ERROR`.
+- **Pós-condição:** `VOIDED`; deixa de somar no Financeiro; o paciente vê "Anulado" sem o motivo; auditoria `CLINIC_RECEIPT_VOID`.
+
+### UC-CLN-27 Ver recibos e total do período (Financeiro) (M14 R)
+- **Ator:** conta da clínica (Admin ou Gestor) · **FR:** CLN-17 · **BR:** CLN-37
+- **Fluxo:** **Mais → Financeiro** → escolhe o período (hoje, 7 dias, mês, ou datas) e, opcionalmente, o estado → vê o cartão **Total emitido** (valor e n.º de recibos; anulados à parte) e a lista de recibos (número, data, paciente, método, total, estado) → abre um recibo para imprimir.
+- **Alternativos:** janela inválida ou > 366 dias ⇒ `VALIDATION_ERROR`; Médico ⇒ `FORBIDDEN`; excesso de pedidos ⇒ `RATE_LIMITED`.
+- **Pós-condição:** só leitura.
+
+### UC-CLN-28 Ver o recibo na app e anexá-lo a um reembolso (M14 R)
+- **Atores:** titular/tutor · **FR:** CLN-16 · **BR:** CLN-35, CLN-36, BR-INS-03/04
+- **Fluxo:** na ficha do membro (**Seguro → Recibos das clínicas**, ou no detalhe da consulta/exame) vê a lista de recibos recebidos → abre um → **Imprimir / Guardar PDF**. Ao criar um **pedido de reembolso** (UC-INS-03), escolhe também os recibos a anexar ("Anexar recibo da clínica"): a app sugere o total como `amount`.
+- **Alternativos:** recibo anulado, de outra moeda ou já em outro pedido ativo ⇒ `CONFLICT`/`VALIDATION_ERROR` (a UI esconde-os); dependente com conta ou `OTHER` ⇒ `FORBIDDEN`; sem consentimento na emissão ou visita manual ⇒ o recibo não aparece (a clínica entrega impresso).
+- **Pós-condição:** `reimbursement_claim_receipts` criado; a seguradora vê o resumo mínimo do recibo (BR-CLN-36); sem `Document`/`Encounter` novos.
+
+### UC-CLN-29 Editar o perfil da clínica (M14 R)
+- **Atores:** `CLINIC_ADMIN` (edita); `CLINIC_MANAGER` (lê); paciente (vê na app) · **FR:** CLN-18 · **BR:** CLN-38
+- **Fluxo:** **Mais → Definições → Perfil** → altera nome de apresentação, morada, telefone, e-mail de contacto, horário de funcionamento (texto) e descrição curta → Guardar. A moeda aparece só como leitura. Na app, ao escolher/ver uma clínica parceira o paciente vê o nome de apresentação, descrição, horário, morada e contactos.
+- **Alternativos:** campo acima do limite ou e-mail inválido ⇒ `VALIDATION_ERROR`; Gestor a tentar guardar ⇒ `FORBIDDEN`; Médico ⇒ `FORBIDDEN`.
+- **Pós-condição:** perfil atualizado; auditoria `CLINIC_PROFILE_UPDATE` (só nomes de campos).
+
+### UC-CLN-30 Gerir equipa e papéis: criar Médico (M14 R)
+- **Ator:** `CLINIC_ADMIN` · **FR:** CLN-19 · **BR:** CLN-05, CLN-39
+- **Fluxo:** **Mais → Definições → Equipa** → **Adicionar** → escolhe **Receção (Gestor)** ou **Médico** → em Médico escolhe o **profissional** (do catálogo, ainda sem conta) → o sistema cria a conta e envia a palavra-passe inicial por e-mail. O Médico entra e vê só **Hoje**, **Agenda** (a sua), **Pacientes** (os seus) e **Exames** (os seus); não vê Financeiro, Relatórios nem Definições.
+- **Alternativos:** profissional inativo/inexistente/de outra clínica ⇒ `NOT_FOUND`; profissional já com conta Médico ⇒ `CONFLICT`; Médico sem `professionalId` ou Gestor com ele ⇒ `VALIDATION_ERROR`; e-mail já existente ⇒ `CONFLICT`; remover a conta não apaga marcações nem receitas emitidas (autor fica nulo).
+- **Pós-condição:** conta criada com o papel pedido; auditoria como a criação de Gestor (inclui `metadata.role`).
+
+### UC-CLN-31 Ver a auditoria da clínica (M14 R)
+- **Ator:** `CLINIC_ADMIN` · **FR:** CLN-20 · **BR:** CLN-40
+- **Fluxo:** **Mais → Definições → Auditoria** → vê, mais recentes primeiro, "quem (conta da equipa) fez o quê (ação) e quando" e filtra por período, ação ou conta → carrega mais (cursor).
+- **Alternativos:** outro papel ⇒ `FORBIDDEN`; janela inválida/fora da retenção ⇒ `VALIDATION_ERROR`.
+- **Pós-condição:** só leitura; sem endereços IP, e-mails, nomes nem dados de pacientes.
+
 ---
 
 ## Clínicas

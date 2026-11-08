@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.6** (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.7** (+M14 R, 2026-11-08: recibos `/clinic-portal/receipts*` e `…/clinic-receipts*`, `profile`, `audit`, papel `CLINIC_DOCTOR` e matriz por papel em `authorization.md` §6.2b, `receiptIds` nos pedidos de reembolso) — v0.6 (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -21,8 +21,9 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 | Titular / Tutor | O próprio User ligado ao membro / tutor do dependente. |
 | READ(cat) / WRITE(cat) | Ler ou escrever na categoria de dados do membro-sujeito segundo `permissions.md` (titular, tutor, dependente com conta, ou partilha só de leitura). |
 | PLATFORM_ADMIN | `platformRole = PLATFORM_ADMIN`. Nunca acede a dados de saúde. |
-| CLINIC_ACCOUNT | Qualquer `ClinicAccount` autenticado no portal da própria clínica (`CLINIC_ADMIN` ou `CLINIC_MANAGER`), token distinto do de User (ADR-020). |
+| CLINIC_ACCOUNT | Qualquer `ClinicAccount` autenticado no portal da própria clínica (`CLINIC_ADMIN`, `CLINIC_MANAGER` ou, desde M14 R, `CLINIC_DOCTOR`), token distinto do de User (ADR-020). **Atenção (M14 R):** onde a rota diz `CLINIC_ACCOUNT`, vale a coluna de papéis de `authorization.md` §6.2b (o Médico só acede às rotas marcadas "suas"; as restantes ⇒ `FORBIDDEN`); as rotas novas de M14 R indicam o papel explicitamente. |
 | CLINIC_ADMIN | Só `ClinicAccount` com `role=CLINIC_ADMIN` da própria clínica. |
+| CLINIC_ADMIN_MANAGER | `CLINIC_ADMIN` ou `CLINIC_MANAGER` (receção) da própria clínica; `CLINIC_DOCTOR` ⇒ `FORBIDDEN` (M14 R). |
 | SELF/TUTOR_OF (seguro) | O próprio titular (adulto) do membro ou o tutor do dependente (ADR-021); sem acesso de `OTHER`, sem categoria de partilha. |
 | INSURANCE_ACCOUNT | Qualquer `InsuranceAccount` autenticado no portal da própria seguradora (`INSURANCE_ADMIN` ou `INSURANCE_AGENT`), token distinto do de User/clínica (ADR-021). |
 | INSURANCE_ADMIN | Só `InsuranceAccount` com `role=INSURANCE_ADMIN` da própria seguradora. |
@@ -445,6 +446,23 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** BR-CLN-20. Novo código invalida o anterior do membro; 5 códigos/hora por membro; só o hash fica guardado. Auditoria `CLINIC_LINK_CODE_CREATE` (sem o código).
 
+### `GET /families/{familyId}/members/{memberId}/clinic-receipts`  — listFamilyClinicReceipts
+- **AUTHORIZATION:** Titular (SELF adulto) ou tutor (§6.5)
+- **DESCRIPTION:** Recibos das clínicas recebidos pelo membro, como comprovativos (UC-CLN-28, M14 R).
+- **QUERY:** `limit` (1–100, omissão 25), `cursor`
+- **REQUEST:** —
+- **RESPONSE:** `200` `FamilyClinicReceiptPage`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-35: só recibos com ligação (marcação Vita com consentimento na emissão); mais recentes primeiro; inclui `VOIDED` (mostrado como "Anulado"). Não auditado.
+
+### `GET /families/{familyId}/members/{memberId}/clinic-receipts/{receiptId}`  — getFamilyClinicReceipt
+- **AUTHORIZATION:** Titular (SELF adulto) ou tutor (§6.5)
+- **DESCRIPTION:** Ver um recibo recebido (para imprimir/guardar como PDF no navegador).
+- **REQUEST:** —
+- **RESPONSE:** `200` `FamilyClinicReceipt`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-35: sem motivo de anulação nem ids da clínica. O recibo pode ser anexado a um pedido de reembolso (`receiptIds`, BR-CLN-36).
+
 ### `GET /families/{familyId}/shared-with-me`  — sharedWithMe
 - **AUTHORIZATION:** FAM_MEMBER
 - **DESCRIPTION:** O que foi partilhado comigo.
@@ -795,7 +813,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 ### `POST /clinic-portal/auth/login`  — clinicLogin
 - **AUTHORIZATION:** PUBLIC
-- **DESCRIPTION:** Iniciar sessão de uma conta do portal da clínica (`CLINIC_ADMIN` ou `CLINIC_MANAGER`).
+- **DESCRIPTION:** Iniciar sessão de uma conta do portal da clínica (`CLINIC_ADMIN`, `CLINIC_MANAGER` ou `CLINIC_DOCTOR`).
 - **REQUEST:** `ClinicLoginRequest`
 - **RESPONSE:** `200` `ClinicTokenResponse`
 - **ERRORS:** `ACCOUNT_SUSPENDED`, `AUTH_INVALID_CREDENTIALS`, `RATE_LIMITED`
@@ -819,7 +837,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 ### `GET /clinic-portal/staff`  — listClinicStaff
 - **AUTHORIZATION:** CLINIC_ADMIN
-- **DESCRIPTION:** Listar as contas `CLINIC_MANAGER` da própria clínica (BR-CLN-05).
+- **DESCRIPTION:** Listar as contas `CLINIC_MANAGER` e `CLINIC_DOCTOR` da própria clínica (BR-CLN-05/39).
 - **REQUEST:** —
 - **RESPONSE:** `200` `[ClinicAccount]`
 - **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`
@@ -827,19 +845,19 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 ### `POST /clinic-portal/staff`  — createClinicStaff
 - **AUTHORIZATION:** CLINIC_ADMIN
-- **DESCRIPTION:** Criar uma conta `CLINIC_MANAGER` na própria clínica (self-service, BR-CLN-05).
-- **REQUEST:** `ClinicStaffInput`
+- **DESCRIPTION:** Criar uma conta `CLINIC_MANAGER` (receção, omissão) ou `CLINIC_DOCTOR` (Médico) na própria clínica (self-service, BR-CLN-05/39, UC-CLN-30).
+- **REQUEST:** `ClinicStaffInput` (`email`, `role?`, `professionalId?`)
 - **RESPONSE:** `201` `ClinicAccount`
-- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** BR-CLN-05: o Platform Admin nunca cria Gestores individualmente.
+- **ERRORS:** `CONFLICT` (e-mail existente; profissional já com conta Médico), `FORBIDDEN`, `NOT_FOUND` (profissional inexistente, inativo ou de outra clínica), `UNAUTHENTICATED`, `VALIDATION_ERROR` (Médico sem `professionalId`; Gestor com `professionalId`)
+- **BUSINESS RULES:** BR-CLN-05/39: o Platform Admin nunca cria Gestores nem Médicos. Auditoria `CLINIC_STAFF_CREATE` (`metadata.role`).
 
 ### `DELETE /clinic-portal/staff/{clinicAccountId}`  — removeClinicStaff
 - **AUTHORIZATION:** CLINIC_ADMIN
-- **DESCRIPTION:** Remover uma conta `CLINIC_MANAGER` da própria clínica.
+- **DESCRIPTION:** Remover uma conta `CLINIC_MANAGER` ou `CLINIC_DOCTOR` da própria clínica.
 - **REQUEST:** —
 - **RESPONSE:** `204` sem corpo
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** Só remove contas `CLINIC_MANAGER`; a conta `CLINIC_ADMIN` raiz só é reposta pelo Platform Admin (`POST /admin/clinics/{id}/root-account`).
+- **BUSINESS RULES:** Só remove contas `CLINIC_MANAGER`/`CLINIC_DOCTOR`; a conta `CLINIC_ADMIN` raiz só é reposta pelo Platform Admin (`POST /admin/clinics/{id}/root-account`).
 
 ### `GET /clinic-portal/slots`  — listOwnClinicSlots
 - **AUTHORIZATION:** CLINIC_ACCOUNT
@@ -1159,6 +1177,65 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **BUSINESS RULES:** BR-CLN-29. Só contagens e taxas; sem PII. Não auditado.
 
 **Alterações a endpoints existentes (retrocompatíveis):** `ClinicBooking` e `ClinicCalendarEntry` ganham `confirmationStatus`, `dayState`, `arrivedAt`, `waitingMinutes` (e `ClinicBooking`: `confirmationSource`, `startedAt`, `followUpDueOn`); `GET /clinic-portal/calendar` e `/agenda` incluem as consultas `CANCELLED` com `confirmationStatus=DECLINED` (BR-CLN-23 emendada); `Appointment` (família) ganha `confirmationStatus` e `followUpDueOn`; `Alert.type` ganha `APPOINTMENT_CONFIRM_REQUEST` e `FOLLOWUP_REMINDER`; `clinic_visit_status` ganha `NO_SHOW` (visível em `ClinicBooking.status`).
+
+### `GET /clinic-portal/receipts`  — listClinicReceipts
+- **AUTHORIZATION:** CLINIC_ADMIN_MANAGER
+- **DESCRIPTION:** Financeiro: recibos do período com o total (UC-CLN-27, M14 R).
+- **QUERY:** `from`, `to` (datas locais inclusivas, obrigatórias, `to ≥ from`, ≤ 366 dias), `status?` (`ISSUED`\|`VOIDED`), `limit` (1–100, omissão 25), `cursor`
+- **RESPONSE:** `200` `ClinicReceiptPage` (`items`, `nextCursor`, `summary`)
+- **ERRORS:** `FORBIDDEN` (Médico), `RATE_LIMITED` (60/min por conta), `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-37. `summary` (`issuedCount`, `issuedTotalMinor`, `voidedCount`, `currency`) cobre o período inteiro; anulados não somam. Não auditado.
+
+### `POST /clinic-portal/receipts`  — createClinicReceipt
+- **AUTHORIZATION:** CLINIC_ADMIN_MANAGER
+- **DESCRIPTION:** Emitir um recibo interno não fiscal para uma marcação concluída (UC-CLN-25).
+- **REQUEST:** `ClinicReceiptInput` (`bookingKind`, `bookingId`, `paymentMethod`, `lines?`, `note?`)
+- **RESPONSE:** `201` `ClinicReceipt`
+- **ERRORS:** `CONFLICT` (já existe recibo `ISSUED` para a marcação), `FORBIDDEN`, `INVALID_STATE_TRANSITION` (marcação não `COMPLETED`), `NOT_FOUND` (marcação ou `serviceTypeId` de outra clínica/inexistente), `UNAUTHENTICATED`, `VALIDATION_ERROR` (linhas/valores, total 0, serviço sem preço, sem serviço no horário e sem `lines`)
+- **BUSINESS RULES:** BR-CLN-31..35. Número sequencial atribuído na mesma transação (BR-CLN-32); retrato imutável; cria `clinic_receipt_links` se a marcação é Vita **e** há consentimento. Sem `Idempotency-Key` (fora do MVP): duplo envio ⇒ `CONFLICT`. Auditoria `CLINIC_RECEIPT_ISSUE`.
+
+### `GET /clinic-portal/receipts/{receiptId}`  — getClinicReceipt
+- **AUTHORIZATION:** CLINIC_ADMIN_MANAGER
+- **DESCRIPTION:** Ver um recibo completo (a página Financeiro e a "Ficha" imprimem-no; o servidor não gera PDF, BR-CLN-37).
+- **REQUEST:** —
+- **RESPONSE:** `200` `ClinicReceipt`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-33/37. Não auditado.
+
+### `POST /clinic-portal/receipts/{receiptId}/void`  — voidClinicReceipt
+- **AUTHORIZATION:** CLINIC_ADMIN_MANAGER
+- **DESCRIPTION:** Anular o recibo, com motivo (UC-CLN-26).
+- **REQUEST:** `ClinicReceiptVoidRequest` (`reason` 3–200)
+- **RESPONSE:** `200` `ClinicReceipt`
+- **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION` (já anulado), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-33: `ISSUED → VOIDED` irreversível; número mantido; o motivo é interno. Auditoria `CLINIC_RECEIPT_VOID` (sem o motivo).
+
+### `GET /clinic-portal/profile`  — getClinicProfile
+- **AUTHORIZATION:** CLINIC_ADMIN_MANAGER
+- **DESCRIPTION:** Ver o perfil da própria clínica (UC-CLN-29).
+- **REQUEST:** —
+- **RESPONSE:** `200` `ClinicProfile`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-38. `name` e `currency` só leitura.
+
+### `PATCH /clinic-portal/profile`  — updateClinicProfile
+- **AUTHORIZATION:** CLINIC_ADMIN
+- **DESCRIPTION:** Atualizar o perfil (parcial; `null` limpa).
+- **REQUEST:** `ClinicProfileInput` (`displayName?`, `address?`, `phone?`, `email?`, `openingHours?`, `description?`)
+- **RESPONSE:** `200` `ClinicProfile`
+- **ERRORS:** `FORBIDDEN` (Gestor, Médico), `UNAUTHENTICATED`, `VALIDATION_ERROR` (limites, e-mail, corpo vazio, `name`/`currency`)
+- **BUSINESS RULES:** BR-CLN-38: texto institucional sem dados de pacientes; passa a ser visível na app em `Clinic` (`displayName`, `description`, `openingHours`, `address`, `phone`, `email`). Auditoria `CLINIC_PROFILE_UPDATE` (nomes dos campos).
+
+### `GET /clinic-portal/audit`  — listClinicAudit
+- **AUTHORIZATION:** CLINIC_ADMIN
+- **DESCRIPTION:** Auditoria da própria clínica: o que as contas da equipa fizeram e quando (UC-CLN-31).
+- **QUERY:** `from?`, `to?` (instantes; janela ≤ 366 dias dentro da retenção de 24 meses), `action?`, `actorAccountId?`, `limit` (1–100, omissão 50), `cursor`
+- **REQUEST:** —
+- **RESPONSE:** `200` `ClinicAuditPage` (`items`: `id`, `occurredAt`, `action`, `resourceType`, `resourceId?`, `result`, `actorAccountId?`)
+- **ERRORS:** `FORBIDDEN`, `RATE_LIMITED` (30/min por conta), `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-40 (exceção estreita a P7, `audit.md` §2 regra 4; ratificação em OP-42). Só ações de contas da clínica do token; nunca `ip`, `userAgent`, `requestId`, `metadata`, `familyId`, `subjectMemberId` nem e-mails. A leitura não se audita.
+
+**Alterações a endpoints existentes (retrocompatíveis, M14 R):** `ClinicAccount`/`ClinicTokenResponse` ganham `role=CLINIC_DOCTOR` e `professionalId`; `ClinicStaffInput` ganha `role` e `professionalId`; `Clinic` ganha `displayName`, `description`, `openingHours` (listas de clínicas da família); `ClinicBooking`/`ClinicExamBooking` ganham `receiptId` (nunca para o Médico); `createReimbursementClaim` ganha `receiptIds` e `documentIds` deixa de ser obrigatório (1–10 itens no total, BR-CLN-36); `ReimbursementClaim` ganha `receipts` e `InsuranceClaimView` ganha `receipts` (resumo mínimo). As restantes rotas do portal mantêm o contrato, com o filtro/negação por papel de `authorization.md` §6.2b.
 
 ### `GET /clinic-portal/exam-agenda`  — listClinicExamAgenda
 - **AUTHORIZATION:** CLINIC_ACCOUNT
@@ -1908,7 +1985,7 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **AvailableSlot** — `id`: uuid, `clinicId`: uuid, `clinicName`: string, `kind`: APPOINTMENT|EXAM, `specialty`: string (em `EXAM`, tipo de exame), `professionalName?`: string, `startsAt`: datetime, `durationMinutes`: int, `capacity`: int (1–50; 1 em APPOINTMENT), `remaining`: int (≥ 1 nas listagens, BR-APT-11)
 
-**Clinic** — `id`: uuid, `name`: string, `address?`: string, `phone?`: string, `email?`: string, `type`: PARTNER|PRIVATE, `status`: ACTIVE|ARCHIVED
+**Clinic** — `id`: uuid, `name`: string, `address?`: string, `phone?`: string, `email?`: string, `type`: PARTNER|PRIVATE, `status`: ACTIVE|ARCHIVED, `displayName?`: string, `description?`: string, `openingHours?`: string (M14 R, BR-CLN-38; a app mostra `displayName ?? name`)
 
 **ClinicInput** — `name`: string, `address?`: string, `phone?`: string, `email?`: string
 
@@ -1924,11 +2001,11 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **ClinicLoginRequest** — `email`: string, `password`: string
 
-**ClinicTokenResponse** — `accessToken`: string, `expiresIn`: int, `clinicId`: uuid, `role`: CLINIC_ADMIN|CLINIC_MANAGER
+**ClinicTokenResponse** — `accessToken`: string, `expiresIn`: int, `clinicId`: uuid, `role`: CLINIC_ADMIN|CLINIC_MANAGER|CLINIC_DOCTOR, `professionalId?`: uuid
 
-**ClinicAccount** — `id`: uuid, `clinicId`: uuid, `email`: string, `role`: CLINIC_ADMIN|CLINIC_MANAGER, `status`: ACTIVE|SUSPENDED
+**ClinicAccount** — `id`: uuid, `clinicId`: uuid, `email`: string, `role`: CLINIC_ADMIN|CLINIC_MANAGER|CLINIC_DOCTOR, `professionalId?`: uuid (só `CLINIC_DOCTOR`, M14 R), `status`: ACTIVE|SUSPENDED
 
-**ClinicStaffInput** — `email`: string (a conta criada é sempre `CLINIC_MANAGER`, BR-CLN-05; a palavra-passe inicial é enviada por e-mail)
+**ClinicStaffInput** — `email`: string, `role?`: CLINIC_MANAGER|CLINIC_DOCTOR (omissão `CLINIC_MANAGER`, nunca `CLINIC_ADMIN`; BR-CLN-05/39), `professionalId?`: uuid (obrigatório em `CLINIC_DOCTOR`, proibido em `CLINIC_MANAGER`); a palavra-passe inicial é enviada por e-mail
 
 **ClinicSlot** — `id`: uuid, `clinicId`: uuid, `kind`: APPOINTMENT|EXAM (BR-APT-10), `specialty`: string, `professionalName?`: string, `startsAt`: datetime, `durationMinutes`: int, `capacity`: int (BR-APT-11; 1–50, sempre 1 em APPOINTMENT)
 
@@ -1938,7 +2015,7 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **ClinicSlotBatchInput** — `kind?`: APPOINTMENT|EXAM (default APPOINTMENT), `capacity?`: int (1–50, default 1; > 1 só com `kind=EXAM`, BR-APT-11), `date`: date (dia local), `times`: [string] (HH:mm locais), `specialty`: string, `professionalName?`: string, `durationMinutes`: int (15|20|30|45|60, BR-CLN-04)
 
-**ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família), `source?`: VITA|MANUAL, `clinicPatientId?`: uuid, `slotId?`: uuid (M14 P), `confirmationStatus`, `confirmationSource?`: PATIENT|CLINIC, `dayState`: SCHEDULED|ARRIVED|IN_PROGRESS|COMPLETED|NO_SHOW|CANCELLED|REQUESTED|REJECTED, `arrivedAt?`, `startedAt?`: datetime, `waitingMinutes?`: int, `followUpDueOn?`: date (M14 Q)
+**ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família), `source?`: VITA|MANUAL, `clinicPatientId?`: uuid, `slotId?`: uuid (M14 P), `confirmationStatus`, `confirmationSource?`: PATIENT|CLINIC, `dayState`: SCHEDULED|ARRIVED|IN_PROGRESS|COMPLETED|NO_SHOW|CANCELLED|REQUESTED|REJECTED, `arrivedAt?`, `startedAt?`: datetime, `waitingMinutes?`: int, `followUpDueOn?`: date (M14 Q) · M14 R: `receiptId?`: uuid (recibo `ISSUED`; nunca para o Médico)
 
 **ConfirmationStatus** — PENDING|CONFIRMED|DECLINED (M14 Q, BR-CLN-25)
 
@@ -1982,7 +2059,21 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **ClinicConsent** (família) — `clinicId`, `clinicName`, `level`: BOOKINGS|HISTORY (efetivo), `validUntil?`, `renewalNeeded`: bool, `linked`: bool; **ClinicConsentInput** — `level`; **ClinicLinkCode** — `code`: string, `expiresAt`: datetime
 
-**ClinicExamBooking** — `id`: uuid, `status`: SCHEDULED|COMPLETED|CANCELLED, `slotId?`: uuid, `scheduledAt`: datetime, `examType?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string, `resultsCount?`: int, `documents?`: [ClinicDocumentView], `resultsIssuedAt?`: datetime (mínimo necessário, BR-CLN-03; nunca os valores dos resultados)
+**ClinicExamBooking** — `id`: uuid, `status`: SCHEDULED|COMPLETED|CANCELLED, `slotId?`: uuid, `scheduledAt`: datetime, `examType?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string, `resultsCount?`: int, `documents?`: [ClinicDocumentView], `resultsIssuedAt?`: datetime, `receiptId?`: uuid (M14 R; recibo `ISSUED`, nunca para o Médico) (mínimo necessário, BR-CLN-03; nunca os valores dos resultados)
+
+**ClinicReceipt** (M14 R) — `id`, `number`: int (apresentar `R-` + 6 dígitos), `bookingKind`: APPOINTMENT|EXAM|VISIT, `bookingId`: uuid, `status`: ISSUED|VOIDED, `paymentMethod`: CASH|CARD|TRANSFER|INSURANCE, `currency`, `totalMinor`: int (cêntimos), `patientName`, `note?`, `issuer`: {`name`, `address?`, `phone?`, `email?`}, `lines`: [`position`, `description`, `amountMinor`, `serviceTypeId?`], `issuedAt`, `issuedByClinicAccountId?`, `voidedAt?`, `voidReason?`, `voidedByClinicAccountId?`, `notice` ("Documento não fiscal — não substitui fatura"), `availableToPatient`: bool
+
+**ClinicReceiptInput** — `bookingKind`, `bookingId`, `paymentMethod`, `lines?`: [{ `serviceTypeId?`, `description?` (1–120), `amountMinor?` (0–10¹¹) }] (1–20; linha de catálogo = `serviceTypeId` com `amountMinor` opcional; livre = `description` + `amountMinor`; omitido ⇒ serviço do horário), `note?` (≤200) · **ClinicReceiptVoidRequest** — `reason` (3–200)
+
+**ClinicReceiptPage** — `items`: [ClinicReceipt], `nextCursor?`, `summary`: {`issuedCount`, `issuedTotalMinor`, `voidedCount`, `currency`}
+
+**FamilyClinicReceipt** — `id`, `number`, `clinicName`, `clinicAddress?`, `clinicPhone?`, `status`, `paymentMethod`, `currency`, `totalMinor`, `patientName`, `note?`, `lines`: [`description`, `amountMinor`], `issuedAt`, `voidedAt?`, `notice`, `attachedToClaimIds?`: [uuid] (sem motivo de anulação nem ids da clínica) · **FamilyClinicReceiptPage** — `items`, `nextCursor?`
+
+**ClaimReceiptRef** — `receiptId`, `number`, `status`, `totalMinor`, `currency` · **InsuranceClaimReceipt** — `number`, `issuedAt`, `clinicName`, `lines`: [`description`, `amountMinor`], `totalMinor`, `currency`, `status` (resumo mínimo, BR-CLN-36)
+
+**ClinicProfile** — `name` (só leitura), `displayName?` (1–120), `address?` (≤200), `phone?` (≤30), `email?` (≤254), `openingHours?` (≤500), `description?` (≤500), `currency` (só leitura) · **ClinicProfileInput** — os seis campos editáveis, parcial, `null` limpa (≥ 1 campo)
+
+**ClinicAuditEntry** — `id`, `occurredAt`, `action`, `resourceType`, `resourceId?`, `result`: SUCCESS|DENIED|FAILURE, `actorAccountId?` · **ClinicAuditPage** — `items`, `nextCursor?` (BR-CLN-40; sem PII)
 
 **ClinicDocumentView** — `id`: uuid, `originalName`: string, `sizeBytes`: int, `scanStatus`: PENDING|CLEAN|INFECTED, `createdAt`: datetime (só metadados, BR-CLN-08)
 
@@ -2028,7 +2119,7 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **AdminUserDetail** — `id`: uuid, `email`: email, `name`: string, `status`: PENDING_VERIFICATION|ACTIVE|SUSPENDED, `platformRole`: NONE|PLATFORM_ADMIN, `emailVerifiedAt?`: datetime, `createdAt`: datetime, `suspendedAt?`: datetime, `suspensionReason?`: string, `familiesCount`: int, `activeSessionsCount`: int, `lastSessionUsedAt?`: datetime (BR-ADM-01; nunca saúde)
 
-**AdminClinicAccount** — `id`: uuid, `clinicId`: uuid, `email`: email, `role`: CLINIC_ADMIN|CLINIC_MANAGER, `status`: ACTIVE|SUSPENDED, `createdAt`: datetime, `lastLoginAt?`: datetime, `suspendedAt?`: datetime (BR-ADM-03)
+**AdminClinicAccount** — `id`: uuid, `clinicId`: uuid, `email`: email, `role`: CLINIC_ADMIN|CLINIC_MANAGER|CLINIC_DOCTOR, `status`: ACTIVE|SUSPENDED, `createdAt`: datetime, `lastLoginAt?`: datetime, `suspendedAt?`: datetime (BR-ADM-03)
 
 **AdminUser** — `id`: uuid, `email`: email, `name?`: string, `status`: PENDING_VERIFICATION|ACTIVE|SUSPENDED, `createdAt`: datetime
 
@@ -2040,9 +2131,9 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **InsurancePolicyPatch** — `insurerId?`: uuid, `insurerName?`: string, `policyNumber?`: string, `holderName?`: string, `validUntil?`: date, `cardDocumentId?`: uuid
 
-**ReimbursementClaim** — `id`: uuid, `policyId`: uuid, `amount`: number, `currency`: string, `status`: SUBMITTED|APPROVED|REJECTED|PAID, `decisionNote?`: string, `documentIds`: [uuid], `createdAt`: datetime (ADR-021)
+**ReimbursementClaim** — `id`: uuid, `policyId`: uuid, `amount`: number, `currency`: string, `status`: SUBMITTED|APPROVED|REJECTED|PAID, `decisionNote?`: string, `documentIds`: [uuid], `receipts`: [ClaimReceiptRef] (M14 R), `createdAt`: datetime (ADR-021)
 
-**ReimbursementClaimInput** — `amount`: number, `currency?`: string, `documentIds`: [uuid] (1–10, BR-INS-04)
+**ReimbursementClaimInput** — `amount`: number, `currency?`: string, `documentIds?`: [uuid], `receiptIds?`: [uuid] (M14 R, BR-CLN-36; `documentIds` + `receiptIds` entre 1 e 10 no total, BR-INS-04)
 
 **InsuranceLoginRequest** — `email`: email, `password`: string
 
@@ -2052,7 +2143,7 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **InsuranceAgentInput** — `email`: email (a conta criada é sempre `INSURANCE_AGENT`, BR-INS-06)
 
-**InsuranceClaimView** — `id`: uuid, `status`: SUBMITTED|APPROVED|REJECTED|PAID, `amount`: number, `currency`: string, `policyHolderName`: string, `policyNumber`: string, `decisionNote?`: string, `documentIds`: [uuid] (mínimo necessário, ADR-021)
+**InsuranceClaimView** — `id`: uuid, `status`: SUBMITTED|APPROVED|REJECTED|PAID, `amount`: number, `currency`: string, `policyHolderName`: string, `policyNumber`: string, `decisionNote?`: string, `documentIds`: [uuid], `receipts`: [InsuranceClaimReceipt] (M14 R, BR-CLN-36) (mínimo necessário, ADR-021)
 
 **InsuranceClaimDecisionRequest** — `decision`: APPROVE|REJECT, `note?`: string (obrigatório em REJECT, BR-INS-05)
 

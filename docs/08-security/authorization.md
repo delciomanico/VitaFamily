@@ -1,6 +1,6 @@
 # Vita Family — Autorização (Fase 14)
 
-> Estado: **v0.5** — papéis e matriz do módulo operacional de seguradoras (ADR-025: §8.2b, §8.4, §8.5); v0.4 — exames, resultados e recomendações da clínica e administração de contas (ADR-023, D19: §3 nota, §4, §6.2–6.4, novo §7); v0.3 acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
+> Estado: **v0.6** — papel `CLINIC_DOCTOR` e matriz por papel de **todas** as rotas do portal da clínica (M14 R, ADR-026: §6.2b, §6.3, §6.5); v0.5 — papéis e matriz do módulo operacional de seguradoras (ADR-025: §8.2b, §8.4, §8.5); v0.4 — exames, resultados e recomendações da clínica e administração de contas (ADR-023, D19: §3 nota, §4, §6.2–6.4, novo §7); v0.3 acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
 
 ## 1. Entradas e saída da decisão
 
@@ -99,7 +99,7 @@ Notas:
 3. **Papel**: decidir por ação segundo a matriz §6.2.
 4. Registar auditoria (ações sensíveis e negações), com `actor_type` próprio do portal da clínica (não `USER`/`SYSTEM`/`PLATFORM_ADMIN`).
 
-### 6.2 Matriz de permissões `CLINIC_ADMIN` vs `CLINIC_MANAGER`
+### 6.2 Matriz de permissões `CLINIC_ADMIN` vs `CLINIC_MANAGER` (o `CLINIC_DOCTOR` e a matriz endpoint a endpoint estão em §6.2b)
 | Ação | `CLINIC_ADMIN` | `CLINIC_MANAGER` |
 |---|---|---|
 | Login/refresh/logout no portal da própria clínica | sim | sim |
@@ -129,9 +129,9 @@ Notas:
 | Ver indicadores da própria clínica (`GET /reports/summary`; só contagens, BR-CLN-29); rate limit 30/min por conta | sim | sim |
 | Ver/gerir horários, pedidos, agenda, exames, documentos, recomendações, profissionais, serviços, regras, bloqueios, pacientes, ficha, calendário, histórico partilhado, retornos ou indicadores de **outra** clínica | não (`NOT_FOUND`) | não (`NOT_FOUND`) |
 
-> **M14 (Q):** confirmação por telefone, fluxo do dia, retorno e indicadores têm as mesmas permissões para `CLINIC_ADMIN` e `CLINIC_MANAGER` (a limitação de Relatórios/Financeiro e a de "Médico só os seus" é a fase (f), ADR-026). O portal só lê **contagens** nos indicadores e o **nome/telefone do registo da clínica** nos retornos; nunca ids Vita. A resposta "Vou / Não posso" é a **única** escrita do paciente sobre uma consulta de clínica parceira que altera o estado da consulta além de `setAppointmentStatus`; a clínica nunca escreve `DECLINED`.
+> **M14 (Q):** confirmação por telefone, fluxo do dia, retorno e indicadores têm as mesmas permissões para `CLINIC_ADMIN` e `CLINIC_MANAGER` (a limitação de Relatórios/Financeiro e a de "Médico só os seus" ficou definida em M14 R, §6.2b). O portal só lê **contagens** nos indicadores e o **nome/telefone do registo da clínica** nos retornos; nunca ids Vita. A resposta "Vou / Não posso" é a **única** escrita do paciente sobre uma consulta de clínica parceira que altera o estado da consulta além de `setAppointmentStatus`; a clínica nunca escreve `DECLINED`.
 
-> **M14 (P):** pacientes, pesquisa, calendário, ligação e histórico partilhado têm as mesmas permissões para `CLINIC_ADMIN` e `CLINIC_MANAGER` (a diferenciação de receção vs. médico, "receção não vê notas clínicas", é a fase (f), ADR-026). O portal **nunca** recebe `userId`/`familyId`/`memberId`; `clinic_patient_links` é resolvida só no servidor. O histórico partilhado é a **única** leitura de dados de saúde Vita pelo portal para além de BR-CLN-06/08/09, só com consentimento válido, e é lido por **portas** dos módulos de saúde (não por `AccessPolicy`: o consentimento `ClinicConsent` é o critério, avaliado a cada pedido).
+> **M14 (P):** pacientes, pesquisa, calendário, ligação e histórico partilhado têm as mesmas permissões para `CLINIC_ADMIN` e `CLINIC_MANAGER` (a diferenciação receção vs. médico é a de §6.2b; "receção não vê notas clínicas" ficou sem efeito, BR-CLN-39/OP-40). O portal **nunca** recebe `userId`/`familyId`/`memberId`; `clinic_patient_links` é resolvida só no servidor. O histórico partilhado é a **única** leitura de dados de saúde Vita pelo portal para além de BR-CLN-06/08/09, só com consentimento válido, e é lido por **portas** dos módulos de saúde (não por `AccessPolicy`: o consentimento `ClinicConsent` é o critério, avaliado a cada pedido).
 
 > **M14 (a1/a2):** nestas fases `CLINIC_ADMIN` e `CLINIC_MANAGER` têm as mesmas permissões sobre catálogo, regras e bloqueios (decisão do proprietário); a diferenciação por papel (`CLINIC_DOCTOR`, só o seu calendário) é a fase (f). O catálogo e as regras são dados da clínica e não contêm dados Vita/saúde. O job `clinics.generate-schedule` corre como `SYSTEM`, sem conta de clínica, e só escreve `clinic_slots` por regras ativas.
 
@@ -140,12 +140,37 @@ profissional, data/hora, observações do pedido); nunca condições, alergias, 
 histórico de outras consultas, nem dados de família/tutela. A exceção de BR-CLN-06 (registar
 resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica está a atender; a de BR-CLN-08 (resultados/PDF) só ao exame `SCHEDULED` da própria clínica; a de BR-CLN-09 (recomendação) só a consulta/exame da própria clínica em `SCHEDULED`/`COMPLETED`. Exceção D20 (BR-CLN-10): a pesquisa por e-mail devolve só `displayName`; a marcação re-resolve o e-mail no servidor e o portal nunca recebe `userId`/`familyId`/`memberId`. O portal **nunca** lê resultados, documentos ou recomendações do paciente além do que a própria clínica escreveu.
 
+### 6.2b Matriz por papel de todas as rotas `/clinic-portal/*` (M14 R, BR-CLN-39) — `CLINIC_ADMIN` · `CLINIC_MANAGER` (receção) · `CLINIC_DOCTOR` (Médico)
+Legenda: **sim** · **não** = `FORBIDDEN` (papel insuficiente; não revela mais nada) · **suas** = só marcações cujo `clinic_slots.professional_id` é o `professionalId` da conta e pacientes com (ou que tiveram) marcação com ele; fora disso `NOT_FOUND`. Isolamento por clínica (§6.1) aplica-se sempre primeiro. O servidor decide por **papel + filtro**; esconder no UI não é segurança.
+| Rotas | Admin | Gestor | Médico |
+|---|---|---|---|
+| `auth/login`, `auth/refresh`, `auth/logout` | sim | sim | sim |
+| `staff` (`GET`/`POST`/`DELETE`; criar Gestor ou Médico) | sim | não | não |
+| `profile` `GET` · `PATCH` | sim · sim | sim · **não** | não · não |
+| `audit` `GET` | sim | não | não |
+| `receipts` (`GET` lista/total, `GET /{id}`, `POST`, `POST /{id}/void`) | sim | sim | **não** |
+| `reports/summary` | sim | sim | não |
+| `slots` (`GET`/`POST`/`PATCH`/`DELETE`), `professionals*`, `services*`, `schedule-rules*`, `time-off*` | sim | sim | não |
+| `requests` (listar, confirmar/recusar) | sim | sim | não |
+| `agenda` `GET` | sim | sim | suas |
+| `agenda/{id}/cancel`, `confirm`, `arrive`, `no-show` | sim | sim | não |
+| `agenda/{id}/start`, `complete` (consulta ou visita; resultado, receita, BR-CLN-06) | sim | sim | suas |
+| `agenda/{id}/follow-up` (`PUT`/`DELETE`), `follow-ups` `GET` | sim | sim | suas |
+| `calendar` | sim | sim | só a sua coluna (`professionalId` de outro ⇒ `NOT_FOUND`) |
+| `exam-agenda` `GET`, `complete`, `documents` (upload/remover) | sim | sim | suas |
+| `exam-agenda/{id}/cancel` | sim | sim | não |
+| `recommendations` (`GET`/`POST`) | sim | sim | suas |
+| `patients` `GET` (lista/`q`) e `GET /{id}`, `record`, `shared-history` | sim | sim | suas |
+| `patients` `POST`/`PATCH`, `patients/link` | sim | sim | não |
+| `patient-lookup`, `walk-in-appointments`, `search` | sim | sim | não |
+Notas: (1) o Médico nunca recebe `receiptId`/preços de recibos nem a lista de contas; (2) as `notes` do `ClinicPatient` são administrativas e visíveis aos três (BR-CLN-39); (3) o Médico não tem permissões no módulo operacional de seguradoras (ADR-025/Q6); (4) a regra "uma conta Médico por profissional" e a criação de contas são exclusivas do Admin; (5) o token de Médico traz `professionalId`; um token sem ele num papel Médico é inválido (`UNAUTHENTICATED`). Testes gerados a partir desta matriz: `TC-AZ-CLN-V5`.
+
 ### 6.3 Hierarquia de contas (BR-CLN-05) — quem administra quem
 | Ação | Quem |
 |---|---|
 | Ver/suspender a clínica (inteira) | PLATFORM_ADMIN |
 | Criar/repor a conta `CLINIC_ADMIN` raiz de uma clínica parceira | PLATFORM_ADMIN (`POST /admin/clinics/{id}/root-account`) |
-| Criar/listar/remover contas `CLINIC_MANAGER` da própria clínica | `CLINIC_ADMIN` da clínica (self-service, nunca o Platform Admin diretamente) |
+| Criar/listar/remover contas `CLINIC_MANAGER` **e `CLINIC_DOCTOR`** (M14 R) da própria clínica | `CLINIC_ADMIN` da clínica (self-service, nunca o Platform Admin diretamente) |
 | **Listar** as contas do portal de uma clínica; **suspender/reativar** cada uma (revoga `clinic_sessions`) — ADR-023, BR-ADM-03/04 | PLATFORM_ADMIN (`GET /admin/clinics/{id}/accounts`, `POST .../accounts/{accountId}/suspend\|reactivate`); não cria nem remove |
 
 ### 6.4 Consentimento e ligação a clínicas — lado família (M14 P, ADR-026)
@@ -157,6 +182,13 @@ resultado/receita) só se aplica à consulta `SCHEDULED` que a própria clínica
 | Gerar código/QR de ligação (`POST`) | sim | sim | não | não |
 
 Sem categoria de partilha nova nem `SharingGrant` (como `InsurancePolicy`, §3): só `SELF`/`TUTOR_OF` (N2: o dependente com conta não consente sozinho). Utilizador sem acesso ao membro ou família: `NOT_FOUND`. Um tutor que também é Admin usa `TUTOR_OF`. Mantém-se a regra de ADR-026: o consentimento é por clínica **parceira ativa**; revogar é sempre possível, mesmo com a clínica suspensa ou arquivada.
+
+### 6.5 Recibos da clínica — lado família (M14 R, ADR-026)
+| Ação (rotas `/families/{f}/members/{m}/clinic-receipts*`; anexar em `…/reimbursement-claims`) | `SELF` (adulto) | `TUTOR_OF` | `DEPENDENT_SELF` | `OTHER` / Family Admin como OTHER |
+|---|---|---|---|---|
+| Listar e ver recibos recebidos (`GET`) | sim (do próprio) | sim (do dependente) | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Anexar recibo a um pedido de reembolso (`receiptIds`, BR-CLN-36) | sim | sim | não | não |
+Sem categoria de partilha nem `SharingGrant` (como o seguro, §3): documento financeiro, só `SELF`/`TUTOR_OF`. Recibo sem `clinic_receipt_links` para o membro (ou de outra família) ⇒ `NOT_FOUND`. A clínica nunca vê nem altera estas ligações nem os pedidos de reembolso; a seguradora só vê o resumo mínimo dos recibos que o titular anexou (BR-CLN-36).
 
 ## 7. Administração da plataforma (`PLATFORM_ADMIN`, ADR-023)
 

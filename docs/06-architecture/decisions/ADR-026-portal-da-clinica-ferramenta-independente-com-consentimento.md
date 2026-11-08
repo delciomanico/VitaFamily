@@ -42,3 +42,11 @@ O portal (ADR-020/023/024) é fino: pedidos, agenda, horários, exames, recomend
 
 ## Pontos em aberto para o proprietário
 **Todos decididos pelo proprietário em 2026-11-07** (OP-24 a OP-30, registados como resolvidos em `11-implementation/open-points.md`). Resta apenas o gate jurídico de lançamento (DPA, AIPD, Lei 22/11).
+
+## Emenda M14 R (2026-11-08) — desvios deliberados do esboço, por "mínima complexidade"
+Registados aqui para o ADR continuar a ser a fonte da decisão (contrato em `11-implementation/clinic-portal-v2.md`, etapa R):
+1. **Fase (e):** o recibo **não** reutiliza nem cria `Encounter`/despesa de ADR-025/S3: o comprovativo é anexado pelo titular ao `ReimbursementClaim` por `receiptIds` (BR-CLN-36) e BR-SEG-21 mantém-se; a integração clínica→seguradora fica para ADR-025. O recibo é HTML imprimível (sem PDF no servidor, OP-41).
+2. **Fase (f):** "receção não vê notas clínicas" fica **sem efeito** (as notas são administrativas; sem prontuário, OP-40); a matriz por papel é `authorization.md` §6.2b (Admin, Gestor = receção, `CLINIC_DOCTOR` só as suas marcações).
+3. **Auditoria da clínica** (`GET /clinic-portal/audit`, só Admin): exceção estreita a P7, **a ratificar** pelo proprietário (OP-42).
+4. **Lista de espera (a3)**, pré-consulta/QR de check-in e mensagens estruturadas ficam **fora do M14** (OP-39, OP-43).
+

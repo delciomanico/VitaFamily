@@ -1,6 +1,6 @@
 # Vita Family — Entidades (Fase 9)
 
-> Estado: **v0.5** — módulo operacional de seguradoras (ADR-025: secção própria; `InsurerAccount.currency`/`operationalModuleEnabled`; papéis alargados); v0.4 — `ClinicSlot.capacity` e exame marcado diretamente (`SCHEDULED`, sem pedido/recusa; ADR-023 revisto 2026-11-04); v0.3: `ClinicSlot.kind`, `Examination` emitido pela clínica, `Recommendation`, `InsurancePolicy.insurerId` (ADR-023, D19); v0.2 acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
+> Estado: **v0.6** — M14 R: `ClinicReceipt`, `ClinicReceiptLink`, `ClinicAccount.professionalId`/`CLINIC_DOCTOR`, perfil da `Clinic` (ADR-026); v0.5 — módulo operacional de seguradoras (ADR-025: secção própria; `InsurerAccount.currency`/`operationalModuleEnabled`; papéis alargados); v0.4 — `ClinicSlot.capacity` e exame marcado diretamente (`SCHEDULED`, sem pedido/recusa; ADR-023 revisto 2026-11-04); v0.3: `ClinicSlot.kind`, `Examination` emitido pela clínica, `Recommendation`, `InsurancePolicy.insurerId` (ADR-023, D19); v0.2 acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
 > Convenções: `id` UUID; `createdAt`/`updatedAt` em UTC em todas, salvo indicação; `?` = opcional.
 > **Categoria** indica a categoria de privacidade (C2–C6) dos registos de saúde.
 
@@ -139,8 +139,19 @@ Derivado: `vitaLink?` = `{via (EMAIL | CODE), consentLevel?, consentValidUntil?}
 ### ClinicAccount — conta do portal da clínica (D18, ADR-020)
 **Correção (ADR-021):** esta secção referia-se antes a `ClinicStaff(userId, clinicId, role)`, suposição
 revista por D18 — a conta do portal **não** é um `User`. Alinhado aqui com `schema.md` §3 (`clinic_accounts`).
-`clinicId` (PARTNER) · `email` · `passwordHash` · `role` (CLINIC_ADMIN | CLINIC_MANAGER) · `status` (ACTIVE | SUSPENDED)
+`clinicId` (PARTNER) · `email` · `passwordHash` · `role` (CLINIC_ADMIN | CLINIC_MANAGER | CLINIC_DOCTOR — este desde M14 R) · `professionalId?` (só `CLINIC_DOCTOR`: o `ClinicProfessional` cuja agenda e pacientes a conta vê; um Médico por profissional, BR-CLN-39) · `status` (ACTIVE | SUSPENDED)
 Sem FK para `users` nem `family_members`: não é membro de nenhuma família por esta via.
+
+
+### ClinicReceipt — recibo interno não fiscal da clínica (M14 R)
+`clinicId` · `number` (inteiro sequencial por clínica, sem falhas; apresentado `R-000123`) · `bookingKind` (APPOINTMENT | EXAM | VISIT) · `bookingId` (sem FK) · `status` (ISSUED | VOIDED) · `paymentMethod` (CASH | CARD | TRANSFER | INSURANCE; informativo) · `currency` · `totalMinor` (cêntimos, soma das linhas) · `patientName` (retrato) · `note?` · `issuer` (retrato do perfil da clínica) · `issuedAt` · `issuedByClinicAccountId?` · `voidedAt?` · `voidReason?` · `voidedByClinicAccountId?` · `lines`: [`ClinicReceiptLine`: `position` · `description` · `amountMinor` · `serviceTypeId?`]
+Derivado: `notice` fixo "Documento não fiscal — não substitui fatura"; `availableToPatient` (existe `ClinicReceiptLink`).
+**Regras:** BR-CLN-31..37. Imutável; único estado `ISSUED → VOIDED`; um `ISSUED` por marcação; registo **da clínica** (sem ids Vita, sobrevive ao apagamento do membro, BR-CLN-24).
+
+### ClinicReceiptLink — ponte do recibo para o paciente Vita (M14 R)
+`receiptId` (único) · `familyId` · `memberId`. Só existe para marcações Vita com consentimento na emissão (BR-CLN-35); nunca exposta pelo portal; apagada com o membro/família.
+
+**`Clinic` (M14 R):** campos de perfil `displayName?` · `description?` · `openingHours?` (BR-CLN-38) e `address?`/`phone?`/`email?` editáveis pela própria clínica parceira. **`ReimbursementClaim` (M14 R):** associação opcional a recibos (`receiptIds`, BR-CLN-36), sem `Encounter` nem despesa novos.
 
 ## Seguros (ADR-021 — sem categoria de partilha; só SELF/TUTOR_OF)
 

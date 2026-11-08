@@ -1,6 +1,6 @@
 # Vita Family — Requisitos Funcionais (Fase 3)
 
-> Estado: **v0.2 — R1–R10 respondidas (secção 14); R11 resolvido na Fase 8**
+> Estado: **v0.2 (+FR-CLN-15..20, M14 R) — R1–R10 respondidas (secção 14); R11 resolvido na Fase 8**
 > Base: `scope.md` v0.2 e `discovery.md` v0.2. Nada aqui acrescenta funcionalidade fora do âmbito aprovado.
 > Formato: ID · requisito · origem. Linguagem: "o sistema deve…".
 > **Permissões detalhadas (quem pode o quê) ficam na Fase 5**; aqui só se indicam restrições já decididas.
@@ -171,6 +171,12 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-CLN-12 | A página **Hoje** tem a fila do dia com ações rápidas **Chegou / Iniciar / Concluir / Faltou** e o tempo de espera, sem formulários longos (BR-CLN-28). | D22, ADR-026 (M14 Q) |
 | FR-CLN-13 | A clínica consulta **indicadores simples** (ocupação, consultas realizadas, faltas e taxa, cancelamentos, novos pacientes; por profissional opcional), só contagens e sem dados pessoais (BR-CLN-29). | D22, ADR-026 (M14 Q) |
 | FR-CLN-14 | A clínica propõe **"voltar em N semanas/meses"** ao concluir; o paciente Vita recebe um lembrete de retorno e a clínica vê os retornos por tratar (BR-CLN-30). | D22, ADR-026 (M14 Q) |
+| FR-CLN-15 | Ao concluir uma consulta, exame ou visita, a clínica emite um **recibo interno não fiscal** (linhas do catálogo ou livres, total em cêntimos, numeração sequencial sem falhas por clínica, método de pagamento informativo), que se imprime/guarda como PDF, e pode **anular** com motivo (nunca apagar) (BR-CLN-31..34). | D22, ADR-026 (M14 R) |
+| FR-CLN-16 | O paciente Vita ligado com consentimento vê o recibo na app como comprovativo e pode **anexá-lo a um pedido de reembolso**; visitas manuais só ficam na clínica (BR-CLN-35/36, BR-INS-04). | D22, ADR-026 (M14 R) |
+| FR-CLN-17 | A página **Financeiro** lista os recibos por período com o total emitido do período (BR-CLN-37). | D22, ADR-026 (M14 R) |
+| FR-CLN-18 | A clínica mantém o seu **perfil** (nome de apresentação, morada, telefone, e-mail, horário em texto, descrição curta), visível ao paciente ao escolher clínica (BR-CLN-38). | D22, ADR-026 (M14 R) |
+| FR-CLN-19 | O `CLINIC_ADMIN` cria contas de **Médico** (`CLINIC_DOCTOR`) ligadas a um profissional, com acesso restrito à sua agenda e pacientes, e as permissões de cada papel estão definidas endpoint a endpoint (BR-CLN-39, `authorization.md` §6.2). | D22, ADR-026 (M14 R) |
+| FR-CLN-20 | O `CLINIC_ADMIN` consulta a **auditoria da própria clínica** (ações dos seus funcionários, sem dados pessoais) (BR-CLN-40). | D22, ADR-026 (M14 R) |
 
 ---
 
