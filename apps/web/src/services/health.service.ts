@@ -3,6 +3,7 @@ import { apiFetch, hasApiBackend } from '@/lib/apiClient'
 import type { HealthProfileInput } from '@/mocks/handlers/health'
 import type { FamilyMember } from '@/types/family'
 import type { Allergy, BloodType, HealthProfile, MedicalCondition } from '@/types/health'
+import { apiGetMemberHistory } from './memberViews'
 
 export type { HealthProfileInput } from '@/mocks/handlers/health'
 
@@ -121,7 +122,7 @@ async function apiSaveHealthProfile(
   return apiGetHealthProfile(familyId, memberId)
 }
 
-/** Perfil de saúde e histórico médico. Com `VITE_API_URL` usa a API real; o histórico continua mock. */
+/** Perfil de saúde e histórico médico. Com `VITE_API_URL` usa a API real; o histórico médico vem do relatório do membro (últimos 5 anos). */
 export const healthService = {
   getHealthProfile: hasApiBackend()
     ? (familyId: string, _userId: string, memberId: string) => apiGetHealthProfile(familyId, memberId)
@@ -130,5 +131,8 @@ export const healthService = {
     ? (familyId: string, _userId: string, memberId: string, input: HealthProfileInput) =>
         apiSaveHealthProfile(familyId, memberId, input)
     : api.saveHealthProfile,
-  getMedicalHistory: api.getMedicalHistory,
+  getMedicalHistory: hasApiBackend()
+    ? (familyId: string, _userId: string, memberId: string) =>
+        apiGetMemberHistory(familyId, memberId).then((history) => history.entries)
+    : api.getMedicalHistory,
 }
