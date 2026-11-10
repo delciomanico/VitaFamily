@@ -10,6 +10,7 @@ export type AlertType =
   | 'RECOMMENDATION_ADDED'
   | 'APPOINTMENT_CONFIRM_REQUEST'
   | 'FOLLOWUP_REMINDER'
+  | 'EXAM_ORDER_ADDED'
 
 /** Regra que gerou o alerta (Evento → Regra → Alerta, UC-ALR-01). */
 export type AlertRuleKey =
@@ -25,6 +26,7 @@ export type AlertRuleKey =
   | 'recommendation.added'
   | 'appointment.confirm48h'
   | 'followup.due'
+  | 'exam-order.added'
 
 export interface HealthAlert {
   id: string

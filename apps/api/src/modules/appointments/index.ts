@@ -33,7 +33,7 @@ import { createDeleteAppointmentUseCase } from "./application/delete-appointment
 import { createGetAppointmentUseCase } from "./application/get-appointment.js";
 import { createListAppointmentsUseCase } from "./application/list-appointments.js";
 import { createListAvailableSlotsUseCase } from "./application/list-available-slots.js";
-import type { AppointmentsDeps, ClinicAppointmentsFilter, ClinicPatientDirectoryPort, ClinicPrescriptionInput, PatientDirectoryPort, ReceiptIdsPort, ReminderWindows, RequestContext } from "./application/ports.js";
+import type { AppointmentsDeps, ClinicAppointmentsFilter, ClinicPatientDirectoryPort, ClinicPrescriptionInput, ConsultationReportsPort, PatientDirectoryPort, ReceiptIdsPort, ReminderWindows, RequestContext } from "./application/ports.js";
 import { createSetAppointmentConfirmationUseCase } from "./application/set-appointment-confirmation.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
@@ -83,6 +83,8 @@ export interface AppointmentsModuleDeps {
   clinicPatients: ClinicPatientDirectoryPort<Kysely<Database>>;
   /** M14 R (BR-CLN-31): `receiptId` nas marcações concluídas — ligada no composition root a `clinic-receipts`. */
   receipts: ReceiptIdsPort<Kysely<Database>>;
+  /** M15 S (BR-CLN-42/45): relatório da consulta — ligada no composition root a `clinic-reports` (`appointments` não o importa). */
+  consultationReports: ConsultationReportsPort<Kysely<Database>>;
   clock: Clock;
 }
 
@@ -103,6 +105,10 @@ export interface AppointmentsModule {
   listClinicFollowUps: (trx: Kysely<Database>, clinicId: string, until: string, limit: number) => Promise<ClinicFollowUpFact[]>;
   /** M14 R (BR-CLN-31, `clinic-receipts`, ligado no composition root): factos mínimos da consulta da clínica para emitir recibo. */
   findReceiptFacts: (trx: Kysely<Database>, clinicId: string, appointmentId: string) => Promise<ReceiptBookingFacts | null>;
+  /** M15 S (BR-CLN-41, `clinic-reports`, ligado no composition root): factos mínimos da consulta da clínica para o relatório (sem ids Vita). */
+  findReportFacts: (trx: Kysely<Database>, clinicId: string, appointmentId: string) => Promise<ReportBookingFacts | null>;
+  /** M15 S (BR-CLN-45, `clinic-reports`): a consulta existe no membro/família e a sua clínica — sem dados clínicos. */
+  findFamilyAppointmentClinic: (trx: Kysely<Database>, familyId: string, memberId: string, appointmentId: string) => Promise<{ clinicId: string } | null>;
   /** BR-CLN-09 (`recommendations`, ligado no composition root): "esta consulta pertence à clínica X e está no estado Y". */
   findClinicOrigin: (trx: Kysely<Database>, clinicId: string, appointmentId: string, professionalId?: string) => Promise<ClinicOrigin | null>;
 }
@@ -144,6 +150,19 @@ export interface ReceiptBookingFacts {
   memberId: string;
 }
 
+/** M15 S: consulta da própria clínica vista pelo relatório (`familyId`/`memberId` SÓ no servidor, para resolver o paciente da clínica). */
+export interface ReportBookingFacts {
+  status: string;
+  patientName: string;
+  scheduledAt: Date;
+  specialty?: string;
+  slotId?: string;
+  familyId: string;
+  memberId: string;
+  /** M15 V (BR-CLN-55): chegada registada (declaração de presença). */
+  arrivedAt?: Date;
+}
+
 /** Facto mínimo de uma origem de recomendação (modules.md §3 nota 22): nunca o registo completo. */
 export interface ClinicOrigin {
   familyId: string;
@@ -174,6 +193,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     patients: deps.patients,
     clinicPatients: deps.clinicPatients,
     receipts: deps.receipts,
+    consultationReports: deps.consultationReports,
     walkInRateLimiter,
     audit: deps.audit,
     db: deps.db,
@@ -237,6 +257,25 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
       if (!appointment) return null;
       const patientName = (await deps.access.getMemberName(trx, appointment.familyId, appointment.memberId)) ?? "Membro da família";
       return { status: appointment.status, patientName, familyId: appointment.familyId, memberId: appointment.memberId, ...(appointment.slotId ? { slotId: appointment.slotId } : {}) };
+    },
+    findReportFacts: async (trx, clinicId, appointmentId) => {
+      const appointment = await appointmentsRepo.findByClinicId(trx, clinicId, appointmentId);
+      if (!appointment) return null;
+      const patientName = (await deps.access.getMemberName(trx, appointment.familyId, appointment.memberId)) ?? "Membro da família";
+      return {
+        status: appointment.status,
+        patientName,
+        scheduledAt: appointment.scheduledAt,
+        familyId: appointment.familyId,
+        memberId: appointment.memberId,
+        ...(appointment.specialty ? { specialty: appointment.specialty } : {}),
+        ...(appointment.slotId ? { slotId: appointment.slotId } : {}),
+        ...(appointment.arrivedAt ? { arrivedAt: appointment.arrivedAt } : {}),
+      };
+    },
+    findFamilyAppointmentClinic: async (trx, familyId, memberId, appointmentId) => {
+      const appointment = await appointmentsRepo.findById(trx, familyId, memberId, appointmentId);
+      return appointment?.clinicId ? { clinicId: appointment.clinicId } : null;
     },
     findClinicOrigin: async (trx, clinicId, appointmentId, professionalId) => {
       const appointment = await appointmentsRepo.findByClinicId(trx, clinicId, appointmentId);

@@ -11,6 +11,7 @@ import { withTransaction } from "../../platform/db/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { ClinicsModule } from "../clinics/index.js";
+import { InMemoryRateLimiter } from "../../platform/rate-limit/index.js";
 import type { DocumentsModule } from "../documents/index.js";
 import {
   createCancelClinicExaminationUseCase,
@@ -26,11 +27,12 @@ import { createDeleteExamResultUseCase } from "./application/delete-exam-result.
 import { createExamResultHistoryUseCase } from "./application/exam-result-history.js";
 import { createGetExaminationUseCase } from "./application/get-examination.js";
 import { createListExaminationsUseCase } from "./application/list-examinations.js";
-import type { ExaminationsDeps, ExamAlertsPort, ReceiptIdsPort } from "./application/ports.js";
+import type { ExaminationsDeps, ExamAlertsPort, ExamOrderLinkerPort, ExamReportGeneratorPort, ReceiptIdsPort } from "./application/ports.js";
+import { createDiscardResultsDraftUseCase, createDownloadExamReportUseCase, createGetResultsDraftUseCase, createSaveResultsDraftUseCase } from "./application/results-draft.js";
 import { createSetExaminationStatusUseCase } from "./application/set-examination-status.js";
 import { createUpdateExaminationUseCase } from "./application/update-examination.js";
 import { createUpdateExamResultUseCase } from "./application/update-exam-result.js";
-import { KyselyExamResultsRepository, KyselyExaminationsRepository } from "./infrastructure/repo.js";
+import { KyselyExamResultsDraftRepository, KyselyExamResultsRepository, KyselyExaminationsRepository } from "./infrastructure/repo.js";
 import { toExaminationPage } from "./interface/dto.js";
 import { createExaminationsClinicPortalRouter, type ExaminationsClinicPortalController } from "./interface/clinic-portal-router.js";
 import { createExaminationsRouter, type ExaminationsController } from "./interface/router.js";
@@ -51,6 +53,10 @@ export interface ExaminationsModuleDeps {
   alerts: ExamAlertsPort<Kysely<Database>>;
   /** M14 R (BR-CLN-31): `receiptId` nos exames concluídos — ligada no composition root a `clinic-receipts`. */
   receipts: ReceiptIdsPort<Kysely<Database>>;
+  /** M15 T (BR-CLN-48/49): laudo PDF — ligada no composition root a `clinic-reports` (`examinations` não o importa). */
+  reportGenerator: ExamReportGeneratorPort<Kysely<Database>>;
+  /** M15 U (BR-CLN-52): estado do pedido de exame ligado — ligada no composition root a `clinic-reports` (`examinations` não o importa). */
+  examOrders: ExamOrderLinkerPort<Kysely<Database>>;
   clock: Clock;
 }
 
@@ -127,6 +133,10 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
   const examinationsDeps: ExaminationsDeps<Kysely<Database>> = {
     examinationsRepo,
     examResultsRepo,
+    draftsRepo: new KyselyExamResultsDraftRepository(),
+    reportGenerator: deps.reportGenerator,
+    examOrders: deps.examOrders,
+    limiter: new InMemoryRateLimiter(deps.clock),
     policy: deps.access.policy,
     memberNames: { getMemberName: deps.access.getMemberName },
     alerts: deps.alerts,
@@ -137,6 +147,9 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
       deleteAllForResource: deps.documents.deleteAllForResource,
       uploadClinicExamDocument: deps.documents.uploadClinicExamDocument,
       deleteClinicExamDocument: deps.documents.deleteClinicExamDocument,
+      storeGenerated: deps.documents.storeGenerated,
+      discardStored: deps.documents.discardStored,
+      readGeneratedExamReport: deps.documents.readGeneratedExamReport,
     },
     audit: deps.audit,
     db: deps.db,
@@ -163,6 +176,10 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
     completeClinicExamination: createCompleteClinicExaminationUseCase(examinationsDeps),
     uploadClinicExamDocument: createUploadClinicExamDocumentUseCase(examinationsDeps),
     deleteClinicExamDocument: createDeleteClinicExamDocumentUseCase(examinationsDeps),
+    getClinicExamResultsDraft: createGetResultsDraftUseCase(examinationsDeps),
+    saveClinicExamResultsDraft: createSaveResultsDraftUseCase(examinationsDeps),
+    discardClinicExamResultsDraft: createDiscardResultsDraftUseCase(examinationsDeps),
+    getClinicExamReportPdf: createDownloadExamReportUseCase(examinationsDeps),
   };
 
   return {

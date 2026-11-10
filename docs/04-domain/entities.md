@@ -1,6 +1,6 @@
 # Vita Family — Entidades (Fase 9)
 
-> Estado: **v0.6** — M14 R: `ClinicReceipt`, `ClinicReceiptLink`, `ClinicAccount.professionalId`/`CLINIC_DOCTOR`, perfil da `Clinic` (ADR-026); v0.5 — módulo operacional de seguradoras (ADR-025: secção própria; `InsurerAccount.currency`/`operationalModuleEnabled`; papéis alargados); v0.4 — `ClinicSlot.capacity` e exame marcado diretamente (`SCHEDULED`, sem pedido/recusa; ADR-023 revisto 2026-11-04); v0.3: `ClinicSlot.kind`, `Examination` emitido pela clínica, `Recommendation`, `InsurancePolicy.insurerId` (ADR-023, D19); v0.2 acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
+> Estado: **v0.8** — M15 U/V: `ExamOrder`, `ExamOrderLink`, `alert_type` `EXAM_ORDER_ADDED`, `ExaminationInput.examOrderId` (ADR-028); v0.7 — M15 S/T: `ConsultationReport`, `ConsultationReportAddendum`, `ExamResultsDraft`, `Document.generatedBySystem` (ADR-027); v0.6 — M14 R: `ClinicReceipt`, `ClinicReceiptLink`, `ClinicAccount.professionalId`/`CLINIC_DOCTOR`, perfil da `Clinic` (ADR-026); v0.5 — módulo operacional de seguradoras (ADR-025: secção própria; `InsurerAccount.currency`/`operationalModuleEnabled`; papéis alargados); v0.4 — `ClinicSlot.capacity` e exame marcado diretamente (`SCHEDULED`, sem pedido/recusa; ADR-023 revisto 2026-11-04); v0.3: `ClinicSlot.kind`, `Examination` emitido pela clínica, `Recommendation`, `InsurancePolicy.insurerId` (ADR-023, D19); v0.2 acrescenta o portal da seguradora parceira (ADR-021); corrige a secção do portal da clínica (`ClinicAccount`, D18) que ainda referia a suposição revista `ClinicStaff(userId,...)`. Fonte para `07-database/schema.md` e `05-api`. Tipos lógicos; os tipos físicos estão em `schema.md`.
 > Convenções: `id` UUID; `createdAt`/`updatedAt` em UTC em todas, salvo indicação; `?` = opcional.
 > **Categoria** indica a categoria de privacidade (C2–C6) dos registos de saúde.
 
@@ -151,6 +151,25 @@ Derivado: `notice` fixo "Documento não fiscal — não substitui fatura"; `avai
 ### ClinicReceiptLink — ponte do recibo para o paciente Vita (M14 R)
 `receiptId` (único) · `familyId` · `memberId`. Só existe para marcações Vita com consentimento na emissão (BR-CLN-35); nunca exposta pelo portal; apagada com o membro/família.
 
+### ConsultationReport — relatório da consulta (M15 S, ADR-027) — registo **da clínica**
+`clinicId` · `bookingKind` (APPOINTMENT | VISIT) · `bookingId` (**sem FK**; 1:1 com a marcação) · `clinicPatientId?` (se a marcação resolve para um `ClinicPatient`) · `status` (DRAFT | FINAL) · `reason?` (≤300) · `findings?` (≤1500) · `impression?` (≤500) · `plan?` (≤1500) — ≥1 preenchida · `sharedWithPatient` (omissão `true`; sempre `false` em VISIT; imutável em FINAL) · retrato: `patientName`, `patientBirthDate?`, `consultationAt`, `specialty?`, `authorName` (nome do `ClinicProfessional` da conta Médico, assinatura textual), `issuer?` (perfil da clínica, fixado em FINAL) · `authorAccountId?` · `finalizedAt?` · `addenda`: [`ConsultationReportAddendum`: `text` (1–1500) · `authorName` · `authorAccountId?` · `createdAt`]
+Derivado: `Appointment.reportAvailable` (lado família: existe relatório FINAL partilhado **e** o actor é SELF/TUTOR_OF); `ClinicBooking.reportStatus` (DRAFT | FINAL | nulo).
+**Regras:** BR-CLN-41..46, BR-CLN-50. `FINAL` e adendas imutáveis; sobrevive ao apagamento do membro (sem ids Vita); texto = dado de saúde (BR-HLT-05). Categoria de privacidade da leitura pelo paciente: `APPOINTMENTS`, restringida a SELF/TUTOR_OF (`authorization.md` §6.6).
+
+### ExamOrder — pedido de exame (M15 U, ADR-028) — registo **da clínica**
+`clinicId` · `bookingKind` (APPOINTMENT | VISIT) · `bookingId` (**sem FK**) · `clinicPatientId?` · `name` (1–80; copiado do serviço EXAM do catálogo se `serviceTypeId`) · `serviceTypeId?` · `note?` (≤200) · `urgent` (omissão `false`) · `status` (ORDERED | SCHEDULED | FULFILLED | CANCELLED) · `bookedHere` (o exame ligado é da própria clínica; mascara SCHEDULED/FULFILLED na API do portal) · retrato: `patientName`, `patientBirthDate?`, `consultationAt`, `authorName` · `authorAccountId?` · `cancelledAt?`/`cancelledByAccountId?`. Imutável salvo estado/`bookedHere`/cancelamento. Máx. 5 ativos por marcação.
+**Regras:** BR-CLN-51..54, BR-CLN-56. Sobrevive ao apagamento do membro (sem ids Vita). Texto = dado de saúde (BR-HLT-05).
+
+### ExamOrderLink — ponte do pedido para o paciente Vita (M15 U)
+`orderId` (único) · `familyId` · `memberId` · `appointmentId` · `examinationId?` (exame ligado; nulo ⇒ pedido `ORDERED`). Só existe para consultas Vita; nunca exposta pelo portal; apagada com o membro/família/consulta. Derivados: `Appointment.examOrderCount`; `FamilyExamOrder` (leitura SELF/TUTOR_OF, `authorization.md` §6.7).
+
+### Declaração de presença (M15 V, ADR-028)
+Documento **gerado, sem entidade nem tabela**: derivado de uma marcação `COMPLETED` ou `SCHEDULED` com `arrivedAt` (BR-CLN-55). Só auditoria (`ATTENDANCE_STATEMENT_ISSUED`).
+### ExamResultsDraft — rascunho de resultados de exame (M15 T, ADR-027)
+`examinationId` (único) · `clinicId` · `results` (0–50 × `ExamResultInput`) · `resultNote?` (≤2000) · `updatedByClinicAccountId?`. Existe só com o exame `SCHEDULED`; **não** é visível ao paciente nem cria `ExamResult`; apaga-se ao concluir, cancelar ou apagar o exame. **Regras:** BR-CLN-47.
+
+**`Document` (M15 T):** novo `generatedBySystem` (bool, omissão false): laudo PDF gerado pelo servidor (BR-CLN-49); implica `uploadedByClinic`, recurso EXAMINATION, `scanStatus=CLEAN`; um por exame. **`Appointment` (M15 S):** `reportAvailable` (derivado, só leitura). **`ClinicBooking`/`ClinicExamBooking`:** `reportStatus` · `hasResultsDraft`, `reportAvailable` (derivados).
+
 **`Clinic` (M14 R):** campos de perfil `displayName?` · `description?` · `openingHours?` (BR-CLN-38) e `address?`/`phone?`/`email?` editáveis pela própria clínica parceira. **`ReimbursementClaim` (M14 R):** associação opcional a recibos (`receiptIds`, BR-CLN-36), sem `Encounter` nem despesa novos.
 
 ## Seguros (ADR-021 — sem categoria de partilha; só SELF/TUTOR_OF)
@@ -221,7 +240,7 @@ Calculado a partir de `Beneficiary` + `Policy`; QR com token assinado, de valida
 ## Alertas
 
 ### Alert
-`recipientUserId` · `familyId` · `memberId` (sujeito) · `type` (MEDICATION_DUE | APPOINTMENT_REMINDER | EXAM_REMINDER | APPOINTMENT_OUTCOME_REQUEST | APPOINTMENT_CONFIRMED | APPOINTMENT_REJECTED | APPOINTMENT_CANCELLED | EXAM_CANCELLED | EXAM_RESULTS_AVAILABLE | RECOMMENDATION_ADDED | APPOINTMENT_CONFIRM_REQUEST | FOLLOWUP_REMINDER) · `sourceType` (DOSE | APPOINTMENT | EXAMINATION | RECOMMENDATION) · `sourceId` · `ruleKey` (ex.: `dose.due`, `dose.repeat`, `appointment.24h`, `appointment.2h`, `exam.24h`, `appointment.outcome`, `appointment.confirmed`, `appointment.rejected`, `appointment.cancelled` — respostas da clínica parceira, D17/FR-APT-07; `exam.cancelled`, `exam.results`, `recommendation.added`, D19/FR-EXM-09; `appointment.confirm48h` e `followup.due`, M14 Q/BR-ALR-09, `sourceType=APPOINTMENT`) · `dedupeKey` (único) · `triggerAt` · `readAt?`
+`recipientUserId` · `familyId` · `memberId` (sujeito) · `type` (MEDICATION_DUE | APPOINTMENT_REMINDER | EXAM_REMINDER | APPOINTMENT_OUTCOME_REQUEST | APPOINTMENT_CONFIRMED | APPOINTMENT_REJECTED | APPOINTMENT_CANCELLED | EXAM_CANCELLED | EXAM_RESULTS_AVAILABLE | RECOMMENDATION_ADDED | APPOINTMENT_CONFIRM_REQUEST | FOLLOWUP_REMINDER | EXAM_ORDER_ADDED) · `sourceType` (DOSE | APPOINTMENT | EXAMINATION | RECOMMENDATION) · `sourceId` · `ruleKey` (ex.: `dose.due`, `dose.repeat`, `appointment.24h`, `appointment.2h`, `exam.24h`, `appointment.outcome`, `appointment.confirmed`, `appointment.rejected`, `appointment.cancelled` — respostas da clínica parceira, D17/FR-APT-07; `exam.cancelled`, `exam.results`, `recommendation.added`, D19/FR-EXM-09; `appointment.confirm48h` e `followup.due`, M14 Q/BR-ALR-09, `sourceType=APPOINTMENT`; `exam_order.added`, M15 U/BR-CLN-53, `sourceType=APPOINTMENT`, `sourceId` = consulta) · `dedupeKey` (único) · `triggerAt` · `readAt?`
 
 ### Notification
 Entrega de um Alert num canal. `alertId` · `channel` (PUSH | EMAIL) · `status` (PENDING | SENT | FAILED | SKIPPED) · `attempts` · `nextAttemptAt?` · `lastErrorCode?` · `sentAt?`

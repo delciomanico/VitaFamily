@@ -235,3 +235,31 @@ describe("clinic-receipts (ADR-026, modules.md §2 nota 26)", () => {
     expect(checkArchitecture(files("modules/clinics/index", "modules/audit/application/x")).join("\n")).toContain("não pode depender de modules/clinics");
   });
 });
+
+describe("clinic-reports (ADR-027/ADR-028, modules.md §2 notas 27/28)", () => {
+  const files = (target: string, from = "modules/clinic-reports/application/x"): FileImports[] => [{ file: from, relativeImports: [target], bareImports: [] }];
+
+  it.each(["auth", "access", "families", "insurance", "clinic-receipts", "clinic-patients", "medications", "examinations", "appointments", "recommendations", "documents"])("não pode importar modules/%s (só por portas no composition root)", (module) => {
+    expect(checkArchitecture(files(`modules/${module}/index`)).join("\n")).toContain(`não pode depender de modules/${module}`);
+  });
+
+  it.each(["clinics", "audit"])("pode importar a raiz de modules/%s", (module) => {
+    expect(checkArchitecture(files(`modules/${module}/index`))).toEqual([]);
+  });
+
+  it.each(["appointments", "examinations", "alerts"])("modules/%s não pode importar clinic-reports (só as portas ConsultationReportFinalizer/ExamReportGenerator/ExamOrderLinker/ExamOrderAlerts)", (module) => {
+    expect(checkArchitecture(files("modules/clinic-reports/index", `modules/${module}/application/x`)).join("\n")).toContain("não pode depender de modules/clinic-reports");
+  });
+
+  it("modules/lifecycle e modules/clinics também não podem importar clinic-reports (exportação e matriz entram por portas/dados)", () => {
+    for (const module of ["lifecycle", "clinics"]) {
+      expect(checkArchitecture(files("modules/clinic-reports/index", `modules/${module}/application/x`)).join("\n")).toContain("não pode depender de modules/clinic-reports");
+    }
+  });
+
+  it("a application não pode importar pdfkit nem kysely (só a infrastructure desenha/persiste)", () => {
+    const violations = checkArchitecture([{ file: "modules/clinic-reports/application/x", relativeImports: [], bareImports: ["pdfkit", "kysely"] }]).join("\n");
+    expect(violations).toContain("kysely");
+    expect(violations).toContain("pdfkit");
+  });
+});

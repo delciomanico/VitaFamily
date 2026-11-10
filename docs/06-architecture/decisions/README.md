@@ -27,5 +27,7 @@
 - ADR-025 — Módulo operacional de seguradoras (multi-seguradora): beneficiários, apólices, planos, elegibilidade, autorizações, despesas e rede; Kz por seguradora; emenda a BR-INS-08 (decisão do proprietário, D21; Q4 pendente)
 
 - ADR-026 — Portal da clínica como ferramenta independente (registo próprio de pacientes) ligada ao Vita por consentimento do paciente; emendas estreitas a BR-CLN-03/BR-CLN-10 (decisão do proprietário, D22, aceite)
+- ADR-027 — Relatório da consulta estruturado e laudo de exame gerado pelo sistema (portal da clínica, M15): relatório 1:1 com a marcação, `DRAFT → FINAL` + adendas, só o Médico escreve, visível ao titular/tutor sem consentimento (com `sharedWithPatient`); rascunho de resultados e laudo PDF com realce aritmético "Fora da referência"; emendas estreitas a BR-CLN-03/08 e BR-EXM-02 (decisão do proprietário, D23, aceite)
+- ADR-028 — Pedido de exame a partir da consulta (`ExamOrder`, registo da clínica, só o Médico cria/cancela, Admin/Gestor leem e imprimem; ligação ao exame do paciente Vita por `examOrderId`, alerta genérico, máscara entre clínicas) e declaração de presença em PDF sem guardar (portal da clínica, M15 etapas U e V; reutiliza `clinic-reports`) (decisão do proprietário, D24, aceite)
 
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).

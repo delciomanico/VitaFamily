@@ -15,6 +15,8 @@ export interface DocumentInfo {
   scanStatus?: 'PENDING' | 'CLEAN' | 'INFECTED'
   /** Carregado pela clínica (BR-CLN-08): a família descarrega, a clínica só vê metadados. */
   uploadedByClinic?: boolean
+  /** M15 T (BR-CLN-49): laudo gerado pelo sistema (mostrado como "Laudo da clínica"). */
+  generatedBySystem?: boolean
 }
 
 /** Metadados de um documento enviado (os mocks não guardam o ficheiro). */

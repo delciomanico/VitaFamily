@@ -182,4 +182,36 @@ describe("AccessPolicy.can (authorization.md §2/§3/§4)", () => {
     await expect(policy.can({}, { ...input("u1", "m1"), platformAdmin: true })).rejects.toBeInstanceOf(ForbiddenError);
     await expect(policy.can({}, { ...input("u1", "m1"), familyId: "00000000-0000-4000-8000-000000000000" })).rejects.toBeInstanceOf(NotFoundError);
   });
+  it("BR-CLN-45 (authorization.md §6.6): VIEW_CONSULTATION_REPORT só para SELF e TUTOR_OF; nunca OTHER (mesmo com SharingGrant de APPOINTMENTS), DEPENDENT_SELF ou Platform Admin", async () => {
+    const fixtures = createAccessFixtures(new FixedClock(NOW));
+    fixtures.familiesPort.seedMember({ id: "m1", familyId: FAMILY_ID, userId: "u1", name: "M", isDependent: false, status: "ACTIVE" });
+    fixtures.familiesPort.seedMember({ id: "n1", familyId: FAMILY_ID, userId: "u2", name: "N", isDependent: false, status: "ACTIVE" });
+    fixtures.familiesPort.seedMember({ id: "d1", familyId: FAMILY_ID, userId: "u3", name: "D", isDependent: true, status: "ACTIVE" });
+    fixtures.sharingGrantsRepo.seed({ id: "g1", familyId: FAMILY_ID, ownerMemberId: "m1", granteeMemberId: "n1", category: "APPOINTMENTS", createdAt: NOW });
+    const policy = createAccessPolicy(fixtures.deps);
+    fixtures.familiesPort.seedGuardianship("d1", "m1");
+    const input = (userId: string, subjectMemberId: string) => ({ userId, platformAdmin: false, familyId: FAMILY_ID, action: "VIEW_CONSULTATION_REPORT" as const, subjectMemberId });
+
+    await expect(policy.can({}, input("u1", "d1"))).resolves.toMatchObject({ relation: "TUTOR_OF" });
+    await expect(policy.can({}, input("u1", "m1"))).resolves.toMatchObject({ relation: "SELF" });
+    await expect(policy.can({}, input("u2", "m1"))).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(policy.can({}, input("u3", "d1"))).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(policy.can({}, { ...input("u1", "m1"), platformAdmin: true })).rejects.toBeInstanceOf(ForbiddenError);
+  });
+  it("BR-CLN-53 (authorization.md §6.7): VIEW_EXAM_ORDERS só para SELF e TUTOR_OF; nunca OTHER (mesmo com SharingGrant de APPOINTMENTS), DEPENDENT_SELF ou Platform Admin", async () => {
+    const fixtures = createAccessFixtures(new FixedClock(NOW));
+    fixtures.familiesPort.seedMember({ id: "m1", familyId: FAMILY_ID, userId: "u1", name: "M", isDependent: false, status: "ACTIVE" });
+    fixtures.familiesPort.seedMember({ id: "n1", familyId: FAMILY_ID, userId: "u2", name: "N", isDependent: false, status: "ACTIVE" });
+    fixtures.familiesPort.seedMember({ id: "d1", familyId: FAMILY_ID, userId: "u3", name: "D", isDependent: true, status: "ACTIVE" });
+    fixtures.sharingGrantsRepo.seed({ id: "g1", familyId: FAMILY_ID, ownerMemberId: "m1", granteeMemberId: "n1", category: "APPOINTMENTS", createdAt: NOW });
+    const policy = createAccessPolicy(fixtures.deps);
+    fixtures.familiesPort.seedGuardianship("d1", "m1");
+    const input = (userId: string, subjectMemberId: string) => ({ userId, platformAdmin: false, familyId: FAMILY_ID, action: "VIEW_EXAM_ORDERS" as const, subjectMemberId });
+
+    await expect(policy.can({}, input("u1", "d1"))).resolves.toMatchObject({ relation: "TUTOR_OF" });
+    await expect(policy.can({}, input("u1", "m1"))).resolves.toMatchObject({ relation: "SELF" });
+    await expect(policy.can({}, input("u2", "m1"))).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(policy.can({}, input("u3", "d1"))).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(policy.can({}, { ...input("u1", "m1"), platformAdmin: true })).rejects.toBeInstanceOf(ForbiddenError);
+  });
 });

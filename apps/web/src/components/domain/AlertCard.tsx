@@ -6,6 +6,7 @@ import {
   CalendarClock,
   Repeat,
   ClipboardCheck,
+  FileText,
   FlaskConical,
   MessageSquareText,
   Pill,
@@ -27,6 +28,7 @@ const icons: Record<AlertType, LucideIcon> = {
   RECOMMENDATION_ADDED: MessageSquareText,
   APPOINTMENT_CONFIRM_REQUEST: CalendarClock,
   FOLLOWUP_REMINDER: Repeat,
+  EXAM_ORDER_ADDED: FileText,
 }
 
 /** Quando acontece a origem (“Amanhã · 09:30”; exames só têm dia); senão, quando disparou. */

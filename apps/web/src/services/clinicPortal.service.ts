@@ -24,6 +24,8 @@ import type {
   SlotKind,
 } from '@/types/clinic'
 import type { DocumentUpload } from '@/types/document'
+import type { ExamOrderItemInput } from '@/types/examOrder'
+import { reportBody } from './clinicReport.service'
 import type { ClinicRecommendation, RecommendationOrigin } from '@/types/recommendation'
 
 /**
@@ -79,6 +81,8 @@ interface ApiClinicExamBooking {
   resultsCount?: number
   documents?: ClinicExamBooking['documents']
   receiptId?: string | null
+  hasResultsDraft?: boolean
+  reportAvailable?: boolean
 }
 
 interface ApiClinicBooking {
@@ -103,6 +107,10 @@ interface ApiClinicBooking {
   followUpDueOn?: string | null
   /** M14 R (BR-CLN-31): nunca devolvido ao Médico. */
   receiptId?: string | null
+  /** M15 S (BR-CLN-41). */
+  reportStatus?: ClinicBooking['reportStatus'] | null
+  /** M15 U (BR-CLN-51). */
+  examOrderCount?: number | null
 }
 
 const toSlot = (slot: ApiClinicSlot): ClinicSlot => ({
@@ -137,6 +145,8 @@ export const toExamBooking = (exam: ApiClinicExamBooking): ClinicExamBooking => 
   resultsCount: exam.resultsCount ?? 0,
   documents: exam.documents ?? [],
   receiptId: exam.receiptId ?? undefined,
+  hasResultsDraft: exam.hasResultsDraft ?? false,
+  reportAvailable: exam.reportAvailable ?? false,
 })
 
 const byExamTime = (a: ClinicExamBooking, b: ClinicExamBooking) => a.scheduledAt.localeCompare(b.scheduledAt)
@@ -144,15 +154,21 @@ const byExamTime = (a: ClinicExamBooking, b: ClinicExamBooking) => a.scheduledAt
 /** `ClinicCompleteExaminationRequest` (openapi.yaml): parâmetros estruturados, sem interpretação (D11). */
 function completeExamBody(input: ClinicCompleteExamInput) {
   return {
-    results: input.results.map((r) => ({
-      parameter: r.parameter.trim(),
-      valueNumeric: r.valueNumeric ?? null,
-      valueText: r.valueText?.trim() || null,
-      unit: r.unit?.trim() || null,
-      referenceMin: r.referenceMin ?? null,
-      referenceMax: r.referenceMax ?? null,
-    })),
+    // Omitido = usa o rascunho de resultados (BR-CLN-47).
+    ...(input.results
+      ? {
+          results: input.results.map((r) => ({
+            parameter: r.parameter.trim(),
+            valueNumeric: r.valueNumeric ?? null,
+            valueText: r.valueText?.trim() || null,
+            unit: r.unit?.trim() || null,
+            referenceMin: r.referenceMin ?? null,
+            referenceMax: r.referenceMax ?? null,
+          })),
+        }
+      : {}),
     resultNote: input.resultNote?.trim() || null,
+    generateReport: input.generateReport ?? true,
   }
 }
 
@@ -176,6 +192,8 @@ export const toBooking = (booking: ApiClinicBooking): ClinicBooking => ({
   waitingMinutes: booking.waitingMinutes ?? undefined,
   followUpDueOn: booking.followUpDueOn ?? undefined,
   receiptId: booking.receiptId ?? undefined,
+  reportStatus: booking.reportStatus ?? undefined,
+  examOrderCount: booking.examOrderCount ?? undefined,
 })
 
 const toAccount = ({ professionalId, ...account }: ApiClinicAccount): ClinicAccount => ({
@@ -192,11 +210,22 @@ const sessionOf = (tokens: ClinicTokenResponse, email?: string): ClinicSession =
 
 const byScheduledAt = (a: ClinicBooking, b: ClinicBooking) => a.scheduledAt.localeCompare(b.scheduledAt)
 
+/** `ExamOrderItemInput`: exatamente um de `name`/`serviceTypeId`; texto aparado, nota vazia = nula. */
+export const examOrderItemBody = (item: ExamOrderItemInput) => ({
+  ...(item.serviceTypeId ? { serviceTypeId: item.serviceTypeId } : { name: item.name?.trim() }),
+  note: item.note?.trim() || null,
+  urgent: item.urgent ?? false,
+})
+
 /** `ClinicCompleteAppointmentRequest` (openapi.yaml): o corpo exato de `complete`. */
 function completeBody(input: ClinicCompleteInput) {
   const prescription = input.prescription
   return {
     outcomeNote: input.outcomeNote?.trim() || null,
+    // M15 S: grava e finaliza o relatório na mesma transação (só o Médico; o servidor decide).
+    ...(input.report ? { report: reportBody(input.report) } : {}),
+    // M15 U: pedidos de exame na mesma transação (só o Médico; o servidor decide).
+    ...(input.examOrders?.length ? { examOrders: input.examOrders.map(examOrderItemBody) } : {}),
     prescription: prescription
       ? {
           issuedOn: prescription.issuedOn,

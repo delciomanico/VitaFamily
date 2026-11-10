@@ -165,6 +165,23 @@ export type AuditAction =
   | "CLINIC_RECEIPT_ISSUE"
   | "CLINIC_RECEIPT_VOID"
   | "CLINIC_PROFILE_UPDATE"
+  // M15 S/T (ADR-027, audit.md §3): relatório da consulta, rascunho de resultados e laudo gerado; `metadata` só com ids e
+  // contagens, NUNCA texto, nomes, valores nem diagnóstico (BR-HLT-05).
+  | "CONSULT_REPORT_SAVED"
+  | "CONSULT_REPORT_FINALIZED"
+  | "CONSULT_REPORT_AMENDED"
+  | "CONSULT_REPORT_VIEWED"
+  | "EXAM_RESULTS_DRAFT_SAVED"
+  | "EXAM_RESULTS_DRAFT_DISCARDED"
+  | "EXAM_REPORT_GENERATED"
+  | "EXAM_REPORT_DOWNLOAD"
+  // M15 U/V (ADR-028, audit.md §3): pedido de exame e declaração de presença; `metadata` só com ids e contagens, NUNCA o nome do
+  // exame, a nota nem o nome do paciente (BR-HLT-05).
+  | "EXAM_ORDER_CREATED"
+  | "EXAM_ORDER_CANCELLED"
+  | "EXAM_ORDER_VIEWED"
+  | "EXAM_ORDER_LINKED"
+  | "ATTENDANCE_STATEMENT_ISSUED"
   // Seguradoras e portal da seguradora (ADR-021/ADR-023, BR-ADM-05/06, BR-INS-06): sem PII no metadata.
   | "ADMIN_INSURER_CREATE"
   | "ADMIN_INSURER_UPDATE"

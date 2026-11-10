@@ -70,8 +70,9 @@ export class FakeDocumentsRepository implements DocumentsRepository<FakeTrx> {
       mimeType: record.mimeType,
       sizeBytes: record.sizeBytes,
       checksumSha256: record.checksumSha256,
-      scanStatus: "PENDING",
+      scanStatus: record.generatedBySystem ? "CLEAN" : "PENDING",
       uploadedByClinic: record.uploadedByClinic ?? false,
+      generatedBySystem: record.generatedBySystem ?? false,
       createdAt: record.createdAt,
       ...(record.uploadedBy !== undefined ? { uploadedBy: record.uploadedBy } : {}),
       ...(record.uploadedByClinicAccountId !== undefined ? { uploadedByClinicAccountId: record.uploadedByClinicAccountId } : {}),
@@ -122,7 +123,11 @@ export class FakeDocumentsRepository implements DocumentsRepository<FakeTrx> {
     resourceId: string,
   ): Promise<number> {
     const docs = await this.listByResource(trx, familyId, memberId, resourceType, resourceId);
-    return docs.length;
+    return docs.filter((d) => !d.generatedBySystem).length;
+  }
+
+  async findGeneratedByExamination(_trx: FakeTrx, familyId: string, memberId: string, examinationId: string): Promise<Document | null> {
+    return Promise.resolve([...this.byId.values()].find((d) => d.familyId === familyId && d.memberId === memberId && d.resourceId === examinationId && d.generatedBySystem) ?? null);
   }
 
   async sumSizeByFamily(_trx: FakeTrx, familyId: string): Promise<number> {

@@ -25,6 +25,7 @@ interface DocumentRow {
   uploaded_by: string | null;
   uploaded_by_clinic_account_id: string | null;
   uploaded_by_clinic: boolean;
+  generated_by_system: boolean;
   created_at: Date;
 }
 
@@ -44,6 +45,7 @@ const DOCUMENT_COLUMNS = [
   "uploaded_by",
   "uploaded_by_clinic_account_id",
   "uploaded_by_clinic",
+  "generated_by_system",
   "created_at",
 ] as const;
 
@@ -67,6 +69,7 @@ function toDocument(row: DocumentRow): Document {
     checksumSha256: row.checksum_sha256,
     scanStatus: row.scan_status,
     uploadedByClinic: row.uploaded_by_clinic,
+    generatedBySystem: row.generated_by_system,
     createdAt: row.created_at,
   };
   if (row.uploaded_by !== null) {
@@ -120,6 +123,8 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
         uploaded_by: record.uploadedBy ?? null,
         uploaded_by_clinic_account_id: record.uploadedByClinicAccountId ?? null,
         uploaded_by_clinic: record.uploadedByClinic ?? false,
+        // M15 T (BR-CLN-49): o laudo gerado pelo servidor nasce CLEAN (CHECK `documents_generated_by_system_check`).
+        ...(record.generatedBySystem ? { generated_by_system: true, scan_status: "CLEAN" as const } : {}),
         created_at: record.createdAt,
       })
       .returning(DOCUMENT_COLUMNS)
@@ -134,6 +139,18 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
       .where("family_id", "=", familyId)
       .where("member_id", "=", memberId)
       .where("id", "=", documentId)
+      .executeTakeFirst();
+    return row ? toDocument(row) : null;
+  }
+
+  async findGeneratedByExamination(trx: Kysely<Database>, familyId: string, memberId: string, examinationId: string): Promise<Document | null> {
+    const row = await trx
+      .selectFrom("documents")
+      .select(DOCUMENT_COLUMNS)
+      .where("family_id", "=", familyId)
+      .where("member_id", "=", memberId)
+      .where("examination_id", "=", examinationId)
+      .where("generated_by_system", "=", true)
       .executeTakeFirst();
     return row ? toDocument(row) : null;
   }
@@ -205,6 +222,8 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
       .where("family_id", "=", familyId)
       .where("member_id", "=", memberId)
       .where(column, "=", resourceId)
+      // M15 T (BR-CLN-49): o laudo gerado não conta para o limite de 5 ficheiros por recurso.
+      .where("generated_by_system", "=", false)
       .executeTakeFirstOrThrow();
     return Number(row.count);
   }

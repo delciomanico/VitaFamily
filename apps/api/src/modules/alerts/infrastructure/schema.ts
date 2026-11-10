@@ -16,7 +16,8 @@ export interface AlertsTable {
     | "EXAM_RESULTS_AVAILABLE"
     | "RECOMMENDATION_ADDED"
     | "APPOINTMENT_CONFIRM_REQUEST"
-    | "FOLLOWUP_REMINDER";
+    | "FOLLOWUP_REMINDER"
+    | "EXAM_ORDER_ADDED";
   source_type: "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION";
   source_id: string;
   rule_key: string;

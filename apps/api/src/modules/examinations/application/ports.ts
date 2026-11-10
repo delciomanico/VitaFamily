@@ -3,6 +3,7 @@
 // `documents` (modules.md §2: `examinations` depende de `access`, `clinics`, `documents`,
 // `audit`). Genéricas em `Trx` para que esta camada nunca importe "kysely" (conventions.md §3.9).
 import type { Clock } from "../../../platform/clock/index.js";
+import type { RateLimiter } from "../../../platform/rate-limit/index.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Document, ResourceType } from "../../documents/index.js";
@@ -92,6 +93,84 @@ export interface DocumentsPort<Trx> {
     context: RequestContext,
   ): Promise<void>;
   deleteAllForResource(trx: Trx, familyId: string, memberId: string, resourceType: ResourceType, resourceId: string): Promise<void>;
+  /** M15 T (BR-CLN-49): grava o laudo PDF gerado (nasce `CLEAN`, sem quarentena) na transação do chamador. */
+  storeGenerated(
+    trx: Trx,
+    input: { familyId: string; memberId: string; examinationId: string; originalName: string; bytes: Buffer; clinicAccountId: string },
+  ): Promise<Document>;
+  /** O objeto do laudo ficou órfão (a transação do exame reverteu): vai para `file_deletions`. */
+  discardStored(storageKey: string): Promise<void>;
+  /** M15 T (BR-CLN-49): bytes do laudo gerado; `null` se o titular o apagou. */
+  readGeneratedExamReport(trx: Trx, familyId: string, memberId: string, examinationId: string): Promise<{ document: Document; bytes: Buffer } | null>;
+}
+
+/** M15 T (BR-CLN-48): pedido de geração do laudo (implementada por `clinic-reports`, ligada no composition root). */
+export interface ExamReportRequest {
+  clinicId: string;
+  slotId?: string;
+  patientName: string;
+  examName: string;
+  /** `AAAA-MM-DD`. */
+  examDate: string;
+  results: ExamResultDraftItem[];
+  resultNote: string | null;
+}
+
+export interface ExamReportGeneratorPort<Trx> {
+  generate(trx: Trx, request: ExamReportRequest): Promise<{ bytes: Buffer; resultsCount: number; outOfReferenceCount: number }>;
+}
+
+/**
+ * M15 U (ADR-028, BR-CLN-52, modules.md §2 nota 28): propagação do estado do `ExamOrder` ligado a um exame. Definida aqui,
+ * implementada por `clinic-reports` e ligada no composition root (`examinations` nunca importa `clinic-reports`). Todas as
+ * operações correm NA transação do exame. `link` valida `VIEW_EXAM_ORDERS` (senão `FORBIDDEN`/`NOT_FOUND`) e `ORDERED` (senão `CONFLICT`).
+ */
+export interface ExamOrderLinkerPort<Trx> {
+  link(
+    trx: Trx,
+    input: { actor: ActorIdentity; familyId: string; memberId: string; orderId: string; examinationId: string; examClinicId?: string; status: "SCHEDULED" | "COMPLETED" },
+    context: RequestContext,
+  ): Promise<void>;
+  /** Exame cancelado/apagado: o pedido volta a `ORDERED` (idempotente). */
+  release(trx: Trx, examinationId: string): Promise<void>;
+  /** Exame `COMPLETED`: o pedido passa a `FULFILLED` (idempotente). */
+  fulfil(trx: Trx, examinationId: string): Promise<void>;
+}
+
+/** Forma de `ExamResultInput` (openapi.yaml), validada com as MESMAS regras de BR-CLN-08. */
+export interface ExamResultDraftItem {
+  parameter: string;
+  valueNumeric?: number | null;
+  valueText?: string | null;
+  unit?: string | null;
+  referenceMin?: number | null;
+  referenceMax?: number | null;
+}
+
+/** `clinic_exam_result_drafts` (M15 T, BR-CLN-47): dado de saúde, nunca em logs/auditoria. */
+export interface ExamResultsDraft {
+  examinationId: string;
+  results: ExamResultDraftItem[];
+  resultNote: string | null;
+  updatedAt: Date;
+}
+
+export interface SaveExamResultsDraft {
+  examinationId: string;
+  results: ExamResultDraftItem[];
+  resultNote: string | null;
+  clinicAccountId: string;
+  now: Date;
+}
+
+export interface ExamResultsDraftRepository<Trx> {
+  find(trx: Trx, examinationId: string): Promise<ExamResultsDraft | null>;
+  /** Substitui o rascunho anterior (última escrita ganha). */
+  upsert(trx: Trx, draft: SaveExamResultsDraft): Promise<ExamResultsDraft>;
+  /** `true` se existia. */
+  delete(trx: Trx, examinationId: string): Promise<boolean>;
+  /** Decora `ClinicExamBooking.hasResultsDraft`. */
+  existingIds(trx: Trx, examinationIds: string[]): Promise<Set<string>>;
 }
 
 export interface AuditPort<Trx> {
@@ -241,6 +320,14 @@ export interface ExamResultsRepository<Trx> {
 export interface ExaminationsDeps<Trx> {
   examinationsRepo: ExaminationsRepository<Trx>;
   examResultsRepo: ExamResultsRepository<Trx>;
+  /** M15 T (BR-CLN-47). */
+  draftsRepo: ExamResultsDraftRepository<Trx>;
+  /** M15 T (BR-CLN-48/49): laudo PDF (implementada por `clinic-reports`). */
+  reportGenerator: ExamReportGeneratorPort<Trx>;
+  /** M15 U (BR-CLN-52): estado do pedido de exame ligado (implementada por `clinic-reports`). */
+  examOrders: ExamOrderLinkerPort<Trx>;
+  /** M15 T: 60/min nas escritas do rascunho, 30/min no PDF do laudo (PROPOSTO). */
+  limiter: RateLimiter;
   policy: AccessPolicyPort<Trx>;
   memberNames: MemberNamesPort<Trx>;
   alerts: ExamAlertsPort<Trx>;

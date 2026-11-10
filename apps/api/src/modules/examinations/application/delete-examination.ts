@@ -23,6 +23,8 @@ export function createDeleteExaminationUseCase<Trx>(deps: ExaminationsDeps<Trx>)
         throw new NotFoundError({ detail: "Exame não encontrado." });
       }
 
+      // M15 U (BR-CLN-52): o pedido de exame ligado volta a `ORDERED` (antes de apagar: o FK só poria a ligação a nulo).
+      await deps.examOrders.release(trx, examinationId);
       await deps.documents.deleteAllForResource(trx, familyId, memberId, "EXAMINATION", examinationId);
       await deps.examinationsRepo.delete(trx, familyId, memberId, examinationId);
 

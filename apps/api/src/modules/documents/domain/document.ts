@@ -20,5 +20,7 @@ export interface Document {
   uploadedByClinic: boolean;
   /** Autor do PDF da clínica (rastreabilidade); pode ficar ausente se a conta for removida (SET NULL). Nunca com `uploadedBy`. */
   uploadedByClinicAccountId?: string;
+  /** M15 T (BR-CLN-49): laudo PDF gerado pelo servidor (nasce `CLEAN`, sem quarentena; um por exame). */
+  generatedBySystem: boolean;
   createdAt: Date;
 }

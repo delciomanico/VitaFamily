@@ -18,7 +18,11 @@ import type {
   ExaminationsRepository,
   ExamResultChanges,
   ExamResultHistoryItem,
+  ExamResultDraftItem,
+  ExamResultsDraft,
+  SaveExamResultsDraft,
   ExamResultsRepository,
+  ExamResultsDraftRepository,
   NewExaminationRecord,
   NewExamResultRecord,
 } from "../application/ports.js";
@@ -441,5 +445,35 @@ export class KyselyExamResultsRepository implements ExamResultsRepository<Kysely
       if (row.reference_max !== null) item.referenceMax = Number(row.reference_max);
       return item;
     });
+  }
+}
+
+/** `clinic_exam_result_drafts` (schema.md §3g, M15 T): um rascunho por exame (PK = `examination_id`). */
+export class KyselyExamResultsDraftRepository implements ExamResultsDraftRepository<Kysely<Database>> {
+  async find(trx: Kysely<Database>, examinationId: string): Promise<ExamResultsDraft | null> {
+    const row = await trx.selectFrom("clinic_exam_result_drafts").select(["examination_id", "results", "result_note", "updated_at"]).where("examination_id", "=", examinationId).executeTakeFirst();
+    return row ? { examinationId: row.examination_id, results: row.results as ExamResultDraftItem[], resultNote: row.result_note, updatedAt: row.updated_at } : null;
+  }
+
+  async upsert(trx: Kysely<Database>, draft: SaveExamResultsDraft): Promise<ExamResultsDraft> {
+    const values = { results: JSON.stringify(draft.results), result_note: draft.resultNote, updated_by_clinic_account_id: draft.clinicAccountId, updated_at: draft.now };
+    const row = await trx
+      .insertInto("clinic_exam_result_drafts")
+      .values({ examination_id: draft.examinationId, ...values })
+      .onConflict((oc) => oc.column("examination_id").doUpdateSet(values))
+      .returning(["examination_id", "results", "result_note", "updated_at"])
+      .executeTakeFirstOrThrow();
+    return { examinationId: row.examination_id, results: row.results as ExamResultDraftItem[], resultNote: row.result_note, updatedAt: row.updated_at };
+  }
+
+  async delete(trx: Kysely<Database>, examinationId: string): Promise<boolean> {
+    const result = await trx.deleteFrom("clinic_exam_result_drafts").where("examination_id", "=", examinationId).executeTakeFirst();
+    return Number(result.numDeletedRows) > 0;
+  }
+
+  async existingIds(trx: Kysely<Database>, examinationIds: string[]): Promise<Set<string>> {
+    if (examinationIds.length === 0) return new Set();
+    const rows = await trx.selectFrom("clinic_exam_result_drafts").select("examination_id").where("examination_id", "in", examinationIds).execute();
+    return new Set(rows.map((r) => r.examination_id));
   }
 }

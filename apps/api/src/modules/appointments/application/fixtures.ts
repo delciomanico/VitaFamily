@@ -1,6 +1,6 @@
 // Fakes em memória das portas de `appointments` (mesmo padrão de `prescriptions`/`medications`
 // `application/fixtures.ts`). Não é ficheiro de teste.
-import { ValidationError } from "../../../platform/errors/index.js";
+import { ForbiddenError, ValidationError } from "../../../platform/errors/index.js";
 import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput, Relation } from "../../access/index.js";
@@ -27,6 +27,7 @@ import type {
   ClinicStatusChange,
   ClinicsPort,
   ConfirmationChange,
+  ConsultationReportsPort,
   CursorPage,
   DayFlowChange,
   MembershipPort,
@@ -505,6 +506,7 @@ export interface AppointmentsFixtures {
   patients: FakePatientDirectory;
   clinicPatients: FakeClinicPatientDirectory;
   receipts: FakeReceiptIdsPort;
+  consultationReports: FakeConsultationReportsPort;
   audit: FakeAuditPort;
 }
 
@@ -640,6 +642,46 @@ export class FakeReceiptIdsPort implements ReceiptIdsPort<FakeTrx> {
   }
 }
 
+/** Fake de `ConsultationReportsPort` (M15 S): regista as finalizações; as regras reais testam-se em `clinic-reports`. */
+export class FakeConsultationReportsPort implements ConsultationReportsPort<FakeTrx> {
+  readonly finalized: { kind: "APPOINTMENT" | "VISIT"; bookingId: string; report: unknown; actor: ClinicPortalActor }[] = [];
+  readonly statusesById = new Map<string, "DRAFT" | "FINAL">();
+  readonly shared = new Set<string>();
+  /** Se definido, a finalização falha com este erro (prova a atomicidade da conclusão). */
+  failWith: Error | null = null;
+
+  async finalizeWithComplete(_trx: FakeTrx, actor: ClinicPortalActor, kind: "APPOINTMENT" | "VISIT", bookingId: string, report: unknown): Promise<void> {
+    if (this.failWith) throw this.failWith;
+    if (!actor.professionalId) throw new ForbiddenError({ detail: "Só o médico escreve o relatório da consulta." });
+    this.finalized.push({ kind, bookingId, report, actor });
+    this.statusesById.set(bookingId, "FINAL");
+    return Promise.resolve();
+  }
+  async statuses(_trx: FakeTrx, _clinicId: string, _kind: "APPOINTMENT" | "VISIT", bookingIds: string[]): Promise<Map<string, "DRAFT" | "FINAL">> {
+    return Promise.resolve(new Map([...this.statusesById].filter(([id]) => bookingIds.includes(id))));
+  }
+  async sharedAvailability(_trx: FakeTrx, bookings: { clinicId: string; bookingId: string }[]): Promise<Set<string>> {
+    return Promise.resolve(new Set(bookings.map((b) => b.bookingId).filter((id) => this.shared.has(id))));
+  }
+  readonly examOrdersCreated: { kind: "APPOINTMENT" | "VISIT"; bookingId: string; examOrders: unknown; actor: ClinicPortalActor }[] = [];
+  readonly orderCounts = new Map<string, number>();
+  /** Se definido, a criação de pedidos falha com este erro (prova a atomicidade da conclusão). */
+  failExamOrdersWith: Error | null = null;
+  async createExamOrdersWithComplete(_trx: FakeTrx, actor: ClinicPortalActor, kind: "APPOINTMENT" | "VISIT", bookingId: string, examOrders: unknown): Promise<void> {
+    if (this.failExamOrdersWith) throw this.failExamOrdersWith;
+    if (!actor.professionalId) throw new ForbiddenError({ detail: "Só o médico pede ou cancela exames." });
+    this.examOrdersCreated.push({ kind, bookingId, examOrders, actor });
+    this.orderCounts.set(bookingId, Array.isArray(examOrders) ? examOrders.length : 0);
+    return Promise.resolve();
+  }
+  async examOrderCounts(_trx: FakeTrx, _clinicId: string, _kind: "APPOINTMENT" | "VISIT", bookingIds: string[]): Promise<Map<string, number>> {
+    return Promise.resolve(new Map([...this.orderCounts].filter(([id]) => bookingIds.includes(id))));
+  }
+  async appointmentExamOrderCounts(_trx: FakeTrx, appointmentIds: string[]): Promise<Map<string, number>> {
+    return Promise.resolve(new Map([...this.orderCounts].filter(([id]) => appointmentIds.includes(id))));
+  }
+}
+
 export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const appointmentsRepo = new FakeAppointmentsRepository();
   const policy = new FakeAccessPolicy();
@@ -651,6 +693,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const patients = new FakePatientDirectory();
   const clinicPatients = new FakeClinicPatientDirectory(clinics);
   const receipts = new FakeReceiptIdsPort();
+  const consultationReports = new FakeConsultationReportsPort();
   const audit = new FakeAuditPort();
   const deps: AppointmentsDeps<FakeTrx> = {
     appointmentsRepo,
@@ -663,11 +706,12 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     patients,
     clinicPatients,
     receipts,
+    consultationReports,
     walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, clinicPatients, receipts, audit };
+  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, clinicPatients, receipts, consultationReports, audit };
 }

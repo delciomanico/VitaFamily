@@ -1,6 +1,6 @@
 # Portal da clínica v2 ("Clínica v2", M14) — roadmap e frontend
 
-> Estado: **ACEITE** (2026-11-07; contratos a1/a2, P, Q e R validados — M14 fechado em 2026-11-08), decorrente de **ADR-026 / D22** (decisão do proprietário; critério "máximo valor para a clínica, mínima complexidade para o utilizador"). Este documento fixa **direção, fases e arquitetura de informação**; **não é contrato**. Cada fase só arranca depois de ter BR/UC, `schema.md`, `openapi.yaml` e `endpoints.md` validados (como em ADR-023). Ver também `plan.md` (M14); OP-24..30 resolvidos em `open-points.md`.
+> Estado: **ACEITE** (2026-11-07; contratos a1/a2, P, Q e R validados — M14 fechado em 2026-11-08), decorrente de **ADR-026 / D22** (decisão do proprietário; critério "máximo valor para a clínica, mínima complexidade para o utilizador"). Este documento fixa **direção, fases e arquitetura de informação**; **não é contrato**. Cada fase só arranca depois de ter BR/UC, `schema.md`, `openapi.yaml` e `endpoints.md` validados (como em ADR-023). Ver também `plan.md` (M14); OP-24..30 resolvidos em `open-points.md`. **M15 (ADR-027 / D23, 2026-11-08):** relatório da consulta e laudo de exame gerado — contrato das etapas **S** e **T** validado; frontend em §5.
 
 ## 0. Princípios (herdados de ADR-026)
 1. A clínica tem registo próprio (`ClinicPatient`) e é responsável por ele; o Vita é canal/subcontratante.
@@ -133,8 +133,86 @@ rotas (em inglês)              /clinic (Hoje) e /clinic/<area>/<resource>
 | 4 | **Pacientes da clínica** + consentimento (ficha, código/QR, 2 níveis), pesquisa global e calendário por profissional (**etapa P**, contrato 2026-11-08) | (a)/(d) | mock; contrato pronto, backend pode arrancar |
 | 5 | **Confirmação ativa, fluxo do dia, indicadores e retorno** (**etapa Q**, contrato 2026-11-08) | (b)/(c) | mock; contrato pronto, backend pode arrancar (**sem** dependência de OP-07/OP-22) |
 | 6 | **Recibos, Financeiro, perfil, papel Médico e auditoria** (**etapa R**, contrato 2026-11-08; **última do M14**) | (e), (f) | mock; contrato pronto, backend pode arrancar (exceção a P7 ratificada, OP-42 resolvido) |
+| 7 (**M15**) | **Relatório da consulta** (etapa S) e **rascunho de resultados + laudo PDF** (etapa T), ADR-027 (§5) | M15 | mock; contrato pronto, backend pode arrancar |
 | fora do M14 | Lista de espera (a3, OP-39); pré-consulta/QR de check-in (c) e mensagens estruturadas (d) (OP-43) | backlog | — |
 Tudo pode ser entregue em mock (MSW, `mocks/handlers/clinic/*`) para validar UX; **DPA/AIPD não bloqueiam o desenvolvimento em mock** mas são gate de lançamento. Mock nunca substitui testes de autorização/isolamento do backend.
 
 ## 4. Pontos em aberto
-OP-24..30 foram decididos (ver `open-points.md`, Resolvidos). Em aberto de M14 R: OP-39..43 (lista de espera adiada, notas/papéis, limitações dos recibos, **ratificação da exceção a P7** e backlog pós-M14). Resta o gate jurídico de lançamento (DPA, AIPD, Lei 22/11). **O M14 fecha com a etapa R** (contratos de a1, a2, P, Q e R validados).
+OP-24..30 foram decididos (ver `open-points.md`, Resolvidos). Em aberto de M14 R: OP-39..43 (lista de espera adiada, notas/papéis, limitações dos recibos, **ratificação da exceção a P7** e backlog pós-M14). Resta o gate jurídico de lançamento (DPA, AIPD, Lei 22/11). **O M14 fecha com a etapa R** (contratos de a1, a2, P, Q e R validados). **M15 (ADR-027):** em aberto OP-44..49 (sem alerta ao paciente, Gestor como autor, retenção do relatório, correção de laudo, assinatura qualificada fora de âmbito, simplificações a reavaliar).
+
+## 5. M15 — Relatório da consulta, laudo de exame, pedido de exame e declaração (frontend; ADR-027 e ADR-028, contratos 2026-11-08 e 2026-11-10)
+> Sem item novo na sidebar nem progressive disclosure novo: o relatório e o laudo vivem **nas marcações** que o utilizador já abre (Hoje, Agenda, Ficha, Exames). Backend em `modules.md` nota 27; permissões em `authorization.md` §6.2b/§6.6.
+
+### 5.1 Onde vive o editor (portal)
+- **Consulta (etapa S):** no **drawer da marcação** (Hoje → fila, Agenda → calendário, Ficha do paciente → Consultas) aparece o separador/botão **Relatório** (com `reportStatus`: sem relatório, *Rascunho*, *Final*). Abre a página-editor **`/clinic/consultations/:bookingId/report`** (rota em inglês; `:bookingId` é o id da consulta ou da visita, o servidor despacha). Ao **Concluir** (diálogo existente), o `CLINIC_DOCTOR` vê o editor embebido e o botão principal **Concluir e finalizar** (envia `report` em `PUT …/complete`); o secundário **Concluir sem relatório** não toca no rascunho. Numa consulta já `COMPLETED` com rascunho: **Finalizar relatório**.
+- **Papéis na UI:** Médico = editor completo; **Admin e Gestor** = vista **só de leitura** com **Imprimir / PDF** (nunca campos editáveis nem *Concluir e finalizar*). O servidor continua a negar (`FORBIDDEN`).
+- **Editor:** 4 campos de texto simples (Motivo da consulta, Achados, Diagnóstico/impressão, Conduta/plano) com contador de caracteres e limites (300/1500/500/1500); **textos-guia (placeholders)** por especialidade vindos de um ficheiro estático do cliente (`apps/web/src/config/reportTemplates.ts`: `{ [specialty]: {reason, findings, impression, plan} }`, com modelo geral por omissão) — são só placeholders, **nunca** preenchem o texto; interruptor **"Partilhar com o paciente na app"** (ligado por omissão; desativado e escondido em visitas manuais); **autosave** do rascunho 10 s depois da última alteração e botão **Guardar rascunho** ("Guardado às 10:42"); aviso fixo "Não escreva dados de outras pessoas"; confirmação ao finalizar ("Depois de finalizar só pode acrescentar adendas"). `FINAL`: texto bloqueado, lista de adendas e **Acrescentar adenda** (Médico).
+- **Exame (etapa T):** em **Exames → Resultados** (e no drawer do exame `SCHEDULED`) a página **`/clinic/exams/:examinationId/results`** mostra a tabela de parâmetros (parâmetro, valor numérico/texto, unidade, referência mín./máx.), **Guardar rascunho** (carrega o rascunho ao reabrir), **Descartar rascunho** e **Concluir**, com a caixa **"Gerar laudo em PDF"** (ligada) e a opção de PDF carregado como hoje. Depois de concluído: **Laudo (PDF)** (descarrega `exam-agenda/{id}/report/pdf`) e indicação "Gerado pelo sistema". O editor **não** assinala valores fora da referência (o realce existe só no PDF, BR-CLN-48); mostra apenas a nota "O laudo indica «Fora da referência» por comparação aritmética; não é interpretação clínica".
+
+### 5.2 App do paciente
+- `AppointmentDetail` mostra o cartão **"Relatório da consulta"** quando `Appointment.reportAvailable` é `true` → rota **`/app/appointments/:id/report`** (vista só de leitura com secções e adendas, **Descarregar PDF**). Sem estados "indisponível": o cartão não aparece quando não há relatório partilhado ou o actor não pode lê-lo.
+- Na lista de documentos do exame, o `Document.generatedBySystem` mostra o rótulo **"Laudo da clínica"**; descarregar usa o fluxo existente.
+
+### 5.3 Nomes de componentes, serviços e mocks (`apps/web/src`; estrutura plana)
+```
+pages/clinic/reports/ConsultationReportPage.tsx          editor / vista (por papel)
+pages/clinic/exams/ExamResultsPage.tsx                     rascunho, concluir e laudo
+components/clinic/reports/ConsultationReportEditor.tsx     4 secções, contadores, autosave
+components/clinic/reports/ReportSectionField.tsx           campo com limite e placeholder
+components/clinic/reports/ReportSectionsView.tsx           secções em só de leitura
+components/clinic/reports/ReportStatusBadge.tsx            Rascunho | Final
+components/clinic/reports/ReportAddendaList.tsx            adendas datadas
+components/clinic/reports/AddendumDialog.tsx
+components/clinic/reports/ReportPdfButton.tsx              abre/descarrega o PDF
+components/clinic/reports/ReportAction.tsx                 acção Relatório no drawer da marcação
+components/clinic/exams/ExamResultsDraftForm.tsx           tabela de parâmetros
+components/clinic/exams/ExamReportButton.tsx               Laudo (PDF)
+components/appointments/ConsultationReportCard.tsx         app: cartão no detalhe
+pages/appointments/ConsultationReportPage.tsx              app: vista só de leitura
+config/reportTemplates.ts                                  textos-guia por especialidade (estático)
+types/clinicReport.ts                                      tipos do relatório, adendas, rascunho
+services/clinicReport.service.ts                           clínica: get/save/finalize/addendum/pdf; complete com `report`; exporta também `examResultsDraftService` (get/save/discard; pdf do laudo)
+services/familyReport.service.ts                           lado família (get/pdf)
+mocks/clinicReports.ts · mocks/handlers/clinicReports.ts   MSW (DRAFT/FINAL/adendas, laudo, realce nunca no JSON)
+```
+Rotas web (em inglês): `/clinic/consultations/:bookingId/report` · `/clinic/exams/:examinationId/results` · `/app/appointments/:id/report` (paciente; sob o prefixo `/app`, o contexto de família/membro vem da sessão e não do URL).
+
+### 5.5 Etapas U e V — pedido de exame e declaração de presença (ADR-028, contrato 2026-11-10)
+> Sem item novo na sidebar: ambas vivem nas **ações da marcação**. Backend em `modules.md` nota 28; permissões em `authorization.md` §6.2b/§6.7. Em mock até haver API.
+
+**Onde o Médico pede o exame (portal):**
+- No **editor do relatório** (`ConsultationReportPage`), secção **"Pedidos de exame"** por baixo das 4 secções: lista dos pedidos da marcação (nome, nota, "Urgente", estado) e botão **Pedir exames**, que abre o `ExamOrderDialog` (1–5 linhas; cada linha = escolha do catálogo de serviços de exame da clínica **ou** texto livre ≤80, nota ≤200, caixa "Urgente"; aviso "Não escreva dados de outras pessoas"). Guarda em `POST …/exam-orders`.
+- No **`CompleteConsultationForm`** (diálogo Concluir): bloco opcional **"Pedir exames"** (as mesmas linhas, `ExamOrderLines`), enviado em `examOrders` de `PUT …/complete` (botão **Concluir e finalizar** inclui-o; **Concluir sem relatório** também, se houver linhas). Só para `CLINIC_DOCTOR`.
+- **Admin e Gestor:** vista **só de leitura** da lista com **Imprimir pedido** (PDF); nunca o botão **Pedir exames** nem **Cancelar**. O Médico vê **Cancelar** em cada pedido `ORDERED`/`SCHEDULED` (confirmação). Estados em pt-PT: Pedido · Marcado · Cumprido · Cancelado (a clínica vê "Marcado/Cumprido" só se o exame foi feito nela).
+- **Visita manual:** a lista e **Imprimir pedido** são a única via (o paciente não tem app ligada).
+
+**Ações do dia e ligações em falta:**
+- **Declaração:** novo botão **Declaração** em `BookingDayActions` (Hoje e Agenda) para marcações `ARRIVED`/`IN_PROGRESS`/`COMPLETED` (mesma regra de `inCare`, mais `COMPLETED`); abre o PDF em novo separador; menu pequeno "Incluir o profissional" (desligado). Erro `INVALID_STATE_TRANSITION` ⇒ mensagem "A declaração só se emite depois da chegada do paciente".
+- **Relatório (ligações em falta, incluídas nesta etapa):** o `ReportAction` (e o estado `reportStatus`) passa também a aparecer (a) no **calendário** (`ClinicCalendarView`: no popover/drawer da entrada de consulta ou visita, como no Hoje/Agenda) e (b) na **ficha do paciente**, separador **Consultas e exames** → secção **Consultas** (`ClinicPatientPage`: uma linha por consulta/visita com `ReportAction`, `ExamOrdersAction` e `AttendanceStatementButton`). Para ficha e calendário reutiliza-se o mesmo componente de ação; **sem rotas novas**.
+- Badge **"N pedidos"** (`ClinicBooking.examOrderCount`) nas linhas de Hoje/Agenda/Ficha.
+
+**App do paciente:**
+- `AppointmentDetail`: cartão **"Pedidos de exame"** quando `Appointment.examOrderCount > 0` (lista com nome, nota, "Urgente", estado Pedido/Marcado/Cumprido) e botão **Marcar este exame** (só em `ORDERED`) → abre o formulário de marcação de exame existente (`/app/health/examinations/new`) com `name` pré-preenchido, a **clínica de origem** como escolha inicial (o utilizador pode mudar de clínica ou registar privado) e `examOrderId` no pedido de criação. O alerta `EXAM_ORDER_ADDED` (`sourceType=APPOINTMENT`, `sourceId` = id da consulta) abre este detalhe. Sem cartão para quem não pode ler (`examOrderCount=0`).
+- Lista de exames: cartão **"Pedidos por marcar"** (`GET …/exam-orders?status=ORDERED`) no topo de **Exames** para titular/tutor.
+
+**Componentes, serviços e mocks (`apps/web/src`; estrutura plana):**
+```
+components/clinic/exams/ExamOrdersPanel.tsx             lista + estados + Imprimir (por papel; embebido no editor do relatório e no drawer)
+components/clinic/exams/ExamOrderDialog.tsx             1–5 linhas, catálogo ou texto livre
+components/clinic/exams/ExamOrderLines.tsx              linhas reutilizadas no CompleteConsultationForm
+components/clinic/exams/ExamOrdersAction.tsx            ação "Pedidos de exame (N)" no drawer/ficha/calendário
+components/clinic/exams/ExamOrderPdfButton.tsx          abre o PDF do pedido
+components/clinic/AttendanceStatementButton.tsx         ação Declaração (com "Incluir o profissional")
+components/clinic/reports/ReportAction.tsx              (existente) reutilizado em ClinicCalendarView e ClinicPatientPage
+components/appointments/ExamOrdersCard.tsx             app: cartão no detalhe da consulta
+components/exams/PendingExamOrders.tsx                  app: "Pedidos por marcar" na lista de exames
+types/examOrder.ts                                      ClinicExamOrder, FamilyExamOrder, ExamOrderItemInput
+services/clinicExamOrder.service.ts                     clínica: list/create/cancel/pdf; `listExamServiceTypes` (`GET /clinic-portal/exam-service-types`, catálogo estreito para o Médico, sem preços); declaração (pdf); `complete` com `examOrders`
+services/familyExamOrder.service.ts                     família: list; marcar com `examOrderId`
+mocks/examOrders.ts · mocks/handlers/examOrders.ts      MSW (estados, máscara `booked_here`, declaração por estado)
+```
+Rotas web (sem rotas novas no portal; reutilizam o editor): `/clinic/consultations/:bookingId/report` (secção Pedidos de exame) · app: `/app/appointments/:id` (cartão) e `/app/health/examinations/new?examOrderId=…&name=…&clinicId=…&memberId=…` (formulário existente pré-preenchido). A visualização de PDF é num separador novo (`target=_blank`, `rel=noopener`).
+
+**Acessibilidade e i18n:** textos em pt-PT; `aria-live` na lista após criar/cancelar; limites com contador (80/200); sem texto clínico em mensagens de erro; sem emojis.
+### 5.4 Acessibilidade e i18n
+Etiquetas, estados e erros em pt-PT via i18n (sem texto clínico em mensagens de erro); campos com `aria-describedby` do contador; o PDF é aberto num separador novo (`target=_blank`, `rel=noopener`); `Esc` fecha o diálogo de adenda; sem emojis.

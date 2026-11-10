@@ -165,7 +165,7 @@ describe("listas e minimização (BR-CLN-03)", () => {
 
     const own = await list(CLINIC_ACTOR, {});
     expect(own).toHaveLength(1);
-    expect(Object.keys(own[0] ?? {}).sort()).toEqual(["documents", "examType", "id", "notes", "patientName", "resultsCount", "scheduledAt", "status"]);
+    expect(Object.keys(own[0] ?? {}).sort()).toEqual(["documents", "examType", "hasResultsDraft", "id", "notes", "patientName", "reportAvailable", "resultsCount", "scheduledAt", "status"]);
     expect(own[0]).toMatchObject({ patientName: "Maria Silva", examType: "Ecografia abdominal", status: "SCHEDULED", notes: "em jejum", resultsCount: 0 });
     expect(await list(OTHER_CLINIC_ACTOR, {})).toEqual([]);
   });
@@ -324,7 +324,7 @@ describe("PDF da clínica (BR-CLN-08, AC-EXM-06)", () => {
     await expect(upload(OTHER_CLINIC_ACTOR, second.id, { file: FILE }, CTX)).rejects.toMatchObject({ code: "NOT_FOUND" });
 
     const view = await upload(CLINIC_ACTOR, second.id, { file: FILE }, CTX);
-    expect(Object.keys(view).sort()).toEqual(["createdAt", "id", "originalName", "scanStatus", "sizeBytes"]);
+    expect(Object.keys(view).sort()).toEqual(["createdAt", "generatedBySystem", "id", "originalName", "scanStatus", "sizeBytes"]);
     expect(view.scanStatus).toBe("PENDING");
     expect(fixtures.documents.clinicUploads).toEqual([{ clinicAccountId: "acc-a", examinationId: second.id, originalName: "resultados.pdf" }]);
   });

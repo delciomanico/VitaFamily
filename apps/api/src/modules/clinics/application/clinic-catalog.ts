@@ -146,6 +146,19 @@ export function createListClinicServiceTypesUseCase<Trx>(deps: ClinicsDeps<Trx>)
   };
 }
 
+/** `GET /clinic-portal/exam-service-types` (M15 U, BR-CLN-51): serviços EXAM ativos da clínica do token, só id/nome/duração (sem preço), por nome; não auditada. */
+export function createListClinicExamServiceTypesUseCase<Trx>(deps: ClinicsDeps<Trx>) {
+  return async function listClinicExamServiceTypes(actor: ClinicPortalActor): Promise<{ id: string; name: string; durationMinutes: number }[]> {
+    return deps.withTransaction(async (trx) => {
+      const services = await deps.catalogRepo.listServiceTypes(trx, actor.clinicId, { active: true, kind: "EXAM" });
+      return services
+        .filter((s) => s.active && s.kind === "EXAM" && s.clinicId === actor.clinicId)
+        .map((s) => ({ id: s.id, name: s.name, durationMinutes: s.durationMinutes }))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt"));
+    });
+  };
+}
+
 export interface CreateClinicServiceTypeInput {
   name: unknown;
   kind: unknown;

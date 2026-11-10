@@ -35,6 +35,11 @@ export function createSetExaminationStatusUseCase<Trx>(deps: ExaminationsDeps<Tr
       assertValidExaminationTransition(existing.status, input.status, { hasSlot: existing.slotId !== undefined });
 
       const examination = await deps.examinationsRepo.updateStatus(trx, familyId, memberId, examinationId, input.status);
+      // M15 U (BR-CLN-52): o pedido de exame ligado acompanha o exame (mesma transação).
+      if (existing.status !== input.status) {
+        if (input.status === "COMPLETED") await deps.examOrders.fulfil(trx, examinationId);
+        else if (input.status === "CANCELLED") await deps.examOrders.release(trx, examinationId);
+      }
 
       await deps.audit.record(trx, {
         occurredAt: deps.clock.now(),

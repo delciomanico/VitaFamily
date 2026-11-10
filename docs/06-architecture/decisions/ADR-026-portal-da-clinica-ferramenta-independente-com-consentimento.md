@@ -50,3 +50,5 @@ Registados aqui para o ADR continuar a ser a fonte da decisão (contrato em `11-
 3. **Auditoria da clínica** (`GET /clinic-portal/audit`, só Admin): exceção estreita a P7, **a ratificar** pelo proprietário (OP-42).
 4. **Lista de espera (a3)**, pré-consulta/QR de check-in e mensagens estruturadas ficam **fora do M14** (OP-39, OP-43).
 
+## Seguimento (M15, 2026-11-08)
+O "prontuário clínico completo" continua fora de âmbito; o **relatório da consulta** (4 secções) e o **laudo de exame** gerado pelo sistema foram contratados em **ADR-027 (D23)**, com emendas estreitas a BR-CLN-03/08 e BR-EXM-02. O PDF no servidor (OP-41) passa a existir só para esses dois documentos; recibos mantêm-se sem PDF no servidor.

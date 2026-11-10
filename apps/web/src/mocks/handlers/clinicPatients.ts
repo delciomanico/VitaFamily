@@ -351,6 +351,8 @@ function calendarDay(booking: ClinicBooking) {
     dayState: booking.dayState ?? booking.status,
     arrivedAt: booking.arrivedAt ?? null,
     waitingMinutes: booking.waitingMinutes ?? null,
+    reportStatus: booking.reportStatus ?? null,
+    examOrderCount: booking.examOrderCount ?? 0,
   } as const
 }
 

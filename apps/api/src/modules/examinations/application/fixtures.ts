@@ -1,6 +1,7 @@
 // Fakes em memória das portas de `examinations` (mesmo padrão de `prescriptions`/`appointments`
 // `application/fixtures.ts`). Não é ficheiro de teste.
 import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput, Relation } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
@@ -18,6 +19,13 @@ import type {
   CursorPage,
   DocumentsPort,
   ExamAlertsPort,
+  ExamOrderLinkerPort,
+  ExamReportGeneratorPort,
+  ExamReportRequest,
+  ExamResultDraftItem,
+  ExamResultsDraft,
+  ExamResultsDraftRepository,
+  SaveExamResultsDraft,
   ReceiptIdsPort,
   MemberNamesPort,
   ExaminationChanges,
@@ -152,6 +160,7 @@ export class FakeDocumentsPort implements DocumentsPort<FakeTrx> {
       scanStatus: "PENDING",
       uploadedByClinic: true,
       uploadedByClinicAccountId: actor.clinicAccountId,
+      generatedBySystem: false,
       createdAt: new Date("2026-01-01T00:00:00Z"),
     };
     const key = `EXAMINATION|${input.examinationId}`;
@@ -183,6 +192,102 @@ export class FakeDocumentsPort implements DocumentsPort<FakeTrx> {
 
   seed(resourceType: ResourceType, resourceId: string, documents: Document[]): void {
     this.byResource.set(`${resourceType}|${resourceId}`, documents);
+  }
+
+  /** M15 T: simula `documents.storeGenerated` (laudo CLEAN, `generatedBySystem`). */
+  readonly stored: { examinationId: string; bytes: Buffer; originalName: string }[] = [];
+  readonly discarded: string[] = [];
+  /** Se definido, `storeGenerated` falha (prova a reversão da conclusão). */
+  failStore: Error | null = null;
+
+  async storeGenerated(
+    _trx: FakeTrx,
+    input: { familyId: string; memberId: string; examinationId: string; originalName: string; bytes: Buffer; clinicAccountId: string },
+  ): Promise<Document> {
+    if (this.failStore) throw this.failStore;
+    this.stored.push({ examinationId: input.examinationId, bytes: input.bytes, originalName: input.originalName });
+    const document: Document = {
+      id: `gen-${String(this.stored.length)}`,
+      familyId: input.familyId,
+      memberId: input.memberId,
+      resourceType: "EXAMINATION",
+      resourceId: input.examinationId,
+      storageKey: `documents/gen-${String(this.stored.length)}.pdf`,
+      originalName: input.originalName,
+      mimeType: "application/pdf",
+      sizeBytes: input.bytes.length,
+      checksumSha256: "x",
+      scanStatus: "CLEAN",
+      uploadedByClinic: true,
+      uploadedByClinicAccountId: input.clinicAccountId,
+      generatedBySystem: true,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+    };
+    const key = `EXAMINATION|${input.examinationId}`;
+    this.byResource.set(key, [...(this.byResource.get(key) ?? []), document]);
+    return Promise.resolve(document);
+  }
+
+  async discardStored(storageKey: string): Promise<void> {
+    this.discarded.push(storageKey);
+    return Promise.resolve();
+  }
+
+  async readGeneratedExamReport(_trx: FakeTrx, _familyId: string, _memberId: string, examinationId: string): Promise<{ document: Document; bytes: Buffer } | null> {
+    const document = (this.byResource.get(`EXAMINATION|${examinationId}`) ?? []).find((d) => d.generatedBySystem);
+    const stored = this.stored.find((s) => s.examinationId === examinationId);
+    return Promise.resolve(document && stored ? { document, bytes: stored.bytes } : null);
+  }
+}
+
+export class FakeResultsDraftRepository implements ExamResultsDraftRepository<FakeTrx> {
+  readonly byExam = new Map<string, ExamResultsDraft>();
+  async find(_trx: FakeTrx, examinationId: string): Promise<ExamResultsDraft | null> {
+    return Promise.resolve(this.byExam.get(examinationId) ?? null);
+  }
+  async upsert(_trx: FakeTrx, draft: SaveExamResultsDraft): Promise<ExamResultsDraft> {
+    const saved: ExamResultsDraft = { examinationId: draft.examinationId, results: draft.results, resultNote: draft.resultNote, updatedAt: draft.now };
+    this.byExam.set(draft.examinationId, saved);
+    return Promise.resolve(saved);
+  }
+  async delete(_trx: FakeTrx, examinationId: string): Promise<boolean> {
+    return Promise.resolve(this.byExam.delete(examinationId));
+  }
+  async existingIds(_trx: FakeTrx, examinationIds: string[]): Promise<Set<string>> {
+    return Promise.resolve(new Set(examinationIds.filter((id) => this.byExam.has(id))));
+  }
+}
+
+/** Fake de `ExamReportGeneratorPort`: devolve bytes fixos e a contagem aritmética real (`valor < min || valor > max`). */
+export class FakeExamReportGenerator implements ExamReportGeneratorPort<FakeTrx> {
+  readonly requests: ExamReportRequest[] = [];
+  failWith: Error | null = null;
+  async generate(_trx: FakeTrx, request: ExamReportRequest): Promise<{ bytes: Buffer; resultsCount: number; outOfReferenceCount: number }> {
+    if (this.failWith) throw this.failWith;
+    this.requests.push(request);
+    const out = (r: ExamResultDraftItem) => typeof r.valueNumeric === "number" && ((typeof r.referenceMin === "number" && r.valueNumeric < r.referenceMin) || (typeof r.referenceMax === "number" && r.valueNumeric > r.referenceMax));
+    return Promise.resolve({ bytes: Buffer.from("%PDF-1.4 fake"), resultsCount: request.results.length, outOfReferenceCount: request.results.filter(out).length });
+  }
+}
+
+/** Fake de `ExamOrderLinkerPort`: regista as chamadas; `failLinkWith` simula `NOT_FOUND`/`CONFLICT`/`FORBIDDEN` de quem implementa. */
+export class FakeExamOrderLinker implements ExamOrderLinkerPort<FakeTrx> {
+  readonly links: { orderId: string; examinationId: string; familyId: string; memberId: string; examClinicId?: string; status: "SCHEDULED" | "COMPLETED" }[] = [];
+  readonly released: string[] = [];
+  readonly fulfilled: string[] = [];
+  failLinkWith: Error | null = null;
+  async link(_trx: FakeTrx, input: Parameters<ExamOrderLinkerPort<FakeTrx>["link"]>[1]): Promise<void> {
+    if (this.failLinkWith) throw this.failLinkWith;
+    this.links.push({ orderId: input.orderId, examinationId: input.examinationId, familyId: input.familyId, memberId: input.memberId, status: input.status, ...(input.examClinicId ? { examClinicId: input.examClinicId } : {}) });
+    return Promise.resolve();
+  }
+  async release(_trx: FakeTrx, examinationId: string): Promise<void> {
+    this.released.push(examinationId);
+    return Promise.resolve();
+  }
+  async fulfil(_trx: FakeTrx, examinationId: string): Promise<void> {
+    this.fulfilled.push(examinationId);
+    return Promise.resolve();
   }
 }
 
@@ -470,6 +575,9 @@ export interface ExaminationsFixtures {
   memberNames: FakeMemberNamesPort;
   alerts: FakeExamAlertsPort;
   receipts: FakeReceiptIdsPort;
+  drafts: FakeResultsDraftRepository;
+  reportGenerator: FakeExamReportGenerator;
+  examOrders: FakeExamOrderLinker;
   audit: FakeAuditPort;
 }
 
@@ -482,10 +590,17 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
   const memberNames = new FakeMemberNamesPort();
   const alerts = new FakeExamAlertsPort();
   const receipts = new FakeReceiptIdsPort();
+  const drafts = new FakeResultsDraftRepository();
+  const reportGenerator = new FakeExamReportGenerator();
+  const examOrders = new FakeExamOrderLinker();
   const audit = new FakeAuditPort();
   const deps: ExaminationsDeps<FakeTrx> = {
     examinationsRepo,
     examResultsRepo,
+    draftsRepo: drafts,
+    reportGenerator,
+    examOrders,
+    limiter: new InMemoryRateLimiter(clock),
     policy,
     memberNames,
     alerts,
@@ -497,5 +612,5 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, memberNames, alerts, receipts, audit };
+  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, memberNames, alerts, receipts, drafts, reportGenerator, examOrders, audit };
 }

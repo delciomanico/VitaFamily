@@ -4,7 +4,7 @@
 import type { AccessContext } from "../../access/index.js";
 import { auditContextFields, type AuditAction } from "../../audit/index.js";
 import { DomainError, ValidationError } from "../../../platform/errors/index.js";
-import type { AppointmentsDeps, RequestContext } from "./ports.js";
+import type { Appointment, AppointmentsDeps, RequestContext } from "./ports.js";
 
 export async function auditViewIfNotSelf<Trx>(
   deps: AppointmentsDeps<Trx>,
@@ -29,6 +29,20 @@ export async function auditViewIfNotSelf<Trx>(
     requestId: params.context.requestId,
     ...auditContextFields(params.context),
   });
+}
+
+/**
+ * M15 S (BR-CLN-45, authorization.md §6.6): `reportAvailable` = existe relatório FINAL partilhado desta consulta Vita E o ator
+ * é `SELF`/`TUTOR_OF` (DEPENDENT_SELF e OTHER recebem sempre `false`).
+ */
+export async function withReportAvailability<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, ctx: AccessContext, appointments: Appointment[]): Promise<Appointment[]> {
+  if (ctx.relation !== "SELF" && ctx.relation !== "TUTOR_OF") return appointments;
+  const bookings = appointments.flatMap((a) => (a.clinicId ? [{ clinicId: a.clinicId, bookingId: a.id }] : []));
+  if (bookings.length === 0) return appointments;
+  const available = await deps.consultationReports.sharedAvailability(trx, bookings);
+  // M15 U (BR-CLN-53): `examOrderCount` com a mesma regra (SELF/TUTOR_OF; os restantes recebem 0).
+  const orderCounts = await deps.consultationReports.appointmentExamOrderCounts(trx, bookings.map((b) => b.bookingId));
+  return appointments.map((a) => ({ ...a, reportAvailable: available.has(a.id), examOrderCount: orderCounts.get(a.id) ?? 0 }));
 }
 
 /**

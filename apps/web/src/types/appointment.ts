@@ -33,6 +33,10 @@ export interface Appointment {
   startedAt?: string
   /** Só no mock: quando passou a SCHEDULED (BR-ALR-09: sem pedido a 48 h se marcada com menos). */
   scheduledSince?: string
+  /** M15 S (BR-CLN-45): existe relatório FINAL partilhado e o actor é titular ou tutor. */
+  reportAvailable?: boolean
+  /** M15 U (BR-CLN-53): pedidos de exame não cancelados; 0 para quem não pode ler. */
+  examOrderCount?: number
 }
 
 /** Resposta ao pedido de confirmação (`AppointmentConfirmationRequest`). */

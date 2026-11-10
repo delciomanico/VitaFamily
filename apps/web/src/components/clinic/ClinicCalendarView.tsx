@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, FlaskConical } from 'lucide-react'
+import { BookingDocumentActions } from '@/components/clinic/BookingDocumentActions'
 import { ConfirmationBadge } from '@/components/clinic/ConfirmationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -39,7 +40,7 @@ const localDayOf = (iso: string) => todayISO(new Date(iso))
 
 type Item = { kind: 'entry'; at: string; entry: ClinicCalendarEntry } | { kind: 'free'; at: string; slot: ClinicCalendarFreeSlot }
 
-function EntryRow({ entry }: { entry: ClinicCalendarEntry }) {
+function EntryRow({ entry, onChanged }: { entry: ClinicCalendarEntry; onChanged?: () => void }) {
   // Chegou / Em consulta vêm do estado do dia (BR-CLN-28); os restantes, do estado Vita.
   const status =
     entry.dayState === 'ARRIVED' || entry.dayState === 'IN_PROGRESS' ? dayStateLabel[entry.dayState] : appointmentStatus[entry.status]
@@ -68,12 +69,32 @@ function EntryRow({ entry }: { entry: ClinicCalendarEntry }) {
     </>
   )
   const classes = 'flex flex-col gap-0.5 rounded-lg border border-border bg-surface px-3 py-2 text-left'
-  return entry.clinicPatientId ? (
+  const card = entry.clinicPatientId ? (
     <Link to={paths.clinicPatient(entry.clinicPatientId)} className={cn(classes, 'transition-colors hover:bg-surface-muted')}>
       {body}
     </Link>
   ) : (
     <div className={classes}>{body}</div>
+  )
+  // M15 S/U/V: relatório, pedidos de exame e declaração nas consultas e visitas (não nos exames).
+  if (entry.kind !== 'APPOINTMENT') return card
+  return (
+    <div className="flex flex-col gap-1">
+      {card}
+      <BookingDocumentActions
+        booking={{
+          id: entry.id,
+          patientName: entry.patientName,
+          status: entry.status,
+          scheduledAt: entry.startsAt,
+          dayState: entry.dayState ?? undefined,
+          arrivedAt: entry.arrivedAt ?? undefined,
+          reportStatus: entry.reportStatus ?? undefined,
+          examOrderCount: entry.examOrderCount ?? undefined,
+        }}
+        onChanged={onChanged}
+      />
+    </div>
   )
 }
 
@@ -93,7 +114,19 @@ function FreeRow({ slot, onBook }: { slot: ClinicCalendarFreeSlot; onBook?: (slo
   )
 }
 
-function Column({ title, subtitle, items, onBook }: { title: string; subtitle?: string; items: Item[]; onBook?: (slotId: string) => void }) {
+function Column({
+  title,
+  subtitle,
+  items,
+  onBook,
+  onChanged,
+}: {
+  title: string
+  subtitle?: string
+  items: Item[]
+  onBook?: (slotId: string) => void
+  onChanged?: () => void
+}) {
   return (
     <section aria-label={title} className="flex min-w-0 flex-col gap-2">
       <header>
@@ -105,7 +138,7 @@ function Column({ title, subtitle, items, onBook }: { title: string; subtitle?: 
       ) : (
         items.map((item) =>
           item.kind === 'entry' ? (
-            <EntryRow key={`e-${item.entry.id}`} entry={item.entry} />
+            <EntryRow key={`e-${item.entry.id}`} entry={item.entry} onChanged={onChanged} />
           ) : (
             <FreeRow key={`f-${item.slot.slotId}`} slot={item.slot} onBook={onBook} />
           ),
@@ -201,7 +234,7 @@ export function ClinicCalendarView({ onBookSlot, version = 0 }: ClinicCalendarVi
       {state.status === 'loading' && <LoadingState rows={3} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
-        <CalendarBody calendar={state.data} range={range} start={start} professionals={list} professionalId={professionalId} onBookSlot={onBookSlot} />
+        <CalendarBody calendar={state.data} range={range} start={start} professionals={list} professionalId={professionalId} onBookSlot={onBookSlot} onChanged={reload} />
       )}
     </div>
   )
@@ -214,6 +247,7 @@ function CalendarBody({
   professionals,
   professionalId,
   onBookSlot,
+  onChanged,
 }: {
   calendar: ClinicCalendar
   range: Range
@@ -221,6 +255,7 @@ function CalendarBody({
   professionals: Array<{ id: string; name: string; specialty?: string }>
   professionalId: string
   onBookSlot?: (slotId: string) => void
+  onChanged?: () => void
 }) {
   const items: Item[] = useMemo(
     () =>
@@ -243,6 +278,7 @@ function CalendarBody({
             title={weekdayFormat.format(parseDay(d))}
             items={items.filter((item) => localDayOf(item.at) === d)}
             onBook={onBookSlot}
+            onChanged={onChanged}
           />
         ))}
       </div>
@@ -271,6 +307,7 @@ function CalendarBody({
               : professionalKey(i) === group.key,
           )}
           onBook={onBookSlot}
+          onChanged={onChanged}
         />
       ))}
     </div>

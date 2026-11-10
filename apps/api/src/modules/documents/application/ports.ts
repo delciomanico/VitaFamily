@@ -51,6 +51,8 @@ export interface NewDocumentRecord {
   uploadedByClinic?: boolean;
   /** BR-CLN-08: autor, preenchido só no upload feito pelo portal da clínica. */
   uploadedByClinicAccountId?: string;
+  /** M15 T (BR-CLN-49): laudo gerado pelo servidor — `CLEAN` à nascença, `uploadedByClinic=true`, sem `uploadedBy`. */
+  generatedBySystem?: boolean;
   createdAt: Date;
 }
 
@@ -63,7 +65,10 @@ export interface DocumentsRepository<Trx> {
   listByResource(trx: Trx, familyId: string, memberId: string, resourceType: ResourceType, resourceId: string): Promise<Document[]>;
   /** Só os do membro indicado (um id de outro membro/família simplesmente não aparece). */
   listByIds(trx: Trx, familyId: string, memberId: string, documentIds: string[]): Promise<Document[]>;
+  /** Não conta o laudo gerado pelo servidor (BR-CLN-49: fora do limite de 5 PDF por exame). */
   countByResource(trx: Trx, familyId: string, memberId: string, resourceType: ResourceType, resourceId: string): Promise<number>;
+  /** M15 T: o laudo gerado do exame (um por exame, UNIQUE parcial); `null` se não existe ou foi apagado. */
+  findGeneratedByExamination(trx: Trx, familyId: string, memberId: string, examinationId: string): Promise<Document | null>;
   /** Soma de `size_bytes` de toda a família (Q10: 100 MB por família, não por membro/recurso). */
   sumSizeByFamily(trx: Trx, familyId: string): Promise<number>;
   /** `PENDING` -> `CLEAN` (worker, scan limpo): atualiza `scan_status` e a `storage_key` final. */

@@ -148,6 +148,10 @@ export const routes: RouteObject[] = [
                 path: 'appointments/:id',
                 ...page(() => import('@/pages/appointments/AppointmentDetailPage'), 'AppointmentDetailPage'),
               },
+              {
+                path: 'appointments/:id/report',
+                ...page(() => import('@/pages/appointments/ConsultationReportPage'), 'ConsultationReportPage'),
+              },
               { path: 'family', ...page(() => import('@/pages/family/FamilyPage'), 'FamilyPage') },
               {
                 path: 'family/:id/insurance',
@@ -286,6 +290,14 @@ export const routes: RouteObject[] = [
               { index: true, ...page(() => import('@/pages/clinic/ClinicTodayPage'), 'ClinicTodayPage') },
               { path: 'agenda', ...page(() => import('@/pages/clinic/ClinicAgendaPage'), 'ClinicAgendaPage') },
               { path: 'exams', ...page(() => import('@/pages/clinic/ClinicExamsPage'), 'ClinicExamsPage') },
+              {
+                path: 'exams/:examinationId/results',
+                ...page(() => import('@/pages/clinic/exams/ExamResultsPage'), 'ExamResultsPage'),
+              },
+              {
+                path: 'consultations/:bookingId/report',
+                ...page(() => import('@/pages/clinic/reports/ConsultationReportPage'), 'ConsultationReportPage'),
+              },
               {
                 path: 'patients',
                 ...page(() => import('@/pages/clinic/patients/ClinicPatientsPage'), 'ClinicPatientsPage'),

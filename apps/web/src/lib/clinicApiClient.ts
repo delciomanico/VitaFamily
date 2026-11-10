@@ -76,3 +76,18 @@ export async function refreshClinicAccessToken(): Promise<ClinicTokenResponse | 
     return null
   }
 }
+
+/** Descarrega um ficheiro binário (PDF) de `/clinic-portal/...` com o token da clínica. */
+export async function clinicApiFetchBlob(path: string): Promise<Blob> {
+  const baseUrl = apiBaseUrl()
+  if (!baseUrl) throw new Error('VITE_API_URL não está configurado.')
+  const res = await fetch(`${baseUrl}/clinic-portal${path}`, {
+    credentials: 'include',
+    headers: clinicAccessToken ? { Authorization: `Bearer ${clinicAccessToken}` } : {},
+  })
+  if (!res.ok) {
+    const problem = (await res.json().catch(() => undefined)) as Problem | undefined
+    throw new AppError(toErrorCode(problem?.code ?? 'UNKNOWN'))
+  }
+  return res.blob()
+}

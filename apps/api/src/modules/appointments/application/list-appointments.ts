@@ -3,7 +3,7 @@ import { ValidationError } from "../../../platform/errors/index.js";
 import { parsePageParams } from "../../../platform/page/index.js";
 import type { AppointmentStatus } from "../domain/appointment.js";
 import type { ActorIdentity, AppointmentListFilter, AppointmentsDeps, CursorPage, Appointment, RequestContext } from "./ports.js";
-import { auditViewIfNotSelf } from "./support.js";
+import { auditViewIfNotSelf, withReportAvailability } from "./support.js";
 
 export interface ListAppointmentsQuery {
   status?: string;
@@ -47,7 +47,7 @@ export function createListAppointmentsUseCase<Trx>(deps: AppointmentsDeps<Trx>) 
       const filter: AppointmentListFilter = { ...(isAppointmentStatus(query.status) ? { status: query.status } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}) };
       const page = await deps.appointmentsRepo.listByMember(trx, familyId, memberId, filter, limit, cursor);
       await auditViewIfNotSelf(deps, trx, ctx, { userId: actor.userId, familyId, memberId, context });
-      return page;
+      return { ...page, items: await withReportAvailability(deps, trx, ctx, page.items) };
     });
   };
 }

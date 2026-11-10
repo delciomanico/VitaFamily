@@ -18,6 +18,7 @@ import type {
   UploadClinicExamDocumentInput,
 } from "../application/clinic-examinations.js";
 import type { ClinicPortalActor } from "../application/ports.js";
+import type { ClinicExamResultsDraftView, ExamReportDownload } from "../application/results-draft.js";
 import { toClinicExamListResponse, toClinicExamResponse } from "./dto.js";
 
 export interface ExaminationsClinicPortalController {
@@ -26,6 +27,11 @@ export interface ExaminationsClinicPortalController {
   completeClinicExamination: (actor: ClinicPortalActor, examinationId: string, input: CompleteClinicExaminationInput, context: RequestContext) => Promise<ClinicExamView>;
   uploadClinicExamDocument: (actor: ClinicPortalActor, examinationId: string, input: UploadClinicExamDocumentInput, context: RequestContext) => Promise<ClinicExamDocumentView>;
   deleteClinicExamDocument: (actor: ClinicPortalActor, examinationId: string, documentId: string, context: RequestContext) => Promise<void>;
+  /** M15 T (BR-CLN-47..49). */
+  getClinicExamResultsDraft: (actor: ClinicPortalActor, examinationId: string) => Promise<ClinicExamResultsDraftView>;
+  saveClinicExamResultsDraft: (actor: ClinicPortalActor, examinationId: string, body: unknown, context: RequestContext) => Promise<ClinicExamResultsDraftView>;
+  discardClinicExamResultsDraft: (actor: ClinicPortalActor, examinationId: string, context: RequestContext) => Promise<void>;
+  getClinicExamReportPdf: (actor: ClinicPortalActor, examinationId: string, context: RequestContext) => Promise<ExamReportDownload>;
 }
 
 /** Forma mínima de um ficheiro de multer (`Express.Multer.File`) — ver `documents/interface/router.ts`. */
@@ -95,9 +101,47 @@ export function createExaminationsClinicPortalRouter(controller: ExaminationsCli
     "/clinic-portal/exam-agenda/:examinationId/complete",
     asyncHandler(async (req, res) => {
       const body = req.body as CompleteClinicExaminationInput;
-      const input: CompleteClinicExaminationInput = { results: body.results ?? [], resultNote: body.resultNote ?? null };
+      // M15 T (BR-CLN-47): `results` omitido (≠ `[]`) usa o rascunho; `generateReport` omitido => true (BR-CLN-48).
+      const input: CompleteClinicExaminationInput = {
+        ...(body.results !== undefined ? { results: body.results } : {}),
+        resultNote: body.resultNote ?? null,
+        ...(body.generateReport !== undefined ? { generateReport: body.generateReport } : {}),
+      };
       const result = await controller.completeClinicExamination(requireClinicPortalActor(), requireParam(req, "examinationId"), input, buildRequestContext(req));
       res.json(toClinicExamResponse(result));
+    }),
+  );
+
+  router.get(
+    "/clinic-portal/exam-agenda/:examinationId/results-draft",
+    asyncHandler(async (req, res) => {
+      res.json(await controller.getClinicExamResultsDraft(requireClinicPortalActor(), requireParam(req, "examinationId")));
+    }),
+  );
+
+  router.put(
+    "/clinic-portal/exam-agenda/:examinationId/results-draft",
+    asyncHandler(async (req, res) => {
+      res.json(await controller.saveClinicExamResultsDraft(requireClinicPortalActor(), requireParam(req, "examinationId"), req.body, buildRequestContext(req)));
+    }),
+  );
+
+  router.delete(
+    "/clinic-portal/exam-agenda/:examinationId/results-draft",
+    asyncHandler(async (req, res) => {
+      await controller.discardClinicExamResultsDraft(requireClinicPortalActor(), requireParam(req, "examinationId"), buildRequestContext(req));
+      res.status(204).end();
+    }),
+  );
+
+  router.get(
+    "/clinic-portal/exam-agenda/:examinationId/report/pdf",
+    asyncHandler(async (req, res) => {
+      const pdf = await controller.getClinicExamReportPdf(requireClinicPortalActor(), requireParam(req, "examinationId"), buildRequestContext(req));
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("Content-Disposition", `inline; filename="${pdf.filename}"`);
+      res.send(pdf.bytes);
     }),
   );
 

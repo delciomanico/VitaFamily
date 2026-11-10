@@ -28,6 +28,7 @@ import { linkMember, patientOfMember } from '../clinicPatients'
 import { overlappingSlot, timeOffAt } from '../clinicSchedule'
 import { deriveDayState, waitingMinutesOf } from '@/lib/clinicDay'
 import { issuedReceiptOf } from '../clinicReceipts'
+import { examReportLines, reportStatusOf, validateExamResults } from '../clinicReports'
 import {
   isDoctor,
   ownsAppointment,
@@ -43,7 +44,11 @@ import { DEMO_PASSWORD } from '../data/users'
 import type { MockClinicAccountRecord } from '../data/clinicAccounts'
 import { db, newId } from '../db'
 import { respond } from '../respond'
+import { prepareExamOrdersOnComplete } from './examOrders'
+import { prepareReportOnComplete } from './clinicReports'
+import { activeOrderCountOf } from '../examOrders'
 import { insertPrescription } from './medications'
+import { buildTextPdf } from '@/lib/pdf'
 
 /*
  * Portal da clínica parceira (`/clinic-portal/*`, D17/D18, ADR-020).
@@ -96,6 +101,8 @@ export function toBooking(appointment: Appointment, now: Date = new Date()): Cli
     slotId: appointment.slotId,
     ...dayFields(appointment, now),
     receiptId: issuedReceiptOf('APPOINTMENT', appointment.id)?.id,
+    reportStatus: reportStatusOf(appointment.id),
+    examOrderCount: activeOrderCountOf(appointment.id),
   }
 }
 
@@ -143,6 +150,8 @@ export function toVisitBooking(visit: ClinicVisit, now: Date = new Date()): Clin
     slotId: visit.slotId,
     ...dayFields(visit, now),
     receiptId: issuedReceiptOf('VISIT', visit.id)?.id,
+    reportStatus: reportStatusOf(visit.id),
+    examOrderCount: activeOrderCountOf(visit.id),
   }
 }
 
@@ -514,6 +523,8 @@ export function completeClinicAppointment(
   return respond((): ClinicBooking => {
     const account = requireAccount(clinicAccountId)
     const { clinicId } = account
+    // `report` (M15 S, BR-CLN-44): Admin/Gestor ⇒ FORBIDDEN antes de qualquer efeito.
+    if ((input.report || input.examOrders) && account.role !== 'CLINIC_DOCTOR') throw new AppError('FORBIDDEN')
     const visit = findVisit(clinicId, appointmentId)
     if (visit && !ownsVisit(account, visit)) throw new AppError('NOT_FOUND')
     if (visit) {
@@ -521,8 +532,12 @@ export function completeClinicAppointment(
       if (visit.status !== 'SCHEDULED' || input.prescription) {
         throw new AppError(visit.status !== 'SCHEDULED' ? 'CONFLICT' : 'VALIDATION_ERROR')
       }
+      const saveReport = input.report ? prepareReportOnComplete(account, visit.id, input.report, now) : undefined
+      const saveOrders = input.examOrders ? prepareExamOrdersOnComplete(account, visit.id, input.examOrders, now) : undefined
       visit.status = 'COMPLETED'
       visit.outcomeNote = input.outcomeNote?.trim() || undefined
+      saveReport?.()
+      saveOrders?.()
       recordClinicAudit(account, 'CLINIC_COMPLETE', 'ClinicVisit', visit.id)
       return scrubReceipt(account, toVisitBooking(visit))
     }
@@ -530,6 +545,9 @@ export function completeClinicAppointment(
     if (!ownsAppointment(account, appointment)) throw new AppError('NOT_FOUND')
     // Só a consulta em curso: nunca completa duas vezes nem uma que não esteja confirmada (ST4).
     if (appointment.status !== 'SCHEDULED') throw new AppError('CONFLICT')
+    // Valida o relatório antes de tocar em dados: falha de qualquer parte ⇒ nada muda.
+    const saveReport = input.report ? prepareReportOnComplete(account, appointment.id, input.report, now) : undefined
+    const saveOrders = input.examOrders ? prepareExamOrdersOnComplete(account, appointment.id, input.examOrders, now) : undefined
 
     if (input.prescription) {
       const { prescription } = input
@@ -562,6 +580,8 @@ export function completeClinicAppointment(
     if (outcomeNote) {
       db.appointmentOutcomes.push({ appointmentId, outcomeNote, recordedAt: now.toISOString() })
     }
+    saveReport?.()
+    saveOrders?.()
     recordClinicAudit(account, 'CLINIC_COMPLETE', 'Appointment', appointment.id)
     return scrubReceipt(account, toBooking(appointment))
   })
@@ -583,9 +603,14 @@ export function toExamBooking(exam: Examination): ClinicExamBooking {
     responseNote: exam.responseNote,
     resultsCount: results.length,
     documents: db.documents
-      .filter((d) => d.resourceType === 'EXAMINATION' && d.resourceId === exam.id && d.uploadedByClinic)
+      // O laudo gerado pelo sistema não conta como PDF carregado (BR-CLN-49).
+      .filter((d) => d.resourceType === 'EXAMINATION' && d.resourceId === exam.id && d.uploadedByClinic && !d.generatedBySystem)
       .map((d) => ({ id: d.id, originalName: d.originalName, sizeBytes: d.sizeBytes, scanStatus: d.scanStatus ?? 'CLEAN' })),
     receiptId: issuedReceiptOf('EXAM', exam.id)?.id,
+    hasResultsDraft: db.examResultDrafts.some((d) => d.examinationId === exam.id),
+    reportAvailable: db.examReportSnapshots.some(
+      (r) => r.examinationId === exam.id && db.documents.some((d) => d.id === r.documentId),
+    ),
   }
 }
 
@@ -618,6 +643,7 @@ export function cancelClinicExam(clinicAccountId: string, examinationId: string,
     if (exam.status !== 'SCHEDULED') throw new AppError('CONFLICT')
     exam.status = 'CANCELLED'
     exam.responseNote = note.trim()
+    db.examResultDrafts = db.examResultDrafts.filter((d) => d.examinationId !== exam.id)
     return toExamBooking(exam)
   })
 }
@@ -658,13 +684,13 @@ export function completeClinicExam(
     const exam = findExam(account, examinationId)
     if (exam.status !== 'SCHEDULED') throw new AppError('CONFLICT')
     const hasPdf = toExamBooking(exam).documents.length > 0
-    if (input.results.length === 0 && !hasPdf) throw new AppError('VALIDATION_ERROR')
-    for (const result of input.results) {
-      const hasValue = result.valueNumeric !== undefined || Boolean(result.valueText?.trim())
-      const { referenceMin: min, referenceMax: max } = result
-      if (!result.parameter.trim() || !hasValue || (min !== undefined && max !== undefined && min > max)) {
-        throw new AppError('VALIDATION_ERROR')
-      }
+    // BR-CLN-47: sem `results` no corpo usa-se o rascunho; com `results` (mesmo `[]`) usa-se o pedido.
+    const draft = db.examResultDrafts.find((d) => d.examinationId === exam.id)
+    const results = input.results ?? draft?.results ?? []
+    const resultNote = input.results === undefined ? (input.resultNote ?? draft?.resultNote) : input.resultNote
+    if (results.length === 0 && !hasPdf) throw new AppError('VALIDATION_ERROR')
+    validateExamResults(results)
+    for (const result of results) {
       db.examResults.push({
         id: newId('res'),
         examinationId: exam.id,
@@ -672,13 +698,46 @@ export function completeClinicExam(
         valueNumeric: result.valueNumeric,
         valueText: result.valueText?.trim() || undefined,
         unit: result.unit?.trim() || undefined,
-        referenceMin: min,
-        referenceMax: max,
+        referenceMin: result.referenceMin,
+        referenceMax: result.referenceMax,
         createdAt: now.toISOString(),
       })
     }
     exam.status = 'COMPLETED'
-    exam.responseNote = input.resultNote?.trim() || exam.responseNote
+    exam.responseNote = resultNote?.trim() || exam.responseNote
+    db.examResultDrafts = db.examResultDrafts.filter((d) => d.examinationId !== exam.id)
+    // Laudo (BR-CLN-48/49): instantâneo do que a clínica emitiu, como documento do exame.
+    if (input.generateReport !== false && results.length > 0) {
+      const issuedAt = now.toISOString()
+      const lines = examReportLines({
+        clinicName: clinicNameOf(account.clinicId) ?? '',
+        patientName: memberName(exam.memberId),
+        examName: exam.name,
+        examAt: db.slots.find((s) => s.id === exam.slotId)?.startsAt ?? exam.examDate,
+        professionalName: db.slots.find((s) => s.id === exam.slotId)?.professionalName,
+        results,
+        resultNote,
+        issuedAt,
+      })
+      const documentId = newId('doc')
+      db.documents.push({
+        id: documentId,
+        familyId: exam.familyId,
+        memberId: exam.memberId,
+        resourceType: 'EXAMINATION',
+        resourceId: exam.id,
+        originalName: `laudo-${issuedAt.slice(0, 10).replaceAll('-', '')}.pdf`,
+        mimeType: 'application/pdf',
+        sizeBytes: buildTextPdf(lines).size,
+        createdAt: issuedAt,
+        scanStatus: 'CLEAN',
+        uploadedByClinic: true,
+        generatedBySystem: true,
+      })
+      db.examReportSnapshots = db.examReportSnapshots.filter((r) => r.examinationId !== exam.id)
+      db.examReportSnapshots.push({ examinationId: exam.id, documentId, lines })
+      recordClinicAudit(account, 'EXAM_REPORT_GENERATED', 'Examination', exam.id)
+    }
     recordClinicAudit(account, 'EXAM_CLINIC_COMPLETE', 'Examination', exam.id)
     return scrubReceipt(account, toExamBooking(exam))
   })

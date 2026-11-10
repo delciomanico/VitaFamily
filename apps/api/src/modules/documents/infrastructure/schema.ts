@@ -23,6 +23,8 @@ export interface DocumentsTable {
   uploaded_by_clinic: ColumnType<boolean, boolean | undefined, never>;
   /** Autor (rastreabilidade) — `0021`; pode ficar nulo se a conta for removida. */
   uploaded_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  /** M15 T (`0031`): laudo gerado pelo servidor (BR-CLN-49). */
+  generated_by_system: ColumnType<boolean, boolean | undefined, never>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

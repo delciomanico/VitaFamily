@@ -16,7 +16,7 @@ import type { DataCategory } from "../domain/sharing-grant.js";
 import type { AccessDeps, MemberFacts } from "./ports.js";
 
 /** authorization.md §1 (ações sobre dados de saúde) + §4 (partilha) + VIEW_SHARED_WITH_ME (UC-PRV-02). */
-export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_INSURANCE" | "MANAGE_CLINIC_CONSENT" | "VIEW_CLINIC_RECEIPTS" | "VIEW_SHARED_WITH_ME";
+export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_INSURANCE" | "MANAGE_CLINIC_CONSENT" | "VIEW_CLINIC_RECEIPTS" | "VIEW_CONSULTATION_REPORT" | "VIEW_EXAM_ORDERS" | "VIEW_SHARED_WITH_ME";
 
 export interface CanInput {
   userId: string;
@@ -40,7 +40,7 @@ export interface AccessContext {
 }
 
 function isHealthAction(action: Action): action is HealthAction {
-  return action !== "MANAGE_SHARING" && action !== "MANAGE_INSURANCE" && action !== "MANAGE_CLINIC_CONSENT" && action !== "VIEW_CLINIC_RECEIPTS" && action !== "VIEW_SHARED_WITH_ME";
+  return action !== "MANAGE_SHARING" && action !== "MANAGE_INSURANCE" && action !== "MANAGE_CLINIC_CONSENT" && action !== "VIEW_CLINIC_RECEIPTS" && action !== "VIEW_CONSULTATION_REPORT" && action !== "VIEW_EXAM_ORDERS" && action !== "VIEW_SHARED_WITH_ME";
 }
 
 export interface AccessPolicy<Trx> {
@@ -118,6 +118,25 @@ export function createAccessPolicy<Trx>(deps: Pick<AccessDeps<Trx>, "familiesPor
         return { actor, subject, relation };
       }
       throw new ForbiddenError({ detail: "Sem permissão sobre os recibos deste membro." });
+    }
+
+    if (input.action === "VIEW_CONSULTATION_REPORT") {
+      // ADR-027/BR-CLN-45, authorization.md §6.6: o relatório da consulta (diagnóstico) é mais sensível que a marcação: só
+      // SELF (adulto) ou TUTOR_OF com READ(APPOINTMENTS) do membro (que ambos têm sempre); nunca DEPENDENT_SELF nem OTHER,
+      // mesmo com SharingGrant de APPOINTMENTS. Sem categoria (não depende de partilha).
+      if (relation === "SELF" || relation === "TUTOR_OF") {
+        return { actor, subject, relation };
+      }
+      throw new ForbiddenError({ detail: "Sem permissão sobre o relatório da consulta deste membro." });
+    }
+
+    if (input.action === "VIEW_EXAM_ORDERS") {
+      // ADR-028/BR-CLN-53, authorization.md §6.7: o pedido de exame (o nome pode sugerir diagnóstico) é só de SELF (adulto) ou
+      // TUTOR_OF com READ(APPOINTMENTS) do membro; nunca DEPENDENT_SELF nem OTHER, mesmo com SharingGrant. Sem categoria.
+      if (relation === "SELF" || relation === "TUTOR_OF") {
+        return { actor, subject, relation };
+      }
+      throw new ForbiddenError({ detail: "Sem permissão sobre os pedidos de exame deste membro." });
     }
 
     if (input.action === "MANAGE_CLINIC_CONSENT") {

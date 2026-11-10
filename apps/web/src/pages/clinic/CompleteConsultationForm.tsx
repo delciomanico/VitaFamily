@@ -1,13 +1,29 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import {
+  ConsultationReportEditor,
+  emptyReportFields,
+  hasReportText,
+  toReportInput,
+} from '@/components/clinic/reports/ConsultationReportEditor'
+import {
+  emptyExamOrderRow,
+  examOrderRowsError,
+  ExamOrderLines,
+  filledExamOrderRows,
+  toExamOrderItems,
+  type ExamOrderRow,
+} from '@/components/clinic/exams/ExamOrderLines'
+import { Disclosure } from '@/components/ui/Disclosure'
 import { controlClasses, controlState } from '@/components/ui/Field'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { Switch } from '@/components/ui/Switch'
 import { Textarea } from '@/components/ui/Textarea'
+import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { FormError } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { FOLLOW_UP_PRESETS } from '@/lib/clinicDay'
@@ -17,6 +33,7 @@ import { errorMessage } from '@/lib/errors'
 import { formatTime } from '@/lib/format'
 import { clinicDayService } from '@/services/clinicDay.service'
 import { clinicPortalService } from '@/services/clinicPortal.service'
+import { clinicReportService } from '@/services/clinicReport.service'
 import type { ClinicBooking, ClinicPrescriptionMedicationInput } from '@/types/clinic'
 
 /** Duração máxima aceite no formulário; acima disso, usar “uso contínuo”. */
@@ -111,6 +128,16 @@ interface CompleteConsultationFormProps {
  */
 export function CompleteConsultationForm({ booking, onClose, onCompleted }: CompleteConsultationFormProps) {
   const toast = useToast()
+  // M15 S: só o Médico escreve o relatório (BR-CLN-44); aqui é uma secção recolhível, sem passos extra.
+  const { isDoctor } = useClinicAuth()
+  const shareable = booking.source !== 'MANUAL'
+  const [reportOpen, setReportOpen] = useState(false)
+  const [report, setReport] = useState(emptyReportFields)
+  /** Já existe relatório FINAL: nada a escrever aqui (só adendas, na página do relatório). */
+  const [reportFinal, setReportFinal] = useState(false)
+  /** M15 U: pedidos de exame (1–5), só o Médico; secção recolhível. */
+  const [ordersOpen, setOrdersOpen] = useState(false)
+  const [orderRows, setOrderRows] = useState<ExamOrderRow[]>([emptyExamOrderRow()])
   /** Índice do atalho de "Voltar em…" (BR-CLN-30); vazio = sem retorno. */
   const [followUp, setFollowUp] = useState('')
   const [outcomeNote, setOutcomeNote] = useState('')
@@ -120,6 +147,33 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
   const [medications, setMedications] = useState<MedicationRow[]>([newMedication()])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Rascunho já guardado: pré-preenche e abre a secção para o Médico o rever ao concluir.
+  useEffect(() => {
+    if (!isDoctor) return
+    let active = true
+    clinicReportService
+      .get(booking.id)
+      .then((existing) => {
+        if (!active || !existing) return
+        if (existing.status === 'FINAL') return setReportFinal(true)
+        setReport({
+          reason: existing.reason ?? '',
+          findings: existing.findings ?? '',
+          impression: existing.impression ?? '',
+          plan: existing.plan ?? '',
+          sharedWithPatient: existing.sharedWithPatient,
+        })
+        setReportOpen(true)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [isDoctor, booking.id])
+
+  const withReport = isDoctor && !reportFinal && hasReportText(report)
+  const withOrders = isDoctor && filledExamOrderRows(orderRows).length > 0
 
   const setMedication = (index: number, patch: Partial<MedicationRow>) => {
     setMedications((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -157,8 +211,12 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
   }
 
   async function submit() {
-    if (!outcomeNote.trim() && !withPrescription) {
+    if (!outcomeNote.trim() && !withPrescription && !withReport && !withOrders) {
       return setError('Escreva o resultado da consulta ou emita uma receita.')
+    }
+    if (withOrders) {
+      const invalid = examOrderRowsError(orderRows)
+      if (invalid) return setError(invalid)
     }
     let prescriptionMedications: ClinicPrescriptionMedicationInput[] | null = null
     if (withPrescription) {
@@ -170,6 +228,9 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
     try {
       await clinicPortalService.completeAppointment(booking.id, {
         ...(outcomeNote.trim() ? { outcomeNote: outcomeNote.trim() } : {}),
+        // Com texto no relatório, concluir também o finaliza (mesma operação no servidor, BR-CLN-42).
+        ...(withReport ? { report: toReportInput(report, shareable) } : {}),
+        ...(withOrders ? { examOrders: toExamOrderItems(orderRows) } : {}),
         ...(prescriptionMedications
           ? {
               prescription: {
@@ -212,7 +273,7 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
             Voltar
           </Button>
           <Button onClick={() => void submit()} loading={saving}>
-            Concluir consulta
+            {withReport ? 'Concluir e finalizar' : 'Concluir consulta'}
           </Button>
         </>
       }
@@ -324,6 +385,27 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
               onChange={(event) => setPrescriptionNotes(event.target.value)}
             />
           </>
+        )}
+
+        {isDoctor && !reportFinal && (
+          <Disclosure label="Relatório da consulta (opcional)" open={reportOpen} onOpenChange={setReportOpen}>
+            <ConsultationReportEditor value={report} onChange={setReport} specialty={booking.specialty} shareable={shareable} />
+            {withReport && (
+              <p className="text-sm text-muted">Ao concluir, o relatório é finalizado: depois só pode acrescentar adendas.</p>
+            )}
+          </Disclosure>
+        )}
+
+        {isDoctor && (
+          <Disclosure label="Pedir exames (opcional)" open={ordersOpen} onOpenChange={setOrdersOpen}>
+            <ExamOrderLines
+              rows={orderRows}
+              onChange={(rows) => {
+                setOrderRows(rows)
+                setError(null)
+              }}
+            />
+          </Disclosure>
         )}
 
         <FormError message={error} />

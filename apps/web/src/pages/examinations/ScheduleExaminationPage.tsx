@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { DateStrip } from '@/components/domain/DatePickers'
 import { Page } from '@/components/layout/Page'
 import { Button } from '@/components/ui/Button'
@@ -26,20 +26,27 @@ interface ScheduleFormProps {
   selfMemberId: string
   slots: AvailableSlot[]
   onBooked: () => void
+  /** M15 U: pedido de exame a marcar (tipo pré-escolhido; liga o exame ao pedido). */
+  order?: { examOrderId: string; name: string; memberId?: string }
 }
 
 /**
  * Agendar um exame num horário com vagas de uma clínica parceira (ADR-023, BR-APT-11).
  * Não há pedido nem confirmação: ao confirmar, o exame fica logo agendado e ocupa uma vaga.
  */
-function ScheduleForm({ members, selfMemberId, slots, onBooked }: ScheduleFormProps) {
+function ScheduleForm({ members, selfMemberId, slots, onBooked, order }: ScheduleFormProps) {
   const { user, family } = useAuth()
   const toast = useToast()
   const types = [...new Set(slots.map((s) => s.specialty))].sort((a, b) => a.localeCompare(b, 'pt-PT'))
-  const [examType, setExamType] = useState<string | null>(types[0] ?? null)
+  const wanted = order?.name.trim().toLocaleLowerCase('pt-PT')
+  const [examType, setExamType] = useState<string | null>(
+    types.find((t) => t.toLocaleLowerCase('pt-PT') === wanted) ?? types[0] ?? null,
+  )
   const [day, setDay] = useState<string | null>(null)
   const [slotId, setSlotId] = useState<string | null>(null)
-  const [memberId, setMemberId] = useState(selfMemberId)
+  const [memberId, setMemberId] = useState(
+    order?.memberId && members.some((m) => m.id === order.memberId) ? order.memberId : selfMemberId,
+  )
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -59,6 +66,7 @@ function ScheduleForm({ members, selfMemberId, slots, onBooked }: ScheduleFormPr
         name: slot.specialty,
         examDate: localDay(slot.startsAt),
         slotId: slot.id,
+        ...(order ? { examOrderId: order.examOrderId } : {}),
         notes,
         results: [],
         documents: [],
@@ -158,6 +166,8 @@ function ScheduleForm({ members, selfMemberId, slots, onBooked }: ScheduleFormPr
 export function ScheduleExaminationPage() {
   const { user, family, member } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const examOrderId = params.get('examOrderId')
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
   const { state, reload } = useAsync(
@@ -178,6 +188,7 @@ export function ScheduleExaminationPage() {
           members={state.data[0]}
           selfMemberId={member?.id ?? ''}
           slots={state.data[1]}
+          order={examOrderId ? { examOrderId, name: params.get('name') ?? '', memberId: params.get('memberId') ?? undefined } : undefined}
           onBooked={() => navigate(paths.examinations, { replace: true })}
         />
       )}

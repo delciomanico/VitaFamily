@@ -406,6 +406,7 @@ export class FakeInsuranceDocumentsPort implements InsuranceDocumentsPort<FakeTr
       checksumSha256: "abc",
       scanStatus: "CLEAN",
       uploadedByClinic: false,
+      generatedBySystem: false,
       createdAt: new Date("2026-11-01T00:00:00Z"),
       ...overrides,
     };

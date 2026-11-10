@@ -11,6 +11,7 @@ interface ApiDocument {
   sizeBytes: number
   scanStatus: 'PENDING' | 'CLEAN' | 'INFECTED'
   createdAt: string
+  generatedBySystem?: boolean
 }
 
 const base = (familyId: string, memberId: string) => `/families/${familyId}/members/${memberId}/documents`

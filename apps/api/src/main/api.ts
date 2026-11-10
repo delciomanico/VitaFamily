@@ -18,6 +18,7 @@ import { asyncHandler } from "../platform/http/async-handler.js";
 import { ServiceUnavailableError } from "../platform/errors/index.js";
 import { createAuditModule } from "../modules/audit/index.js";
 import { createClinicReceiptsModule, type ClinicReceiptsModule } from "../modules/clinic-receipts/index.js";
+import { createClinicReportsModule, type ClinicReportsModule } from "../modules/clinic-reports/index.js";
 import { createUsersModule } from "../modules/users/index.js";
 import { createAuthModule, parseSigningKeys, SmtpMailer } from "../modules/auth/index.js";
 import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modules/families/index.js";
@@ -106,7 +107,7 @@ export function main(): void {
   // da criação do User.
   // `families` precisa de `documents` (ficheiros) e `lifecycle` (pacote de dados), que dependem dele:
   // a porta `memberData` resolve-os tardiamente (atribuídos mais abaixo, antes de o servidor ouvir).
-  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule } = {};
+  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule; clinicReports?: ClinicReportsModule } = {};
   const required = <T>(module: T | undefined, name: string): T => {
     if (!module) throw new Error(`${name} ainda não inicializado`);
     return module;
@@ -244,6 +245,14 @@ export function main(): void {
 
   const examinations = createExaminationsModule({ db, audit, access, clinics, documents, alerts: { raiseExamEvent: alerts.raiseExamEvent },
     receipts: { findIssuedReceiptIds: (trx, clinicId, kind, bookingIds) => required(late.clinicReceipts, "clinicReceipts").findIssuedReceiptIds(trx, clinicId, kind, bookingIds) },
+    // M15 T (BR-CLN-48/49, modules.md §2 nota 27): `ExamReportGenerator` implementada por `clinic-reports` (criado mais abaixo).
+    reportGenerator: { generate: (trx, request) => required(late.clinicReports, "clinicReports").generateExamReport(trx, request) },
+    // M15 U (BR-CLN-52, modules.md §2 nota 28): `ExamOrderLinker` implementada por `clinic-reports` (criado mais abaixo).
+    examOrders: {
+      link: (trx, input, context) => required(late.clinicReports, "clinicReports").examOrderLinker.link(trx, input, context),
+      release: (trx, examinationId) => required(late.clinicReports, "clinicReports").examOrderLinker.release(trx, examinationId),
+      fulfil: (trx, examinationId) => required(late.clinicReports, "clinicReports").examOrderLinker.fulfil(trx, examinationId),
+    },
     clock,
   });
   late.examinations = examinations;
@@ -289,6 +298,33 @@ export function main(): void {
     },
     // M14 R (BR-CLN-31): `receiptId` nas marcações concluídas; `clinic-receipts` é criado depois destes módulos.
     receipts: { findIssuedReceiptIds: (trx, clinicId, kind, bookingIds) => required(late.clinicReceipts, "clinicReceipts").findIssuedReceiptIds(trx, clinicId, kind, bookingIds) },
+    // M15 S (BR-CLN-42/45, modules.md §2 nota 27): `ConsultationReportFinalizer` & co. implementados por `clinic-reports` (criado
+    // mais abaixo); `appointments` nunca o importa. O ator sem `professionalId` (Admin/Gestor) é recusado por quem implementa.
+    consultationReports: {
+      finalizeWithComplete: (trx, actor, kind, bookingId, report, context) =>
+        required(late.clinicReports, "clinicReports").finalizeWithComplete(
+          trx,
+          { clinicAccountId: actor.clinicAccountId, clinicId: actor.clinicId, role: actor.professionalId ? "CLINIC_DOCTOR" : "CLINIC_MANAGER", ...(actor.professionalId ? { professionalId: actor.professionalId } : {}) },
+          kind,
+          bookingId,
+          report,
+          context,
+        ),
+      statuses: (trx, clinicId, kind, bookingIds) => required(late.clinicReports, "clinicReports").reportStatuses(trx, clinicId, kind, bookingIds),
+      sharedAvailability: (trx, bookings) => required(late.clinicReports, "clinicReports").sharedReportAvailability(trx, bookings),
+      // M15 U (BR-CLN-51/53, modules.md §2 nota 28): `examOrders` em `complete` e `examOrderCount`, também por `clinic-reports`.
+      createExamOrdersWithComplete: (trx, actor, kind, bookingId, examOrders, context) =>
+        required(late.clinicReports, "clinicReports").createWithComplete(
+          trx,
+          { clinicAccountId: actor.clinicAccountId, clinicId: actor.clinicId, role: actor.professionalId ? "CLINIC_DOCTOR" : "CLINIC_MANAGER", ...(actor.professionalId ? { professionalId: actor.professionalId } : {}) },
+          kind,
+          bookingId,
+          examOrders,
+          context,
+        ),
+      examOrderCounts: (trx, clinicId, _kind, bookingIds) => required(late.clinicReports, "clinicReports").examOrderCounts(trx, clinicId, bookingIds),
+      appointmentExamOrderCounts: (trx, appointmentIds) => required(late.clinicReports, "clinicReports").appointmentExamOrderCounts(trx, appointmentIds),
+    },
     clock,
   });
   late.appointments = appointments;
@@ -374,6 +410,80 @@ export function main(): void {
   });
   late.clinicReceipts = clinicReceipts;
 
+  // M15 S/T (ADR-027, modules.md §2 nota 27): `clinic-reports` não importa `auth`, `access`, `families`, `insurance`, módulos de saúde
+  // nem `clinic-receipts`: marcação, perfil, profissionais e autorização do paciente entram por portas ligadas só aqui.
+  const clinicReports = createClinicReportsModule({
+    db,
+    audit,
+    clock,
+    bookings: {
+      find: async (trx, clinicId, kind, bookingId) => {
+        if (kind === "VISIT") {
+          const visit = await clinicPatients.reportSource.findVisitFacts(trx, clinicId, bookingId);
+          if (!visit) return null;
+          const slot = visit.slotId ? (await clinics.findClinicSlotsByIds(trx, clinicId, [visit.slotId]))[0] : undefined;
+          return {
+            status: visit.status,
+            patientName: visit.patientName,
+            consultationAt: visit.scheduledAt,
+            clinicPatientId: visit.clinicPatientId,
+            ...(visit.slotId ? { slotId: visit.slotId } : {}),
+            ...(slot?.specialty ? { specialty: slot.specialty } : {}),
+            ...(visit.patientBirthDate ? { patientBirthDate: visit.patientBirthDate } : {}),
+            ...(visit.arrivedAt ? { arrivedAt: visit.arrivedAt } : {}),
+          };
+        }
+        const facts = await appointments.findReportFacts(trx, clinicId, bookingId);
+        if (!facts) return null;
+        const clinicPatientId = (await clinicPatients.directory.findPatientIdsByMembers(trx, clinicId, [facts.memberId])).get(facts.memberId);
+        const patientBirthDate = clinicPatientId ? await clinicPatients.reportSource.findPatientBirthDate(trx, clinicId, clinicPatientId) : undefined;
+        return {
+          status: facts.status,
+          patientName: facts.patientName,
+          consultationAt: facts.scheduledAt,
+          ...(facts.specialty ? { specialty: facts.specialty } : {}),
+          ...(facts.slotId ? { slotId: facts.slotId } : {}),
+          ...(clinicPatientId ? { clinicPatientId } : {}),
+          ...(patientBirthDate ? { patientBirthDate } : {}),
+          ...(facts.arrivedAt ? { arrivedAt: facts.arrivedAt } : {}),
+          // M15 U (BR-CLN-53): só no servidor — a ponte para o paciente e o alerta; nunca sai pela API do portal.
+          vitaMember: { familyId: facts.familyId, memberId: facts.memberId },
+        };
+      },
+    },
+    // M15 U (BR-CLN-51, modules.md §2 nota 28): serviço `EXAM` do catálogo da clínica; `alerts` entra pela porta `ExamOrderAlerts`.
+    services: { find: (trx, clinicId, serviceTypeId) => clinics.findServiceTypeForExamOrder(trx, clinicId, serviceTypeId) },
+    orderAlerts: {
+      raiseExamOrderAdded: async (trx, input) => {
+        await alerts.raiseExamOrderEvent(trx, input);
+      },
+    },
+    familyAppointments: { find: (trx, familyId, memberId, appointmentId) => appointments.findFamilyAppointmentClinic(trx, familyId, memberId, appointmentId) },
+    profile: { get: async (trx, clinicId) => ({ issuer: (await clinics.getReceiptProfile(trx, clinicId)).issuer }) },
+    professionals: {
+      findName: async (trx, clinicId, professionalId) => (await clinics.findClinicProfessional(trx, clinicId, professionalId))?.name ?? null,
+      professionalOfSlot: async (trx, clinicId, slotId) => {
+        const slot = (await clinics.findClinicSlotsByIds(trx, clinicId, [slotId]))[0];
+        if (!slot) return null;
+        const name = slot.professionalId ? ((await clinics.findClinicProfessional(trx, clinicId, slot.professionalId))?.name ?? null) : null;
+        return { professionalId: slot.professionalId ?? null, name };
+      },
+    },
+    // authorization.md §6.6: só SELF adulto ou TUTOR_OF (`VIEW_CONSULTATION_REPORT`); a decisão é da `AccessPolicy`.
+    patientAccess: {
+      assertCanReadReport: async (trx, actor, familyId, memberId) => {
+        const decision = await access.policy.can(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, action: "VIEW_CONSULTATION_REPORT", subjectMemberId: memberId });
+        return { relation: decision.relation === "TUTOR_OF" ? "TUTOR_OF" : "SELF" };
+      },
+      // authorization.md §6.7: pedido de exame, só SELF adulto ou TUTOR_OF (`VIEW_EXAM_ORDERS`).
+      assertCanViewExamOrders: async (trx, actor, familyId, memberId) => {
+        const decision = await access.policy.can(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, action: "VIEW_EXAM_ORDERS", subjectMemberId: memberId });
+        return { relation: decision.relation === "TUTOR_OF" ? "TUTOR_OF" : "SELF" };
+      },
+    },
+  });
+  late.clinicReports = clinicReports;
+
   // M9 (plan.md §4): `reports` lê pelas APIs públicas dos módulos dono (modules.md §2); cada
   // leitura aplica a sua `AccessPolicy` e auditoria, por isso reports não decide permissões.
   const reports = createReportsModule({
@@ -447,6 +557,10 @@ export function main(): void {
       doses: medications.reads.doses,
       appointments: appointments.reads.appointments,
       examinations: examinations.reads.examinations,
+      // M15 S (BR-CLN-50): o relatório partilhado das consultas Vita do titular entra na exportação.
+      consultationReport: async (actor, familyId, memberId, appointmentId, context) => ({ ...(await clinicReports.reads.familyReport(actor, familyId, memberId, appointmentId, context)) }),
+      // M15 U (BR-CLN-56): os pedidos de exame não cancelados do titular/tutor entram na exportação.
+      examOrders: async (actor, familyId, memberId) => (await clinicReports.reads.familyExamOrders(actor, familyId, memberId)).map((order) => ({ ...order })),
       documents: documents.reads.list,
       downloadDocument: documents.reads.download,
     },
@@ -526,6 +640,8 @@ export function main(): void {
       router.use(clinicPatients.clinicPortalRouter);
       router.use(clinicReceipts.router);
       router.use(clinicReceipts.clinicPortalRouter);
+      router.use(clinicReports.router);
+      router.use(clinicReports.clinicPortalRouter);
       router.use(audit.clinicPortalRouter);
       router.use(notifications.router);
       router.use(alerts.router);

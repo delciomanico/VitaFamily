@@ -53,6 +53,7 @@ export interface ClinicPortalController {
   listClinicProfessionals: (actor: ClinicPortalActor, query: { active?: boolean }) => Promise<ClinicProfessional[]>;
   createClinicProfessional: (actor: ClinicPortalActor, input: CreateClinicProfessionalInput, ctx: RequestContext) => Promise<ClinicProfessional>;
   updateClinicProfessional: (actor: ClinicPortalActor, professionalId: string, input: UpdateClinicProfessionalInput, ctx: RequestContext) => Promise<ClinicProfessional>;
+  listClinicExamServiceTypes: (actor: ClinicPortalActor) => Promise<{ id: string; name: string; durationMinutes: number }[]>;
   listClinicServiceTypes: (actor: ClinicPortalActor, query: { active?: boolean; kind?: string }) => Promise<ClinicServiceTypeView[]>;
   createClinicServiceType: (actor: ClinicPortalActor, input: CreateClinicServiceTypeInput, ctx: RequestContext) => Promise<ClinicServiceTypeView>;
   updateClinicServiceType: (actor: ClinicPortalActor, serviceTypeId: string, input: UpdateClinicServiceTypeInput, ctx: RequestContext) => Promise<ClinicServiceTypeView>;
@@ -267,6 +268,13 @@ export function createClinicPortalRouter(controller: ClinicPortalController, coo
     asyncHandler(async (req, res) => {
       const result = await controller.updateClinicProfessional(requireClinicPortalActor(), requireParam(req, "professionalId"), req.body as UpdateClinicProfessionalInput, buildRequestContext(req));
       res.json(toClinicProfessionalResponse(result));
+    }),
+  );
+
+  router.get(
+    "/clinic-portal/exam-service-types",
+    asyncHandler(async (_req, res) => {
+      res.json(await controller.listClinicExamServiceTypes(requireClinicPortalActor()));
     }),
   );
 

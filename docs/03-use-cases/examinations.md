@@ -37,6 +37,7 @@
 - **Fluxo:** escolhe o membro → clínica parceira → horário **de exame** com vagas (`kind=EXAM`, tipo de exame, dia, hora e vagas restantes) → observações opcionais → é informado de que a clínica recebe nome, tipo de exame, data/hora e observações → confirma → exame **AGENDADO** (`SCHEDULED`) de imediato, com tipo/data/clínica congelados do horário, e uma vaga ocupada.
 - **Alternativos:** horário cheio ou entretanto removido/passado → `CONFLICT`; horário de consulta → `VALIDATION_ERROR` (BR-APT-10); membro já com marcação ativa nesse horário → `CONFLICT`; cancelar → `CANCELLED` e a vaga liberta-se.
 - **Pós-condição:** lembrete 24 h gerado (BR-EXM-06); sem passo de confirmação nem expiração. Só `notes` editáveis; mudar data/hora = cancelar e marcar outro horário (BR-EXM-08). Concorrência: a reserva é serializada por bloqueio do horário (BR-APT-11).
+- **M15 U (ADR-028, UC-CLN-42):** `ExaminationInput.examOrderId` (opcional, em qualquer registo/marcação de exame do membro) liga o exame a um pedido de exame `ORDERED` do mesmo membro (titular/tutor); `NOT_FOUND` se não visível, `CONFLICT` se já não está `ORDERED`. O exame cancelado/apagado desliga o pedido (volta a `ORDERED`); concluído ⇒ pedido `FULFILLED` (BR-CLN-52).
 
 ### UC-EXM-09 Ver resultados e documentos emitidos pela clínica (D19)
 - **Ator:** titular, tutor, membro com C6 partilhado · **Resultado:** exame `COMPLETED` com `issuedBy=CLINIC`, resultados estruturados e documentos (PDF) emitidos pela clínica; download mediado e auditado (UC-DOC-02). Documentos da clínica não aparecem antes de `COMPLETED` (BR-CLN-08).
@@ -58,7 +59,7 @@
 ### UC-CLN-10 Completar exame com resultados e PDF
 - **Ator:** conta da clínica · **FR:** EXM-08, EXM-09 · **BR:** BR-CLN-08
 - **Fluxo:** (opcional) carrega 1–5 PDF no exame `SCHEDULED` (quarentena + antivírus; vê só estado de verificação; pode remover os seus) → completa com 0–50 parâmetros (parâmetro, valor numérico e/ou texto, unidade, intervalo de referência opcional **informado pela clínica**) e nota opcional → `COMPLETED`, `issuedBy=CLINIC` → o paciente é notificado (`EXAM_RESULTS_AVAILABLE`).
-- **Regras:** pelo menos um resultado ou um PDF; sem interpretação nem alertas por valor (D11); só exame `SCHEDULED` da própria clínica (senão `CONFLICT`/`NOT_FOUND`); PDF infetado é eliminado e auditado (UC-DOC-01).
+- **Regras:** pelo menos um resultado ou um PDF; sem interpretação nem alertas por valor (D11); só exame `SCHEDULED` da própria clínica (senão `CONFLICT`/`NOT_FOUND`); PDF infetado é eliminado e auditado (UC-DOC-01). **M15 T (ADR-027):** os resultados podem ser guardados antes como rascunho (UC-CLN-37) e, ao concluir, o sistema gera o laudo em PDF (UC-CLN-38, BR-CLN-47..49) — o realce "Fora da referência" é aritmético e só existe nesse PDF (emenda a BR-EXM-02).
 
 ---
 

@@ -35,6 +35,10 @@ export interface ClinicAppointmentView {
   followUpDueOn?: string;
   /** M14 R (BR-CLN-31): recibo `ISSUED` da marcação; nunca devolvido ao Médico (BR-CLN-39). */
   receiptId?: string;
+  /** M15 S (BR-CLN-41): estado do relatório da consulta; ausente se não existe. */
+  reportStatus?: "DRAFT" | "FINAL";
+  /** M15 U (BR-CLN-51): pedidos de exame não cancelados da marcação; ausente = 0. */
+  examOrderCount?: number;
 }
 
 /**
@@ -49,7 +53,7 @@ export async function actorOwnsSlot<Trx>(deps: AppointmentsDeps<Trx>, actor: Cli
 }
 
 /** BR-CLN-31: acrescenta `receiptId` (consulta ou visita) às vistas — Admin/Gestor apenas; o Médico nunca recebe preços/recibos. */
-export async function attachReceiptIds<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
+async function attachReceipts<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
   if (actor.professionalId || views.length === 0) return views;
   const completed = views.filter((v) => v.status === "COMPLETED");
   if (completed.length === 0) return views;
@@ -61,6 +65,37 @@ export async function attachReceiptIds<Trx>(deps: AppointmentsDeps<Trx>, trx: Tr
     }
   }
   return views.map((v) => (ids.has(v.id) ? { ...v, receiptId: ids.get(v.id) } : v)) as ClinicAppointmentView[];
+}
+
+/** M15 S (BR-CLN-41): `reportStatus` (consulta ou visita) para os três papéis; o Médico só recebe as vistas que já são suas. */
+async function attachReportStatuses<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
+  if (views.length === 0) return views;
+  const statuses = new Map<string, "DRAFT" | "FINAL">();
+  for (const [kind, source] of [["APPOINTMENT", "VITA"], ["VISIT", "MANUAL"]] as const) {
+    const bookingIds = views.filter((v) => (v.source ?? "VITA") === source && (v.status === "SCHEDULED" || v.status === "COMPLETED" || v.status === "NO_SHOW" || v.status === "CANCELLED")).map((v) => v.id);
+    if (bookingIds.length > 0) {
+      for (const [bookingId, status] of await deps.consultationReports.statuses(trx, actor.clinicId, kind, bookingIds)) statuses.set(bookingId, status);
+    }
+  }
+  return views.map((v) => (statuses.has(v.id) ? { ...v, reportStatus: statuses.get(v.id) } : v)) as ClinicAppointmentView[];
+}
+
+/** M15 U (BR-CLN-51): `examOrderCount` (consulta ou visita) para os três papéis; só as marcações com pedidos ganham o campo. */
+async function attachExamOrderCounts<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
+  if (views.length === 0) return views;
+  const counts = new Map<string, number>();
+  for (const [kind, source] of [["APPOINTMENT", "VITA"], ["VISIT", "MANUAL"]] as const) {
+    const bookingIds = views.filter((v) => (v.source ?? "VITA") === source && (v.status === "SCHEDULED" || v.status === "COMPLETED")).map((v) => v.id);
+    if (bookingIds.length > 0) {
+      for (const [bookingId, count] of await deps.consultationReports.examOrderCounts(trx, actor.clinicId, kind, bookingIds)) counts.set(bookingId, count);
+    }
+  }
+  return views.map((v) => (counts.has(v.id) ? { ...v, examOrderCount: counts.get(v.id) } : v)) as ClinicAppointmentView[];
+}
+
+/** Decora as vistas da agenda com `receiptId` (BR-CLN-31), `reportStatus` (BR-CLN-41) e `examOrderCount` (BR-CLN-51). */
+export async function attachReceiptIds<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, actor: ClinicPortalActor, views: ClinicAppointmentView[]): Promise<ClinicAppointmentView[]> {
+  return attachExamOrderCounts(deps, trx, actor, await attachReportStatuses(deps, trx, actor, await attachReceipts(deps, trx, actor, views)));
 }
 
 /** `memberId -> clinicPatientId` em lote (M14 P): consultas Vita associam-se ao paciente da clínica pela ligação. */
@@ -239,6 +274,10 @@ export interface CompleteConsultationInput {
   outcomeNote?: string | null;
   /** Opcional (BR-CLN-06/BR-RX-07): se presente, emite a receita associada (`issuedBy=CLINIC`). */
   prescription?: ClinicPrescriptionInput | null;
+  /** M15 S (BR-CLN-42/44): presente => grava e finaliza o relatório na mesma transação (só o Médico; validado pelo módulo dono). */
+  report?: unknown;
+  /** M15 U (BR-CLN-51): presente => cria 1–5 pedidos de exame na mesma transação (só o Médico; validado pelo módulo dono). */
+  examOrders?: unknown;
 }
 
 /** `PUT /clinic-portal/agenda/{appointmentId}/complete` (D18, BR-CLN-06/BR-RX-07): completa a
@@ -255,7 +294,15 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
         if (!visit) {
           throw new NotFoundError({ detail: "Pedido não encontrado." });
         }
-        return visit;
+        const visitHasReport = input.report !== undefined && input.report !== null;
+        if (visitHasReport) {
+          await deps.consultationReports.finalizeWithComplete(trx, actor, "VISIT", appointmentId, input.report, context);
+        }
+        if (input.examOrders !== undefined && input.examOrders !== null) {
+          await deps.consultationReports.createExamOrdersWithComplete(trx, actor, "VISIT", appointmentId, input.examOrders, context);
+        }
+        const decoratedVisit = (await attachExamOrderCounts(deps, trx, actor, [visit as ClinicAppointmentView]))[0] ?? visit;
+        return visitHasReport ? { ...decoratedVisit, reportStatus: "FINAL" } : decoratedVisit;
       }
       const existing = found;
       if (!(await actorOwnsSlot(deps, actor, existing.slotId))) {
@@ -287,6 +334,19 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
         );
       }
 
+      // M15 S (BR-CLN-42): o relatório grava-se e finaliza na MESMA transação; falha de qualquer parte => nada muda.
+      const hasReport = input.report !== undefined && input.report !== null;
+      if (hasReport) {
+        await deps.consultationReports.finalizeWithComplete(trx, actor, "APPOINTMENT", appointmentId, input.report, context);
+      }
+
+      // M15 U (BR-CLN-51): os pedidos de exame criam-se na MESMA transação (Admin/Gestor => FORBIDDEN, tudo reverte).
+      const examOrders = input.examOrders;
+      const examOrderCount = Array.isArray(examOrders) ? examOrders.length : 0;
+      if (examOrders !== undefined && examOrders !== null) {
+        await deps.consultationReports.createExamOrdersWithComplete(trx, actor, "APPOINTMENT", appointmentId, examOrders, context);
+      }
+
       await deps.audit.record(trx, {
         occurredAt: now,
         actorType: "CLINIC_ACCOUNT",
@@ -299,10 +359,12 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
         result: "SUCCESS",
         requestId: context.requestId,
         ...auditContextFields(context),
-        metadata: { from: existing.status, to: "COMPLETED", hasPrescription: Boolean(input.prescription) },
+        metadata: { from: existing.status, to: "COMPLETED", hasPrescription: Boolean(input.prescription), hasReport, examOrderCount },
       });
 
-      return toView(deps, trx, appointment);
+      const baseView = await toView(deps, trx, appointment);
+      const view = (await attachExamOrderCounts(deps, trx, actor, [baseView]))[0] ?? baseView;
+      return hasReport ? { ...view, reportStatus: "FINAL" } : (await attachReportStatuses(deps, trx, actor, [view]))[0] ?? view;
     });
   };
 }
