@@ -1,0 +1,81 @@
+# Vita Family — Stack completa em produção (ADR-014/ADR-017/ADR-019).
+# Todos os serviços em contentores Docker: Postgres, MinIO, ClamAV, API (com migrações automáticas),
+# Worker e Web (Nginx com reverse proxy de /api/ para o backend).
+# Portas: só a Web expõe porta no host (:8088); BD, storage e antivírus ficam isolados na rede Docker.
+# Uso: make prod  ->  http://localhost:8088
+name: vitafamily-prod
+
+services:
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    image: vitafamily/web:prod
+    ports: ["127.0.0.1:${WEB_PORT:-8088}:8080"]
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: vitafamily/api:prod
+    container_name: api
+    command: ["sh", "-c", "node apps/api/dist/src/main/migrate.js && node apps/api/dist/src/main/api.js"]
+    env_file: .env
+    expose: ["8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    image: vitafamily/api:prod
+    command: ["node", "apps/api/dist/src/main/worker.js"]
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    env_file: .env
+    volumes: [pgdata_prod:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vita} -d $${POSTGRES_DB:-vita}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    env_file: .env
+    volumes: [miniodata_prod:/bitnami/minio/data]
+    restart: unless-stopped
+
+  clamav:
+    image: clamav/clamav:stable
+    volumes: [clamdata_prod:/var/lib/clamav]
+    restart: unless-stopped
+
+volumes:
+  pgdata_prod:
+  miniodata_prod:
+  clamdata_prod:

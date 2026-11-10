@@ -5,14 +5,11 @@ name: vitafamily
 services:
   postgres:
     image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-vita}
-      POSTGRES_DB: ${POSTGRES_DB:-vita}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em .env}
+    env_file: .env
     ports: ["127.0.0.1:5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-vita} -d $${POSTGRES_DB:-vita}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -23,9 +20,7 @@ services:
     # essa exigência; entrypoint próprio já arranca o servidor (sem `command:`), dados em
     # /bitnami/minio/data (não /data).
     image: bitnamilegacy/minio:2025.7.23-debian-12-r5
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?defina MINIO_ROOT_USER em .env}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina MINIO_ROOT_PASSWORD em .env}
+    env_file: .env
     ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: [miniodata:/bitnami/minio/data]
 
@@ -37,6 +32,38 @@ services:
   mailhog:
     image: mailhog/mailhog:latest
     ports: ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
+
+  api:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    container_name: api
+    command: ["sh", "-c", "node apps/api/dist/src/main/migrate.js && node apps/api/dist/src/main/api.js"]
+    env_file: .env
+    expose: ["8080"]
+    ports: ["127.0.0.1:${API_PORT:-8080}:8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  web:
+    profiles: ["apps"]
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    ports: ["127.0.0.1:${WEB_PORT:-8088}:8080"]
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: unless-stopped
 
 volumes:
   pgdata:

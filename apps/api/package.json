@@ -14,11 +14,11 @@
     "lint": "eslint .",
     "fmt": "prettier --write .",
     "build": "tsc -p tsconfig.build.json",
-    "migrate": "tsx src/main/migrate.ts",
-    "dev": "tsx watch src/main/api.ts",
-    "start:api": "tsx src/main/api.ts",
-    "start:worker": "tsx src/main/worker.ts",
-    "create-platform-admin": "tsx src/main/create-platform-admin.ts"
+    "migrate": "tsx --env-file=.env src/main/migrate.ts",
+    "dev": "tsx watch --env-file=.env src/main/api.ts",
+    "start:api": "tsx --env-file=.env src/main/api.ts",
+    "start:worker": "tsx --env-file=.env src/main/worker.ts",
+    "create-platform-admin": "tsx --env-file=.env src/main/create-platform-admin.ts"
   },
   "dependencies": {
     "argon2": "^0.41.1",
@@ -28,7 +28,6 @@
     "kysely": "^0.27.4",
     "minio": "^8.0.7",
     "nodemailer": "^6.9.16",
-    "pdfkit": "^0.20.2",
     "pdfkit": "^0.20.2",
     "pg": "^8.13.1",
     "pg-boss": "^10.1.5",
@@ -41,7 +40,6 @@
     "@eslint/js": "^9.15.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.1",
-    "@types/pdfkit": "^0.17.7",
     "@types/nodemailer": "^6.4.17",
     "@types/pdfkit": "^0.17.7",
     "@types/pg": "^8.11.10",
