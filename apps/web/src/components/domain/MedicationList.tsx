@@ -7,6 +7,7 @@ import { formatRelativeDay, formatTime } from '@/lib/format'
 import { describeFrequency } from '@/lib/medication'
 import { paths } from '@/routes/paths'
 import type { MedicationSummary } from '@/types/medication'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 /** Estado dos lembretes de um medicamento (“Lembretes ativos”). */
 export function ReminderState({ on, className }: { on: boolean; className?: string }) {
@@ -29,7 +30,8 @@ interface MedicationListProps {
 /** Medicamentos: nome, dosagem, frequência, próxima dose e estado dos lembretes. */
 export function MedicationList({ items, selfMemberId, linked = true }: MedicationListProps) {
   return (
-    <Card className="divide-y divide-border py-1">
+    <ErrorBoundary>
+<Card className="divide-y divide-border py-1">
       {items.map(({ plan, memberName, nextDoseAt, remindersOn }) => (
         <RowLink key={plan.id} to={paths.medication(plan.id)} linked={linked}>
           <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">
@@ -57,5 +59,6 @@ export function MedicationList({ items, selfMemberId, linked = true }: Medicatio
         </RowLink>
       ))}
     </Card>
+</ErrorBoundary>
   )
 }

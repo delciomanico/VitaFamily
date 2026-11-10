@@ -7,6 +7,7 @@ import { formatCount, formatShortDate } from '@/lib/format'
 import { examinationStatus } from '@/lib/labels'
 import { paths } from '@/routes/paths'
 import type { ExaminationSummary } from '@/types/examination'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 interface ExaminationListProps {
   items: ExaminationSummary[]
@@ -19,7 +20,8 @@ interface ExaminationListProps {
 /** Exames numa só lista: nome, data, número de resultados e estado. */
 export function ExaminationList({ items, selfMemberId, linked = true }: ExaminationListProps) {
   return (
-    <Card className="divide-y divide-border py-1">
+    <ErrorBoundary>
+<Card className="divide-y divide-border py-1">
       {items.map(({ examination, memberName, resultCount }) => {
         const status = examinationStatus[examination.status]
         const results =
@@ -51,5 +53,6 @@ export function ExaminationList({ items, selfMemberId, linked = true }: Examinat
         )
       })}
     </Card>
+</ErrorBoundary>
   )
 }

@@ -7,6 +7,7 @@ import { firstName } from '@/lib/date'
 import { dateBlock, formatTime } from '@/lib/format'
 import { paths } from '@/routes/paths'
 import type { AppointmentItem } from '@/types/appointment'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 interface AppointmentListProps {
   items: AppointmentItem[]
@@ -19,7 +20,8 @@ interface AppointmentListProps {
 /** Consultas: bloco de data e hora (15 OUT · 09:30), especialidade, clínica e estado. */
 export function AppointmentList({ items, selfMemberId, linked = true }: AppointmentListProps) {
   return (
-    <Card className="divide-y divide-border py-1">
+    <ErrorBoundary>
+<Card className="divide-y divide-border py-1">
       {items.map(({ appointment, memberName }) => {
         const { day, month } = dateBlock(appointment.scheduledAt)
         const status = appointmentStatusLabel(appointment)
@@ -52,5 +54,6 @@ export function AppointmentList({ items, selfMemberId, linked = true }: Appointm
         )
       })}
     </Card>
+</ErrorBoundary>
   )
 }

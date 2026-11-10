@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card'
 import { formatDayMonth } from '@/lib/format'
 import { paths } from '@/routes/paths'
 import type { HistoryEntry, HistoryEntryKind } from '@/types/history'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 const icons: Record<HistoryEntryKind, LucideIcon> = {
   APPOINTMENT: CalendarDays,
@@ -72,11 +73,13 @@ export function HistoryList({ entries, linked = true }: { entries: HistoryEntry[
       {groupByYear(entries).map(([year, items]) => (
         <section key={year} className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold text-muted">{year}</h2>
-          <Card className="divide-y divide-border py-1">
+          <ErrorBoundary>
+<Card className="divide-y divide-border py-1">
             {items.map((entry) => (
               <Row key={`${entry.kind}-${entry.id}`} entry={entry} linked={linked} />
             ))}
           </Card>
+</ErrorBoundary>
         </section>
       ))}
     </div>

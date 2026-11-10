@@ -6,6 +6,7 @@ import { dateBlock, formatTime } from '@/lib/format'
 import { dayStateLabel } from '@/lib/clinicDay'
 import { appointmentStatus } from '@/lib/labels'
 import type { ClinicBooking } from '@/types/clinic'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 interface ClinicBookingListProps {
   items: ClinicBooking[]
@@ -18,7 +19,8 @@ interface ClinicBookingListProps {
 /** Marcações vistas pela clínica: data e hora, paciente, especialidade e profissional, observações. */
 export function ClinicBookingList({ items, actions, showStatus = false }: ClinicBookingListProps) {
   return (
-    <Card className="divide-y divide-border py-1">
+    <ErrorBoundary>
+<Card className="divide-y divide-border py-1">
       {items.map((booking) => {
         const { day, month } = dateBlock(booking.scheduledAt)
         // Chegou / Em consulta só existem como estado do dia (BR-CLN-28); os restantes são os de sempre.
@@ -63,5 +65,6 @@ export function ClinicBookingList({ items, actions, showStatus = false }: Clinic
         )
       })}
     </Card>
+</ErrorBoundary>
   )
 }

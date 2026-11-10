@@ -6,6 +6,7 @@ import { formatCount, formatShortDate } from '@/lib/format'
 import { prescriptionStatus } from '@/lib/labels'
 import { paths } from '@/routes/paths'
 import type { PrescriptionSummary } from '@/types/prescription'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 
 interface PrescriptionListProps {
   items: PrescriptionSummary[]
@@ -18,7 +19,8 @@ interface PrescriptionListProps {
 /** Receitas numa só lista: médico, clínica, data, número de medicamentos e estado. */
 export function PrescriptionList({ items, selfMemberId, linked = true }: PrescriptionListProps) {
   return (
-    <Card className="divide-y divide-border py-1">
+    <ErrorBoundary>
+<Card className="divide-y divide-border py-1">
       {items.map(({ prescription, memberName, medicationCount }) => {
         const status = prescriptionStatus[prescription.status]
         // Origem (BR-RX-07, D18): distingue as receitas emitidas pela clínica na consulta.
@@ -50,5 +52,6 @@ export function PrescriptionList({ items, selfMemberId, linked = true }: Prescri
         )
       })}
     </Card>
+</ErrorBoundary>
   )
 }
