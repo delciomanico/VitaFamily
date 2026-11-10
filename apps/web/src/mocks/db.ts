@@ -22,6 +22,7 @@ import type { Recommendation } from '@/types/recommendation'
 import type { DataExport, NotificationPreferences } from '@/types/settings'
 import { scanAlerts, type MockAlert } from './alertRules'
 import { generateRules } from './clinicSchedule'
+import type { ClinicExamOrder } from '@/types/examOrder'
 import type { ClinicExamResultsDraft, ConsultationReport } from '@/types/clinicReport'
 import type { ClinicAuditEntry, ClinicReceipt } from '@/types/clinicReceipt'
 import type { ClinicProfessional, ClinicScheduleRule, ClinicServiceType, ClinicTimeOff } from '@/types/clinic'
@@ -52,6 +53,20 @@ export interface MockConsultationReport extends ConsultationReport {
 /** Rascunho de resultados de exame no mock (M15 T): tabela própria, o paciente nunca o vê. */
 export interface MockExamResultsDraft extends ClinicExamResultsDraft {
   clinicId: string
+}
+
+/**
+ * Pedido de exame no mock (M15 U): registo da clínica, sem FK para consultas (BR-CLN-56). `link` é a
+ * ponte para ids Vita (`clinic_exam_order_links`, só no servidor); `examinationId`/`bookedHere` o
+ * exame ligado. O estado visível deriva-se do exame ligado (cumprido/cancelado/apagado).
+ */
+export interface MockExamOrder extends Omit<ClinicExamOrder, 'status'> {
+  clinicId: string
+  cancelled: boolean
+  link?: { familyId: string; memberId: string; appointmentId: string }
+  examinationId?: string
+  /** O exame ligado é da própria clínica do pedido (BR-CLN-52). */
+  bookedHere?: boolean
 }
 
 export interface MockNotificationPreferences extends NotificationPreferences {
@@ -109,6 +124,8 @@ function seed(now: Date = new Date()) {
     clinicReceiptCounters: {} as Record<string, number>,
     /** Relatórios da consulta (M15 S, BR-CLN-41): no máximo um por marcação. */
     consultationReports: [] as MockConsultationReport[],
+    /** Pedidos de exame da clínica (M15 U, BR-CLN-51..56). */
+    examOrders: [] as MockExamOrder[],
     /** Rascunhos de resultados de exame (M15 T, BR-CLN-47). */
     examResultDrafts: [] as MockExamResultsDraft[],
     /** Laudos gerados (instantâneo do que foi emitido, BR-CLN-49): linhas do PDF por exame. */

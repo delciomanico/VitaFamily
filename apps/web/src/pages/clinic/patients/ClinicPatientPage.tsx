@@ -26,6 +26,7 @@ import {
   type ClinicPatientRecord,
   type ClinicSharedHistory,
 } from '@/types/clinic'
+import { BookingDocumentActions } from '@/components/clinic/BookingDocumentActions'
 import { ReceiptAction } from '@/components/clinic/ReceiptAction'
 import { useClinicAuth } from '@/contexts/ClinicAuthContext'
 import { LinkPatientModal } from './LinkPatientModal'
@@ -177,28 +178,31 @@ function Summary({ patient, onChanged, onLink }: { patient: ClinicPatient; onCha
 function BookingRow({ booking, onChanged }: { booking: ClinicBooking; onChanged: () => void }) {
   const status = appointmentStatus[booking.status]
   return (
-    <div className="flex items-center gap-3 py-3">
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{formatWhen(booking.scheduledAt)}</p>
-        <p className="truncate text-sm text-muted">
-          {['Consulta', booking.specialty, booking.professionalName].filter(Boolean).join(' · ')}
-        </p>
-        {booking.notes && <p className="text-sm">“{booking.notes}”</p>}
+    <div className="flex flex-col gap-2 py-3">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">{formatWhen(booking.scheduledAt)}</p>
+          <p className="truncate text-sm text-muted">
+            {['Consulta', booking.specialty, booking.professionalName].filter(Boolean).join(' · ')}
+          </p>
+          {booking.notes && <p className="text-sm">“{booking.notes}”</p>}
+        </div>
+        {booking.source === 'MANUAL' && <Badge>Visita presencial</Badge>}
+        <Badge tone={status.tone} dot>
+          {status.label}
+        </Badge>
+        {booking.status === 'COMPLETED' && (
+          <ReceiptAction
+            bookingKind={booking.source === 'MANUAL' ? 'VISIT' : 'APPOINTMENT'}
+            bookingId={booking.id}
+            receiptId={booking.receiptId}
+            patientName={booking.patientName}
+            serviceName={booking.specialty}
+            onChanged={onChanged}
+          />
+        )}
       </div>
-      {booking.source === 'MANUAL' && <Badge>Visita presencial</Badge>}
-      <Badge tone={status.tone} dot>
-        {status.label}
-      </Badge>
-      {booking.status === 'COMPLETED' && (
-        <ReceiptAction
-          bookingKind={booking.source === 'MANUAL' ? 'VISIT' : 'APPOINTMENT'}
-          bookingId={booking.id}
-          receiptId={booking.receiptId}
-          patientName={booking.patientName}
-          serviceName={booking.specialty}
-          onChanged={onChanged}
-        />
-      )}
+      <BookingDocumentActions booking={booking} onChanged={onChanged} />
     </div>
   )
 }

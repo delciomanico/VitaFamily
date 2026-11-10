@@ -11,6 +11,8 @@ import { clinicDayService } from '@/services/clinicDay.service'
 import type { ClinicBooking } from '@/types/clinic'
 import { deriveDayState } from '@/lib/clinicDay'
 import { ReceiptAction } from './ReceiptAction'
+import { AttendanceStatementButton } from './AttendanceStatementButton'
+import { ExamOrdersAction } from './exams/ExamOrdersAction'
 import { ReportAction } from './reports/ReportAction'
 
 interface BookingDayActionsProps {
@@ -166,6 +168,11 @@ export function BookingDayActions({
   // M15 S: relatório da consulta em curso ou concluída (Médico escreve; Admin/Gestor leem).
   const inCare = state === 'ARRIVED' || state === 'IN_PROGRESS' || state === 'COMPLETED' || (state === 'SCHEDULED' && started)
   if (inCare) buttons.push(<ReportAction key="report" booking={booking} />)
+  // M15 U: pedidos de exame (Médico pede; Admin/Gestor leem) e M15 V: declaração (só se elegível).
+  if (inCare || (booking.examOrderCount ?? 0) > 0) {
+    buttons.push(<ExamOrdersAction key="orders" booking={booking} onChanged={onChanged} />)
+  }
+  buttons.push(<AttendanceStatementButton key="statement" booking={booking} />)
 
   if (buttons.length === 0) return null
   return <div className="flex flex-wrap gap-2">{buttons}</div>

@@ -1,4 +1,5 @@
 import type { ConsultationReportInput } from './clinicReport'
+import type { ExamOrderItemInput } from './examOrder'
 
 /** Clínica parceira (global) ou privada da família (docs/04-domain/entities.md → Clinic). */
 export interface Clinic {
@@ -155,6 +156,8 @@ export interface ClinicBooking {
   receiptId?: string
   /** M15 S (BR-CLN-41): estado do relatório da consulta; ausente = sem relatório. */
   reportStatus?: 'DRAFT' | 'FINAL'
+  /** M15 U (BR-CLN-51): pedidos de exame não cancelados da marcação. */
+  examOrderCount?: number
 }
 
 /** `ConfirmationStatus` (openapi.yaml): PENDING = "Sem resposta". */
@@ -202,6 +205,8 @@ export interface ClinicCompleteInput {
   prescription?: ClinicPrescriptionInput
   /** M15 S (BR-CLN-42/44): presente = grava e finaliza o relatório na mesma operação (só o Médico). */
   report?: ConsultationReportInput
+  /** M15 U (BR-CLN-51): 1-5 pedidos de exame na mesma operação (só o Médico). */
+  examOrders?: ExamOrderItemInput[]
 }
 
 /** Máximo de vagas por horário de exame (BR-APT-11). */
@@ -515,6 +520,9 @@ export interface ClinicCalendarEntry {
   dayState?: ClinicDayState | null
   arrivedAt?: string | null
   waitingMinutes?: number | null
+  /** M15 S/U: só em consultas e visitas (não em exames). */
+  reportStatus?: 'DRAFT' | 'FINAL' | null
+  examOrderCount?: number | null
 }
 
 export interface ClinicCalendarFreeSlot {

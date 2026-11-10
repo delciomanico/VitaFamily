@@ -23,6 +23,9 @@ export const paths = {
   examinations: '/app/health/examinations',
   examinationNew: '/app/health/examinations/new',
   examinationSchedule: '/app/health/examinations/schedule',
+  /** M15 U: marcar o exame de um pedido (formulário existente pré-preenchido, BR-CLN-52). */
+  examinationFromOrder: (order: { id: string; name: string; clinicId: string }, memberId: string) =>
+    `/app/health/examinations/new?${new URLSearchParams({ examOrderId: order.id, name: order.name, clinicId: order.clinicId, memberId })}`,
   examination: (id: string) => `/app/health/examinations/${id}`,
   examinationHistory: (id: string) => `/app/health/examinations/${id}/history`,
   medicalHistory: '/app/health/history',

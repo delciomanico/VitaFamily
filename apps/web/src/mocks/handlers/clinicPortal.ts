@@ -44,7 +44,9 @@ import { DEMO_PASSWORD } from '../data/users'
 import type { MockClinicAccountRecord } from '../data/clinicAccounts'
 import { db, newId } from '../db'
 import { respond } from '../respond'
+import { prepareExamOrdersOnComplete } from './examOrders'
 import { prepareReportOnComplete } from './clinicReports'
+import { activeOrderCountOf } from '../examOrders'
 import { insertPrescription } from './medications'
 import { buildTextPdf } from '@/lib/pdf'
 
@@ -100,6 +102,7 @@ export function toBooking(appointment: Appointment, now: Date = new Date()): Cli
     ...dayFields(appointment, now),
     receiptId: issuedReceiptOf('APPOINTMENT', appointment.id)?.id,
     reportStatus: reportStatusOf(appointment.id),
+    examOrderCount: activeOrderCountOf(appointment.id),
   }
 }
 
@@ -148,6 +151,7 @@ export function toVisitBooking(visit: ClinicVisit, now: Date = new Date()): Clin
     ...dayFields(visit, now),
     receiptId: issuedReceiptOf('VISIT', visit.id)?.id,
     reportStatus: reportStatusOf(visit.id),
+    examOrderCount: activeOrderCountOf(visit.id),
   }
 }
 
@@ -520,7 +524,7 @@ export function completeClinicAppointment(
     const account = requireAccount(clinicAccountId)
     const { clinicId } = account
     // `report` (M15 S, BR-CLN-44): Admin/Gestor ⇒ FORBIDDEN antes de qualquer efeito.
-    if (input.report && account.role !== 'CLINIC_DOCTOR') throw new AppError('FORBIDDEN')
+    if ((input.report || input.examOrders) && account.role !== 'CLINIC_DOCTOR') throw new AppError('FORBIDDEN')
     const visit = findVisit(clinicId, appointmentId)
     if (visit && !ownsVisit(account, visit)) throw new AppError('NOT_FOUND')
     if (visit) {
@@ -529,9 +533,11 @@ export function completeClinicAppointment(
         throw new AppError(visit.status !== 'SCHEDULED' ? 'CONFLICT' : 'VALIDATION_ERROR')
       }
       const saveReport = input.report ? prepareReportOnComplete(account, visit.id, input.report, now) : undefined
+      const saveOrders = input.examOrders ? prepareExamOrdersOnComplete(account, visit.id, input.examOrders, now) : undefined
       visit.status = 'COMPLETED'
       visit.outcomeNote = input.outcomeNote?.trim() || undefined
       saveReport?.()
+      saveOrders?.()
       recordClinicAudit(account, 'CLINIC_COMPLETE', 'ClinicVisit', visit.id)
       return scrubReceipt(account, toVisitBooking(visit))
     }
@@ -541,6 +547,7 @@ export function completeClinicAppointment(
     if (appointment.status !== 'SCHEDULED') throw new AppError('CONFLICT')
     // Valida o relatório antes de tocar em dados: falha de qualquer parte ⇒ nada muda.
     const saveReport = input.report ? prepareReportOnComplete(account, appointment.id, input.report, now) : undefined
+    const saveOrders = input.examOrders ? prepareExamOrdersOnComplete(account, appointment.id, input.examOrders, now) : undefined
 
     if (input.prescription) {
       const { prescription } = input
@@ -574,6 +581,7 @@ export function completeClinicAppointment(
       db.appointmentOutcomes.push({ appointmentId, outcomeNote, recordedAt: now.toISOString() })
     }
     saveReport?.()
+    saveOrders?.()
     recordClinicAudit(account, 'CLINIC_COMPLETE', 'Appointment', appointment.id)
     return scrubReceipt(account, toBooking(appointment))
   })

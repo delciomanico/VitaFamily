@@ -31,6 +31,7 @@ export interface ApiAppointment {
   followUpDueOn?: string | null
   /** M15 S (BR-CLN-45). */
   reportAvailable?: boolean | null
+  examOrderCount?: number | null
 }
 
 export function toAppointment(familyId: string, a: ApiAppointment): Appointment {
@@ -51,6 +52,7 @@ export function toAppointment(familyId: string, a: ApiAppointment): Appointment 
     confirmationStatus: a.confirmationStatus ?? undefined,
     followUpDueOn: a.followUpDueOn ?? undefined,
     reportAvailable: a.reportAvailable ?? undefined,
+    examOrderCount: a.examOrderCount ?? undefined,
   }
 }
 

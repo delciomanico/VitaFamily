@@ -99,7 +99,13 @@ async function apiCreateExamination(familyId: string, input: api.NewExaminationI
     // Marcação direta num horário com vagas (ADR-023): nasce SCHEDULED; nome, data e clínica vêm do horário.
     const booked = await apiFetch<ApiExamination>(base, {
       method: 'POST',
-      body: { name: input.name.trim(), examDate: input.examDate, slotId: input.slotId, notes: input.notes?.trim() || null },
+      body: {
+        name: input.name.trim(),
+        examDate: input.examDate,
+        slotId: input.slotId,
+        notes: input.notes?.trim() || null,
+        ...(input.examOrderId ? { examOrderId: input.examOrderId } : {}),
+      },
     })
     return toExamination(familyId, booked)
   }
@@ -117,6 +123,7 @@ async function apiCreateExamination(familyId: string, input: api.NewExaminationI
       clinicId: clinic?.id ?? null,
       clinicName: clinic?.name ?? clinicName ?? null,
       notes: input.notes?.trim() || null,
+      ...(input.examOrderId ? { examOrderId: input.examOrderId } : {}),
     },
   })
   // Só exames realizados aceitam resultados (ST5); o servidor decide o estado a partir da data.

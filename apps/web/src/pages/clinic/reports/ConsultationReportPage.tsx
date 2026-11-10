@@ -9,6 +9,7 @@ import {
   toReportInput,
   type ReportDraftFields,
 } from '@/components/clinic/reports/ConsultationReportEditor'
+import { ExamOrdersPanel } from '@/components/clinic/exams/ExamOrdersPanel'
 import { ReportAddendaList } from '@/components/clinic/reports/ReportAddendaList'
 import { ReportPdfButton } from '@/components/clinic/reports/ReportPdfButton'
 import { ReportSectionsView } from '@/components/clinic/reports/ReportSectionsView'
@@ -210,6 +211,9 @@ function ReportWorkspace({ booking, initial }: WorkspaceProps) {
           )}
         </>
       )}
+
+      {/* M15 U: pedidos de exame da marcação (Médico pede/cancela; Admin e Gestor leem e imprimem). */}
+      <ExamOrdersPanel bookingId={booking.id} open={open} />
 
       <ConfirmDialog
         open={confirming}

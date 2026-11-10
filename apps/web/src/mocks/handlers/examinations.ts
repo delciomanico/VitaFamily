@@ -14,6 +14,7 @@ import { db, newId } from '../db'
 import { attachDocuments, documentsOf, validateUploads } from '../documents'
 import { respond } from '../respond'
 import { examBookingsOf } from '../bookings'
+import { prepareExamOrderLink } from './examOrders'
 import { visibleClinics } from './clinics'
 import { localDay } from '@/lib/appointment'
 
@@ -35,6 +36,8 @@ export interface NewExaminationInput {
   notes?: string
   /** Horário de exame de uma clínica parceira (ADR-023): o exame nasce SCHEDULED, sem confirmação. */
   slotId?: string
+  /** M15 U (BR-CLN-52): liga o exame a um pedido de exame `ORDERED` do mesmo membro. */
+  examOrderId?: string
   results: ExamResultInput[]
   documents: DocumentUpload[]
 }
@@ -112,45 +115,53 @@ export function createExamination(
 ) {
   return respond((): Examination => {
     findVisibleMember(familyId, userId, input.memberId)
-    if (input.slotId) return bookExamSlot(familyId, input, now)
-    const status = input.examDate > todayISO(now) ? 'SCHEDULED' : 'COMPLETED'
-    if (!input.name.trim() || !input.examDate) throw new AppError('VALIDATION_ERROR')
-    if (status === 'SCHEDULED' && input.results.length > 0) throw new AppError('VALIDATION_ERROR')
-    input.results.forEach(validateResult)
-    validateUploads(input.documents)
-
-    const examination: Examination = {
-      id: newId('exm'),
-      familyId,
-      memberId: input.memberId,
-      name: input.name.trim(),
-      examDate: input.examDate,
-      status,
-      ...matchClinic(familyId, input.clinicName),
-      notes: input.notes?.trim() || undefined,
-    }
-    db.examinations.push(examination)
-
-    for (const result of input.results) {
-      db.examResults.push({
-        id: newId('res'),
-        examinationId: examination.id,
-        parameter: result.parameter.trim(),
-        valueNumeric: result.valueNumeric,
-        valueText: result.valueText?.trim() || undefined,
-        unit: result.unit?.trim() || undefined,
-        referenceMin: result.referenceMin,
-        referenceMax: result.referenceMax,
-        createdAt: now.toISOString(),
-      })
-    }
-    attachDocuments(
-      input.documents,
-      { familyId, memberId: input.memberId, resourceType: 'EXAMINATION', resourceId: examination.id },
-      now,
-    )
-    return examination
+    // Valida o pedido antes de gravar (NOT_FOUND/CONFLICT sem efeitos parciais); liga já com o exame criado.
+    const link = input.examOrderId ? prepareExamOrderLink(familyId, userId, input.memberId, input.examOrderId) : undefined
+    const created = input.slotId ? bookExamSlot(familyId, input, now) : createDirect(familyId, input, now)
+    link?.(created)
+    return created
   })
+}
+
+/** Registo direto (sem horário): data passada → REALIZADO, futura → AGENDADO. */
+function createDirect(familyId: string, input: NewExaminationInput, now: Date): Examination {
+  const status = input.examDate > todayISO(now) ? 'SCHEDULED' : 'COMPLETED'
+  if (!input.name.trim() || !input.examDate) throw new AppError('VALIDATION_ERROR')
+  if (status === 'SCHEDULED' && input.results.length > 0) throw new AppError('VALIDATION_ERROR')
+  input.results.forEach(validateResult)
+  validateUploads(input.documents)
+
+  const examination: Examination = {
+    id: newId('exm'),
+    familyId,
+    memberId: input.memberId,
+    name: input.name.trim(),
+    examDate: input.examDate,
+    status,
+    ...matchClinic(familyId, input.clinicName),
+    notes: input.notes?.trim() || undefined,
+  }
+  db.examinations.push(examination)
+
+  for (const result of input.results) {
+    db.examResults.push({
+      id: newId('res'),
+      examinationId: examination.id,
+      parameter: result.parameter.trim(),
+      valueNumeric: result.valueNumeric,
+      valueText: result.valueText?.trim() || undefined,
+      unit: result.unit?.trim() || undefined,
+      referenceMin: result.referenceMin,
+      referenceMax: result.referenceMax,
+      createdAt: now.toISOString(),
+    })
+  }
+  attachDocuments(
+    input.documents,
+    { familyId, memberId: input.memberId, resourceType: 'EXAMINATION', resourceId: examination.id },
+    now,
+  )
+  return examination
 }
 
 /**

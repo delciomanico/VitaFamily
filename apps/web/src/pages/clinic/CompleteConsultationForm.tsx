@@ -8,6 +8,14 @@ import {
   hasReportText,
   toReportInput,
 } from '@/components/clinic/reports/ConsultationReportEditor'
+import {
+  emptyExamOrderRow,
+  examOrderRowsError,
+  ExamOrderLines,
+  filledExamOrderRows,
+  toExamOrderItems,
+  type ExamOrderRow,
+} from '@/components/clinic/exams/ExamOrderLines'
 import { Disclosure } from '@/components/ui/Disclosure'
 import { controlClasses, controlState } from '@/components/ui/Field'
 import { Input } from '@/components/ui/Input'
@@ -127,6 +135,9 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
   const [report, setReport] = useState(emptyReportFields)
   /** Já existe relatório FINAL: nada a escrever aqui (só adendas, na página do relatório). */
   const [reportFinal, setReportFinal] = useState(false)
+  /** M15 U: pedidos de exame (1–5), só o Médico; secção recolhível. */
+  const [ordersOpen, setOrdersOpen] = useState(false)
+  const [orderRows, setOrderRows] = useState<ExamOrderRow[]>([emptyExamOrderRow()])
   /** Índice do atalho de "Voltar em…" (BR-CLN-30); vazio = sem retorno. */
   const [followUp, setFollowUp] = useState('')
   const [outcomeNote, setOutcomeNote] = useState('')
@@ -162,6 +173,7 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
   }, [isDoctor, booking.id])
 
   const withReport = isDoctor && !reportFinal && hasReportText(report)
+  const withOrders = isDoctor && filledExamOrderRows(orderRows).length > 0
 
   const setMedication = (index: number, patch: Partial<MedicationRow>) => {
     setMedications((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -199,8 +211,12 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
   }
 
   async function submit() {
-    if (!outcomeNote.trim() && !withPrescription && !withReport) {
+    if (!outcomeNote.trim() && !withPrescription && !withReport && !withOrders) {
       return setError('Escreva o resultado da consulta ou emita uma receita.')
+    }
+    if (withOrders) {
+      const invalid = examOrderRowsError(orderRows)
+      if (invalid) return setError(invalid)
     }
     let prescriptionMedications: ClinicPrescriptionMedicationInput[] | null = null
     if (withPrescription) {
@@ -214,6 +230,7 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
         ...(outcomeNote.trim() ? { outcomeNote: outcomeNote.trim() } : {}),
         // Com texto no relatório, concluir também o finaliza (mesma operação no servidor, BR-CLN-42).
         ...(withReport ? { report: toReportInput(report, shareable) } : {}),
+        ...(withOrders ? { examOrders: toExamOrderItems(orderRows) } : {}),
         ...(prescriptionMedications
           ? {
               prescription: {
@@ -376,6 +393,18 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
             {withReport && (
               <p className="text-sm text-muted">Ao concluir, o relatório é finalizado: depois só pode acrescentar adendas.</p>
             )}
+          </Disclosure>
+        )}
+
+        {isDoctor && (
+          <Disclosure label="Pedir exames (opcional)" open={ordersOpen} onOpenChange={setOrdersOpen}>
+            <ExamOrderLines
+              rows={orderRows}
+              onChange={(rows) => {
+                setOrderRows(rows)
+                setError(null)
+              }}
+            />
           </Disclosure>
         )}
 

@@ -19,7 +19,7 @@ function source(alert: HealthAlert, now: Date): Pick<AlertItem, 'sourceLabel' | 
       const asksConfirmation = alert.type === 'APPOINTMENT_CONFIRM_REQUEST' || alert.ruleKey === 'appointment.24h'
       return {
         sourceLabel: appointment?.specialty ?? appointment?.clinicName ?? '',
-        sourceAt: alert.type === 'FOLLOWUP_REMINDER' ? undefined : appointment?.scheduledAt,
+        sourceAt: alert.type === 'FOLLOWUP_REMINDER' || alert.type === 'EXAM_ORDER_ADDED' ? undefined : appointment?.scheduledAt,
         targetId: appointment?.id,
         // BR-ALR-09: "Vou / Não posso" enquanto a consulta de clínica parceira está sem resposta.
         ...(asksConfirmation && {

@@ -29,14 +29,14 @@ import { respond, respondBlob } from '../respond'
  * Mock nunca substitui os testes de autorização/imutabilidade do backend.
  */
 
-type ReportBooking =
+export type ReportBooking =
   | { kind: 'APPOINTMENT'; id: string; appointment: Appointment; status: string; scheduledAt: string; specialty?: string; patientName: string }
   | { kind: 'VISIT'; id: string; status: string; scheduledAt: string; specialty?: string; patientName: string }
 
 const nameOf = (memberId: string) => db.members.find((m) => m.id === memberId)?.name ?? ''
 
 /** Marcação da própria clínica (consulta Vita ou visita manual); do Médico, só as suas; senão NOT_FOUND. */
-function findBooking(account: MockClinicAccountRecord, id: string): ReportBooking {
+export function findBooking(account: MockClinicAccountRecord, id: string): ReportBooking {
   const visit = db.clinicVisits.find((v) => v.id === id && v.clinicId === account.clinicId)
   if (visit) {
     if (!ownsVisit(account, visit)) throw new AppError('NOT_FOUND')

@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { Controller, useFieldArray, useForm, type FieldErrors, type UseFormRegister } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { z } from 'zod'
@@ -127,13 +127,22 @@ function ResultFields({ index, register, errors, onRemove }: ResultFieldsProps) 
   )
 }
 
+/** Pedido de exame de uma clínica a marcar (`?examOrderId&name&clinicId&memberId`, M15 U). */
+interface OrderPrefill {
+  examOrderId: string
+  name: string
+  memberId?: string
+  clinicName?: string
+}
+
 interface NewExaminationFormProps {
   members: FamilyMember[]
   clinics: string[]
   selfMemberId: string
+  prefill?: OrderPrefill
 }
 
-function NewExaminationForm({ members, clinics, selfMemberId }: NewExaminationFormProps) {
+function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExaminationFormProps) {
   const { user, family } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
@@ -149,10 +158,10 @@ function NewExaminationForm({ members, clinics, selfMemberId }: NewExaminationFo
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      memberId: selfMemberId,
-      name: '',
+      memberId: prefill?.memberId && members.some((m) => m.id === prefill.memberId) ? prefill.memberId : selfMemberId,
+      name: prefill?.name ?? '',
       examDate: todayISO(),
-      clinicName: '',
+      clinicName: prefill?.clinicName ?? '',
       results: [],
       documents: [],
       notes: '',
@@ -195,6 +204,7 @@ function NewExaminationForm({ members, clinics, selfMemberId }: NewExaminationFo
     try {
       const examination = await examinationService.createExamination(family?.id ?? '', user?.id ?? '', {
         ...values,
+        ...(prefill ? { examOrderId: prefill.examOrderId } : {}),
         results: scheduled ? [] : results.map(toResultInput),
       })
       toast.show(scheduled ? 'Exame agendado.' : 'Exame registado.')
@@ -208,6 +218,11 @@ function NewExaminationForm({ members, clinics, selfMemberId }: NewExaminationFo
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-6">
+      {prefill && (
+        <p className="rounded-xl bg-primary-soft px-3.5 py-3 text-sm text-primary">
+          A marcar o exame pedido pela clínica: <strong>{prefill.name}</strong>. Escolha a data e, se quiser, outra clínica.
+        </p>
+      )}
       <div className="flex flex-col gap-4">
         {members.length > 1 && (
           <Select
@@ -293,6 +308,7 @@ function NewExaminationForm({ members, clinics, selfMemberId }: NewExaminationFo
 /** Registar exame (UC-EXM-01/02/03), com vários resultados e documento. */
 export function NewExaminationPage() {
   const { user, family, member } = useAuth()
+  const [params] = useSearchParams()
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
   const { state, reload } = useAsync(
@@ -300,9 +316,21 @@ export function NewExaminationPage() {
     [familyId, userId],
   )
 
+  const examOrderId = params.get('examOrderId')
+  const search = examOrderId ? `?${params}` : ''
+  const prefill = (clinics: Array<{ id: string; name: string }>): OrderPrefill | undefined =>
+    examOrderId
+      ? {
+          examOrderId,
+          name: params.get('name') ?? '',
+          memberId: params.get('memberId') ?? undefined,
+          clinicName: clinics.find((c) => c.id === params.get('clinicId'))?.name,
+        }
+      : undefined
+
   return (
     <Page title="Adicionar exame" backTo={paths.examinations} backLabel="Exames">
-      <ButtonLink to={paths.examinationSchedule} variant="soft">
+      <ButtonLink to={`${paths.examinationSchedule}${search}`} variant="soft">
         Agendar numa clínica parceira
       </ButtonLink>
       {state.status === 'loading' && <LoadingState rows={4} />}
@@ -312,6 +340,7 @@ export function NewExaminationPage() {
           members={state.data[0]}
           clinics={state.data[1].map((c) => c.name)}
           selfMemberId={member?.id ?? ''}
+          prefill={prefill(state.data[1])}
         />
       )}
     </Page>
