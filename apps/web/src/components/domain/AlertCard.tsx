@@ -29,6 +29,8 @@ const icons: Record<AlertType, LucideIcon> = {
   APPOINTMENT_CONFIRM_REQUEST: CalendarClock,
   FOLLOWUP_REMINDER: Repeat,
   EXAM_ORDER_ADDED: FileText,
+  EXAM_CANCELLED: CalendarX,
+  EXAM_RESULTS_AVAILABLE: FlaskConical,
 }
 
 /** Quando acontece a origem (“Amanhã · 09:30”; exames só têm dia); senão, quando disparou. */

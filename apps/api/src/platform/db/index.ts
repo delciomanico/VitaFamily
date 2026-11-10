@@ -1,7 +1,15 @@
 // Ligação PostgreSQL (`pg`) + Kysely (query builder tipado, sem ORM/geração de código) e
 // transações — só a `infrastructure` de cada módulo importa este ficheiro (conventions.md §1/§3.9).
 import { Kysely, PostgresDialect, type Transaction } from "kysely";
-import { Pool, type PoolConfig } from "pg";
+import pg, { Pool, type PoolConfig } from "pg";
+
+/**
+ * Colunas `date` (OID 1082) devolvem-se como texto `AAAA-MM-DD`, tal como os tipos das tabelas
+ * (`string`) e o OpenAPI (`format: date`) declaram. Sem isto o `pg` constrói um `Date` no fuso do
+ * processo (um dia a menos em fusos a leste de UTC) e o texto nunca chega às regras de negócio
+ * (ex.: laudo de exame, `birthDate`). Regista-se uma só vez ao carregar o módulo.
+ */
+pg.types.setTypeParser(pg.types.builtins.DATE, (value: string) => value);
 
 /**
  * Tabelas da base de dados. Vazia em `platform` (nunca conhece módulos de negócio); cada módulo

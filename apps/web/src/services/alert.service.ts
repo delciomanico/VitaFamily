@@ -31,6 +31,8 @@ const ruleKeyOf: Record<AlertType, AlertRuleKey> = {
   APPOINTMENT_CONFIRM_REQUEST: 'appointment.confirm48h',
   FOLLOWUP_REMINDER: 'followup.due',
   EXAM_ORDER_ADDED: 'exam-order.added',
+  EXAM_CANCELLED: 'exam.cancelled',
+  EXAM_RESULTS_AVAILABLE: 'exam.results',
 }
 
 export function toAlertItem(alert: ApiAlert): AlertItem {
