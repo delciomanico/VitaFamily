@@ -5009,6 +5009,27 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/exam-service-types:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicExamServiceTypes
+      summary: "Listar os serviços de exame ativos da própria clínica (escolha ao criar um pedido de exame)."
+      description: "Autorização: CLINIC_ACCOUNT (CLINIC_ADMIN, CLINIC_MANAGER e CLINIC_DOCTOR, authorization.md §6.2b). M15 U, BR-CLN-51 (emenda ADR-028). Só serviços kind=EXAM e active=true da clínica do token; só id, name e durationMinutes (sem preço/moeda/kind/active: o Médico não vê finanças). Ordem: nome. Sem paginação (limite de 100 serviços por clínica). Leitura sem auditoria. O catálogo completo (GET /clinic-portal/services) continua só Admin/Gestor."
+      security:
+        - clinicBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicExamServiceTypeOption" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /clinic-portal/agenda/{appointmentId}/exam-orders:
     get:
       tags: [Clinic Portal]
@@ -11124,6 +11145,14 @@ components:
         consultationAt: "2026-11-10T09:30:00Z"
         authorName: "Dr. João Costa"
         createdAt: "2026-11-10T09:50:00Z"
+    ClinicExamServiceTypeOption:
+      type: object
+      required: [id, name, durationMinutes]
+      description: "M15 U (BR-CLN-51, ADR-028). Opção de serviço de exame para o pedido; projeção mínima de ClinicServiceType (sem priceMinor, currency, kind, active)."
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        durationMinutes: { type: integer, enum: [15, 20, 30, 45, 60] }
     ClinicExamOrderList:
       type: object
       required: [items]

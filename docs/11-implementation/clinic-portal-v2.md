@@ -192,7 +192,7 @@ Rotas web (em inglês): `/clinic/consultations/:bookingId/report` · `/clinic/ex
 - Badge **"N pedidos"** (`ClinicBooking.examOrderCount`) nas linhas de Hoje/Agenda/Ficha.
 
 **App do paciente:**
-- `AppointmentDetail`: cartão **"Pedidos de exame"** quando `Appointment.examOrderCount > 0` (lista com nome, nota, "Urgente", estado Pedido/Marcado/Cumprido) e botão **Marcar este exame** (só em `ORDERED`) → abre o formulário de marcação de exame existente (`/app/exams/new`) com `name` pré-preenchido, a **clínica de origem** como escolha inicial (o utilizador pode mudar de clínica ou registar privado) e `examOrderId` no pedido de criação. O alerta `EXAM_ORDER_ADDED` abre este detalhe. Sem cartão para quem não pode ler (`examOrderCount=0`).
+- `AppointmentDetail`: cartão **"Pedidos de exame"** quando `Appointment.examOrderCount > 0` (lista com nome, nota, "Urgente", estado Pedido/Marcado/Cumprido) e botão **Marcar este exame** (só em `ORDERED`) → abre o formulário de marcação de exame existente (`/app/health/examinations/new`) com `name` pré-preenchido, a **clínica de origem** como escolha inicial (o utilizador pode mudar de clínica ou registar privado) e `examOrderId` no pedido de criação. O alerta `EXAM_ORDER_ADDED` (`sourceType=APPOINTMENT`, `sourceId` = id da consulta) abre este detalhe. Sem cartão para quem não pode ler (`examOrderCount=0`).
 - Lista de exames: cartão **"Pedidos por marcar"** (`GET …/exam-orders?status=ORDERED`) no topo de **Exames** para titular/tutor.
 
 **Componentes, serviços e mocks (`apps/web/src`; estrutura plana):**
@@ -207,11 +207,11 @@ components/clinic/reports/ReportAction.tsx              (existente) reutilizado 
 components/appointments/ExamOrdersCard.tsx             app: cartão no detalhe da consulta
 components/exams/PendingExamOrders.tsx                  app: "Pedidos por marcar" na lista de exames
 types/examOrder.ts                                      ClinicExamOrder, FamilyExamOrder, ExamOrderItemInput
-services/clinicExamOrder.service.ts                     clínica: list/create/cancel/pdf; declaração (pdf); `complete` com `examOrders`
+services/clinicExamOrder.service.ts                     clínica: list/create/cancel/pdf; `listExamServiceTypes` (`GET /clinic-portal/exam-service-types`, catálogo estreito para o Médico, sem preços); declaração (pdf); `complete` com `examOrders`
 services/familyExamOrder.service.ts                     família: list; marcar com `examOrderId`
 mocks/examOrders.ts · mocks/handlers/examOrders.ts      MSW (estados, máscara `booked_here`, declaração por estado)
 ```
-Rotas web (sem rotas novas no portal; reutilizam o editor): `/clinic/consultations/:bookingId/report` (secção Pedidos de exame) · app: `/app/appointments/:id` (cartão) e `/app/exams/new?examOrderId=…&name=…&clinicId=…` (formulário existente pré-preenchido). A visualização de PDF é num separador novo (`target=_blank`, `rel=noopener`).
+Rotas web (sem rotas novas no portal; reutilizam o editor): `/clinic/consultations/:bookingId/report` (secção Pedidos de exame) · app: `/app/appointments/:id` (cartão) e `/app/health/examinations/new?examOrderId=…&name=…&clinicId=…&memberId=…` (formulário existente pré-preenchido). A visualização de PDF é num separador novo (`target=_blank`, `rel=noopener`).
 
 **Acessibilidade e i18n:** textos em pt-PT; `aria-live` na lista após criar/cancelar; limites com contador (80/200); sem texto clínico em mensagens de erro; sem emojis.
 ### 5.4 Acessibilidade e i18n

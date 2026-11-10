@@ -160,6 +160,7 @@ Legenda: **sim** · **não** = `FORBIDDEN` (papel insuficiente; não revela mais
 | `agenda/{id}/report` `PUT` (rascunho), `report/finalize` `PUT`, `report/addenda` `POST`; e `report` no corpo de `agenda/{id}/complete` | **não** | **não** | suas (**só o Médico escreve**) |
 | `agenda/{id}/exam-orders` `GET` e `agenda/{id}/exam-orders/pdf` `GET` (pedido de exame, M15 U, BR-CLN-51/54) | sim (lê/imprime) | sim (lê/imprime) | suas |
 | `agenda/{id}/exam-orders` `POST`, `agenda/{id}/exam-orders/{orderId}/cancel` `PUT`; e `examOrders` no corpo de `agenda/{id}/complete` | **não** | **não** | suas (**só o Médico escreve**) |
+| `exam-service-types` `GET` (serviços de exame **ativos** da própria clínica; só `id`/`name`/`durationMinutes`, sem preços; escolha ao criar pedido de exame, M15 U, BR-CLN-51) | sim | sim | sim |
 | `agenda/{id}/attendance-statement/pdf` `GET` (declaração de presença, M15 V, BR-CLN-55) | sim | sim | suas |
 | `calendar` | sim | sim | só a sua coluna (`professionalId` de outro ⇒ `NOT_FOUND`) |
 | `exam-agenda` `GET`, `complete`, `documents` (upload/remover) | sim | sim | suas |
@@ -204,7 +205,10 @@ Sem categoria de partilha nem `SharingGrant` (como o seguro, §3): documento fin
 Critério: `READ(APPOINTMENTS)` do membro **e** relação `SELF`/`TUTOR_OF` (o relatório contém diagnóstico: mais sensível que a marcação e que a `Recommendation`, que herda `APPOINTMENTS` e é legível por `DEPENDENT_SELF`/`OTHER` com partilha, §3). **Não** depende de `ClinicConsent` (BR-CLN-45). **Implementação (decidida 2026-11-08):** o módulo `clinic-reports` não importa `access`; autoriza a leitura pela família através da porta `PatientAccess` (definida na sua `application`, implementada no composition root sobre `access`) que avalia a **nova ação de `access` `VIEW_CONSULTATION_REPORT`**: permitida **só** a `SELF`/`TUTOR_OF` (mesma regra de `VIEW_CLINIC_RECEIPTS`), negada a `DEPENDENT_SELF`/`OTHER` mesmo com `SharingGrant`. Alteração mínima ao módulo `access`: uma ação nova na `AccessPolicy` + teste da matriz; nenhuma outra regra muda. Sem relatório `FINAL` partilhado, visita manual ou consulta de outra família ⇒ `NOT_FOUND`; `Appointment.reportAvailable` é `false` para quem não pode ler (as listas filtram, §5.3). A clínica nunca escreve nem lê por esta via; a conta autora e os ids da clínica não são expostos.
 O **laudo de exame gerado** (`Document.generatedBySystem`) segue as regras de documentos de `EXAMS` (§3 nota, BR-DOC-04, BR-CLN-08): lista e download mediado/auditado como o PDF atual; **não** há rota nova.
 
-### 6.7 Pedido de exame — lado família (M15 U, ADR-028)
+### 6.7 Pedido de exame (M15 U, ADR-028) — catálogo para o Médico e lado família
+> **Catálogo de exames para o Médico (emenda ADR-028, 2026-11-10):** `GET /clinic-portal/exam-service-types` é a **única** leitura do catálogo de serviços permitida ao `CLINIC_DOCTOR`; devolve só serviços `EXAM` ativos da clínica do token com `id`/`name`/`durationMinutes` (nunca preço, moeda, `kind`, `active`). `services*` continua só Admin/Gestor (§6.2b). Leitura sem auditoria; isolamento por `clinic_id` do token.
+
+#### Lado família
 | Ação (rota `/families/{f}/members/{m}/exam-orders`; `examOrderId` em `POST …/examinations`) | `SELF` (adulto) | `TUTOR_OF` | `DEPENDENT_SELF` | `OTHER` / Family Admin como OTHER |
 |---|---|---|---|---|
 | Listar os pedidos de exame de consultas Vita e ligar um exame a um pedido `ORDERED` | sim (do próprio) | sim (do dependente) | não (`FORBIDDEN`) | não (`FORBIDDEN`), **mesmo com `SharingGrant` de `APPOINTMENTS`** |

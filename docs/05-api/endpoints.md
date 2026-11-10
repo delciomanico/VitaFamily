@@ -949,6 +949,13 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `UNAUTHENTICATED`
 - **BUSINESS RULES:** BR-CLN-11/12.
 
+### `GET /clinic-portal/exam-service-types`  — listClinicExamServiceTypes
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN`, `CLINIC_MANAGER` e `CLINIC_DOCTOR`)
+- **DESCRIPTION:** Listar os serviços de exame **ativos** da própria clínica para escolher o exame ao criar um pedido (M15 U, emenda ADR-028). Rota estreita: o catálogo completo (`GET /clinic-portal/services`) continua só Admin/Gestor.
+- **RESPONSE:** `200` `[ClinicExamServiceTypeOption]` (`id`, `name`, `durationMinutes`; sem preço/moeda; ordem por nome)
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-51. Só `kind=EXAM` e `active=true` da clínica do token. Sem auditoria da leitura.
+
 ### `POST /clinic-portal/services`  — createClinicServiceType
 - **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
 - **DESCRIPTION:** Criar tipo de serviço.
