@@ -6,18 +6,23 @@ import type { BookingFacts, ClinicPortalActor, ClinicReportsDeps, RequestContext
 
 export const WRITE_LIMIT = { max: 60, windowMs: 60_000 };
 export const PDF_LIMIT = { max: 30, windowMs: 60_000 };
+/** BR-CLN-51/54: criar/cancelar pedidos de exame, 30/min por conta (bolsa própria; os PDF partilham a bolsa `pdf`). */
+export const ORDER_WRITE_LIMIT = { max: 30, windowMs: 60_000 };
 
-export function consumeLimit(limiter: RateLimiter, kind: "write" | "pdf", accountId: string): void {
-  const decision = limiter.consume(`consult-report-${kind}:${accountId}`, kind === "write" ? WRITE_LIMIT : PDF_LIMIT);
+const LIMITS = { write: WRITE_LIMIT, pdf: PDF_LIMIT, "order-write": ORDER_WRITE_LIMIT } as const;
+
+/** `pdf` é a bolsa partilhada do relatório, do pedido de exame e da declaração de presença (BR-CLN-46/54/55). */
+export function consumeLimit(limiter: RateLimiter, kind: "write" | "pdf" | "order-write", accountId: string): void {
+  const decision = limiter.consume(`consult-report-${kind}:${accountId}`, LIMITS[kind]);
   if (!decision.allowed) {
     throw new RateLimitedError(decision.retryAfterMs, { detail: "Demasiados pedidos; tente mais tarde." });
   }
 }
 
 /** BR-CLN-44: só o `CLINIC_DOCTOR` escreve; Admin e Gestor => `FORBIDDEN` (sem efeito parcial). */
-export function assertCanWrite(actor: ClinicPortalActor): string {
+export function assertCanWrite(actor: ClinicPortalActor, detail = "Só o médico escreve o relatório da consulta."): string {
   if (actor.role !== "CLINIC_DOCTOR" || !actor.professionalId) {
-    throw new ForbiddenError({ detail: "Só o médico escreve o relatório da consulta." });
+    throw new ForbiddenError({ detail });
   }
   return actor.professionalId;
 }
@@ -67,6 +72,35 @@ export function clinicAudit(
     ...auditContextFields(context),
     metadata,
   };
+}
+
+/** Auditoria da clínica para pedidos de exame e declaração (audit.md §3, ADR-028): só ids e contagens; NUNCA nomes nem texto. */
+export function clinicOrderAudit(
+  actor: ClinicPortalActor,
+  now: Date,
+  action: Extract<AuditEvent["action"], "EXAM_ORDER_CREATED" | "EXAM_ORDER_CANCELLED" | "EXAM_ORDER_VIEWED" | "ATTENDANCE_STATEMENT_ISSUED">,
+  resourceType: "Appointment" | "ClinicVisit" | "ExamOrder",
+  resourceId: string,
+  context: RequestContext,
+  metadata: Record<string, string | number | boolean | null>,
+): AuditEvent {
+  return {
+    occurredAt: now,
+    actorType: "CLINIC_ACCOUNT",
+    actorClinicAccountId: actor.clinicAccountId,
+    actorClinicId: actor.clinicId,
+    action,
+    resourceType,
+    resourceId,
+    result: "SUCCESS",
+    requestId: context.requestId,
+    ...auditContextFields(context),
+    metadata,
+  };
+}
+
+export function bookingResourceType(kind: ConsultationBookingKind): "Appointment" | "ClinicVisit" {
+  return kind === "VISIT" ? "ClinicVisit" : "Appointment";
 }
 
 export interface ClinicConsultationReportView {

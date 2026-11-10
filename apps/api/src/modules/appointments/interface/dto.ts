@@ -21,6 +21,7 @@ export function toAppointmentResponse(appointment: Appointment) {
     confirmationStatus: appointment.confirmationStatus,
     followUpDueOn: appointment.followUpDueOn ?? null,
     reportAvailable: appointment.reportAvailable ?? false,
+    examOrderCount: appointment.examOrderCount ?? 0,
   };
 }
 
@@ -73,6 +74,7 @@ export function toClinicAppointmentResponse(view: ClinicAppointmentView) {
     followUpDueOn: view.followUpDueOn ?? null,
     receiptId: view.receiptId ?? null,
     reportStatus: view.reportStatus ?? null,
+    examOrderCount: view.examOrderCount ?? 0,
   };
 }
 

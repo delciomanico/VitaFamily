@@ -1,4 +1,5 @@
-// Raiz do módulo `clinic-reports` (ADR-015/conventions.md §1, M15 S/T, ADR-027, modules.md §2 nota 27): relatório da consulta
+// Raiz do módulo `clinic-reports` (ADR-015/conventions.md §1, M15 S/T/U/V, ADR-027/ADR-028, modules.md §2 notas 27/28): pedido de exame
+// (`ExamOrder`, ponte, PDF), declaração de presença e relatório da consulta
 // (`ConsultationReport`, adendas), PDF do relatório e layout do laudo de exame (realce aritmético puro); rotas
 // `/clinic-portal/agenda/{id}/report*` (ator `ClinicAccount`, matriz de authorization.md §6.2b) e
 // `/families/{f}/members/{m}/appointments/{id}/report*` (ator `User`, §6.6). Depende só de `clinics` (via portas) e `audit`;
@@ -20,25 +21,40 @@ import {
   createSaveReportUseCase,
   createSharedReportAvailabilityUseCase,
 } from "./application/clinic-reports.js";
+import { createGetAttendanceStatementPdfUseCase } from "./application/attendance-statement.js";
 import { createExamReportGeneratorUseCase } from "./application/exam-report.js";
+import {
+  createAppointmentExamOrderCountsUseCase,
+  createCancelExamOrderUseCase,
+  createCreateExamOrdersUseCase,
+  createCreateWithCompleteUseCase,
+  createExamOrderCountsUseCase,
+  createGetExamOrdersPdfUseCase,
+  createListExamOrdersUseCase,
+} from "./application/exam-orders.js";
+import { createExamOrderLinker, createListFamilyExamOrdersUseCase } from "./application/family-exam-orders.js";
 import { createGetFamilyReportPdfUseCase, createGetFamilyReportUseCase } from "./application/family-reports.js";
 import type {
   BookingSourcePort,
   ClinicProfileReaderPort,
   ClinicReportsDeps,
+  ExamOrderAlertsPort,
+  ExamServiceCatalogPort,
   FamilyAppointmentLookupPort,
   PatientAccessPort,
   PdfRendererPort,
   ProfessionalReaderPort,
 } from "./application/ports.js";
+import { KyselyExamOrdersRepository } from "./infrastructure/exam-orders-repo.js";
 import { KyselyReportsRepository } from "./infrastructure/repo.js";
 import { PdfKitRenderer } from "./infrastructure/pdfkit-renderer.js";
 import { createClinicReportsFamilyRouter } from "./interface/family-router.js";
 import { createClinicReportsPortalRouter } from "./interface/portal-router.js";
 
-export type { BookingFacts, BookingSourcePort, ClinicProfileReaderPort, FamilyAppointmentLookupPort, PatientAccessPort, PdfRendererPort, ProfessionalReaderPort } from "./application/ports.js";
+export type { BookingFacts, BookingSourcePort, ClinicProfileReaderPort, ExamOrderAlertsPort, ExamServiceCatalogPort, FamilyAppointmentLookupPort, PatientAccessPort, PdfRendererPort, ProfessionalReaderPort } from "./application/ports.js";
 export type { ConsultationBookingKind } from "./domain/consultation-report.js";
 export type { ExamReportRequest, GeneratedExamReport } from "./application/exam-report.js";
+export type { LinkExamOrderInput, FamilyExamOrderView } from "./application/family-exam-orders.js";
 export { PdfKitRenderer } from "./infrastructure/pdfkit-renderer.js";
 
 export interface ClinicReportsModuleDeps {
@@ -55,6 +71,10 @@ export interface ClinicReportsModuleDeps {
   professionals: ProfessionalReaderPort<Kysely<Database>>;
   /** `AccessPolicy.can(VIEW_CONSULTATION_REPORT)` (implementada por `access`). */
   patientAccess: PatientAccessPort<Kysely<Database>>;
+  /** M15 U (modules.md §2 nota 28): alerta genérico `EXAM_ORDER_ADDED` (implementada no composition root sobre `alerts.raiseExamOrderEvent`). */
+  orderAlerts: ExamOrderAlertsPort<Kysely<Database>>;
+  /** M15 U (BR-CLN-51): serviço `EXAM` do catálogo da clínica (implementada por `clinics`). */
+  services: ExamServiceCatalogPort<Kysely<Database>>;
   /** Por omissão `PdfKitRenderer`; substituível. */
   pdf?: PdfRendererPort;
 }
@@ -72,13 +92,28 @@ export interface ClinicReportsModule {
   reportStatuses: ReturnType<typeof createReportStatusesUseCase<Kysely<Database>>>;
   /** Decorar `Appointment.reportAvailable` (`appointments`). */
   sharedReportAvailability: ReturnType<typeof createSharedReportAvailabilityUseCase<Kysely<Database>>>;
+  /** Porta `ExamOrderLinker` de `examinations` (`link`/`release`/`fulfil`, na transação do exame; M15 U, BR-CLN-52). */
+  examOrderLinker: ReturnType<typeof createExamOrderLinker<Kysely<Database>>>;
+  /** `examOrders` em `complete` (porta de `appointments`, na transação do chamador; BR-CLN-51). */
+  createWithComplete: ReturnType<typeof createCreateWithCompleteUseCase<Kysely<Database>>>;
+  /** Decorar `ClinicBooking.examOrderCount` (`appointments`). */
+  examOrderCounts: ReturnType<typeof createExamOrderCountsUseCase<Kysely<Database>>>;
+  /** Decorar `Appointment.examOrderCount` (`appointments`; só para SELF/TUTOR_OF). */
+  appointmentExamOrderCounts: ReturnType<typeof createAppointmentExamOrderCountsUseCase<Kysely<Database>>>;
   /** Exportação do titular (`lifecycle`, BR-CLN-50): leitura do relatório partilhado de uma consulta Vita (mesma autorização e auditoria do endpoint). */
-  reads: { familyReport: ReturnType<typeof createGetFamilyReportUseCase<Kysely<Database>>> };
+  reads: {
+    familyReport: ReturnType<typeof createGetFamilyReportUseCase<Kysely<Database>>>;
+    /** Exportação do titular (M15 U, BR-CLN-56): pedidos não cancelados do membro (mesma autorização do endpoint). */
+    familyExamOrders: ReturnType<typeof createListFamilyExamOrdersUseCase<Kysely<Database>>>;
+  };
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
 export function createClinicReportsModule(deps: ClinicReportsModuleDeps): ClinicReportsModule {
   const reportsDeps: ClinicReportsDeps<Kysely<Database>> = {
+    ordersRepo: new KyselyExamOrdersRepository(),
+    orderAlerts: deps.orderAlerts,
+    services: deps.services,
     reportsRepo: new KyselyReportsRepository(),
     bookings: deps.bookings,
     familyAppointments: deps.familyAppointments,
@@ -99,15 +134,25 @@ export function createClinicReportsModule(deps: ClinicReportsModuleDeps): Clinic
       finalizeClinicConsultationReport: createFinalizeReportUseCase(reportsDeps),
       addClinicConsultationReportAddendum: createAddAddendumUseCase(reportsDeps),
       getClinicConsultationReportPdf: createGetReportPdfUseCase(reportsDeps),
+      listClinicExamOrders: createListExamOrdersUseCase(reportsDeps),
+      createClinicExamOrders: createCreateExamOrdersUseCase(reportsDeps),
+      cancelClinicExamOrder: createCancelExamOrderUseCase(reportsDeps),
+      getClinicExamOrdersPdf: createGetExamOrdersPdfUseCase(reportsDeps),
+      getClinicAttendanceStatementPdf: createGetAttendanceStatementPdfUseCase(reportsDeps),
     }),
     router: createClinicReportsFamilyRouter({
       getFamilyConsultationReport: createGetFamilyReportUseCase(reportsDeps),
       getFamilyConsultationReportPdf: createGetFamilyReportPdfUseCase(reportsDeps),
+      listFamilyExamOrders: createListFamilyExamOrdersUseCase(reportsDeps),
     }),
     finalizeWithComplete: createFinalizeWithCompleteUseCase(reportsDeps),
     generateExamReport: createExamReportGeneratorUseCase(reportsDeps),
     reportStatuses: createReportStatusesUseCase(reportsDeps),
     sharedReportAvailability: createSharedReportAvailabilityUseCase(reportsDeps),
-    reads: { familyReport: createGetFamilyReportUseCase(reportsDeps) },
+    examOrderLinker: createExamOrderLinker(reportsDeps),
+    createWithComplete: createCreateWithCompleteUseCase(reportsDeps),
+    examOrderCounts: createExamOrderCountsUseCase(reportsDeps),
+    appointmentExamOrderCounts: createAppointmentExamOrderCountsUseCase(reportsDeps),
+    reads: { familyReport: createGetFamilyReportUseCase(reportsDeps), familyExamOrders: createListFamilyExamOrdersUseCase(reportsDeps) },
   };
 }

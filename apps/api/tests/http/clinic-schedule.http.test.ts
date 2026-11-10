@@ -11,7 +11,7 @@ import { createApp } from "../../src/platform/http/index.js";
 import { createLogger } from "../../src/platform/logger/index.js";
 import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createBearerAuthSecurityHandler } from "../../src/modules/auth/interface/middleware.js";
-import { createCreateClinicProfessionalUseCase, createCreateClinicServiceTypeUseCase, createListClinicProfessionalsUseCase, createListClinicServiceTypesUseCase, createUpdateClinicProfessionalUseCase, createUpdateClinicServiceTypeUseCase } from "../../src/modules/clinics/application/clinic-catalog.js";
+import { createCreateClinicProfessionalUseCase, createCreateClinicServiceTypeUseCase, createListClinicExamServiceTypesUseCase, createListClinicProfessionalsUseCase, createListClinicServiceTypesUseCase, createUpdateClinicProfessionalUseCase, createUpdateClinicServiceTypeUseCase } from "../../src/modules/clinics/application/clinic-catalog.js";
 import { createCreateClinicScheduleRuleUseCase, createListClinicScheduleRulesUseCase, createRegenerateClinicScheduleRuleUseCase, createUpdateClinicScheduleRuleUseCase } from "../../src/modules/clinics/application/clinic-schedule-rules.js";
 import { createListOwnClinicSlotsUseCase, createPublishClinicSlotsUseCase, createRemoveClinicSlotUseCase, createUpdateClinicSlotUseCase } from "../../src/modules/clinics/application/clinic-slots.js";
 import { createCreateClinicTimeOffUseCase, createDeleteClinicTimeOffUseCase, createListClinicTimeOffUseCase } from "../../src/modules/clinics/application/clinic-time-off.js";
@@ -52,6 +52,7 @@ async function buildHarness() {
     createClinicProfessional: createCreateClinicProfessionalUseCase(deps),
     updateClinicProfessional: createUpdateClinicProfessionalUseCase(deps),
     listClinicServiceTypes: createListClinicServiceTypesUseCase(deps),
+    listClinicExamServiceTypes: createListClinicExamServiceTypesUseCase(deps),
     createClinicServiceType: createCreateClinicServiceTypeUseCase(deps),
     updateClinicServiceType: createUpdateClinicServiceTypeUseCase(deps),
     listClinicScheduleRules: createListClinicScheduleRulesUseCase(deps),
@@ -335,5 +336,35 @@ describe("auditoria sem PII (canários)", () => {
       expect(serialized).not.toContain(canary);
     }
     expect(h.fx.audit.events.every((e) => e.actorType === "CLINIC_ACCOUNT" && e.familyId === undefined && e.subjectMemberId === undefined)).toBe(true);
+  });
+});
+
+describe("GET /clinic-portal/exam-service-types (M15 U, BR-CLN-51, authorization.md §6.2b)", () => {
+  let h: H;
+  beforeEach(async () => {
+    h = await buildHarness();
+  });
+
+  it("só serviços EXAM ativos, por nome, projeção mínima sem preço; 401 sem token/User/seguradora; Admin e Gestor 200", async () => {
+    await call(h, "post", "/services", h.admin, { name: "Zeta eco", kind: "EXAM", durationMinutes: 30, priceMinor: 5000 });
+    await call(h, "post", "/services", h.admin, { name: "Alfa análises", kind: "EXAM", durationMinutes: 15, priceMinor: 100 });
+    await call(h, "post", "/services", h.admin, { name: "Consulta", kind: "APPOINTMENT", durationMinutes: 30 });
+    const off = (await call(h, "post", "/services", h.admin, { name: "Inativo", kind: "EXAM", durationMinutes: 30 })).body as { id: string };
+    await call(h, "patch", `/services/${off.id}`, h.admin, { active: false });
+    expect((await request(h.app).get(`${API}/exam-service-types`)).status).toBe(401);
+    expect((await call(h, "get", "/exam-service-types", h.userToken)).status).toBe(401);
+    expect((await call(h, "get", "/exam-service-types", h.insuranceToken)).status).toBe(401);
+    for (const token of [h.admin, h.manager]) {
+      const res = await call(h, "get", "/exam-service-types", token);
+      expect(res.status).toBe(200);
+      const items = res.body as Record<string, unknown>[];
+      expect(items.map((i) => i.name)).toEqual(["Alfa análises", "Zeta eco"]);
+      expect(Object.keys(items[0] ?? {}).sort()).toEqual(["durationMinutes", "id", "name"]);
+    }
+  });
+
+  it("isolamento: a clínica B não vê os serviços da A", async () => {
+    await call(h, "post", "/services", h.admin, { name: "Eco A", kind: "EXAM", durationMinutes: 30 });
+    expect((await call(h, "get", "/exam-service-types", h.other)).body).toEqual([]);
   });
 });

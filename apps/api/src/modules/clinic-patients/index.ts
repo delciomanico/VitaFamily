@@ -127,7 +127,7 @@ export interface ClinicPatientsModule {
       trx: Kysely<Database>,
       clinicId: string,
       visitId: string,
-    ) => Promise<{ status: string; patientName: string; scheduledAt: Date; slotId?: string; clinicPatientId: string; patientBirthDate?: string } | null>;
+    ) => Promise<{ status: string; patientName: string; scheduledAt: Date; slotId?: string; clinicPatientId: string; patientBirthDate?: string; arrivedAt?: Date } | null>;
     /** Data de nascimento do `ClinicPatient` (se conhecida). */
     findPatientBirthDate: (trx: Kysely<Database>, clinicId: string, clinicPatientId: string) => Promise<string | undefined>;
   };
@@ -233,6 +233,7 @@ export function createClinicPatientsModule(deps: ClinicPatientsModuleDeps): Clin
           clinicPatientId: visit.clinicPatientId,
           ...(visit.slotId ? { slotId: visit.slotId } : {}),
           ...(patient?.birthDate ? { patientBirthDate: patient.birthDate } : {}),
+          ...(visit.arrivedAt ? { arrivedAt: visit.arrivedAt } : {}),
         };
       },
       findPatientBirthDate: async (trx, clinicId, clinicPatientId) => (await clinicPatientsDeps.patientsRepo.findById(trx, clinicId, clinicPatientId))?.birthDate,

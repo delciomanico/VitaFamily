@@ -49,6 +49,8 @@ export interface Appointment {
   followUpDueOn?: string;
   /** M15 S (BR-CLN-45): derivado (não persistido) — há relatório FINAL partilhado e o ator é SELF/TUTOR_OF. */
   reportAvailable?: boolean;
+  /** M15 U (BR-CLN-53): derivado — pedidos de exame não cancelados desta consulta Vita; só para SELF/TUTOR_OF (senão 0). */
+  examOrderCount?: number;
   createdAt: Date;
 }
 

@@ -52,6 +52,7 @@ import {
   createCreateClinicProfessionalUseCase,
   createCreateClinicServiceTypeUseCase,
   createListClinicProfessionalsUseCase,
+  createListClinicExamServiceTypesUseCase,
   createListClinicServiceTypesUseCase,
   createUpdateClinicProfessionalUseCase,
   createUpdateClinicServiceTypeUseCase,
@@ -157,6 +158,8 @@ export interface ClinicsModule {
   getReceiptProfile: (trx: Kysely<Database>, clinicId: string) => Promise<{ issuer: { name: string; address: string | null; phone: string | null; email: string | null }; currency: string }>;
   /** M14 R (BR-CLN-31, `clinic-receipts`): serviço do catálogo da clínica (nome e preço); `null` se de outra clínica/inexistente. */
   findServiceTypeForReceipt: (trx: Kysely<Database>, clinicId: string, serviceTypeId: string) => Promise<{ id: string; name: string; priceMinor: number | null } | null>;
+  /** M15 U (BR-CLN-51, `clinic-reports`): serviço do catálogo da clínica com o tipo e o estado (pedido de exame por `serviceTypeId`); `null` se de outra clínica/inexistente. */
+  findServiceTypeForExamOrder: (trx: Kysely<Database>, clinicId: string, serviceTypeId: string) => Promise<{ id: string; name: string; kind: "APPOINTMENT" | "EXAM"; active: boolean } | null>;
   /** M14 P (BR-CLN-23, `clinic-patients`): horários da clínica que começam em `[from, to)`. */
   listClinicSlotsInWindow: (trx: Kysely<Database>, clinicId: string, from: Date, to: Date) => Promise<ClinicSlot[]>;
   /** M14 P (`clinic-patients`): horários da clínica pelos ids. */
@@ -242,6 +245,7 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     listClinicProfessionals: createListClinicProfessionalsUseCase(clinicsDeps),
     createClinicProfessional: createCreateClinicProfessionalUseCase(clinicsDeps),
     updateClinicProfessional: createUpdateClinicProfessionalUseCase(clinicsDeps),
+    listClinicExamServiceTypes: createListClinicExamServiceTypesUseCase(clinicsDeps),
     listClinicServiceTypes: createListClinicServiceTypesUseCase(clinicsDeps),
     createClinicServiceType: createCreateClinicServiceTypeUseCase(clinicsDeps),
     updateClinicServiceType: createUpdateClinicServiceTypeUseCase(clinicsDeps),
@@ -283,6 +287,10 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     findServiceTypeForReceipt: async (trx, clinicId, serviceTypeId) => {
       const service = await catalogRepo.findServiceType(trx, clinicId, serviceTypeId);
       return service ? { id: service.id, name: service.name, priceMinor: service.priceMinor } : null;
+    },
+    findServiceTypeForExamOrder: async (trx, clinicId, serviceTypeId) => {
+      const service = await catalogRepo.findServiceType(trx, clinicId, serviceTypeId);
+      return service ? { id: service.id, name: service.name, kind: service.kind, active: service.active } : null;
     },
     getPartnerClinic: async (trx, clinicId) => {
       const clinic = await clinicsRepo.findById(trx, clinicId);

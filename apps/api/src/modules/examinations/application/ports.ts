@@ -120,6 +120,23 @@ export interface ExamReportGeneratorPort<Trx> {
   generate(trx: Trx, request: ExamReportRequest): Promise<{ bytes: Buffer; resultsCount: number; outOfReferenceCount: number }>;
 }
 
+/**
+ * M15 U (ADR-028, BR-CLN-52, modules.md §2 nota 28): propagação do estado do `ExamOrder` ligado a um exame. Definida aqui,
+ * implementada por `clinic-reports` e ligada no composition root (`examinations` nunca importa `clinic-reports`). Todas as
+ * operações correm NA transação do exame. `link` valida `VIEW_EXAM_ORDERS` (senão `FORBIDDEN`/`NOT_FOUND`) e `ORDERED` (senão `CONFLICT`).
+ */
+export interface ExamOrderLinkerPort<Trx> {
+  link(
+    trx: Trx,
+    input: { actor: ActorIdentity; familyId: string; memberId: string; orderId: string; examinationId: string; examClinicId?: string; status: "SCHEDULED" | "COMPLETED" },
+    context: RequestContext,
+  ): Promise<void>;
+  /** Exame cancelado/apagado: o pedido volta a `ORDERED` (idempotente). */
+  release(trx: Trx, examinationId: string): Promise<void>;
+  /** Exame `COMPLETED`: o pedido passa a `FULFILLED` (idempotente). */
+  fulfil(trx: Trx, examinationId: string): Promise<void>;
+}
+
 /** Forma de `ExamResultInput` (openapi.yaml), validada com as MESMAS regras de BR-CLN-08. */
 export interface ExamResultDraftItem {
   parameter: string;
@@ -307,6 +324,8 @@ export interface ExaminationsDeps<Trx> {
   draftsRepo: ExamResultsDraftRepository<Trx>;
   /** M15 T (BR-CLN-48/49): laudo PDF (implementada por `clinic-reports`). */
   reportGenerator: ExamReportGeneratorPort<Trx>;
+  /** M15 U (BR-CLN-52): estado do pedido de exame ligado (implementada por `clinic-reports`). */
+  examOrders: ExamOrderLinkerPort<Trx>;
   /** M15 T: 60/min nas escritas do rascunho, 30/min no PDF do laudo (PROPOSTO). */
   limiter: RateLimiter;
   policy: AccessPolicyPort<Trx>;

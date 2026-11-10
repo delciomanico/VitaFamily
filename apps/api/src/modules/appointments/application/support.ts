@@ -40,7 +40,9 @@ export async function withReportAvailability<Trx>(deps: AppointmentsDeps<Trx>, t
   const bookings = appointments.flatMap((a) => (a.clinicId ? [{ clinicId: a.clinicId, bookingId: a.id }] : []));
   if (bookings.length === 0) return appointments;
   const available = await deps.consultationReports.sharedAvailability(trx, bookings);
-  return appointments.map((a) => ({ ...a, reportAvailable: available.has(a.id) }));
+  // M15 U (BR-CLN-53): `examOrderCount` com a mesma regra (SELF/TUTOR_OF; os restantes recebem 0).
+  const orderCounts = await deps.consultationReports.appointmentExamOrderCounts(trx, bookings.map((b) => b.bookingId));
+  return appointments.map((a) => ({ ...a, reportAvailable: available.has(a.id), examOrderCount: orderCounts.get(a.id) ?? 0 }));
 }
 
 /**

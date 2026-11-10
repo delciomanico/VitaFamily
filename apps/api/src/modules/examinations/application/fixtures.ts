@@ -19,6 +19,7 @@ import type {
   CursorPage,
   DocumentsPort,
   ExamAlertsPort,
+  ExamOrderLinkerPort,
   ExamReportGeneratorPort,
   ExamReportRequest,
   ExamResultDraftItem,
@@ -266,6 +267,27 @@ export class FakeExamReportGenerator implements ExamReportGeneratorPort<FakeTrx>
     this.requests.push(request);
     const out = (r: ExamResultDraftItem) => typeof r.valueNumeric === "number" && ((typeof r.referenceMin === "number" && r.valueNumeric < r.referenceMin) || (typeof r.referenceMax === "number" && r.valueNumeric > r.referenceMax));
     return Promise.resolve({ bytes: Buffer.from("%PDF-1.4 fake"), resultsCount: request.results.length, outOfReferenceCount: request.results.filter(out).length });
+  }
+}
+
+/** Fake de `ExamOrderLinkerPort`: regista as chamadas; `failLinkWith` simula `NOT_FOUND`/`CONFLICT`/`FORBIDDEN` de quem implementa. */
+export class FakeExamOrderLinker implements ExamOrderLinkerPort<FakeTrx> {
+  readonly links: { orderId: string; examinationId: string; familyId: string; memberId: string; examClinicId?: string; status: "SCHEDULED" | "COMPLETED" }[] = [];
+  readonly released: string[] = [];
+  readonly fulfilled: string[] = [];
+  failLinkWith: Error | null = null;
+  async link(_trx: FakeTrx, input: Parameters<ExamOrderLinkerPort<FakeTrx>["link"]>[1]): Promise<void> {
+    if (this.failLinkWith) throw this.failLinkWith;
+    this.links.push({ orderId: input.orderId, examinationId: input.examinationId, familyId: input.familyId, memberId: input.memberId, status: input.status, ...(input.examClinicId ? { examClinicId: input.examClinicId } : {}) });
+    return Promise.resolve();
+  }
+  async release(_trx: FakeTrx, examinationId: string): Promise<void> {
+    this.released.push(examinationId);
+    return Promise.resolve();
+  }
+  async fulfil(_trx: FakeTrx, examinationId: string): Promise<void> {
+    this.fulfilled.push(examinationId);
+    return Promise.resolve();
   }
 }
 
@@ -555,6 +577,7 @@ export interface ExaminationsFixtures {
   receipts: FakeReceiptIdsPort;
   drafts: FakeResultsDraftRepository;
   reportGenerator: FakeExamReportGenerator;
+  examOrders: FakeExamOrderLinker;
   audit: FakeAuditPort;
 }
 
@@ -569,12 +592,14 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
   const receipts = new FakeReceiptIdsPort();
   const drafts = new FakeResultsDraftRepository();
   const reportGenerator = new FakeExamReportGenerator();
+  const examOrders = new FakeExamOrderLinker();
   const audit = new FakeAuditPort();
   const deps: ExaminationsDeps<FakeTrx> = {
     examinationsRepo,
     examResultsRepo,
     draftsRepo: drafts,
     reportGenerator,
+    examOrders,
     limiter: new InMemoryRateLimiter(clock),
     policy,
     memberNames,
@@ -587,5 +612,5 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, memberNames, alerts, receipts, drafts, reportGenerator, audit };
+  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, memberNames, alerts, receipts, drafts, reportGenerator, examOrders, audit };
 }

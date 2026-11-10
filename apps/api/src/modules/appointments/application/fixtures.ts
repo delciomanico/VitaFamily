@@ -663,6 +663,23 @@ export class FakeConsultationReportsPort implements ConsultationReportsPort<Fake
   async sharedAvailability(_trx: FakeTrx, bookings: { clinicId: string; bookingId: string }[]): Promise<Set<string>> {
     return Promise.resolve(new Set(bookings.map((b) => b.bookingId).filter((id) => this.shared.has(id))));
   }
+  readonly examOrdersCreated: { kind: "APPOINTMENT" | "VISIT"; bookingId: string; examOrders: unknown; actor: ClinicPortalActor }[] = [];
+  readonly orderCounts = new Map<string, number>();
+  /** Se definido, a criação de pedidos falha com este erro (prova a atomicidade da conclusão). */
+  failExamOrdersWith: Error | null = null;
+  async createExamOrdersWithComplete(_trx: FakeTrx, actor: ClinicPortalActor, kind: "APPOINTMENT" | "VISIT", bookingId: string, examOrders: unknown): Promise<void> {
+    if (this.failExamOrdersWith) throw this.failExamOrdersWith;
+    if (!actor.professionalId) throw new ForbiddenError({ detail: "Só o médico pede ou cancela exames." });
+    this.examOrdersCreated.push({ kind, bookingId, examOrders, actor });
+    this.orderCounts.set(bookingId, Array.isArray(examOrders) ? examOrders.length : 0);
+    return Promise.resolve();
+  }
+  async examOrderCounts(_trx: FakeTrx, _clinicId: string, _kind: "APPOINTMENT" | "VISIT", bookingIds: string[]): Promise<Map<string, number>> {
+    return Promise.resolve(new Map([...this.orderCounts].filter(([id]) => bookingIds.includes(id))));
+  }
+  async appointmentExamOrderCounts(_trx: FakeTrx, appointmentIds: string[]): Promise<Map<string, number>> {
+    return Promise.resolve(new Map([...this.orderCounts].filter(([id]) => appointmentIds.includes(id))));
+  }
 }
 
 export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {

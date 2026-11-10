@@ -1,6 +1,8 @@
 // BR-CLN-49 / ADR-027 (exceção de segurança dos documentos gerados, sem ClamAV): o PDF gerado não contém /JavaScript, /Launch,
 // /URI, /EmbeddedFile nem /AcroForm — nem com texto hostil —, é PDF válido, A4 paginado e ≤ 256 KB nos limites do contrato.
 import { describe, expect, it } from "vitest";
+import { buildAttendanceStatementDocument, buildExamOrderDocument } from "../domain/exam-order-pdf.js";
+import type { ExamOrder } from "../domain/exam-order.js";
 import { buildExamReportDocument } from "../domain/exam-report-pdf.js";
 import type { ConsultationReport } from "../domain/consultation-report.js";
 import { MAX_GENERATED_PDF_BYTES } from "../domain/pdf-document.js";
@@ -56,5 +58,25 @@ describe("PdfKitRenderer", () => {
     const raw = bytes.toString("latin1");
     expect(raw).not.toContain("Maria");
     expect(raw).toContain("Documento Vita Family");
+  });
+
+  it.each([[true], [false]])("pedido de exame (5 itens hostis) e declaração de presença: PDF válido sem ações nem ficheiros embebidos (compress=%s)", async (compress) => {
+    const order = (i: number): ExamOrder => ({
+      id: String(i), clinicId: "c", bookingKind: "APPOINTMENT", bookingId: "b", clinicPatientId: null, name: HOSTILE.slice(0, 80), serviceTypeId: null, note: HOSTILE.slice(0, 200), urgent: i % 2 === 0,
+      status: "ORDERED", bookedHere: false, patientName: HOSTILE.slice(0, 100), patientBirthDate: "1990-01-01", consultationAt: NOW, authorName: HOSTILE.slice(0, 100), authorAccountId: null, cancelledAt: null, createdAt: NOW, updatedAt: NOW,
+    });
+    const renderer = new PdfKitRenderer({ compress });
+    const orders = await renderer.render(buildExamOrderDocument([1, 2, 3, 4, 5].map(order), { name: HOSTILE.slice(0, 100), address: HOSTILE.slice(0, 100) }, NOW));
+    assertSafe(orders);
+    const statement = await renderer.render(buildAttendanceStatementDocument({ patientName: HOSTILE.slice(0, 100), consultationAt: NOW, professionalName: HOSTILE.slice(0, 100) }, { name: HOSTILE.slice(0, 100) }, NOW));
+    assertSafe(statement);
+    expect(orders.length).toBeLessThanOrEqual(MAX_GENERATED_PDF_BYTES * 4);
+  });
+
+  it("a declaração de presença típica não contém especialidade nem diagnóstico ", async () => {
+    const bytes = await new PdfKitRenderer({ compress: false }).render(buildAttendanceStatementDocument({ patientName: "Maria Silva", consultationAt: NOW }, { name: "Clínica Sol" }, NOW));
+    const raw = bytes.toString("latin1");
+    expect(raw.startsWith("%PDF-")).toBe(true);
+    expect(raw).not.toContain("Cardiologia");
   });
 });

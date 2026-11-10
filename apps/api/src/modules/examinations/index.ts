@@ -27,7 +27,7 @@ import { createDeleteExamResultUseCase } from "./application/delete-exam-result.
 import { createExamResultHistoryUseCase } from "./application/exam-result-history.js";
 import { createGetExaminationUseCase } from "./application/get-examination.js";
 import { createListExaminationsUseCase } from "./application/list-examinations.js";
-import type { ExaminationsDeps, ExamAlertsPort, ExamReportGeneratorPort, ReceiptIdsPort } from "./application/ports.js";
+import type { ExaminationsDeps, ExamAlertsPort, ExamOrderLinkerPort, ExamReportGeneratorPort, ReceiptIdsPort } from "./application/ports.js";
 import { createDiscardResultsDraftUseCase, createDownloadExamReportUseCase, createGetResultsDraftUseCase, createSaveResultsDraftUseCase } from "./application/results-draft.js";
 import { createSetExaminationStatusUseCase } from "./application/set-examination-status.js";
 import { createUpdateExaminationUseCase } from "./application/update-examination.js";
@@ -55,6 +55,8 @@ export interface ExaminationsModuleDeps {
   receipts: ReceiptIdsPort<Kysely<Database>>;
   /** M15 T (BR-CLN-48/49): laudo PDF — ligada no composition root a `clinic-reports` (`examinations` não o importa). */
   reportGenerator: ExamReportGeneratorPort<Kysely<Database>>;
+  /** M15 U (BR-CLN-52): estado do pedido de exame ligado — ligada no composition root a `clinic-reports` (`examinations` não o importa). */
+  examOrders: ExamOrderLinkerPort<Kysely<Database>>;
   clock: Clock;
 }
 
@@ -133,6 +135,7 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
     examResultsRepo,
     draftsRepo: new KyselyExamResultsDraftRepository(),
     reportGenerator: deps.reportGenerator,
+    examOrders: deps.examOrders,
     limiter: new InMemoryRateLimiter(deps.clock),
     policy: deps.access.policy,
     memberNames: { getMemberName: deps.access.getMemberName },

@@ -138,6 +138,26 @@ describe("exportação de dados (UC-ACC-06)", () => {
     expect(denied.stored.get(`exports/${second.id}.zip`)?.toString("utf8") ?? "").not.toContain("consultationReports");
   });
 
+  it("M15 U (BR-CLN-56): os pedidos de exame (não cancelados) entram no pacote como `examOrders`; sem pedidos ou negado fica de fora; sem fonte também", async () => {
+    const withOrders = setup({ examOrders: () => Promise.resolve([{ id: "o1", name: "Hemograma", status: "ORDERED" }]) });
+    const view = await createRequestExportUseCase(withOrders.deps)(ME, undefined, CTX);
+    await flush();
+    const json = withOrders.stored.get(`exports/${view.id}.zip`)?.toString("utf8") ?? "";
+    expect(json).toContain('"examOrders"');
+    expect(json).toContain("Hemograma");
+
+    for (const examOrders of [() => Promise.resolve([]), () => Promise.reject(new ForbiddenError())]) {
+      const other = setup({ examOrders });
+      const second = await createRequestExportUseCase(other.deps)(ME, undefined, CTX);
+      await flush();
+      expect(other.stored.get(`exports/${second.id}.zip`)?.toString("utf8") ?? "").not.toContain("examOrders");
+    }
+    const none = setup();
+    const third = await createRequestExportUseCase(none.deps)(ME, undefined, CTX);
+    await flush();
+    expect(none.stored.get(`exports/${third.id}.zip`)?.toString("utf8") ?? "").not.toContain("examOrders");
+  });
+
   it("no máximo 3 pedidos por dia (N7)", async () => {
     const { deps } = setup();
     const request = createRequestExportUseCase(deps);

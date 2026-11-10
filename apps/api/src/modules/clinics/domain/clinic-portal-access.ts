@@ -47,6 +47,13 @@ const ALL: Row[] = [
   [["GET"], ["/clinic-portal/agenda/:appointmentId/report", "/clinic-portal/agenda/:appointmentId/report/pdf"], "yes", "yes", "own"],
   [["PUT"], ["/clinic-portal/agenda/:appointmentId/report", "/clinic-portal/agenda/:appointmentId/report/finalize"], "no", "no", "own"],
   [["POST"], ["/clinic-portal/agenda/:appointmentId/report/addenda"], "no", "no", "own"],
+  // M15 U/V (ADR-028, BR-CLN-51/54/55): Admin e Gestor leem e imprimem o pedido de exame e emitem a declaração de presença;
+  // só o Médico (nas suas) cria e cancela pedidos.
+  [["GET"], ["/clinic-portal/agenda/:appointmentId/exam-orders", "/clinic-portal/agenda/:appointmentId/exam-orders/pdf", "/clinic-portal/agenda/:appointmentId/attendance-statement/pdf"], "yes", "yes", "own"],
+  [["POST"], ["/clinic-portal/agenda/:appointmentId/exam-orders"], "no", "no", "own"],
+  [["PUT"], ["/clinic-portal/agenda/:appointmentId/exam-orders/:orderId/cancel"], "no", "no", "own"],
+  // M15 U (BR-CLN-51): escolha do serviço de exame ao pedir — os três papéis (projeção sem preços); o catálogo completo continua Admin/Gestor.
+  [["GET"], ["/clinic-portal/exam-service-types"], "yes", "yes", "yes"],
   [["GET"], ["/clinic-portal/exam-agenda"], "yes", "yes", "own"],
   [["PUT"], ["/clinic-portal/exam-agenda/:examinationId/complete"], "yes", "yes", "own"],
   // M15 T (BR-CLN-47..49): rascunho de resultados e laudo = permissões de `complete` de exame (entrada de valores, não autoria clínica).

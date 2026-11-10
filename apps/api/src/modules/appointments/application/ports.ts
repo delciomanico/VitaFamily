@@ -336,6 +336,8 @@ export interface ClinicVisitBookingView {
   receiptId?: string;
   /** M15 S (BR-CLN-41): estado do relatório da consulta. */
   reportStatus?: "DRAFT" | "FINAL";
+  /** M15 U (BR-CLN-51): pedidos de exame não cancelados da visita. */
+  examOrderCount?: number;
   /** M14 Q (BR-CLN-25/28/30). */
   confirmationStatus: ConfirmationStatus;
   confirmationSource?: ConfirmationSource;
@@ -392,6 +394,15 @@ export interface ConsultationReportsPort<Trx> {
   statuses(trx: Trx, clinicId: string, kind: "APPOINTMENT" | "VISIT", bookingIds: string[]): Promise<Map<string, "DRAFT" | "FINAL">>;
   /** `Appointment.reportAvailable`: consultas Vita com relatório FINAL partilhado. */
   sharedAvailability(trx: Trx, bookings: { clinicId: string; bookingId: string }[]): Promise<Set<string>>;
+  /**
+   * M15 U (ADR-028, BR-CLN-51): `examOrders` em `PUT …/complete`: cria 1–5 pedidos de exame na transação do chamador (como o
+   * relatório). Só o Médico da marcação; Admin/Gestor => `FORBIDDEN` (a transação do chamador reverte). Validado por quem implementa.
+   */
+  createExamOrdersWithComplete(trx: Trx, actor: ClinicPortalActor, kind: "APPOINTMENT" | "VISIT", bookingId: string, examOrders: unknown, context: RequestContext): Promise<void>;
+  /** `ClinicBooking.examOrderCount`: `bookingId -> pedidos não cancelados` da clínica. */
+  examOrderCounts(trx: Trx, clinicId: string, kind: "APPOINTMENT" | "VISIT", bookingIds: string[]): Promise<Map<string, number>>;
+  /** `Appointment.examOrderCount`: `appointmentId -> pedidos não cancelados` (só consultas Vita; só para SELF/TUTOR_OF). */
+  appointmentExamOrderCounts(trx: Trx, appointmentIds: string[]): Promise<Map<string, number>>;
 }
 
 export interface AppointmentsDeps<Trx> {

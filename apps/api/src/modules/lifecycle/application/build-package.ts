@@ -41,6 +41,10 @@ async function memberPackage(
     if (report) consultationReports.push(report);
   }
 
+  // M15 U (BR-CLN-56): os pedidos de exame (não cancelados) das consultas Vita do titular/tutor; negado ⇒ omitido (como o relatório).
+  const readExamOrders = sources.examOrders;
+  const examOrders = readExamOrders ? await readable(() => readExamOrders(actor, familyId, memberId, context)) : undefined;
+
   const resources = [
     ...(prescriptions ?? []).map((p) => ({ resourceType: "PRESCRIPTION" as const, resourceId: str(p, "id") })),
     ...(examinations ?? []).map((e) => ({ resourceType: "EXAMINATION" as const, resourceId: str(e, "id") })),
@@ -73,6 +77,7 @@ async function memberPackage(
     ...(doses !== undefined ? { doses } : {}),
     ...(appointments !== undefined ? { appointments } : {}),
     ...(consultationReports.length > 0 ? { consultationReports } : {}),
+    ...(examOrders !== undefined && examOrders.length > 0 ? { examOrders } : {}),
     ...(examinations !== undefined ? { examinations } : {}),
     documents: documentEntries,
   };

@@ -18,7 +18,9 @@ export type AlertNotificationType =
   | "RECOMMENDATION_ADDED"
   // M14 Q (BR-ALR-09, BR-CLN-30): partilham o interruptor `appointmentReminder` (sem interruptor novo).
   | "APPOINTMENT_CONFIRM_REQUEST"
-  | "FOLLOWUP_REMINDER";
+  | "FOLLOWUP_REMINDER"
+  // M15 U (ADR-028): novo pedido de exame; sem interruptor próprio (sempre ativo, como `RECOMMENDATION_ADDED`).
+  | "EXAM_ORDER_ADDED";
 
 export type Channel = "PUSH" | "EMAIL";
 

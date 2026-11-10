@@ -19,6 +19,8 @@ export interface CreateExaminationInput {
    * `clinicId`/`clinicName`; `name`/`examDate`/clínica passam a ser os do horário (congelados). */
   slotId?: string | null;
   notes?: string | null;
+  /** M15 U (BR-CLN-52): liga o exame a um pedido de exame `ORDERED` do mesmo membro (titular/tutor); na mesma transação. */
+  examOrderId?: string | null;
 }
 
 export function createCreateExaminationUseCase<Trx>(deps: ExaminationsDeps<Trx>) {
@@ -81,6 +83,10 @@ export function createCreateExaminationUseCase<Trx>(deps: ExaminationsDeps<Trx>)
         ...(input.notes ? { notes: input.notes } : {}),
       });
 
+      if (input.examOrderId) {
+        await deps.examOrders.link(trx, { actor, familyId, memberId, orderId: input.examOrderId, examinationId: examination.id, examClinicId: clinic.id, status: "SCHEDULED" }, context);
+      }
+
       await deps.audit.record(trx, {
         occurredAt: now,
         actorType: "USER",
@@ -132,6 +138,13 @@ export function createCreateExaminationUseCase<Trx>(deps: ExaminationsDeps<Trx>)
         ...clinicSnapshot,
       };
       const examination = await deps.examinationsRepo.insert(trx, record);
+      if (input.examOrderId) {
+        await deps.examOrders.link(
+          trx,
+          { actor, familyId, memberId, orderId: input.examOrderId, examinationId: examination.id, ...(clinicSnapshot.clinicId ? { examClinicId: clinicSnapshot.clinicId } : {}), status: record.status === "COMPLETED" ? "COMPLETED" : "SCHEDULED" },
+          context,
+        );
+      }
 
       await deps.audit.record(trx, {
         occurredAt: now,

@@ -29,6 +29,8 @@ const MESSAGE_BY_TYPE: Record<AlertType, string> = {
   // M14 Q (BR-ALR-09, BR-CLN-30): texto genérico, sem nome nem hora (BR-ALR-07/08).
   APPOINTMENT_CONFIRM_REQUEST: "Tem uma consulta para confirmar. Abra a app.",
   FOLLOWUP_REMINDER: "Tem um retorno sugerido por uma clínica. Abra a app.",
+  // M15 U (ADR-028, BR-ALR-07/08): sem nome do exame, do membro nem da clínica.
+  EXAM_ORDER_ADDED: "Recebeu um novo pedido de exame de uma clínica.",
 };
 
 export function createListAlertsUseCase<Trx>(deps: AlertsApiDeps<Trx>) {

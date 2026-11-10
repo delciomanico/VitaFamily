@@ -15,7 +15,9 @@ export type AlertType =
   | "RECOMMENDATION_ADDED"
   // M14 Q (BR-ALR-09, BR-CLN-30): pedido de confirmação a 48 h e lembrete de retorno 7 dias antes (texto sempre genérico).
   | "APPOINTMENT_CONFIRM_REQUEST"
-  | "FOLLOWUP_REMINDER";
+  | "FOLLOWUP_REMINDER"
+  // M15 U (ADR-028, BR-CLN-53): novo pedido de exame de uma clínica (texto sempre genérico, nunca o nome do exame).
+  | "EXAM_ORDER_ADDED";
 export type AlertSourceType = "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION";
 
 /** entities.md "Alert": `ruleKey` fixo por regra. */
@@ -30,7 +32,8 @@ export type RuleKey =
   | "exam.results"
   | "recommendation.added"
   | "appointment.confirm48h"
-  | "followup.due";
+  | "followup.due"
+  | "exam_order.added";
 
 /** Alertas de evento de exame (D19): disparados no momento da resposta/emissão, não por relógio. */
 export type ExamEventAlertType = "EXAM_CANCELLED" | "EXAM_RESULTS_AVAILABLE";
@@ -48,6 +51,11 @@ export function examEventRule(type: ExamEventAlertType, occurredAt: Date): Rule 
 /** ADR-023 (BR-CLN-09): a regra de uma recomendação nova vence no próprio instante da emissão. */
 export function recommendationAddedRule(occurredAt: Date): Rule {
   return { ruleKey: "recommendation.added", type: "RECOMMENDATION_ADDED", triggerAt: occurredAt };
+}
+
+/** ADR-028 (BR-CLN-53): a regra de um pedido de exame novo vence no próprio instante da emissão. */
+export function examOrderAddedRule(occurredAt: Date): Rule {
+  return { ruleKey: "exam_order.added", type: "EXAM_ORDER_ADDED", triggerAt: occurredAt };
 }
 
 export interface Rule {

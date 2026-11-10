@@ -172,6 +172,8 @@ export function createCancelClinicExaminationUseCase<Trx>(deps: ExaminationsDeps
       const examination = await deps.examinationsRepo.updateStatusByClinic(trx, examinationId, { status: "CANCELLED", responseNote: note });
       // M15 T (BR-CLN-47): o rascunho de resultados apaga-se ao cancelar o exame.
       await deps.draftsRepo.delete(trx, examinationId);
+      // M15 U (BR-CLN-52): o pedido de exame ligado volta a `ORDERED` (o paciente pode remarcar).
+      await deps.examOrders.release(trx, examinationId);
 
       await deps.audit.record(trx, clinicAudit(actor, now, "EXAM_CLINIC_CANCEL", examinationId, context, { from: existing.status, to: "CANCELLED" }));
       await deps.alerts.raiseExamEvent(trx, { type: "EXAM_CANCELLED", examinationId, familyId: existing.familyId, memberId: existing.memberId });
@@ -287,6 +289,8 @@ export function createCompleteClinicExaminationUseCase<Trx>(deps: ExaminationsDe
         }
         const examination = await deps.examinationsRepo.completeByClinic(trx, examinationId, { clinicAccountId: actor.clinicAccountId, issuedAt: now, resultNote });
         await deps.draftsRepo.delete(trx, examinationId);
+        // M15 U (BR-CLN-52): o pedido de exame ligado passa a `FULFILLED`.
+        await deps.examOrders.fulfil(trx, examinationId);
 
         await deps.audit.record(trx, clinicAudit(actor, now, "EXAM_CLINIC_COMPLETE", examinationId, context, { from: existing.status, to: "COMPLETED", resultsCount: validated.length, documentsCount: clinicDocuments.length }));
         if (generated) {

@@ -159,6 +159,8 @@ export interface ReportBookingFacts {
   slotId?: string;
   familyId: string;
   memberId: string;
+  /** M15 V (BR-CLN-55): chegada registada (declaração de presença). */
+  arrivedAt?: Date;
 }
 
 /** Facto mínimo de uma origem de recomendação (modules.md §3 nota 22): nunca o registo completo. */
@@ -268,6 +270,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
         memberId: appointment.memberId,
         ...(appointment.specialty ? { specialty: appointment.specialty } : {}),
         ...(appointment.slotId ? { slotId: appointment.slotId } : {}),
+        ...(appointment.arrivedAt ? { arrivedAt: appointment.arrivedAt } : {}),
       };
     },
     findFamilyAppointmentClinic: async (trx, familyId, memberId, appointmentId) => {
