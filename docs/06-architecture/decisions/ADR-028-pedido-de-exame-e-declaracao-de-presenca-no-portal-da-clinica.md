@@ -54,10 +54,10 @@ Decisão do proprietário: o Médico escolhe o exame do catálogo da própria cl
 | Corrida a criar >5 pedidos ativos | `pg_advisory_xact_lock` por `booking_id` na transação; teste de concorrência. |
 
 ## Consequências
-- Documentação contratada: BR-CLN-51..56, FR-CLN-25..28, UC-CLN-39..43, `schema.md` §3h + migração **`0032_exam_orders.sql`**, `openapi.yaml`/`endpoints.md`, `authorization.md` §6.2b/§6.7, `audit.md`, `privacy.md`, `modules.md` nota 28, `plan.md` (**M15**, etapas U e V), `clinic-portal-v2.md` §5.5, OP-52..56, AC-CLN-34..36, TC-CLN-25..27/TC-AZ-CLN-V7.
+- Documentação contratada: BR-CLN-51..56, FR-CLN-25..28, UC-CLN-39..43, `schema.md` §3h + migração **`0032_clinic_exam_orders.sql`**, `openapi.yaml`/`endpoints.md`, `authorization.md` §6.2b/§6.7, `audit.md`, `privacy.md`, `modules.md` nota 28, `plan.md` (**M15**, etapas U e V), `clinic-portal-v2.md` §5.5, OP-52..56, AC-CLN-34..36, TC-CLN-25..27/TC-AZ-CLN-V7.
 - **OP-44** (relatório sem alerta) mantém-se; o pedido de exame **tem** alerta genérico próprio (a decisão é independente: aqui o paciente tem de agir).
 - Mantêm-se: BR-CLN-03 (a clínica não lê mais do Vita), BR-CLN-44 (autoria do Médico), BR-CLN-45 (relatório), 404 sem enumeração, ADR-020 (`ClinicAccount` separado), BR-EXM-07 obsoleta (outro conceito).
 - Gate de lançamento: o mesmo de ADR-027 (AIPD/DPA M10; OP-46); não bloqueia o desenvolvimento em mock.
 
 ## Pontos em aberto
-OP-52..56 em `11-implementation/open-points.md` (validade/expiração do pedido; flag de partilha e PDF na família; declaração para exames; cancelar um pedido já cumprido; texto/assinatura da declaração e verificação).
+OP-52..57 em `11-implementation/open-points.md` (validade/expiração do pedido; flag de partilha e PDF na família; declaração para exames; cancelar um pedido já cumprido; texto/assinatura da declaração e verificação).

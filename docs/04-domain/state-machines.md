@@ -87,7 +87,7 @@ SCHEDULED → COMPLETED   [titular/tutor; ou conta da clínica com resultados/PD
 SCHEDULED → CANCELLED   [titular/tutor; liberta a vaga se tiver slotId]
 CANCELLED → SCHEDULED   [titular/tutor — só exames sem slotId; com slotId: pedir novo horário, BR-EXM-08]
 ```
-M15 U (ADR-028): um exame ligado a um `ExamOrder` (`examOrderId`) propaga `COMPLETED` (pedido `FULFILLED`) e `CANCELLED`/apagado (pedido de novo `ORDERED`); `CANCELLED → SCHEDULED` não religa (o paciente volta a marcar com o pedido).
+M15 U (ADR-028): um exame ligado a um `ExamOrder` (`examOrderId`) propaga `COMPLETED` (pedido `FULFILLED`) e `CANCELLED`/apagado (pedido de novo `ORDERED`); `CANCELLED → SCHEDULED` pela família **não religa** o pedido (fica `ORDERED`; o paciente volta a marcar com o pedido). O rótulo "Com pedido" na agenda de exames da clínica fica fora desta entrega (OP-57).
 ```
 Exame de clínica parceira (`slotId`) **nasce SCHEDULED** se o horário tem vaga (BR-EXM-05, BR-APT-11); privado/sem clínica nasce SCHEDULED ou COMPLETED (data passada) como antes. **`REQUESTED` e `REJECTED` foram retirados do fluxo** (ADR-023 revisto): os valores permanecem no enum de BD `exam_status` **apenas por compatibilidade** (PostgreSQL não remove valores de enum sem recriar o tipo), são proibidos por CHECK em `examinations` (migração 0022), nunca são produzidos pela aplicação nem expostos na API (`Examination.status` ∈ SCHEDULED|COMPLETED|CANCELLED).
 Exame criado com `examDate` passada nasce COMPLETED; resultados só se adicionam a exames COMPLETED — **exceção atómica:** a clínica completa (`SCHEDULED → COMPLETED`) e grava os resultados na mesma transação (BR-CLN-08).   ← ST5, D19
