@@ -1,4 +1,5 @@
 import { AppError, type ErrorCode } from './errors'
+import { parseJsonBody } from './safe'
 
 /** Backend real (docs/05-api/openapi.yaml). Sem backend configurado, cai nos mocks (ver services/*). */
 const API_BASE_URL = import.meta.env.VITE_API_URL as string | undefined
@@ -101,7 +102,7 @@ export async function apiFetch<T>(
   if (res.status === 204) return undefined as T
 
   const text = await res.text()
-  const data = text ? (JSON.parse(text) as unknown) : undefined
+  const data = parseJsonBody(text)
 
   if (!res.ok) {
     const problem = data as Problem

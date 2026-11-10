@@ -17,6 +17,7 @@ import { SetupFamilyPage } from '@/pages/setup/SetupFamilyPage'
 import { SetupHealthPage } from '@/pages/setup/SetupHealthPage'
 import { SetupMembersPage } from '@/pages/setup/SetupMembersPage'
 import { FullScreenLoader } from '@/components/ui/states'
+import { RouteError } from '@/components/ui/RouteError'
 import {
   ClinicGuestOnly,
   InsuranceGuestOnly,
@@ -344,4 +345,9 @@ export const routes: RouteObject[] = [
   { path: '*', ...page(() => import('@/pages/NotFoundPage'), 'NotFoundPage') },
 ]
 
-export const router = createBrowserRouter(routes)
+/** Cada rota de topo tem o seu ecrã de falha: um erro dentro de uma área não deixa a app em branco. */
+export function withErrorElements(list: RouteObject[]): RouteObject[] {
+  return list.map((route) => ({ errorElement: <RouteError />, ...route }))
+}
+
+export const router = createBrowserRouter(withErrorElements(routes))

@@ -2,6 +2,7 @@ import { useContext, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Check } from 'lucide-react'
 import { AlertCard } from '@/components/domain/AlertCard'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { ConfirmationButtons } from '@/components/domain/ConfirmationButtons'
 import { Page } from '@/components/layout/Page'
 import { RefreshUnreadAlertsContext } from '@/components/layout/UnreadAlertsContext'
@@ -74,7 +75,9 @@ function AlertRows({ alerts, onOpen, onRead, onAnswered }: AlertRowsProps) {
             onClick={() => onOpen(alert)}
             className="-ml-2 min-w-0 flex-1 rounded-md px-2 text-left transition-colors hover:bg-surface-muted"
           >
-            <AlertCard alert={alert} dot={!onRead} />
+            <ErrorBoundary>
+              <AlertCard alert={alert} dot={!onRead} />
+            </ErrorBoundary>
           </button>
           {onRead && (
             <button

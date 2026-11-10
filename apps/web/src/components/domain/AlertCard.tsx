@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import {
+  Bell,
   CalendarCheck,
   CalendarDays,
   CalendarX,
@@ -13,11 +14,12 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { withFallback } from '@/lib/safe'
 import { formatRelativeDay, formatWhen } from '@/lib/format'
 import { alertTitle } from '@/lib/labels'
 import type { AlertItem, AlertType } from '@/types/alert'
 
-const icons: Record<AlertType, LucideIcon> = {
+const iconsBase: Record<AlertType, LucideIcon> = {
   MEDICATION_DUE: Pill,
   APPOINTMENT_REMINDER: CalendarDays,
   EXAM_REMINDER: FlaskConical,
@@ -32,6 +34,8 @@ const icons: Record<AlertType, LucideIcon> = {
   EXAM_CANCELLED: CalendarX,
   EXAM_RESULTS_AVAILABLE: FlaskConical,
 }
+/** Tipo de alerta desconhecido → ícone genérico. */
+const icons = withFallback(iconsBase, () => Bell)
 
 /** Quando acontece a origem (“Amanhã · 09:30”; exames só têm dia); senão, quando disparou. */
 function when(alert: AlertItem): string {

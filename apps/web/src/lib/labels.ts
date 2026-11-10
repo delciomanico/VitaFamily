@@ -9,10 +9,11 @@ import type { PrescriptionStatus } from '@/types/prescription'
 import { RELATIONSHIPS, type FamilyRole, type Relationship } from '@/types/family'
 import { BLOOD_TYPES, SEXES, type BloodType, type Sex } from '@/types/health'
 import type { SharingCategory } from '@/types/sharing'
+import { withFallback } from '@/lib/safe'
 
 /** Textos em pt-PT para valores do domínio. */
 
-export const relationshipLabels: Record<Relationship, string> = {
+const relationshipLabelsBase: Record<Relationship, string> = {
   SELF: 'Eu',
   SPOUSE: 'Cônjuge',
   FATHER: 'Pai',
@@ -23,40 +24,45 @@ export const relationshipLabels: Record<Relationship, string> = {
   GRANDPARENT: 'Avô/Avó',
   OTHER: 'Outro',
 }
+export const relationshipLabels: Record<Relationship, string> = withFallback(relationshipLabelsBase, (key) => key)
 
-export const sexLabels: Record<Sex, string> = {
+const sexLabelsBase: Record<Sex, string> = {
   FEMALE: 'Feminino',
   MALE: 'Masculino',
   UNSPECIFIED: 'Prefiro não indicar',
 }
+export const sexLabels: Record<Sex, string> = withFallback(sexLabelsBase, (key) => key)
 
-export const roleLabels: Record<FamilyRole, string> = {
+const roleLabelsBase: Record<FamilyRole, string> = {
   FAMILY_ADMIN: 'Administrador',
   FAMILY_MEMBER: 'Membro',
 }
+export const roleLabels: Record<FamilyRole, string> = withFallback(roleLabelsBase, (key) => key)
 
 /** Papéis do portal da clínica (authorization.md §6, D18) — contas `ClinicAccount`, não `User`. */
-export const clinicRole: Record<ClinicRole, string> = {
+const clinicRoleBase: Record<ClinicRole, string> = {
   CLINIC_ADMIN: 'Admin da clínica',
   CLINIC_MANAGER: 'Gestor da clínica',
   CLINIC_DOCTOR: 'Médico',
 }
+export const clinicRole: Record<ClinicRole, string> = withFallback(clinicRoleBase, (key) => key)
 
 /** Categorias de partilha C2–C6 (C1 é sempre visível). */
-export const sharingCategoryLabels: Record<SharingCategory, string> = {
+const sharingCategoryLabelsBase: Record<SharingCategory, string> = {
   ALLERGIES: 'Alergias e tipo sanguíneo',
   CONDITIONS: 'Condições e histórico',
   MEDICATION: 'Medicação e receitas',
   APPOINTMENTS: 'Consultas',
   EXAMS: 'Exames',
 }
+export const sharingCategoryLabels: Record<SharingCategory, string> = withFallback(sharingCategoryLabelsBase, (key) => key)
 
 export interface StatusLabel {
   label: string
   tone: Tone
 }
 
-export const appointmentStatus: Record<AppointmentStatus, StatusLabel> = {
+const appointmentStatusBase: Record<AppointmentStatus, StatusLabel> = {
   REQUESTED: { label: 'Aguarda confirmação', tone: 'warning' },
   SCHEDULED: { label: 'Agendada', tone: 'primary' },
   REJECTED: { label: 'Recusada', tone: 'danger' },
@@ -64,31 +70,36 @@ export const appointmentStatus: Record<AppointmentStatus, StatusLabel> = {
   NO_SHOW: { label: 'Não compareceu', tone: 'warning' },
   CANCELLED: { label: 'Cancelada', tone: 'neutral' },
 }
+export const appointmentStatus: Record<AppointmentStatus, StatusLabel> = withFallback(appointmentStatusBase, () => ({ label: 'Outro', tone: 'neutral' }))
 
-export const examinationStatus: Record<ExaminationStatus, StatusLabel> = {
+const examinationStatusBase: Record<ExaminationStatus, StatusLabel> = {
   SCHEDULED: { label: 'Agendado', tone: 'primary' },
   COMPLETED: { label: 'Realizado', tone: 'success' },
   CANCELLED: { label: 'Cancelado', tone: 'neutral' },
 }
+export const examinationStatus: Record<ExaminationStatus, StatusLabel> = withFallback(examinationStatusBase, () => ({ label: 'Outro', tone: 'neutral' }))
 
-export const prescriptionStatus: Record<PrescriptionStatus, StatusLabel> = {
+const prescriptionStatusBase: Record<PrescriptionStatus, StatusLabel> = {
   ACTIVE: { label: 'Ativa', tone: 'success' },
   COMPLETED: { label: 'Concluída', tone: 'neutral' },
   CANCELLED: { label: 'Cancelada', tone: 'neutral' },
 }
+export const prescriptionStatus: Record<PrescriptionStatus, StatusLabel> = withFallback(prescriptionStatusBase, () => ({ label: 'Outro', tone: 'neutral' }))
 
-export const medicationStatus: Record<MedicationPlanStatus, StatusLabel> = {
+const medicationStatusBase: Record<MedicationPlanStatus, StatusLabel> = {
   ACTIVE: { label: 'Ativo', tone: 'success' },
   ENDED: { label: 'Terminado', tone: 'neutral' },
 }
+export const medicationStatus: Record<MedicationPlanStatus, StatusLabel> = withFallback(medicationStatusBase, () => ({ label: 'Outro', tone: 'neutral' }))
 
 /** Estados de uma toma (BR-MED-04). */
-export const doseStatus: Record<DoseStatus, StatusLabel> = {
+const doseStatusBase: Record<DoseStatus, StatusLabel> = {
   PENDING: { label: 'Por tomar', tone: 'neutral' },
   TAKEN: { label: 'Tomada', tone: 'success' },
   NOT_TAKEN: { label: 'Não tomada', tone: 'danger' },
   UNCONFIRMED: { label: 'Não confirmada', tone: 'warning' },
 }
+export const doseStatus: Record<DoseStatus, StatusLabel> = withFallback(doseStatusBase, () => ({ label: 'Outro', tone: 'neutral' }))
 
 /** Título do alerta a partir da regra e do resumo da origem (sem dados clínicos, FR-ALR-07). */
 export function alertTitle({
@@ -125,11 +136,14 @@ export function alertTitle({
       return sourceLabel ? `Resultados disponíveis: ${sourceLabel}` : 'Há resultados de exame disponíveis.'
     case 'FOLLOWUP_REMINDER':
       return sourceLabel ? `Está na altura de marcar o retorno: ${sourceLabel}` : 'Está na altura de marcar o retorno.'
+    default:
+      // Tipo novo no backend, ainda sem texto próprio na app.
+      return sourceLabel ? `Novo aviso: ${sourceLabel}` : 'Tem um novo aviso.'
   }
 }
 
 /** Grupo do centro de alertas de cada tipo (Medicamentos, Consultas, Exames, Acompanhamento). */
-export const alertCategoryOf: Record<AlertType, AlertCategory> = {
+const alertCategoryOfBase: Record<AlertType, AlertCategory> = {
   MEDICATION_DUE: 'MEDICATION',
   APPOINTMENT_REMINDER: 'APPOINTMENTS',
   APPOINTMENT_CONFIRMED: 'APPOINTMENTS',
@@ -144,13 +158,15 @@ export const alertCategoryOf: Record<AlertType, AlertCategory> = {
   EXAM_CANCELLED: 'EXAMS',
   EXAM_RESULTS_AVAILABLE: 'EXAMS',
 }
+export const alertCategoryOf: Record<AlertType, AlertCategory> = withFallback(alertCategoryOfBase, () => 'OTHER' as AlertCategory)
 
-export const alertCategoryLabels: Record<AlertCategory, string> = {
+const alertCategoryLabelsBase: Record<AlertCategory, string> = {
   MEDICATION: 'Medicamentos',
   APPOINTMENTS: 'Consultas',
   EXAMS: 'Exames',
   FOLLOW_UP: 'Acompanhamento',
 }
+export const alertCategoryLabels: Record<AlertCategory, string> = withFallback(alertCategoryLabelsBase, () => 'Outros')
 
 export function bloodTypeLabel(value: BloodType): string {
   return value === 'UNKNOWN' ? 'Não sei' : value

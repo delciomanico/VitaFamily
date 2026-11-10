@@ -1,4 +1,5 @@
 import { AppError } from './errors'
+import { parseJsonBody } from './safe'
 import { apiBaseUrl, toErrorCode, type Problem } from './apiClient'
 import type { InsuranceRole } from '@/types/insurance'
 
@@ -45,7 +46,7 @@ export async function insuranceApiFetch<T>(
   if (res.status === 204) return undefined as T
 
   const text = await res.text()
-  const data = text ? (JSON.parse(text) as unknown) : undefined
+  const data = parseJsonBody(text)
 
   if (!res.ok) {
     const problem = data as Problem
