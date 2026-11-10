@@ -233,6 +233,39 @@
 - **Alternativos:** sem resultados estruturados ⇒ não há laudo (só PDF carregado, se houver); falha na geração ⇒ o laudo é gerado **antes de qualquer escrita** do `complete`, logo a conclusão falha com `INTERNAL_ERROR` sem efeitos (se a transação reverter depois de o objeto escrito, este vai para `file_deletions` via `documents.discardStored`) e a UI oferece **Concluir sem laudo** (`generateReport=false`); laudo apagado pelo titular ⇒ clínica `NOT_FOUND` ao descarregar.
 - **Pós-condição:** `Document` `generatedBySystem` do exame (instantâneo); alerta `EXAM_RESULTS_AVAILABLE` como hoje; auditoria `EXAM_REPORT_GENERATED` (clínica) e `DOCUMENT_DOWNLOAD`/`EXAM_REPORT_DOWNLOAD`.
 
+### UC-CLN-39 Pedir exames na consulta (M15 U)
+- **Ator:** `CLINIC_DOCTOR` (marcações do seu profissional) · **FR:** CLN-25 · **BR:** CLN-51
+- **Pré-condição:** marcação (consulta Vita ou visita manual) da clínica `SCHEDULED` ou `COMPLETED`.
+- **Fluxo:** na marcação (drawer, editor do relatório ou diálogo **Concluir**), **Pedir exames** → acrescenta 1–5 linhas: escolhe um exame do catálogo da clínica (serviços de tipo exame) **ou** escreve o nome (≤80), nota opcional (≤200, ex.: "jejum") e "Urgente" → **Guardar pedido** (ou **Concluir e pedir exames**, que o envia em `examOrders` de `PUT …/complete`). A lista mostra os pedidos e o estado.
+- **Alternativos:** mais de 5 ativos ⇒ `LIMIT_EXCEEDED`; nome e serviço ambos/nenhum, texto longo ou com caracteres de controlo ⇒ `VALIDATION_ERROR`; marcação cancelada/faltou/pedida ⇒ `INVALID_STATE_TRANSITION`; Admin/Gestor ⇒ `FORBIDDEN` (só leem); marcação de outro profissional/clínica ⇒ `NOT_FOUND`; excesso de pedidos ⇒ `RATE_LIMITED`.
+- **Pós-condição:** `ExamOrder` `ORDERED` (imutável); consulta Vita: ponte para o paciente e alerta `EXAM_ORDER_ADDED` genérico; visita manual: só na clínica; auditoria `EXAM_ORDER_CREATED` sem texto.
+
+### UC-CLN-40 Cancelar um pedido de exame (M15 U)
+- **Ator:** `CLINIC_DOCTOR` (suas) · **FR:** CLN-25 · **BR:** CLN-52
+- **Fluxo:** na lista de pedidos, **Cancelar** num pedido `ORDERED`/`SCHEDULED` (como a clínica o vê) → confirma → fica `CANCELLED` (e deixa de aparecer no PDF e no cartão do paciente).
+- **Alternativos:** `FULFILLED` (cumprido na própria clínica) ⇒ `INVALID_STATE_TRANSITION`; já `CANCELLED` ⇒ `200` idempotente; Admin/Gestor ⇒ `FORBIDDEN`; outro profissional/clínica ⇒ `NOT_FOUND`.
+- **Pós-condição:** o `Examination` do paciente (se já marcado) **não** é tocado; a ligação desfaz-se; auditoria `EXAM_ORDER_CANCELLED`.
+
+### UC-CLN-41 Ver e imprimir o pedido de exame (clínica) (M15 U)
+- **Atores:** `CLINIC_ADMIN`, `CLINIC_MANAGER`, `CLINIC_DOCTOR` (suas) · **FR:** CLN-27 · **BR:** CLN-54
+- **Fluxo:** na marcação, **Pedidos de exame** (lista) → **Imprimir / PDF** abre o PDF (cabeçalho da clínica, paciente, exames numerados, "URGENTE", assinatura textual, rodapé "Documento não fiscal").
+- **Alternativos:** sem pedidos ativos ⇒ `NOT_FOUND`; Médico noutra marcação ⇒ `NOT_FOUND`; `RATE_LIMITED`.
+- **Pós-condição:** só leitura; auditoria `EXAM_ORDER_VIEWED` (`format`).
+
+### UC-CLN-42 Ver o pedido e marcar o exame na app (paciente) (M15 U)
+- **Atores:** titular (`SELF`) ou tutor (`TUTOR_OF`) · **FR:** CLN-26 · **BR:** CLN-52, CLN-53
+- **Pré-condição:** consulta marcada via Vita com pedido de exame ativo.
+- **Fluxo:** o alerta "Recebeu um novo pedido de exame de uma clínica." abre o **detalhe da consulta**, cartão **Pedidos de exame** (nome, nota, "Urgente", estado) → **Marcar este exame** abre o formulário/escolha de horário de exame existente com o nome pré-preenchido e a clínica de origem como escolha inicial (pode mudar de clínica ou registar privado) → ao confirmar, o exame fica ligado ao pedido (`examOrderId`) e o pedido passa a **Marcado**; ao concluir o exame, **Cumprido**.
+- **Alternativos:** pedido já ligado/cumprido ⇒ `CONFLICT`; pedido de outro membro ou não visível ⇒ `NOT_FOUND`; `DEPENDENT_SELF`/`OTHER` ⇒ `FORBIDDEN`; exame cancelado/apagado ⇒ pedido volta a `ORDERED`; sem horário na clínica de origem ⇒ escolher outra clínica ou exame privado (sem ligação perdida).
+- **Pós-condição:** `EXAM_ORDER_LINKED` (auditoria); a clínica de origem só vê `SCHEDULED`/`FULFILLED` se o exame é dela; a de destino não conhece o pedido.
+
+### UC-CLN-43 Emitir a declaração de presença (M15 V)
+- **Atores:** `CLINIC_ADMIN`, `CLINIC_MANAGER`, `CLINIC_DOCTOR` (suas) · **FR:** CLN-28 · **BR:** CLN-55
+- **Pré-condição:** consulta Vita ou visita manual `COMPLETED`, ou `SCHEDULED` com chegada registada.
+- **Fluxo:** nas ações do dia (Hoje, Agenda), **Declaração** → (opcional) "Incluir o profissional" → abre o PDF.
+- **Alternativos:** `NO_SHOW`/`CANCELLED`/`REQUESTED`/`REJECTED` ou sem chegada ⇒ `INVALID_STATE_TRANSITION`; outra clínica/profissional ⇒ `NOT_FOUND`; `RATE_LIMITED`.
+- **Pós-condição:** nada se guarda; auditoria `ATTENDANCE_STATEMENT_ISSUED` sem dados pessoais; o paciente não a vê na app.
+
 ---
 
 ## Clínicas

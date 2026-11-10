@@ -3374,6 +3374,50 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/exam-orders:
+    get:
+      tags: [Appointments]
+      operationId: listFamilyExamOrders
+      summary: "Listar os pedidos de exame emitidos por clínicas ao membro."
+      description: "Autorização: titular (SELF adulto) ou tutor (TUTOR_OF) com READ(APPOINTMENTS); DEPENDENT_SELF e OTHER (mesmo com SharingGrant) => FORBIDDEN (authorization.md §6.7). M15 U, BR-CLN-52/53, UC-CLN-42. Só pedidos de consultas Vita do membro (visitas manuais não aparecem). Independente de ClinicConsent. Sem ids da clínica nem da conta autora além de clinicId/clinicName. Por omissão exclui CANCELLED. Para marcar o exame usar `examOrderId` em POST .../examinations."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [ORDERED, SCHEDULED, FULFILLED, CANCELLED] }
+        - name: appointmentId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyExamOrderList" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /families/{familyId}/members/{memberId}/appointments/{appointmentId}/report:
     get:
       tags: [Appointments]
@@ -4957,6 +5001,215 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '404':
           description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/exam-orders:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicExamOrders
+      summary: "Listar os pedidos de exame de uma marcação."
+      description: "Autorização: CLINIC_ACCOUNT (Admin e Gestor qualquer marcação da clínica; o Médico só as suas — authorization.md §6.2b). M15 U, BR-CLN-51/52, UC-CLN-41. Devolve todos os pedidos da marcação (incl. CANCELLED). O estado SCHEDULED/FULFILLED só aparece se o exame ligado é da própria clínica; senão mostra ORDERED (BR-CLN-52). Leitura auditada (EXAM_ORDER_VIEWED, sem texto)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: "Id de uma consulta Vita ou de uma visita manual da clínica (despacho pelo id, BR-CLN-18)."
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicExamOrderList" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (marcação inexistente, de outra clínica ou de outro profissional)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Clinic Portal]
+      operationId: createClinicExamOrders
+      summary: "Pedir 1 a 5 exames numa marcação."
+      description: "Autorização: CLINIC_DOCTOR (suas); Admin/Gestor => FORBIDDEN. M15 U, BR-CLN-51, UC-CLN-39. Marcação SCHEDULED ou COMPLETED. No máximo 5 pedidos ativos por marcação (LIMIT_EXCEEDED). Consulta Vita: cria a ponte para o paciente e emite um alerta genérico EXAM_ORDER_ADDED na mesma transação. Imutável depois de criado. Auditoria EXAM_ORDER_CREATED (sem texto). Rate limit 30/min por conta."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClinicExamOrdersInput" }
+      responses:
+        '201':
+          description: "Pedidos criados; devolve a lista completa da marcação."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicExamOrderList" }
+        '400':
+          description: "VALIDATION_ERROR (nome e serviço ambos/nenhum, limites, caracteres de controlo, serviço que não é de exame)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN (Admin/Gestor)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (marcação de outra clínica/profissional; serviço de outra clínica)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION (marcação cancelada/faltou/pedida) ou LIMIT_EXCEEDED (mais de 5 ativos)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/exam-orders/{orderId}/cancel:
+    put:
+      tags: [Clinic Portal]
+      operationId: cancelClinicExamOrder
+      summary: "Cancelar um pedido de exame."
+      description: "Autorização: CLINIC_DOCTOR (suas); Admin/Gestor => FORBIDDEN. M15 U, BR-CLN-52, UC-CLN-40. Permitido se o estado visível à clínica é ORDERED ou SCHEDULED; FULFILLED visível => INVALID_STATE_TRANSITION; já CANCELLED => 200 idempotente. Não cancela nem apaga o Examination do paciente (a ligação desfaz-se). Auditoria EXAM_ORDER_CANCELLED. Rate limit 30/min por conta."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicExamOrder" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN (Admin/Gestor)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION (pedido cumprido na própria clínica)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/exam-orders/pdf:
+    get:
+      tags: [Clinic Portal]
+      operationId: getClinicExamOrdersPdf
+      summary: "PDF imprimível 'Pedido de exame' da marcação."
+      description: "Autorização: CLINIC_ACCOUNT (Admin e Gestor qualquer marcação; Médico as suas). M15 U, BR-CLN-54, UC-CLN-41. Gerado a pedido com os pedidos ativos (não CANCELLED); não é guardado; `Content-Disposition: inline; filename=pedido-exame-AAAAMMDD.pdf` (sem dados pessoais); rodapé 'Documento não fiscal'. Sem pedidos ativos => NOT_FOUND. Rate limit 30/min por conta (bolsa partilhada com os outros PDF da clínica). Auditoria EXAM_ORDER_VIEWED (metadata.format=PDF)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "PDF gerado pelo sistema (Cache-Control: private, no-store)."
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/agenda/{appointmentId}/attendance-statement/pdf:
+    get:
+      tags: [Clinic Portal]
+      operationId: getClinicAttendanceStatementPdf
+      summary: "PDF 'Declaração de presença' da marcação."
+      description: "Autorização: CLINIC_ACCOUNT (Admin e Gestor qualquer marcação; Médico as suas). M15 V, BR-CLN-55, UC-CLN-43. Só marcação COMPLETED ou SCHEDULED com arrivedAt (senão INVALID_STATE_TRANSITION). Sem especialidade, diagnóstico nem relatório; profissional só com includeProfessional=true. Gerado a pedido, não é guardado; `Content-Disposition: inline; filename=declaracao-AAAAMMDD.pdf`. Rate limit 30/min por conta (bolsa partilhada). Auditoria ATTENDANCE_STATEMENT_ISSUED (sem dados pessoais). Só a clínica emite: não há rota na família."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          description: "Id de uma consulta Vita ou de uma visita manual da clínica (despacho pelo id, BR-CLN-18)."
+          schema: { type: string, format: uuid }
+        - name: includeProfessional
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: "PDF gerado pelo sistema (Cache-Control: private, no-store)."
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION (sem comparência: faltou, cancelada, pedida, ou agendada sem chegada)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -9427,6 +9680,10 @@ components:
           format: date
           nullable: true
           description: "M14 Q (BR-CLN-30). Data de retorno sugerida pela clínica; só leitura para a família. Nulo se não houver."
+        examOrderCount:
+          type: integer
+          minimum: 0
+          description: "M15 U (BR-CLN-53). Pedidos de exame não cancelados desta consulta Vita; 0 para quem não pode ler (só SELF/TUTOR_OF). Abre GET .../exam-orders?appointmentId=."
         reportAvailable:
           type: boolean
           description: "M15 S (BR-CLN-45). true só se existe relatório FINAL partilhado desta consulta Vita e o actor é SELF/TUTOR_OF (para os restantes é sempre false). Abre GET .../report."
@@ -10061,6 +10318,10 @@ components:
           enum: [DRAFT, FINAL]
           nullable: true
           description: "M15 S (BR-CLN-41). Estado do relatório da consulta; nulo se não existe."
+        examOrderCount:
+          type: integer
+          minimum: 0
+          description: "M15 U (BR-CLN-51). Pedidos de exame não cancelados da marcação."
     ClinicPatientLookupRequest:
       type: object
       additionalProperties: false
@@ -10407,6 +10668,13 @@ components:
           allOf:
             - $ref: "#/components/schemas/ConsultationReportInput"
           description: "M15 S (BR-CLN-42/44). Opcional; presente = grava e finaliza o relatório na mesma transação (só CLINIC_DOCTOR da marcação; Admin/Gestor ⇒ FORBIDDEN, nada se grava). Ausente = o rascunho fica como está."
+        examOrders:
+          type: array
+          nullable: true
+          minItems: 1
+          maxItems: 5
+          items: { $ref: "#/components/schemas/ExamOrderItemInput" }
+          description: "M15 U (BR-CLN-51). Opcional; cria 1-5 pedidos de exame na mesma transação da conclusão (só CLINIC_DOCTOR da marcação; Admin/Gestor => FORBIDDEN, nada se grava; >5 ativos => LIMIT_EXCEEDED)."
     ClinicDocumentView:
       type: object
       required: [id, originalName, sizeBytes, scanStatus, createdAt]
@@ -10794,6 +11062,108 @@ components:
         addenda: []
         createdAt: "2026-11-09T09:40:00Z"
         updatedAt: "2026-11-09T10:05:00Z"
+    ExamOrderStatus:
+      type: string
+      enum: [ORDERED, SCHEDULED, FULFILLED, CANCELLED]
+      description: "M15 U (BR-CLN-52). Na API do portal, SCHEDULED/FULFILLED só aparecem se o exame ligado é da própria clínica (senão ORDERED)."
+    ExamOrderItemInput:
+      type: object
+      additionalProperties: false
+      description: "M15 U (BR-CLN-51). Exatamente um de `name` e `serviceTypeId` (ambos/nenhum => VALIDATION_ERROR). Texto simples; caracteres de controlo rejeitados."
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80, description: "Nome livre do exame." }
+        serviceTypeId: { type: string, format: uuid, description: "Serviço kind=EXAM ativo da própria clínica; o servidor copia o nome (truncado a 80)." }
+        note: { type: string, nullable: true, maxLength: 200, description: "Ex.: jejum de 8 h." }
+        urgent: { type: boolean, default: false, description: "Só rótulo 'URGENTE'; sem efeito funcional." }
+      example:
+        name: "Hemograma completo"
+        note: "Jejum de 8 h"
+        urgent: false
+    ClinicExamOrdersInput:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items: { $ref: "#/components/schemas/ExamOrderItemInput" }
+      example:
+        items:
+          - { name: "Hemograma completo", note: "Jejum de 8 h" }
+          - { name: "Glicemia em jejum", urgent: true }
+    ClinicExamOrder:
+      type: object
+      required: [id, bookingKind, bookingId, name, urgent, status, patientName, consultationAt, authorName, createdAt]
+      description: "M15 U (BR-CLN-51/52). Visão da clínica; sem ids Vita."
+      properties:
+        id: { type: string, format: uuid }
+        bookingKind: { type: string, enum: [APPOINTMENT, VISIT] }
+        bookingId: { type: string, format: uuid }
+        name: { type: string }
+        serviceTypeId: { type: string, format: uuid, nullable: true }
+        note: { type: string, nullable: true }
+        urgent: { type: boolean }
+        status: { $ref: "#/components/schemas/ExamOrderStatus" }
+        patientName: { type: string }
+        patientBirthDate: { type: string, format: date, nullable: true }
+        consultationAt: { type: string, format: date-time }
+        authorName: { type: string, description: "Assinatura textual (retrato do profissional)." }
+        cancelledAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+      example:
+        id: "3b1f6c7e-2d4a-4f7b-9a10-5c6d7e8f9a0b"
+        bookingKind: APPOINTMENT
+        bookingId: "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c6d"
+        name: "Hemograma completo"
+        note: "Jejum de 8 h"
+        urgent: false
+        status: ORDERED
+        patientName: "Maria Silva"
+        consultationAt: "2026-11-10T09:30:00Z"
+        authorName: "Dr. João Costa"
+        createdAt: "2026-11-10T09:50:00Z"
+    ClinicExamOrderList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicExamOrder" }
+    FamilyExamOrder:
+      type: object
+      required: [id, appointmentId, clinicId, clinicName, name, urgent, status, orderedAt]
+      description: "M15 U (BR-CLN-53). Visão do titular/tutor: sem conta autora; estado conforme o exame ligado (qualquer clínica)."
+      properties:
+        id: { type: string, format: uuid }
+        appointmentId: { type: string, format: uuid }
+        clinicId: { type: string, format: uuid, description: "Clínica que pediu (ponto de partida sugerido ao marcar)." }
+        clinicName: { type: string }
+        name: { type: string }
+        note: { type: string, nullable: true }
+        urgent: { type: boolean }
+        status: { $ref: "#/components/schemas/ExamOrderStatus" }
+        examinationId: { type: string, format: uuid, nullable: true, description: "Exame ligado (SCHEDULED/FULFILLED)." }
+        orderedAt: { type: string, format: date-time }
+      example:
+        id: "3b1f6c7e-2d4a-4f7b-9a10-5c6d7e8f9a0b"
+        appointmentId: "0a9b8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c6d"
+        clinicId: "9d8c7b6a-5f4e-4d3c-8b2a-1a0b9c8d7e6f"
+        clinicName: "Clínica Vida"
+        name: "Hemograma completo"
+        note: "Jejum de 8 h"
+        urgent: false
+        status: ORDERED
+        examinationId: null
+        orderedAt: "2026-11-10T09:50:00Z"
+    FamilyExamOrderList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/FamilyExamOrder" }
     FamilyConsultationReport:
       type: object
       required: [appointmentId, clinicName, consultationAt, authorName, finalizedAt, addenda, notice]
@@ -11088,6 +11458,11 @@ components:
         notes:
           type: string
           nullable: true
+        examOrderId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "M15 U (BR-CLN-52). Liga o exame a um pedido de exame ORDERED do mesmo membro, visível ao ator (SELF/TUTOR_OF); NOT_FOUND se não visível, CONFLICT se já não está ORDERED. Opcional: sem ele o pedido não é tocado."
     ExaminationPatch:
       type: object
       properties:
@@ -11165,7 +11540,7 @@ components:
           format: uuid
         type:
           type: string
-          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED, APPOINTMENT_CONFIRM_REQUEST, FOLLOWUP_REMINDER]
+          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED, APPOINTMENT_CONFIRM_REQUEST, FOLLOWUP_REMINDER, EXAM_ORDER_ADDED]
         familyId:
           type: string
           format: uuid

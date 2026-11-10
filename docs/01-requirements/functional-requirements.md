@@ -1,6 +1,6 @@
 # Vita Family — Requisitos Funcionais (Fase 3)
 
-> Estado: **v0.3 (+FR-CLN-21..24, M15 S/T, ADR-027) — v0.2 (+FR-CLN-15..20, M14 R) — R1–R10 respondidas (secção 14); R11 resolvido na Fase 8**
+> Estado: **v0.4 (+FR-CLN-25..28, M15 U/V, ADR-028) — v0.3 (+FR-CLN-21..24, M15 S/T, ADR-027) — v0.2 (+FR-CLN-15..20, M14 R) — R1–R10 respondidas (secção 14); R11 resolvido na Fase 8**
 > Base: `scope.md` v0.2 e `discovery.md` v0.2. Nada aqui acrescenta funcionalidade fora do âmbito aprovado.
 > Formato: ID · requisito · origem. Linguagem: "o sistema deve…".
 > **Permissões detalhadas (quem pode o quê) ficam na Fase 5**; aqui só se indicam restrições já decididas.
@@ -181,6 +181,10 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-CLN-22 | A clínica imprime o **relatório em PDF** gerado pelo sistema (cabeçalho da clínica, paciente, secções, assinatura textual) e o paciente Vita (titular/tutor) lê-o e descarrega-o na consulta, se a clínica o partilhar (BR-CLN-45/46). | D23, ADR-027 (M15 S) |
 | FR-CLN-23 | A clínica guarda os **resultados de um exame como rascunho** e conclui depois, sem o paciente ver nada antes (BR-CLN-47). | D23, ADR-027 (M15 T) |
 | FR-CLN-24 | Ao concluir um exame com resultados estruturados, o sistema gera o **laudo em PDF** (tabela parâmetro/valor/unidade/referência, com a indicação aritmética "Fora da referência", sem interpretação), que fica como documento do exame visível ao paciente e descarregável pela clínica (BR-CLN-48/49). | D23, ADR-027 (M15 T) |
+| FR-CLN-25 | O **Médico** pede **1–5 exames** na consulta (em curso ou concluída, e no relatório): nome ou serviço de exame do catálogo, nota opcional e "urgente"; Admin e Gestor apenas leem e imprimem; o pedido não se edita (cancela-se e cria-se outro) (BR-CLN-51). | D24, ADR-028 (M15 U) |
+| FR-CLN-26 | O paciente Vita (titular/tutor) vê os pedidos na consulta, recebe um alerta genérico e **marca o exame com um toque** (fluxo de marcação existente com o tipo pré-preenchido); o pedido avança para marcado e cumprido; a clínica não vê o exame marcado noutra clínica (BR-CLN-52/53). | D24, ADR-028 (M15 U) |
+| FR-CLN-27 | A clínica imprime o **"Pedido de exame"** em PDF gerado pelo sistema (para visitas manuais e pacientes não ligados, ou para entregar em mãos) (BR-CLN-54). | D24, ADR-028 (M15 U) |
+| FR-CLN-28 | A clínica emite, com **um clique** na marcação (concluída ou com chegada registada), a **declaração de presença** em PDF, sem diagnóstico nem especialidade e sem a guardar; cada emissão fica auditada (BR-CLN-55). | D24, ADR-028 (M15 V) |
 
 ---
 

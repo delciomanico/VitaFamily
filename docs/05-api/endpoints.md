@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.8** (+M15 S/T, 2026-11-08, ADR-027: relatório da consulta `/clinic-portal/agenda/{id}/report*` e `…/appointments/{id}/report*`, rascunho de resultados `…/exam-agenda/{id}/results-draft` e laudo `…/report/pdf`; `report` em `complete`, `generateReport`) — v0.7 (+M14 R, 2026-11-08: recibos `/clinic-portal/receipts*` e `…/clinic-receipts*`, `profile`, `audit`, papel `CLINIC_DOCTOR` e matriz por papel em `authorization.md` §6.2b, `receiptIds` nos pedidos de reembolso) — v0.6 (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.9** (+M15 U/V, 2026-11-10, ADR-028: pedido de exame `/clinic-portal/agenda/{id}/exam-orders*`, `…/members/{m}/exam-orders`, `examOrders` em `complete`, `examOrderId` em `createExamination`, declaração de presença `…/attendance-statement/pdf`) — v0.8 (+M15 S/T, 2026-11-08, ADR-027: relatório da consulta `/clinic-portal/agenda/{id}/report*` e `…/appointments/{id}/report*`, rascunho de resultados `…/exam-agenda/{id}/results-draft` e laudo `…/report/pdf`; `report` em `complete`, `generateReport`) — v0.7 (+M14 R, 2026-11-08: recibos `/clinic-portal/receipts*` e `…/clinic-receipts*`, `profile`, `audit`, papel `CLINIC_DOCTOR` e matriz por papel em `authorization.md` §6.2b, `receiptIds` nos pedidos de reembolso) — v0.6 (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -737,6 +737,13 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED` (sem limite próprio; só o geral, OP-50)
 - **BUSINESS RULES:** BR-CLN-45/46. Sempre auditado (`CONSULT_REPORT_VIEWED`, `format=PDF`).
 
+### `GET /families/{familyId}/members/{memberId}/exam-orders`  — listFamilyExamOrders
+- **AUTHORIZATION:** Titular (SELF adulto) ou tutor (TUTOR_OF) com READ(APPOINTMENTS) (`authorization.md` §6.7)
+- **DESCRIPTION:** Listar os pedidos de exame que clínicas emitiram ao membro em consultas Vita (UC-CLN-42, M15 U).
+- **QUERY:** `status` (`ORDERED|SCHEDULED|FULFILLED|CANCELLED`; omissão: todos exceto `CANCELLED`), `appointmentId` (uuid)
+- **RESPONSE:** `200` `FamilyExamOrderList` (`items: [FamilyExamOrder]`)
+- **ERRORS:** `FORBIDDEN` (DEPENDENT_SELF, OTHER), `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-52/53: independente de `ClinicConsent`; visitas manuais não aparecem; sem conta autora. Para marcar: `examOrderId` em `POST …/examinations`. Sem auditoria da leitura (a marcação com pedido audita `EXAM_ORDER_LINKED`).
 ### `PATCH /families/{familyId}/members/{memberId}/appointments/{appointmentId}`  — updateAppointment
 - **AUTHORIZATION:** WRITE(APPOINTMENTS)
 - **DESCRIPTION:** Alterar/reagendar consulta.
@@ -1096,6 +1103,45 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **Alterações a endpoints existentes (retrocompatíveis, M15 S):** `PUT /clinic-portal/agenda/{id}/complete` aceita `report` (`ConsultationReportInput`; só `CLINIC_DOCTOR`, senão `FORBIDDEN`; grava e finaliza atomicamente); `ClinicBooking` (agenda, Hoje, ficha) ganha `reportStatus` (`DRAFT`\|`FINAL`\|nulo); `Appointment` (família) ganha `reportAvailable`.
 
+### `GET /clinic-portal/agenda/{appointmentId}/exam-orders`  — listClinicExamOrders
+- **AUTHORIZATION:** CLINIC_ACCOUNT (Admin e Gestor qualquer marcação; Médico as suas — `authorization.md` §6.2b)
+- **DESCRIPTION:** Listar os pedidos de exame da marcação (UC-CLN-41, M15 U), incluindo `CANCELLED`.
+- **RESPONSE:** `200` `ClinicExamOrderList`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-51/52: `SCHEDULED`/`FULFILLED` só se o exame ligado é da própria clínica, senão `ORDERED`. Leitura auditada (`EXAM_ORDER_VIEWED`, sem texto).
+
+### `POST /clinic-portal/agenda/{appointmentId}/exam-orders`  — createClinicExamOrders
+- **AUTHORIZATION:** `CLINIC_DOCTOR` (suas); Admin/Gestor ⇒ `FORBIDDEN`
+- **DESCRIPTION:** Pedir 1–5 exames na consulta ou visita (UC-CLN-39).
+- **REQUEST:** `ClinicExamOrdersInput` (`items` 1–5: `name` ou `serviceTypeId`, `note?`, `urgent?`)
+- **RESPONSE:** `201` `ClinicExamOrderList` (todos os pedidos da marcação)
+- **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION` (marcação cancelada/faltou/pedida), `LIMIT_EXCEEDED` (>5 ativos), `NOT_FOUND`, `RATE_LIMITED` (30/min por conta), `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-CLN-51/53/56. Marcação `SCHEDULED` ou `COMPLETED`; imutável. Consulta Vita: ponte + alerta genérico `EXAM_ORDER_ADDED` na mesma transação. Auditoria `EXAM_ORDER_CREATED`.
+
+### `PUT /clinic-portal/agenda/{appointmentId}/exam-orders/{orderId}/cancel`  — cancelClinicExamOrder
+- **AUTHORIZATION:** `CLINIC_DOCTOR` (suas); Admin/Gestor ⇒ `FORBIDDEN`
+- **DESCRIPTION:** Cancelar um pedido (UC-CLN-40).
+- **RESPONSE:** `200` `ClinicExamOrder`
+- **ERRORS:** `FORBIDDEN`, `INVALID_STATE_TRANSITION` (cumprido na própria clínica), `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-52. Idempotente; não toca no `Examination` do paciente. Auditoria `EXAM_ORDER_CANCELLED`.
+
+### `GET /clinic-portal/agenda/{appointmentId}/exam-orders/pdf`  — getClinicExamOrdersPdf
+- **AUTHORIZATION:** CLINIC_ACCOUNT (como `GET …/exam-orders`)
+- **DESCRIPTION:** PDF imprimível "Pedido de exame" com os pedidos ativos (UC-CLN-41).
+- **RESPONSE:** `200` `application/pdf` (`Cache-Control: private, no-store`; `Content-Disposition: inline; filename="pedido-exame-AAAAMMDD.pdf"`)
+- **ERRORS:** `NOT_FOUND` (inclui sem pedidos ativos), `RATE_LIMITED` (30/min por conta, bolsa partilhada), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-54. Gerado a pedido (não guardado). Auditoria `EXAM_ORDER_VIEWED` (`format=PDF`).
+
+### `GET /clinic-portal/agenda/{appointmentId}/attendance-statement/pdf`  — getClinicAttendanceStatementPdf
+- **AUTHORIZATION:** CLINIC_ACCOUNT (Admin e Gestor qualquer marcação; Médico as suas)
+- **DESCRIPTION:** PDF "Declaração de presença" (UC-CLN-43, M15 V).
+- **QUERY:** `includeProfessional` (bool, omissão `false`)
+- **RESPONSE:** `200` `application/pdf` (`Cache-Control: private, no-store`; `Content-Disposition: inline; filename="declaracao-AAAAMMDD.pdf"`)
+- **ERRORS:** `INVALID_STATE_TRANSITION` (não `COMPLETED` nem `SCHEDULED` com chegada), `NOT_FOUND`, `RATE_LIMITED` (30/min por conta, bolsa partilhada), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-CLN-55. Sem especialidade/diagnóstico; não se guarda; só a clínica emite. Auditoria `ATTENDANCE_STATEMENT_ISSUED`.
+
+**Alterações a endpoints existentes (retrocompatíveis, M15 U):** `PUT /clinic-portal/agenda/{id}/complete` aceita `examOrders` (`ExamOrderItemInput[1..5]`; só `CLINIC_DOCTOR`, senão `FORBIDDEN`; atómico); `ClinicBooking` ganha `examOrderCount`; `Appointment` (família) ganha `examOrderCount`; `ExaminationInput` ganha `examOrderId` (`POST …/examinations`: `NOT_FOUND` se não visível, `CONFLICT` se o pedido já não está `ORDERED`; liga na mesma transação); o `Alert.type` ganha `EXAM_ORDER_ADDED`.
+
 ### `POST /clinic-portal/patient-lookup`  — clinicPatientLookup
 - **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN` e `CLINIC_MANAGER`)
 - **DESCRIPTION:** Pesquisar um utilizador por e-mail exato para marcação presencial (UC-CLN-08, ADR-024).
@@ -1396,7 +1442,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **REQUEST:** `ExaminationInput`
 - **RESPONSE:** `201` `Examination`
 - **ERRORS:** `CONFLICT` (`slotId` sem vagas, removido, ou o membro já tem marcação ativa nesse horário), `FORBIDDEN`, `MEMBER_BLOCKED`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR` (inclui horário de `kind` errado, BR-APT-10)
-- **BUSINESS RULES:** ST5: data passada nasce COMPLETED; futura nasce SCHEDULED com lembrete 24 h; com `slotId` nasce `SCHEDULED` (BR-EXM-05) com lembrete 24 h (BR-EXM-06; data/hora vêm do horário, exige `startsAt` futuro); a vaga é reservada atomicamente sob bloqueio do horário (BR-APT-11); o utilizador é avisado da minimização (BR-CLN-03) antes de enviar.
+- **BUSINESS RULES:** ST5: data passada nasce COMPLETED; futura nasce SCHEDULED com lembrete 24 h; com `slotId` nasce `SCHEDULED` (BR-EXM-05) com lembrete 24 h (BR-EXM-06; data/hora vêm do horário, exige `startsAt` futuro); a vaga é reservada atomicamente sob bloqueio do horário (BR-APT-11); o utilizador é avisado da minimização (BR-CLN-03) antes de enviar. **M15 U:** `examOrderId` (opcional) liga o exame a um pedido `ORDERED` do mesmo membro (BR-CLN-52; `NOT_FOUND`/`CONFLICT`); atómico com a criação.
 
 ### `GET /families/{familyId}/members/{memberId}/examinations/{examinationId}`  — getExamination
 - **AUTHORIZATION:** READ(EXAMS)
@@ -2197,7 +2243,7 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 **Document** — `id`: uuid, `resourceType`: PRESCRIPTION|EXAMINATION|INSURANCE_POLICY (ADR-021), `resourceId`: uuid, `originalName`: string, `mimeType`: string, `sizeBytes`: int, `scanStatus`: PENDING|CLEAN|INFECTED, `createdAt`: datetime
 
-**Alert** — `id`: uuid, `type`: MEDICATION_DUE|APPOINTMENT_REMINDER|EXAM_REMINDER|APPOINTMENT_OUTCOME_REQUEST|APPOINTMENT_CONFIRMED|APPOINTMENT_REJECTED|APPOINTMENT_CANCELLED|EXAM_CANCELLED|EXAM_RESULTS_AVAILABLE|RECOMMENDATION_ADDED|APPOINTMENT_CONFIRM_REQUEST|FOLLOWUP_REMINDER, `familyId`: uuid, `memberId`: uuid, `memberName`: string, `message`: string, `sourceType`: DOSE|APPOINTMENT|EXAMINATION|RECOMMENDATION, `sourceId`: uuid, `triggerAt`: datetime, `readAt?`: datetime
+**Alert** — `id`: uuid, `type`: MEDICATION_DUE|APPOINTMENT_REMINDER|EXAM_REMINDER|APPOINTMENT_OUTCOME_REQUEST|APPOINTMENT_CONFIRMED|APPOINTMENT_REJECTED|APPOINTMENT_CANCELLED|EXAM_CANCELLED|EXAM_RESULTS_AVAILABLE|RECOMMENDATION_ADDED|APPOINTMENT_CONFIRM_REQUEST|FOLLOWUP_REMINDER|EXAM_ORDER_ADDED, `familyId`: uuid, `memberId`: uuid, `memberName`: string, `message`: string, `sourceType`: DOSE|APPOINTMENT|EXAMINATION|RECOMMENDATION, `sourceId`: uuid, `triggerAt`: datetime, `readAt?`: datetime
 
 **AdherenceItem** — `planId`: uuid, `medicationName`: string, `taken`: int, `notTaken`: int, `unconfirmed`: int, `pending`: int
 

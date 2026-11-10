@@ -1,6 +1,6 @@
 # Vita Family — Estados e transições (Fase 10)
 
-> Estado: **v0.7 — `ConsultationReport` (`DRAFT → FINAL`, M15 S, ADR-027); v0.6 — `ClinicReceipt` (`ISSUED → VOIDED`, M14 R, ADR-026); v0.5 — módulo operacional de seguradoras: `Beneficiary`, `Policy`, `Plan`, `BeneficiaryLinkRequest`, `AuthorizationRequest`, `ExpenseClaim`, `Provider` (ADR-025); v0.4 — `Examination` com marcação direta (nasce `SCHEDULED`), sem `REQUESTED`/`REJECTED` (ADR-023 revisto 2026-11-04); v0.3 introduzira-os; v0.2 acrescentou `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
+> Estado: **v0.8 — `ExamOrder` (M15 U, ADR-028); v0.7 — `ConsultationReport` (`DRAFT → FINAL`, M15 S, ADR-027); v0.6 — `ClinicReceipt` (`ISSUED → VOIDED`, M14 R, ADR-026); v0.5 — módulo operacional de seguradoras: `Beneficiary`, `Policy`, `Plan`, `BeneficiaryLinkRequest`, `AuthorizationRequest`, `ExpenseClaim`, `Provider` (ADR-025); v0.4 — `Examination` com marcação direta (nasce `SCHEDULED`), sem `REQUESTED`/`REJECTED` (ADR-023 revisto 2026-11-04); v0.3 introduzira-os; v0.2 acrescentou `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
 > Notação: `A → B [quem / condição]`. Transições não listadas são **proibidas** e devolvem `INVALID_STATE_TRANSITION` (409).
 
 ## User
@@ -87,6 +87,8 @@ SCHEDULED → COMPLETED   [titular/tutor; ou conta da clínica com resultados/PD
 SCHEDULED → CANCELLED   [titular/tutor; liberta a vaga se tiver slotId]
 CANCELLED → SCHEDULED   [titular/tutor — só exames sem slotId; com slotId: pedir novo horário, BR-EXM-08]
 ```
+M15 U (ADR-028): um exame ligado a um `ExamOrder` (`examOrderId`) propaga `COMPLETED` (pedido `FULFILLED`) e `CANCELLED`/apagado (pedido de novo `ORDERED`); `CANCELLED → SCHEDULED` não religa (o paciente volta a marcar com o pedido).
+```
 Exame de clínica parceira (`slotId`) **nasce SCHEDULED** se o horário tem vaga (BR-EXM-05, BR-APT-11); privado/sem clínica nasce SCHEDULED ou COMPLETED (data passada) como antes. **`REQUESTED` e `REJECTED` foram retirados do fluxo** (ADR-023 revisto): os valores permanecem no enum de BD `exam_status` **apenas por compatibilidade** (PostgreSQL não remove valores de enum sem recriar o tipo), são proibidos por CHECK em `examinations` (migração 0022), nunca são produzidos pela aplicação nem expostos na API (`Examination.status` ∈ SCHEDULED|COMPLETED|CANCELLED).
 Exame criado com `examDate` passada nasce COMPLETED; resultados só se adicionam a exames COMPLETED — **exceção atómica:** a clínica completa (`SCHEDULED → COMPLETED`) e grava os resultados na mesma transação (BR-CLN-08).   ← ST5, D19
 Lembretes (24 h) só em SCHEDULED (BR-EXM-06). Vaga ocupada ⇔ `SCHEDULED` com `slotId`; `CANCELLED` (por quem for) liberta-a. Não há expiração por falta de resposta (BR-EXM-07 obsoleta).
@@ -134,6 +136,18 @@ ARCHIVED → ACTIVE   [idem]
 ```
 Arquivada: não selecionável em novas marcações; consultas existentes mantêm-na.
 
+## ExamOrder (M15 U, BR-CLN-51..52)
+```text
+(novo)    → ORDERED    [CLINIC_DOCTOR, marcação SCHEDULED ou COMPLETED; 1–5 por pedido, ≤5 ativos por marcação]
+ORDERED   → SCHEDULED  [titular/tutor marca exame com examOrderId (exame SCHEDULED, qualquer clínica)]
+ORDERED   → FULFILLED  [idem, exame que nasce COMPLETED (data passada)]
+SCHEDULED → FULFILLED  [exame ligado passa a COMPLETED (titular/tutor ou clínica)]
+SCHEDULED → ORDERED    [exame ligado cancelado ou apagado: ligação desfeita]
+FULFILLED → ORDERED    [exame ligado apagado: ligação desfeita]
+ORDERED | SCHEDULED → CANCELLED [CLINIC_DOCTOR, como a clínica vê o estado; não toca no Examination]
+CANCELLED → (final)    [Admin/Gestor nunca cancelam; FULFILLED visível à clínica ⇒ INVALID_STATE_TRANSITION]
+```
+Os movimentos fazem-se pela porta `ExamOrderLinker` na mesma transação do `Examination`. **Visão da clínica:** `SCHEDULED`/`FULFILLED` só se `bookedHere=true`; senão mostra `ORDERED`. A **declaração de presença** (M15 V) não é entidade: exige marcação `COMPLETED` ou `SCHEDULED` com `arrivedAt` (dia derivado `ARRIVED`/`IN_PROGRESS`/`COMPLETED`, M14 Q).
 ## ReimbursementClaim (ADR-021)
 ```text
 SUBMITTED → APPROVED   [portal da seguradora, com motivo opcional]

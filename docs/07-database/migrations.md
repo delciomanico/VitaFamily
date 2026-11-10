@@ -74,7 +74,7 @@
   6. Índices de `indexes.md` (M14 R).
   - Teste de integração obrigatório (`test-cases.md`, TC-CLN-17..20): numeração sem buracos nem duplicados com 20 emissões concorrentes e com rollback a meio; UNIQUE parcial um `ISSUED` por marcação e reemissão após anular; CHECK `VOIDED`; imutabilidade (linhas e total) por teste de serviço; apagar o membro apaga `clinic_receipt_links` e **não** o recibo; apagar a clínica apaga recibos/linhas/ligações/anexos; CHECK e UNIQUE de `professional_id`; contas existentes intactas; `actor_clinic_id` preenchido para entradas antigas de contas existentes; os valores de enum novos aceitam-se depois da migração.
 
-- **M15 S/T (ADR-027, contrato 2026-11-08) — `0031_clinic_reports.sql`** (**proposta**; única migração, transacional, retrocompatível; **sem `ADD VALUE`**, logo sem a limitação de enums). Por ordem:
+- **M15 S/T (ADR-027, contrato 2026-11-08) — `0031_clinic_reports.sql`** (**implementada**; única migração, transacional, retrocompatível; **sem `ADD VALUE`**, logo sem a limitação de enums). Por ordem:
   1. `CREATE TYPE consultation_booking_kind / consultation_report_status`.
   2. `CREATE TABLE clinic_consultation_reports` (com `created_at`/`updated_at`, `UNIQUE (clinic_id, id)`, `UNIQUE (clinic_id, booking_kind, booking_id)` e os CHECKs de `schema.md` §3g), `clinic_consultation_report_addenda` (`created_at`), `clinic_exam_result_drafts` (**sem `clinic_id`**; `updated_at`; PK = `examination_id` com cascata do exame).
   3. `CREATE FUNCTION clinic_consultation_reports_final_immutable()` / `clinic_consultation_report_addenda_immutable()` + `CREATE TRIGGER … BEFORE UPDATE … FOR EACH ROW` (exceção: só `author_account_id → NULL`).
@@ -82,3 +82,10 @@
   5. Índices de `indexes.md` (M15). Sem backfill: nenhum dado existente muda.
   - **Reversão:** `DROP TRIGGER/FUNCTION`, `DROP TABLE` (as três) e `ALTER TABLE documents DROP COLUMN generated_by_system` (só antes de existirem dados; depois, migração corretiva).
   - Teste de integração obrigatório (`test-cases.md`, TC-CLN-21..24): 1:1 por marcação; CHECK de ≥1 secção e `FINAL` ⇔ `finalized_at`; **imutabilidade do `FINAL`** (UPDATE direto de qualquer coluna falha; `ON DELETE SET NULL` da conta do autor tem sucesso); adendas imutáveis e limite de 20 concorrente; apagar o membro/consulta **não** apaga o relatório; apagar a clínica apaga relatório/adendas mas **não** os rascunhos de resultados (`clinic_exam_result_drafts` não tem `clinic_id`); apagar o exame/membro apaga o rascunho; `documents` aceita o laudo `CLEAN` e rejeita `generated_by_system` com `uploaded_by` preenchido ou sem exame; UNIQUE parcial de um laudo por exame.
+
+- **M15 U/V (ADR-028, contrato 2026-11-10) — `0032_exam_orders.sql`** (**proposta**; próximo número livre depois de `0031`; única migração, transacional, retrocompatível; a etapa V não tem migração). Por ordem:
+  1. `CREATE TYPE exam_order_status`; `ALTER TYPE alert_type ADD VALUE 'EXAM_ORDER_ADDED'` (não usado na própria migração; mesmo padrão verificado em `0029`/`0030`; se o runner/PG o não permitir, dividir em `0032_enum_values` + `0033_exam_orders`).
+  2. `CREATE TABLE clinic_exam_orders` (com `UNIQUE (clinic_id, id)`, CHECK de `name`/`note`, `CANCELLED ⇔ cancelled_at`, `booked_here ⇒ SCHEDULED|FULFILLED`) e `clinic_exam_order_links` (`schema.md` §3h).
+  3. Índices de `indexes.md` (M15 U). Sem backfill.
+  - **Reversão:** `DROP TABLE clinic_exam_order_links, clinic_exam_orders; DROP TYPE exam_order_status` (só antes de existirem dados; o valor de enum não se remove).
+  - Teste de integração obrigatório (`test-cases.md`, TC-CLN-25/26): CHECKs; apagar o membro/consulta apaga a ligação e **não** o pedido; apagar a clínica apaga pedidos e ligações; apagar o exame ligado põe `examination_id` a nulo; UNIQUE parcial de `examination_id`; 6.º pedido ativo concorrente ⇒ `LIMIT_EXCEEDED` (advisory lock); o valor `EXAM_ORDER_ADDED` aceita-se depois da migração.
