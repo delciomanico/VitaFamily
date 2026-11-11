@@ -18,7 +18,7 @@
 ## 2. Fluxos
 - **Registo:** `POST /auth/register` ⇒ conta `PENDING_VERIFICATION` + e-mail de verificação com **código de 6 dígitos** de uso único, 24 h (ADR-018; procurado sempre em conjunto com o `email`, nunca globalmente, porque 10^6 valores não chegam para unicidade entre contas) ⇒ `POST /auth/verify-email` (`email` + `token`) ⇒ `ACTIVE`. Resposta sempre neutra (sem revelar se o e-mail existe).
 - **Login:** só `ACTIVE`. Mensagem de erro genérica para credenciais inválidas. Conta `SUSPENDED` ⇒ recusado.
-- **Recuperação:** `forgot` (neutro) ⇒ e-mail com token de uso único, **1 h** ⇒ `reset` ⇒ todas as sessões revogadas.
+- **Recuperação:** `forgot` (neutro) ⇒ e-mail com código OTP de 6 dígitos (uso único, **1 h**, procurado só no âmbito do `email`, rate limit de tentativas) ⇒ `reset` (`email`+`token`+`newPassword`) ⇒ todas as sessões revogadas.
 - **Termos (B6):** se `termsAcceptedVersion` ≠ versão atual ⇒ API devolve `TERMS_REACCEPTANCE_REQUIRED` exceto `POST /users/me/terms-acceptance`, exportação e eliminação da conta.
 - **Convite de conta de dependente:** `register` com `invitationToken`; a data de nascimento vem do perfil; idade ≥13 (B3).
 - **Convite de membro (UC-MEM-03, change control — decisão do proprietário):** `register` com `invitationToken` de um convite tipo `MEMBER` cria a conta E aceita automaticamente o convite no mesmo pedido, ligando-a ao `FamilyMember` do convite (perfil existente ou novo), sem exigir login + `POST /invitations/accept` manuais em separado. `email` tem de coincidir com o do convite (`INVITATION_EMAIL_MISMATCH` caso contrário); a idade mínima de autorregisto (18 anos, BR-ACC-02) continua a aplicar-se (é uma conta de adulto, não de acesso limitado).

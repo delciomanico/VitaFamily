@@ -1,6 +1,6 @@
 # Casos de uso — Módulo operacional de seguradoras (ADR-025)
 
-> Estado: **v0.1 (2026-11-05, D21)** — convenções comuns em `family.md`. Regras: `business-rules.md` §15 (BR-SEG-01..23). Papéis e matriz: `authorization.md` §8.2b/§8.4/§8.5. Estados: `state-machines.md`. Só para seguradoras com módulo operacional ativo (`operational_module_enabled`). Todo o acesso fora dos limites do papel/`insurerId` é `DENIED`/`NOT_FOUND` e auditado. Erros e paginação: `errors.md`/`api-overview.md`; `Idempotency-Key` nas submissões da clínica. Contrato `openapi.yaml` **pendente** (esboço em `endpoints.md`).
+> Estado: **v0.1 (2026-11-05, D21)** — convenções comuns em `family.md`. Regras: `business-rules.md` §15 (BR-SEG-01..23). Papéis e matriz: `authorization.md` §8.2b/§8.4/§8.5. Estados: `state-machines.md`. Só para seguradoras com módulo operacional ativo (`operational_module_enabled`). Todo o acesso fora dos limites do papel/`insurerId` é `DENIED`/`NOT_FOUND` e auditado. Erros e paginação: `errors.md`/`api-overview.md`; `Idempotency-Key` nas submissões da clínica. Contrato `openapi.yaml`: **Fase A redigida em 2026-11-11** (S1, S2/S3/S6 parciais); S4–S5 ainda só esboço em `endpoints.md`.
 
 ### UC-SEG-01 Gerir empresas
 - **Ator:** `BENEFICIARY_MANAGER`, `INSURANCE_ADMIN` · **BR:** BR-SEG-14/15 · **Fluxo:** criar/editar/inativar empresa cliente (nome, NIF único por seguradora) → usada em apólices de grupo.
@@ -19,7 +19,7 @@
 - **Alternativos:** plano com apólices ativas é imutável (nova versão); serviço fora da lista da seguradora ⇒ `VALIDATION_ERROR`. Gere também a lista de serviços (`InsurerService`).
 
 ### UC-SEG-05 Validar elegibilidade (clínica/paciente)
-- **Ator:** `CLINIC_ADMIN`/`CLINIC_MANAGER` (seguradora do cartão apresentado — Q4 pendente) · **BR:** BR-SEG-01/02/04/18/23 · **Fluxo:** escolhe a seguradora ligada → indica nº de cartão, QR ou identificação (+ serviço) → sistema valida estado, apólice, datas, cobertura, carência, saldo e `requiresAuthorization` → devolve a resposta **mínima** → auditoria (finalidade: atendimento).
+- **Ator:** `CLINIC_ADMIN`/`CLINIC_MANAGER` (seguradora do cartão apresentado — Q4 decidida 2026-11-11) · **BR:** BR-SEG-01/02/04/18/23 · **Fluxo:** escolhe a seguradora ligada → indica nº de cartão, QR ou identificação (+ serviço) → sistema valida estado, apólice, datas, cobertura, carência, saldo e `requiresAuthorization` → devolve a resposta **mínima** → auditoria (finalidade: atendimento).
 - **Alternativos:** não elegível/inexistente ⇒ resposta genérica sem revelar o motivo além do necessário; excesso de tentativas ⇒ `429`/`RATE_LIMITED`; seguradora a que a clínica não está ligada ⇒ `NOT_FOUND`. O paciente consulta a sua própria elegibilidade em UC-SEG-14/15.
 
 ### UC-SEG-06 Pedir autorização

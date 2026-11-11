@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.9** (+M15 U/V, 2026-11-10, ADR-028: pedido de exame `/clinic-portal/agenda/{id}/exam-orders*`, `…/members/{m}/exam-orders`, `examOrders` em `complete`, `examOrderId` em `createExamination`, declaração de presença `…/attendance-statement/pdf`) — v0.8 (+M15 S/T, 2026-11-08, ADR-027: relatório da consulta `/clinic-portal/agenda/{id}/report*` e `…/appointments/{id}/report*`, rascunho de resultados `…/exam-agenda/{id}/results-draft` e laudo `…/report/pdf`; `report` em `complete`, `generateReport`) — v0.7 (+M14 R, 2026-11-08: recibos `/clinic-portal/receipts*` e `…/clinic-receipts*`, `profile`, `audit`, papel `CLINIC_DOCTOR` e matriz por papel em `authorization.md` §6.2b, `receiptIds` nos pedidos de reembolso) — v0.6 (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.10** (+Seguradoras Fase A, 2026-11-11, ADR-025: contrato `/insurance-portal/{companies,beneficiaries,imports,link-requests,policies,plans,services,partner-clinics,providers}`, `/clinic-portal/insurers*`, `/families/{f}/members/{m}/insurance/*`, `currency`/`operationalModuleEnabled` em `/admin/insurers` — secção própria) — v0.9 (+M15 U/V, 2026-11-10, ADR-028: pedido de exame `/clinic-portal/agenda/{id}/exam-orders*`, `…/members/{m}/exam-orders`, `examOrders` em `complete`, `examOrderId` em `createExamination`, declaração de presença `…/attendance-statement/pdf`) — v0.8 (+M15 S/T, 2026-11-08, ADR-027: relatório da consulta `/clinic-portal/agenda/{id}/report*` e `…/appointments/{id}/report*`, rascunho de resultados `…/exam-agenda/{id}/results-draft` e laudo `…/report/pdf`; `report` em `complete`, `generateReport`) — v0.7 (+M14 R, 2026-11-08: recibos `/clinic-portal/receipts*` e `…/clinic-receipts*`, `profile`, `audit`, papel `CLINIC_DOCTOR` e matriz por papel em `authorization.md` §6.2b, `receiptIds` nos pedidos de reembolso) — v0.6 (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -1729,33 +1729,391 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `CONFLICT`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** BR-INS-05: `SUBMITTED → APPROVED|REJECTED`; `REJECTED` exige motivo.
 
-## Seguradoras — módulo operacional (ADR-025) — ESBOÇO, NÃO CONTRATUAL
+## Seguradoras — módulo operacional, Fase A (ADR-025; recorte em `11-implementation/insurer-phase-a.md`) — CONTRATUAL
 
-> **Pendência explícita:** estas rotas **não existem em `openapi.yaml`** (não foi alterado por este change control) e **não podem ser implementadas** até o contrato ser redigido e validado no marco S1 (`vita-architect` + `vita-identity`). Prefixos, papéis e nomes são propostos; o contrato final prevalece. Base `/api/v1`; erros, paginação e `Idempotency-Key` (nas submissões da clínica) como `errors.md`/`api-overview.md`. Tokens: `/insurance-portal/*` com o `insuranceAccessToken`; `/clinic-portal/*` com o `clinicAccessToken`; `/families/...` com o token de User. Autorização: `authorization.md` §8.2b (seguradora), §8.4 (clínica), §8.5 (paciente). Respostas de `insurerId` diferente do do token ⇒ `NOT_FOUND`.
+> **Contrato da Fase A, redigido em 2026-11-11 e presente em `openapi.yaml`** (44 operações novas). Decisões do proprietário de 2026-11-11: **Q4 fechada** — a seguradora é a do cartão apresentado (`GET /clinic-portal/insurers` + `insurerId` no caminho); **D-A2** — o app mostra só cobertura e limites, **sem «usado»/«reservado»/saldo** (sem `CoverageConsumption` nem reservas). Base `/api/v1`; erros e paginação (`limit` 1–100, por omissão 25, `cursor`; `{ items, nextCursor }`) como `errors.md`/`api-overview.md`. Tokens distintos: `/insurance-portal/*` só com `insuranceAccessToken`; `/clinic-portal/*` só com `clinicAccessToken`; `/families/...` com o token de User; nenhum é aceite fora do seu prefixo. O `insurerId` vem **sempre do token** (portal da seguradora) ou do caminho validado contra a ligação `insurer_providers` (clínica); recurso de outra seguradora ⇒ `NOT_FOUND` (BR-SEG-14, sem enumeração). Todas as rotas exigem a seguradora com `operationalModuleEnabled` (senão `NOT_FOUND`); `INSURANCE_AGENT` não acede a elas (`FORBIDDEN`, `authorization.md` §8.2b). Papéis criáveis na Fase A: `INSURANCE_ADMIN` e `BENEFICIARY_MANAGER` (os outros três ficam definidos, sem rotas).
+>
+> **Alterações a rotas existentes (já em `openapi.yaml`):** `POST /admin/insurers` e `PATCH /admin/insurers/{id}` ganham `currency` (ISO 4217, por omissão `AOA`) e `operationalModuleEnabled` (por omissão `false`), e `Insurer` devolve ambos; `POST /insurance-portal/agents` ganha `role` (`INSURANCE_AGENT` por omissão | `BENEFICIARY_MANAGER`), `GET`/`DELETE` passam a abranger as contas `BENEFICIARY_MANAGER`; `InsuranceAccount.role`/`InsuranceTokenResponse.role` passam a listar os cinco papéis. `createReimbursementClaim` (`encounterId?`, moeda da seguradora) **não** faz parte da Fase A (fica para S5, BR-SEG-21).
 
-### Portal da seguradora (`/insurance-portal/*`; papéis na coluna Quem)
+### `GET /insurance-portal/companies`  — listInsurerCompanies
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Listar empresas clientes da seguradora.
+- **QUERY:** `limit`, `cursor`, `status`
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerCompanyPage`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-01, BR-SEG-14. Paginação limit/cursor.
+
+### `POST /insurance-portal/companies`  — createInsurerCompany
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Criar empresa cliente.
+- **REQUEST:** `InsurerCompanyInput`
+- **RESPONSE:** `201` `InsurerCompany`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-01: NIF único por seguradora (duplicado ⇒ CONFLICT). Auditoria INSURER_COMPANY_CREATE.
+
+### `PATCH /insurance-portal/companies/{companyId}`  — updateInsurerCompany
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Editar ou inativar empresa.
+- **REQUEST:** `InsurerCompanyPatch`
+- **RESPONSE:** `200` `InsurerCompany`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-01: nome e/ou estado (ACTIVE|INACTIVE); o NIF não se altera. Auditoria INSURER_COMPANY_UPDATE.
+
+### `GET /insurance-portal/beneficiaries`  — listInsurerBeneficiaries
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Listar beneficiários (e dependentes) da seguradora.
+- **QUERY:** `limit`, `cursor`, `q`, `status`, `companyId`, `holderId`
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerBeneficiaryPage`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-02. Filtros: q (nome, nº de cartão ou nº de documento — pesquisa exata no documento), status, companyId, holderId. Paginação limit/cursor.
+
+### `POST /insurance-portal/beneficiaries`  — createInsurerBeneficiary
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Registar beneficiário ou dependente.
+- **REQUEST:** `InsurerBeneficiaryInput`
+- **RESPONSE:** `201` `InsurerBeneficiary`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-02, BR-SEG-17: nasce PENDING (nunca ativo sem validação); nº de cartão gerado pelo servidor; documento de identificação duplicado na seguradora ⇒ CONFLICT; relationship=HOLDER ⇔ sem holderId. Auditoria INSURER_BENEFICIARY_CREATE.
+
+### `GET /insurance-portal/beneficiaries/{beneficiaryId}`  — getInsurerBeneficiary
+- **AUTHORIZATION:** qualquer papel do módulo (leitura)
+- **DESCRIPTION:** Abrir um beneficiário.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerBeneficiary`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-02. Nunca devolve ids de família/membro nem dados de saúde (apenas `linked`, BR-SEG-20).
+
+### `PATCH /insurance-portal/beneficiaries/{beneficiaryId}`  — updateInsurerBeneficiary
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Editar um beneficiário.
+- **REQUEST:** `InsurerBeneficiaryPatch`
+- **RESPONSE:** `200` `InsurerBeneficiary`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-02: nome, data de nascimento e empresa; o documento de identificação e a relação não se alteram. Auditoria INSURER_BENEFICIARY_UPDATE.
+
+### `POST /insurance-portal/beneficiaries/{beneficiaryId}/status`  — setInsurerBeneficiaryStatus
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Mudar o estado do beneficiário.
+- **REQUEST:** `InsurerBeneficiaryStatusRequest`
+- **RESPONSE:** `200` `InsurerBeneficiary`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** ST Beneficiary: PENDING→ACTIVE, ACTIVE⇄SUSPENDED, PENDING|ACTIVE|SUSPENDED→CANCELLED (final); SUSPENDED e CANCELLED exigem nota. Transição inválida ⇒ INVALID_STATE_TRANSITION. Auditoria INSURER_BENEFICIARY_STATUS.
+
+### `POST /insurance-portal/beneficiaries/{beneficiaryId}/claim-code`  — issueInsurerBeneficiaryClaimCode
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Emitir o código de reclamação do cartão.
+- **REQUEST:** —
+- **RESPONSE:** `201` `InsurerClaimCode`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-20 (código fornecido pela seguradora). Devolve o código em claro **uma única vez** (só o hash fica guardado); emitir novo invalida o anterior; validade `expiresAt`. Beneficiário CANCELLED ⇒ CONFLICT. Auditoria INSURER_LINK_REQUEST (`metadata.step=CODE_ISSUED`, sem o código).
+
+### `POST /insurance-portal/imports`  — createInsurerImport
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Carregar ficheiro de beneficiários (CSV/XLSX) e obter a pré-visualização.
+- **REQUEST:** `InsurerImportUploadRequest` (multipart/form-data)
+- **RESPONSE:** `201` `InsurerImport`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-17, UC-SEG-02: CSV ou XLSX, 1..5.000 linhas (mais ⇒ VALIDATION_ERROR); não grava beneficiários — cria um lote PREVIEW com pré-visualização e erros por linha. Colunas e regras em InsurerImportUploadRequest. Auditoria INSURER_IMPORT_PREVIEW (só contagens).
+
+### `GET /insurance-portal/imports/{importId}`  — getInsurerImport
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Ver o lote: pré-visualização e erros por linha.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerImport`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-17.
+
+### `DELETE /insurance-portal/imports/{importId}`  — cancelInsurerImport
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Cancelar um lote em pré-visualização.
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só em PREVIEW (senão CONFLICT); passa a CANCELLED e descarta o ficheiro. Auditoria INSURER_IMPORT_CANCEL.
+
+### `POST /insurance-portal/imports/{importId}/commit`  — commitInsurerImport
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Confirmar o lote.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerImport`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-17: **uma transação por lote**; grava as linhas válidas como beneficiários PENDING; linhas com erro ou duplicadas (mesmo tipo+nº de documento na seguradora) são ignoradas e contadas, nunca duplicam nem atualizam. Resposta `InsurerImport` com `importedRows` (gravadas), `errorRows` (inválidas, incluindo duplicadas) e `duplicateRows` (duplicadas), que é o relatório do lote. Só em PREVIEW (senão CONFLICT; repetir é idempotente a nível de estado: 409). Auditoria INSURER_IMPORT_COMMIT (contagens).
+
+### `GET /insurance-portal/link-requests`  — listInsurerLinkRequests
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Listar pedidos de ligação cartão↔paciente.
+- **QUERY:** `limit`, `cursor`, `status`
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerLinkRequestPage`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-20. Filtro status (por omissão PENDING). Devolve só o necessário para decidir (beneficiário, data); nunca dados do utilizador/família do paciente. Paginação limit/cursor.
+
+### `POST /insurance-portal/link-requests/{linkRequestId}/confirm`  — confirmInsurerLinkRequest
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Confirmar a ligação paciente↔beneficiário.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerLinkRequest`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-20, ST BeneficiaryLinkRequest: PENDING→CONFIRMED; só então o paciente vê cartão e cobertura. Auditoria INSURER_LINK_DECIDE.
+
+### `POST /insurance-portal/link-requests/{linkRequestId}/reject`  — rejectInsurerLinkRequest
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Rejeitar a ligação.
+- **REQUEST:** `InsurerLinkRequestRejectRequest`
+- **RESPONSE:** `200` `InsurerLinkRequest`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-20: PENDING→REJECTED, motivo obrigatório. Auditoria INSURER_LINK_DECIDE.
+
+### `GET /insurance-portal/policies`  — listInsurerPolicies
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Listar apólices.
+- **QUERY:** `limit`, `cursor`, `status`, `companyId`, `holderId`, `q`
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerPolicyPage`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-03. Filtros: status, companyId, holderId, q (número). Paginação limit/cursor.
+
+### `POST /insurance-portal/policies`  — createInsurerPolicy
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Criar apólice (DRAFT).
+- **REQUEST:** `InsurerPolicyInput`
+- **RESPONSE:** `201` `InsurerPolicy`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-03: plano, titular (beneficiário HOLDER), empresa opcional, número único por seguradora (duplicado ⇒ CONFLICT), validFrom<=validTo. Auditoria INSURER_POLICY_CREATE.
+
+### `GET /insurance-portal/policies/{policyId}`  — getInsurerPolicy
+- **AUTHORIZATION:** qualquer papel do módulo (leitura)
+- **DESCRIPTION:** Abrir uma apólice.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerPolicy`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-03.
+
+### `PATCH /insurance-portal/policies/{policyId}`  — updateInsurerPolicy
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Editar uma apólice.
+- **REQUEST:** `InsurerPolicyPatch`
+- **RESPONSE:** `200` `InsurerPolicy`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-03: validFrom/validTo/empresa em qualquer estado não final; `planId` só em DRAFT (alterar o plano de uma apólice ativa = nova versão do plano, UC-SEG-04). Auditoria INSURER_POLICY_UPDATE.
+
+### `POST /insurance-portal/policies/{policyId}/status`  — setInsurerPolicyStatus
+- **AUTHORIZATION:** INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura
+- **DESCRIPTION:** Mudar o estado da apólice.
+- **REQUEST:** `InsurerPolicyStatusRequest`
+- **RESPONSE:** `200` `InsurerPolicy`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** ST Policy: DRAFT→ACTIVE (plano ACTIVE), ACTIVE⇄SUSPENDED, DRAFT|ACTIVE|SUSPENDED→CANCELLED; SUSPENDED e CANCELLED exigem nota; EXPIRED é só do job insurer.expire-policies. Auditoria INSURER_POLICY_STATUS.
+
+### `GET /insurance-portal/plans`  — listInsurerPlans
+- **AUTHORIZATION:** INSURANCE_ADMIN (escrita); BENEFICIARY_MANAGER e restantes papéis: leitura
+- **DESCRIPTION:** Listar planos (todas as versões).
+- **QUERY:** `limit`, `cursor`, `status`, `name`
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerPlanPage`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-04. Filtros: status, name. Paginação limit/cursor.
+
+### `POST /insurance-portal/plans`  — createInsurerPlan
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Criar plano (versão 1, DRAFT).
+- **REQUEST:** `InsurerPlanInput`
+- **RESPONSE:** `201` `InsurerPlan`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-04: nome único por seguradora na versão 1 (duplicado ⇒ CONFLICT). Os campos de autorização automática (teto, tolerância) ficam fora da Fase A. Auditoria INSURER_PLAN_CREATE.
+
+### `GET /insurance-portal/plans/{planId}`  — getInsurerPlan
+- **AUTHORIZATION:** qualquer papel do módulo (leitura)
+- **DESCRIPTION:** Abrir um plano.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerPlan`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-04.
+
+### `POST /insurance-portal/plans/{planId}/status`  — setInsurerPlanStatus
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Ativar ou arquivar um plano.
+- **REQUEST:** `InsurerPlanStatusRequest`
+- **RESPONSE:** `200` `InsurerPlan`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** ST Plan: DRAFT→ACTIVE (exige ≥1 cobertura), ACTIVE→ARCHIVED (deixa de aceitar apólices novas). Auditoria INSURER_PLAN_STATUS.
+
+### `POST /insurance-portal/plans/{planId}/new-version`  — newInsurerPlanVersion
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Criar nova versão (DRAFT) de um plano.
+- **REQUEST:** —
+- **RESPONSE:** `201` `InsurerPlan`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-04, BR-SEG-01: plano com apólices ativas é imutável; a nova versão (version+1, mesmo nome) nasce DRAFT com as coberturas copiadas; só se a versão de origem for ACTIVE e não existir outra DRAFT do mesmo nome (CONFLICT). Auditoria INSURER_PLAN_NEW_VERSION.
+
+### `GET /insurance-portal/plans/{planId}/coverages`  — listInsurerPlanCoverages
+- **AUTHORIZATION:** qualquer papel do módulo (leitura)
+- **DESCRIPTION:** Listar as coberturas do plano.
+- **REQUEST:** —
+- **RESPONSE:** `200` `[InsurerPlanCoverage]`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-04.
+
+### `PUT /insurance-portal/plans/{planId}/coverages`  — replaceInsurerPlanCoverages
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Substituir as coberturas do plano (DRAFT).
+- **REQUEST:** `InsurerPlanCoveragesRequest`
+- **RESPONSE:** `200` `[InsurerPlanCoverage]`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** UC-SEG-04, BR-SEG-02/04/09/22: substitui o conjunto inteiro; só em plano DRAFT (senão CONFLICT); `serviceId` tem de ser da lista de serviços da própria seguradora (senão VALIDATION_ERROR); serviço ausente = não coberto. Auditoria INSURER_COVERAGE_UPDATE.
+
+### `GET /insurance-portal/services`  — listInsurerServices
+- **AUTHORIZATION:** qualquer papel do módulo (leitura)
+- **DESCRIPTION:** Listar a lista de serviços da seguradora.
+- **QUERY:** `limit`, `cursor`, `q`, `status`
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerServicePage`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-22 (lista por seguradora, sem catálogo comum). Filtros: q, status. Paginação limit/cursor.
+
+### `POST /insurance-portal/services`  — createInsurerService
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Criar serviço.
+- **REQUEST:** `InsurerServiceInput`
+- **RESPONSE:** `201` `InsurerService`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-22: código único por seguradora (duplicado ⇒ CONFLICT). Auditoria INSURER_SERVICE_CREATE.
+
+### `PATCH /insurance-portal/services/{serviceId}`  — updateInsurerService
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Editar ou inativar serviço.
+- **REQUEST:** `InsurerServicePatch`
+- **RESPONSE:** `200` `InsurerService`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-22: nome, categoria e estado; o código não se altera. Auditoria INSURER_SERVICE_UPDATE.
+
+### `GET /insurance-portal/partner-clinics`  — listInsurerPartnerClinics
+- **AUTHORIZATION:** INSURANCE_ADMIN (os restantes papéis do módulo e `INSURANCE_AGENT`: `FORBIDDEN`)
+- **DESCRIPTION:** Listar as clínicas parceiras (`PARTNER`, `ACTIVE`) que a seguradora pode ligar (decisão do proprietário, 2026-11-11).
+- **QUERY:** `q` (pesquisa por nome, opcional), `limit`, `cursor`
+- **REQUEST:** —
+- **RESPONSE:** `200` `PartnerClinicPage` (`items`: `PartnerClinic` = `id`, `name`)
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só o mínimo: sem contactos, morada, contas, equipa, agenda nem dados de saúde (BR-SEG-14, ADR-005). `name` = `display_name` se existir, senão `name`. Inclui clínicas já ligadas. Sujeito às regras de módulo ativo (seguradora sem `operationalModuleEnabled` ⇒ `NOT_FOUND`). Sem auditoria (catálogo sem dados pessoais); `q` nunca em logs/auditoria. Paginação limit/cursor, por nome.
+
+### `GET /insurance-portal/providers`  — listInsurerProviders
+- **AUTHORIZATION:** qualquer papel do módulo (leitura)
+- **DESCRIPTION:** Listar as clínicas ligadas à seguradora.
+- **QUERY:** `limit`, `cursor`, `status`
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsurerProviderPage`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Fase A: só a ligação `clinic_id` (Provider mínimo, plan insurer-phase-a §2); unidades e serviços por prestador ficam fora. Paginação limit/cursor.
+
+### `POST /insurance-portal/providers`  — createInsurerProvider
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Ligar uma clínica parceira à seguradora.
+- **REQUEST:** `InsurerProviderInput`
+- **RESPONSE:** `201` `InsurerProvider`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-SEG-18/§8.4: sem ligação ativa a clínica não valida (404). `clinicId` é escolhido na listagem `GET /insurance-portal/partner-clinics`; a clínica tem de ser PARTNER e ACTIVE (senão `NOT_FOUND`, sem distinguir inexistente de não parceira); já ligada ⇒ CONFLICT. Auditoria INSURER_PROVIDER_CREATE.
+
+### `POST /insurance-portal/providers/{providerId}/status`  — setInsurerProviderStatus
+- **AUTHORIZATION:** INSURANCE_ADMIN
+- **DESCRIPTION:** Suspender ou reativar a ligação da clínica.
+- **REQUEST:** `InsurerProviderStatusRequest`
+- **RESPONSE:** `200` `InsurerProvider`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** ACTIVE⇄SUSPENDED; suspensa ⇒ a clínica deixa de ver a seguradora. Auditoria INSURER_PROVIDER_STATUS.
+
+### `GET /clinic-portal/insurers`  — listClinicInsurers
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b)
+- **DESCRIPTION:** Listar as seguradoras a que a clínica está ligada.
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ClinicInsurer]`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). BR-SEG-23, Q4 (decidida 2026-11-11): a seguradora é a do cartão apresentado; a clínica escolhe nesta lista a indicada no cartão. Sem pesquisa transversal entre seguradoras.
+
+### `POST /clinic-portal/insurers/{insurerId}/eligibility`  — checkInsurerEligibility
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b)
+- **DESCRIPTION:** Validar a elegibilidade de um beneficiário (resposta mínima).
+- **REQUEST:** `InsurerEligibilityRequest`
+- **RESPONSE:** `200` `InsurerEligibilityResult`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). UC-SEG-05, BR-SEG-01/02/04/18/23. Exatamente um de cardNumber, qrToken, idDocument (senão VALIDATION_ERROR). Resposta mínima (BR-SEG-18): inexistente, não elegível ou QR inválido/expirado/de outra seguradora devolvem a **mesma** resposta `{eligible:false}` (sem motivo); nunca histórico clínico, ids de família nem dados de outras seguradoras. É verificação de cobertura, não garantia de pagamento (`notice`). Rate limit por conta de clínica e por IP (429 RATE_LIMITED + Retry-After; valores em security.md). Auditoria ELIGIBILITY_CHECK (sem o identificador pesquisado).
+
+### `GET /clinic-portal/insurers/{insurerId}/services`  — listClinicInsurerServices
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b)
+- **DESCRIPTION:** Listar a lista de serviços da seguradora.
+- **QUERY:** `limit`, `cursor`, `q`
+- **REQUEST:** —
+- **RESPONSE:** `200` `ClinicInsurerServicePage`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). BR-SEG-22: só serviços ACTIVE, só código/nome/categoria. Paginação limit/cursor.
+
+### `GET /families/{familyId}/members/{memberId}/insurance/card-claims`  — listInsuranceCardClaims
+- **AUTHORIZATION:** SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5
+- **DESCRIPTION:** Listar os pedidos de ligação de cartão do membro.
+- **REQUEST:** —
+- **RESPONSE:** `200` `[InsuranceCardClaim]`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só seguradoras com módulo operacional ativo. BR-SEG-20: estado dos pedidos (PENDING, CONFIRMED, REJECTED, REVOKED) para a app mostrar «a aguardar confirmação da seguradora».
+
+### `POST /families/{familyId}/members/{memberId}/insurance/card-claims`  — claimInsuranceCard
+- **AUTHORIZATION:** SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5
+- **DESCRIPTION:** Reclamar o cartão da seguradora (consentimento).
+- **REQUEST:** `InsuranceCardClaimRequest`
+- **RESPONSE:** `201` `InsuranceCardClaim`
+- **ERRORS:** `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só seguradoras com módulo operacional ativo. BR-SEG-20, Q2: nº de apólice + código fornecido pela seguradora; cria um pedido PENDING que a seguradora confirma. Código/apólice inexistentes, expirados ou já ligados a outro paciente devolvem o mesmo 404 NOT_FOUND (anti-enumeração); rate limit (429). Já existe pedido PENDING ou ligação do membro nessa seguradora ⇒ CONFLICT. Auditoria INSURER_LINK_REQUEST. Ligar só autoriza cartão e cobertura — a seguradora nunca acede a dados de saúde.
+
+### `DELETE /families/{familyId}/members/{memberId}/insurance/card-claims/{claimId}`  — revokeInsuranceCardClaim
+- **AUTHORIZATION:** SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5
+- **DESCRIPTION:** Desligar o cartão (revogar consentimento).
+- **REQUEST:** —
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `NOT_FOUND`, `CONFLICT`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só seguradoras com módulo operacional ativo. BR-SEG-20: CONFIRMED→REVOKED a qualquer momento; o beneficiário e os dados da seguradora mantêm-se, só a ligação é desfeita. Pedido noutro estado ⇒ CONFLICT. Auditoria INSURER_LINK_REVOKE.
+
+### `GET /families/{familyId}/members/{memberId}/insurance/cards`  — listInsuranceCards
+- **AUTHORIZATION:** SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5
+- **DESCRIPTION:** Listar os cartões digitais do membro (um por seguradora).
+- **REQUEST:** —
+- **RESPONSE:** `200` `[InsuranceCard]`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só seguradoras com módulo operacional ativo. UC-SEG-15, BR-SEG-20/23: só ligações CONFIRMED; beneficiário não ACTIVE mostra o estado no cartão.
+
+### `GET /families/{familyId}/members/{memberId}/insurance/cards/{beneficiaryId}/qr`  — getInsuranceCardQr
+- **AUTHORIZATION:** SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5
+- **DESCRIPTION:** Obter o QR do cartão.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsuranceCardQr`
+- **ERRORS:** `NOT_FOUND`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só seguradoras com módulo operacional ativo. UC-SEG-15, BR-SEG-18: token assinado, de validade curta e revogável (`cardVersion`), sem dados clínicos; novo pedido ⇒ novo token. Auditoria CARD_QR_ISSUE.
+
+### `GET /families/{familyId}/members/{memberId}/insurance/cards/{beneficiaryId}/coverage`  — getInsuranceCardCoverage
+- **AUTHORIZATION:** SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5
+- **DESCRIPTION:** Ver plano, validade, serviços cobertos e limites.
+- **REQUEST:** —
+- **RESPONSE:** `200` `InsuranceCardCoverage`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** Só seguradoras com módulo operacional ativo. UC-SEG-14 (Fase A), Q4/D-A2 (2026-11-11): mostra **só cobertura e limites** — sem «usado», «reservado» nem saldo consumido (esses campos só serão acrescentados, de forma retrocompatível, com S4/S5). Auditoria COVERAGE_VIEW quando lido por tutor.
+
+## Seguradoras — módulo operacional, S2–S6 — ESBOÇO, NÃO CONTRATUAL
+
+> Rotas **fora da Fase A**: **não existem em `openapi.yaml`** e **não podem ser implementadas** até o contrato do marco respetivo ser redigido e validado (`vita-architect`). Prefixos, papéis e nomes são propostos. Tokens, `insurerId` do token e erros como na secção anterior.
+
+### Portal da seguradora (`/insurance-portal/*`)
 | Método e caminho | Quem | Descrição | UC / BR |
 |---|---|---|---|
-| `GET/POST /insurance-portal/companies`, `PATCH .../companies/{id}` | ADMIN, BENEFICIARY_MGR (escrita); restantes R | Empresas. | UC-SEG-01 |
-| `GET/POST /insurance-portal/beneficiaries`, `GET/PATCH .../{id}`, `POST .../{id}/status` | BENEFICIARY_MGR, ADMIN (escrita) | Beneficiários e dependentes; estado `PENDING→ACTIVE⇄SUSPENDED→CANCELLED`. | UC-SEG-02, BR-SEG-17 |
-| `POST /insurance-portal/imports` (multipart CSV/XLSX), `GET .../imports/{id}` (pré-visualização + erros por linha), `POST .../imports/{id}/commit`, `DELETE .../imports/{id}` | BENEFICIARY_MGR, ADMIN | Importação até 5.000 linhas. | BR-SEG-17 |
-| `GET /insurance-portal/link-requests`, `POST .../link-requests/{id}/confirm\|reject` | BENEFICIARY_MGR, ADMIN | Confirmar ligação paciente↔beneficiário. | BR-SEG-20 |
-| `GET/POST /insurance-portal/policies`, `GET/PATCH .../{id}`, `POST .../{id}/status` | BENEFICIARY_MGR, ADMIN | Apólices. | UC-SEG-03 |
-| `GET/POST /insurance-portal/plans`, `GET/PATCH .../{id}`, `POST .../{id}/status`, `POST .../{id}/new-version`, `GET/PUT .../{id}/coverages` | ADMIN (escrita); restantes R | Planos e coberturas. | UC-SEG-04 |
-| `GET/POST /insurance-portal/services`, `PATCH .../services/{id}` | ADMIN | Lista de serviços da seguradora. | BR-SEG-22 |
-| `GET/POST /insurance-portal/providers`, `GET/PATCH .../{id}`, `POST .../{id}/status`, `PUT .../{id}/services` | ADMIN (escrita) | Rede de prestadores, unidades, ligação à clínica. | UC-SEG-09 |
-| `GET /insurance-portal/authorizations`, `GET .../{id}`, `POST .../{id}/decide` (`APPROVE\|REJECT\|REQUEST_INFO\|CANCEL`) | AUTH_ANALYST (decide); ADMIN/CLAIMS/FINANCE R | Análise de autorizações. | UC-SEG-07 |
-| `GET /insurance-portal/expenses`, `GET .../{id}`, `POST .../{id}/decide` (`APPROVE\|REJECT\|RETURN`) | CLAIMS_MGR (decide); restantes R | Análise de despesas. | UC-SEG-12 |
-| `GET /insurance-portal/dashboard` | todos (conteúdo por papel) | Indicadores agregados no servidor. | UC-SEG-16 |
-| `GET /insurance-portal/audit` | ADMIN | Auditoria da seguradora (ver pendência de `audit.md`). | UC-SEG-17 |
-| `GET/POST/DELETE /insurance-portal/agents` (existente, ADR-021) | ADMIN | Alargar a criação de contas aos quatro papéis novos (campo `role`). | `authorization.md` §8.3 |
+| `GET/PUT .../providers/{id}` com unidades e `PUT .../{id}/services` (a Fase A só tem a ligação da clínica) | ADMIN (escrita) | Rede de prestadores completa. | UC-SEG-09 |
+| `GET /insurance-portal/authorizations`, `GET .../{id}`, `POST .../{id}/decide` (`APPROVE\|REJECT\|REQUEST_INFO\|CANCEL`) | AUTH_ANALYST (decide); ADMIN/CLAIMS/FINANCE R | Análise de autorizações (S4). | UC-SEG-07 |
+| `GET /insurance-portal/expenses`, `GET .../{id}`, `POST .../{id}/decide` (`APPROVE\|REJECT\|RETURN`) | CLAIMS_MGR (decide); restantes R | Análise de despesas (S5). | UC-SEG-12 |
+| `GET /insurance-portal/dashboard` | todos (conteúdo por papel) | Indicadores agregados no servidor (S5). | UC-SEG-16 |
+| `GET /insurance-portal/audit` | ADMIN | Auditoria da seguradora (S5; ver pendência de `audit.md`). | UC-SEG-17 |
+| `PATCH .../plans/{id}` com `autoApprovalCeiling`/`amountTolerancePct`; limites por beneficiário/família em `coverages` | ADMIN | Campos de S2/S4 (BR-SEG-03/08/13). | UC-SEG-04 |
+| `POST/PATCH .../agents` com `role` ∈ `AUTHORIZATION_ANALYST`, `CLAIMS_MANAGER`, `FINANCE_MANAGER` | ADMIN | Criação dos três papéis restantes. | `authorization.md` §8.3 |
 
 ### Portal da clínica (`/clinic-portal/insurers/*`; `CLINIC_ADMIN`/`CLINIC_MANAGER`)
 | Método e caminho | Descrição | UC / BR |
 |---|---|---|
-| `GET /clinic-portal/insurers` | Seguradoras a que a clínica está ligada (a do cartão apresentado — Q4 pendente). | BR-SEG-23 |
-| `POST /clinic-portal/insurers/{insurerId}/eligibility` | Validar (nº cartão, QR ou identificação, `serviceCode?`); resposta mínima; auditada; rate limit. | UC-SEG-05, BR-SEG-18 |
-| `GET /clinic-portal/insurers/{insurerId}/services` | Lista de serviços da seguradora. | BR-SEG-22 |
 | `POST /clinic-portal/insurers/{insurerId}/encounters` | Registar atendimento (sem diagnóstico). | UC-SEG-10 |
 | `POST/GET /clinic-portal/insurers/{insurerId}/authorizations`, `GET .../{id}`, `POST .../{id}/respond` (resposta a `INFO_REQUESTED`), `POST .../{id}/cancel` | Autorizações. | UC-SEG-06/08 |
 | `POST/GET /clinic-portal/insurers/{insurerId}/expenses`, `GET/PATCH .../{id}` (`PATCH` só em `RETURNED`) | Despesas. | UC-SEG-11/13 |
@@ -1764,13 +2122,8 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 ### App do paciente (`/families/{familyId}/members/{memberId}/insurance/*`; `SELF`/`TUTOR_OF`)
 | Método e caminho | Descrição | UC / BR |
 |---|---|---|
-| `POST .../insurance/card-claims` | Reclamar o cartão (nº de apólice + código da seguradora) — consentimento. | BR-SEG-20 |
-| `DELETE .../insurance/card-claims/{id}` | Desligar. | BR-SEG-20 |
-| `GET .../insurance/cards` , `GET .../insurance/cards/{beneficiaryId}/qr` | Cartões digitais (um por seguradora) e QR rotativo. | UC-SEG-15 |
-| `GET .../insurance/cards/{beneficiaryId}/coverage-balance` | Plano, coberturas, limites e saldo. | UC-SEG-14 |
-| `GET .../insurance/cards/{beneficiaryId}/authorizations`, `.../expenses` | Histórico com valores comparticipados. | UC-SEG-15 |
-
-Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/`PATCH /admin/insurers/{id}` ganham `currency` e `operationalModuleEnabled`; `createReimbursementClaim` ganha `encounterId?` e passa a ler a moeda da seguradora (sem `EUR` fixo).
+| `GET .../insurance/cards/{beneficiaryId}/authorizations`, `.../expenses` | Histórico com valores comparticipados (S4/S5). | UC-SEG-15 |
+| `GET .../insurance/cards/{beneficiaryId}/coverage` — campos `used`/`reserved`/`available` acrescentados de forma retrocompatível | Saldo (S4/S5; na Fase A o endpoint existe sem eles). | UC-SEG-14 |
 
 ## Alerts
 
@@ -1952,11 +2305,11 @@ Alterações a rotas existentes (a incluir no contrato): `POST /admin/insurers`/
 
 ### `PATCH /admin/insurers/{insurerId}`  — adminUpdateInsurer
 - **AUTHORIZATION:** PLATFORM_ADMIN
-- **DESCRIPTION:** Editar seguradora parceira (nome e/ou NIF).
+- **DESCRIPTION:** Editar seguradora parceira (nome, NIF e, ADR-025, `currency`/`operationalModuleEnabled`).
 - **REQUEST:** `InsurerPatch`
 - **RESPONSE:** `200` `Insurer`
-- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR` (inclui NIF duplicado)
-- **BUSINESS RULES:** BR-ADM-05 (completa ADR-021); auditado (`ADMIN_INSURER_UPDATE`); sem eliminação.
+- **ERRORS:** `CONFLICT` (alterar `currency` com beneficiários ou apólices já criados, BR-SEG-19), `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR` (inclui NIF duplicado)
+- **BUSINESS RULES:** BR-ADM-05 (completa ADR-021), BR-SEG-19; auditado (`ADMIN_INSURER_UPDATE`); sem eliminação.
 
 ### `PUT /admin/insurers/{insurerId}/status`  — adminSetInsurerStatus
 - **AUTHORIZATION:** PLATFORM_ADMIN

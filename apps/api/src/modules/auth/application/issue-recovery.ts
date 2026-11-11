@@ -1,8 +1,9 @@
 // Emissão de tokens de recuperação/verificação + e-mail, partilhada por `forgot-password`,
 // `resend-verification` e pela reposição de acesso do Platform Admin (BR-ADM-02). O token só sai
-// por e-mail: nunca é devolvido a quem chama.
+// por e-mail: nunca é devolvido a quem chama. A recuperação usa um código OTP de 6 dígitos (como a
+// verificação de e-mail), sempre procurado no âmbito do utilizador do `email` — nunca global.
 import { newId } from "../../../platform/ids/index.js";
-import { generateOpaqueToken, generateVerificationCode, hashOpaqueToken } from "../domain/token.js";
+import { generateVerificationCode, hashOpaqueToken } from "../domain/token.js";
 import type { AuthDeps } from "./ports.js";
 import { trySendMail } from "./send-mail.js";
 
@@ -16,7 +17,7 @@ interface Recipient {
 
 export async function issuePasswordReset<Trx>(deps: AuthDeps<Trx>, trx: Trx, user: Recipient, now: Date): Promise<void> {
   await deps.authTokenRepo.invalidateAllForUser(trx, user.id, "PASSWORD_RESET", now);
-  const rawToken = generateOpaqueToken();
+  const rawToken = generateVerificationCode();
   await deps.authTokenRepo.insert(trx, {
     id: newId(),
     userId: user.id,
@@ -28,7 +29,7 @@ export async function issuePasswordReset<Trx>(deps: AuthDeps<Trx>, trx: Trx, use
   await trySendMail(deps.mailer, deps.logger, {
     to: user.email,
     subject: "Recuperação de palavra-passe — Vita Family",
-    text: `Para definir uma nova palavra-passe, use este código: ${rawToken} (válido 1 hora). Se não pediu esta recuperação, ignore este e-mail.`,
+    text: `O seu código para definir uma nova palavra-passe é ${rawToken} (válido 1 hora). Introduza-o em ${deps.appBaseUrl}/reset-password. Se não pediu esta recuperação, ignore este e-mail e não partilhe o código.`,
   });
 }
 

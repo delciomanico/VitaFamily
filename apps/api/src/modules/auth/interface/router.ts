@@ -19,7 +19,7 @@ export interface AuthController {
   refresh: (input: RefreshInput, ctx: RequestContext) => Promise<LoginResult>;
   logout: (userId: string, sessionId: string, ctx: RequestContext) => Promise<void>;
   forgotPassword: (email: string, ctx: RequestContext) => Promise<void>;
-  resetPassword: (token: string, newPassword: string, ctx: RequestContext) => Promise<void>;
+  resetPassword: (email: string, code: string, newPassword: string, ctx: RequestContext) => Promise<void>;
   changePassword: (
     userId: string,
     sessionId: string,
@@ -117,8 +117,8 @@ export function createAuthRouter(controller: AuthController, cookieDomain: strin
   router.post(
     "/auth/password/reset",
     asyncHandler(async (req, res) => {
-      const body = req.body as { token: string; newPassword: string };
-      await controller.resetPassword(body.token, body.newPassword, buildRequestContext(req));
+      const body = req.body as { email: string; token: string; newPassword: string };
+      await controller.resetPassword(body.email, body.token, body.newPassword, buildRequestContext(req));
       res.status(204).end();
     }),
   );

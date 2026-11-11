@@ -27,7 +27,7 @@
 
 ### UC-ACC-03 Recuperar conta
 - **Ator:** Visitante · **FR:** AUTH-03
-- **Fluxo:** pede recuperação com o e-mail → recebe link de uso único e temporário → define nova palavra-passe → sessões anteriores são terminadas.
+- **Fluxo:** pede recuperação com o e-mail → recebe um código OTP de 6 dígitos (uso único, 1 h) → introduz e-mail, código e nova palavra-passe na página de confirmação → sessões anteriores são terminadas.
 - **Regra:** resposta idêntica exista ou não a conta.
 
 ### UC-ACC-04 Editar perfil e preferências

@@ -56,6 +56,10 @@ export const authService = {
   requestPasswordReset: hasApiBackend()
     ? (email: string) => apiFetch<void>('/auth/password/forgot', { method: 'POST', body: { email }, auth: false })
     : mock.requestPasswordReset,
+  resetPassword: hasApiBackend()
+    ? (email: string, code: string, newPassword: string) =>
+        apiFetch<void>('/auth/password/reset', { method: 'POST', body: { email, token: code, newPassword }, auth: false })
+    : mock.resetPassword,
 
   /**
    * Restaura a sessão ao abrir a app. No mock, `userId` vem de `sessionStore` (localStorage);

@@ -88,6 +88,10 @@ export function requestPasswordReset(_email: string) {
   return respond(() => undefined)
 }
 
+export function resetPassword(_email: string, _code: string, _newPassword: string) {
+  return respond(() => undefined)
+}
+
 export function getUser(userId: string) {
   return respond(() => {
     const record = db.users.find((u) => u.id === userId && u.status === 'ACTIVE')

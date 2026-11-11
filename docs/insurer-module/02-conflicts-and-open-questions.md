@@ -42,7 +42,7 @@
 2. `vita-architect` redige ADR-024 e propaga: `business-rules.md` (`BR-SEG-*`), `entities.md`, `state-machines.md`, `authorization.md`, `schema.md` (migração), `openapi.yaml`/`endpoints.md`, `03-use-cases/`, `audit.md` (catálogo, incluindo a pendência existente de ADR-021), `plan.md` (S1–S6).
 3. Só depois, implementação pelos agentes `vita-identity`/`vita-family`/`vita-health` conforme o módulo, com revisão final de `vita-qa-security`.
 
-## E. Decisões do proprietário (2026-11-05, em conversa) — a formalizar no ADR-024
+## E. Decisões do proprietário (2026-11-05, em conversa) — a formalizar no ADR-024 (formalizadas no ADR-025)
 
 | Q | Decisão | Efeito no spec |
 |---|---|---|
@@ -58,4 +58,6 @@
 | Q11 | Várias seguradoras por paciente, **escolhe-se pelo cartão** | Sem coordenação de benefícios |
 | Q12 | Importação **até 5.000 linhas, CSV e XLSX** | BR-SEG-17 |
 | Q13 | **FK composta + testes**, sem RLS | Spec §3 confirmado |
-| Q4 | **Por decidir** (assumido: seguradora determinada pelo cartão apresentado) | — |
+| Q4 | **Decidida em 2026-11-11 (ver nota abaixo):** a seguradora que valida é a do **cartão apresentado** | Sem pesquisa transversal nem desempate; `GET /clinic-portal/insurers` + `insurerId` no caminho; QR/nº de cartão de outra seguradora ⇒ resposta genérica `eligible:false` |
+
+> **Nota datada 2026-11-11 — Q4 fechada (decisão do proprietário, Fase A).** A seguradora que valida é a **do cartão apresentado**: o nº de cartão/QR identifica o `insurerId`; a clínica escolhe-a na lista `GET /clinic-portal/insurers` (só as ligadas por `insurer_providers`). Sem regra de desempate nem pesquisa entre seguradoras; o paciente com várias seguradoras tem um cartão por seguradora (Q11). **Decisão conjunta D-A2:** a Fase A mostra ao paciente **só cobertura e limites**, **sem «usado»/saldo consumido** (sem `CoverageConsumption`, sem reservas); o saldo real chega com S4/S5. O estado «Q4 por decidir» das secções acima e da tabela E é histórico. Contrato: `05-api/openapi.yaml` (Fase A), `11-implementation/insurer-phase-a.md`.

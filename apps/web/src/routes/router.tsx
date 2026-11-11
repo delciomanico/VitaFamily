@@ -7,6 +7,7 @@ import { InsurancePortalRoot, InsuranceShell } from '@/components/layout/Insuran
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { HomePage } from '@/pages/home/HomePage'
 import { ForgotPasswordPage } from '@/pages/public/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/public/ResetPasswordPage'
 import { InviteAcceptPage } from '@/pages/public/InviteAcceptPage'
 import { LoginPage } from '@/pages/public/LoginPage'
 import { OnboardingPage } from '@/pages/public/OnboardingPage'
@@ -56,6 +57,7 @@ export const routes: RouteObject[] = [
           { path: paths.login, element: <LoginPage /> },
           { path: paths.register, element: <RegisterPage /> },
           { path: paths.forgotPassword, element: <ForgotPasswordPage /> },
+          { path: paths.resetPassword, element: <ResetPasswordPage /> },
         ],
       },
       {

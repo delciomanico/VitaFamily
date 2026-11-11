@@ -5,6 +5,7 @@ export const paths = {
   login: '/login',
   register: '/register',
   forgotPassword: '/forgot-password',
+  resetPassword: '/reset-password',
   verify: '/verify',
   inviteAccept: '/invite/accept',
 

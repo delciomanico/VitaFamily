@@ -231,7 +231,7 @@ paths:
     post:
       tags: [Auth]
       operationId: resetPassword
-      summary: "Definir nova palavra-passe com token."
+      summary: "Definir nova palavra-passe com código OTP."
       description: "Autorização: PUBLIC. Revoga todas as sessões (BR UC-ACC-03)."
       security: []
       requestBody:
@@ -7740,8 +7740,8 @@ paths:
     get:
       tags: [Insurance Portal]
       operationId: listInsuranceAgents
-      summary: "Listar as contas INSURANCE_AGENT da própria seguradora."
-      description: "Autorização: INSURANCE_ADMIN. BR-INS-06."
+      summary: "Listar as contas (não-admin) da própria seguradora."
+      description: "Autorização: INSURANCE_ADMIN. BR-INS-06; ADR-025 §8.3: inclui as contas BENEFICIARY_MANAGER."
       security:
         - insuranceBearerAuth: []
       responses:
@@ -7765,8 +7765,8 @@ paths:
     post:
       tags: [Insurance Portal]
       operationId: createInsuranceAgent
-      summary: "Criar uma conta INSURANCE_AGENT na própria seguradora."
-      description: "Autorização: INSURANCE_ADMIN. BR-INS-06: self-service; o Platform Admin nunca cria agentes individualmente."
+      summary: "Criar uma conta INSURANCE_AGENT ou BENEFICIARY_MANAGER na própria seguradora."
+      description: "Autorização: INSURANCE_ADMIN. BR-INS-06: self-service; o Platform Admin nunca cria agentes individualmente. `role` por omissão INSURANCE_AGENT (ADR-025/§8.3)."
       security:
         - insuranceBearerAuth: []
       requestBody:
@@ -7799,8 +7799,8 @@ paths:
     delete:
       tags: [Insurance Portal]
       operationId: removeInsuranceAgent
-      summary: "Remover uma conta INSURANCE_AGENT da própria seguradora."
-      description: "Autorização: INSURANCE_ADMIN. Só remove contas INSURANCE_AGENT; a conta INSURANCE_ADMIN raiz só é reposta pelo Platform Admin (POST /admin/insurers/{id}/root-account)."
+      summary: "Remover uma conta (não-admin) da própria seguradora."
+      description: "Autorização: INSURANCE_ADMIN. Remove contas INSURANCE_AGENT e BENEFICIARY_MANAGER (ADR-025); a conta INSURANCE_ADMIN raiz só é reposta pelo Platform Admin (POST /admin/insurers/{id}/root-account)."
       security:
         - insuranceBearerAuth: []
       parameters:
@@ -8569,6 +8569,1686 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/companies:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerCompanies
+      summary: "Listar empresas clientes da seguradora."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. UC-SEG-01, BR-SEG-14. Paginação limit/cursor. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerCompanyPage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance Portal]
+      operationId: createInsurerCompany
+      summary: "Criar empresa cliente."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. UC-SEG-01: NIF único por seguradora (duplicado ⇒ CONFLICT). Auditoria INSURER_COMPANY_CREATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerCompanyInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerCompany" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/companies/{companyId}:
+    patch:
+      tags: [Insurance Portal]
+      operationId: updateInsurerCompany
+      summary: "Editar ou inativar empresa."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. UC-SEG-01: nome e/ou estado (ACTIVE|INACTIVE); o NIF não se altera. Auditoria INSURER_COMPANY_UPDATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: companyId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerCompanyPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerCompany" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/beneficiaries:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerBeneficiaries
+      summary: "Listar beneficiários (e dependentes) da seguradora."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. UC-SEG-02. Filtros: q (nome, nº de cartão ou nº de documento — pesquisa exata no documento), status, companyId, holderId. Paginação limit/cursor. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: companyId, in: query, schema: { type: string, format: uuid } }
+        - { name: holderId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerBeneficiaryPage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance Portal]
+      operationId: createInsurerBeneficiary
+      summary: "Registar beneficiário ou dependente."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. UC-SEG-02, BR-SEG-17: nasce PENDING (nunca ativo sem validação); nº de cartão gerado pelo servidor; documento de identificação duplicado na seguradora ⇒ CONFLICT; relationship=HOLDER ⇔ sem holderId. Auditoria INSURER_BENEFICIARY_CREATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerBeneficiaryInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerBeneficiary" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/beneficiaries/{beneficiaryId}:
+    get:
+      tags: [Insurance Portal]
+      operationId: getInsurerBeneficiary
+      summary: "Abrir um beneficiário."
+      description: "Autorização: qualquer papel do módulo (leitura). UC-SEG-02. Nunca devolve ids de família/membro nem dados de saúde (apenas `linked`, BR-SEG-20). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: beneficiaryId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerBeneficiary" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Insurance Portal]
+      operationId: updateInsurerBeneficiary
+      summary: "Editar um beneficiário."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. UC-SEG-02: nome, data de nascimento e empresa; o documento de identificação e a relação não se alteram. Auditoria INSURER_BENEFICIARY_UPDATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: beneficiaryId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerBeneficiaryPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerBeneficiary" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/beneficiaries/{beneficiaryId}/status:
+    post:
+      tags: [Insurance Portal]
+      operationId: setInsurerBeneficiaryStatus
+      summary: "Mudar o estado do beneficiário."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. ST Beneficiary: PENDING→ACTIVE, ACTIVE⇄SUSPENDED, PENDING|ACTIVE|SUSPENDED→CANCELLED (final); SUSPENDED e CANCELLED exigem nota. Transição inválida ⇒ INVALID_STATE_TRANSITION. Auditoria INSURER_BENEFICIARY_STATUS. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: beneficiaryId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerBeneficiaryStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerBeneficiary" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/beneficiaries/{beneficiaryId}/claim-code:
+    post:
+      tags: [Insurance Portal]
+      operationId: issueInsurerBeneficiaryClaimCode
+      summary: "Emitir o código de reclamação do cartão."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. BR-SEG-20 (código fornecido pela seguradora). Devolve o código em claro **uma única vez** (só o hash fica guardado); emitir novo invalida o anterior; validade `expiresAt`. Beneficiário CANCELLED ⇒ CONFLICT. Auditoria INSURER_LINK_REQUEST (`metadata.step=CODE_ISSUED`, sem o código). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: beneficiaryId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerClaimCode" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/imports:
+    post:
+      tags: [Insurance Portal]
+      operationId: createInsurerImport
+      summary: "Carregar ficheiro de beneficiários (CSV/XLSX) e obter a pré-visualização."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. BR-SEG-17, UC-SEG-02: CSV ou XLSX, 1..5.000 linhas (mais ⇒ VALIDATION_ERROR); não grava beneficiários — cria um lote PREVIEW com pré-visualização e erros por linha. Colunas e regras em InsurerImportUploadRequest. Auditoria INSURER_IMPORT_PREVIEW (só contagens). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/InsurerImportUploadRequest" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerImport" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '413':
+          description: "FILE_TOO_LARGE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '415':
+          description: "FILE_TYPE_NOT_ALLOWED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/imports/{importId}:
+    get:
+      tags: [Insurance Portal]
+      operationId: getInsurerImport
+      summary: "Ver o lote: pré-visualização e erros por linha."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. BR-SEG-17. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: importId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerImport" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Insurance Portal]
+      operationId: cancelInsurerImport
+      summary: "Cancelar um lote em pré-visualização."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. Só em PREVIEW (senão CONFLICT); passa a CANCELLED e descarta o ficheiro. Auditoria INSURER_IMPORT_CANCEL. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: importId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/imports/{importId}/commit:
+    post:
+      tags: [Insurance Portal]
+      operationId: commitInsurerImport
+      summary: "Confirmar o lote."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. BR-SEG-17: **uma transação por lote**; grava as linhas válidas como beneficiários PENDING; linhas com erro ou duplicadas (mesmo tipo+nº de documento na seguradora) são ignoradas e contadas, nunca duplicam nem atualizam. Resposta `InsurerImport` com `importedRows` (gravadas), `errorRows` (inválidas, incluindo duplicadas) e `duplicateRows` (duplicadas), que é o relatório do lote. Só em PREVIEW (senão CONFLICT; repetir é idempotente a nível de estado: 409). Auditoria INSURER_IMPORT_COMMIT (contagens). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: importId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerImport" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/link-requests:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerLinkRequests
+      summary: "Listar pedidos de ligação cartão↔paciente."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. BR-SEG-20. Filtro status (por omissão PENDING). Devolve só o necessário para decidir (beneficiário, data); nunca dados do utilizador/família do paciente. Paginação limit/cursor. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerLinkRequestPage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/link-requests/{linkRequestId}/confirm:
+    post:
+      tags: [Insurance Portal]
+      operationId: confirmInsurerLinkRequest
+      summary: "Confirmar a ligação paciente↔beneficiário."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. BR-SEG-20, ST BeneficiaryLinkRequest: PENDING→CONFIRMED; só então o paciente vê cartão e cobertura. Auditoria INSURER_LINK_DECIDE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: linkRequestId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerLinkRequest" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/link-requests/{linkRequestId}/reject:
+    post:
+      tags: [Insurance Portal]
+      operationId: rejectInsurerLinkRequest
+      summary: "Rejeitar a ligação."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. BR-SEG-20: PENDING→REJECTED, motivo obrigatório. Auditoria INSURER_LINK_DECIDE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: linkRequestId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerLinkRequestRejectRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerLinkRequest" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/policies:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerPolicies
+      summary: "Listar apólices."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. UC-SEG-03. Filtros: status, companyId, holderId, q (número). Paginação limit/cursor. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: companyId, in: query, schema: { type: string, format: uuid } }
+        - { name: holderId, in: query, schema: { type: string, format: uuid } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPolicyPage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance Portal]
+      operationId: createInsurerPolicy
+      summary: "Criar apólice (DRAFT)."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. UC-SEG-03: plano, titular (beneficiário HOLDER), empresa opcional, número único por seguradora (duplicado ⇒ CONFLICT), validFrom<=validTo. Auditoria INSURER_POLICY_CREATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerPolicyInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPolicy" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/policies/{policyId}:
+    get:
+      tags: [Insurance Portal]
+      operationId: getInsurerPolicy
+      summary: "Abrir uma apólice."
+      description: "Autorização: qualquer papel do módulo (leitura). UC-SEG-03. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: policyId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPolicy" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Insurance Portal]
+      operationId: updateInsurerPolicy
+      summary: "Editar uma apólice."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. UC-SEG-03: validFrom/validTo/empresa em qualquer estado não final; `planId` só em DRAFT (alterar o plano de uma apólice ativa = nova versão do plano, UC-SEG-04). Auditoria INSURER_POLICY_UPDATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: policyId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerPolicyPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPolicy" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/policies/{policyId}/status:
+    post:
+      tags: [Insurance Portal]
+      operationId: setInsurerPolicyStatus
+      summary: "Mudar o estado da apólice."
+      description: "Autorização: INSURANCE_ADMIN, BENEFICIARY_MANAGER (escrita); restantes papéis do módulo: leitura. ST Policy: DRAFT→ACTIVE (plano ACTIVE), ACTIVE⇄SUSPENDED, DRAFT|ACTIVE|SUSPENDED→CANCELLED; SUSPENDED e CANCELLED exigem nota; EXPIRED é só do job insurer.expire-policies. Auditoria INSURER_POLICY_STATUS. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: policyId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerPolicyStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPolicy" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/plans:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerPlans
+      summary: "Listar planos (todas as versões)."
+      description: "Autorização: INSURANCE_ADMIN (escrita); BENEFICIARY_MANAGER e restantes papéis: leitura. UC-SEG-04. Filtros: status, name. Paginação limit/cursor. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: name, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPlanPage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance Portal]
+      operationId: createInsurerPlan
+      summary: "Criar plano (versão 1, DRAFT)."
+      description: "Autorização: INSURANCE_ADMIN. UC-SEG-04: nome único por seguradora na versão 1 (duplicado ⇒ CONFLICT). Os campos de autorização automática (teto, tolerância) ficam fora da Fase A. Auditoria INSURER_PLAN_CREATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerPlanInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPlan" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/plans/{planId}:
+    get:
+      tags: [Insurance Portal]
+      operationId: getInsurerPlan
+      summary: "Abrir um plano."
+      description: "Autorização: qualquer papel do módulo (leitura). UC-SEG-04. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: planId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPlan" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/plans/{planId}/status:
+    post:
+      tags: [Insurance Portal]
+      operationId: setInsurerPlanStatus
+      summary: "Ativar ou arquivar um plano."
+      description: "Autorização: INSURANCE_ADMIN. ST Plan: DRAFT→ACTIVE (exige ≥1 cobertura), ACTIVE→ARCHIVED (deixa de aceitar apólices novas). Auditoria INSURER_PLAN_STATUS. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: planId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerPlanStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPlan" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/plans/{planId}/new-version:
+    post:
+      tags: [Insurance Portal]
+      operationId: newInsurerPlanVersion
+      summary: "Criar nova versão (DRAFT) de um plano."
+      description: "Autorização: INSURANCE_ADMIN. UC-SEG-04, BR-SEG-01: plano com apólices ativas é imutável; a nova versão (version+1, mesmo nome) nasce DRAFT com as coberturas copiadas; só se a versão de origem for ACTIVE e não existir outra DRAFT do mesmo nome (CONFLICT). Auditoria INSURER_PLAN_NEW_VERSION. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: planId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPlan" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/plans/{planId}/coverages:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerPlanCoverages
+      summary: "Listar as coberturas do plano."
+      description: "Autorização: qualquer papel do módulo (leitura). UC-SEG-04. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: planId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InsurerPlanCoverage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    put:
+      tags: [Insurance Portal]
+      operationId: replaceInsurerPlanCoverages
+      summary: "Substituir as coberturas do plano (DRAFT)."
+      description: "Autorização: INSURANCE_ADMIN. UC-SEG-04, BR-SEG-02/04/09/22: substitui o conjunto inteiro; só em plano DRAFT (senão CONFLICT); `serviceId` tem de ser da lista de serviços da própria seguradora (senão VALIDATION_ERROR); serviço ausente = não coberto. Auditoria INSURER_COVERAGE_UPDATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: planId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerPlanCoveragesRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InsurerPlanCoverage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/services:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerServices
+      summary: "Listar a lista de serviços da seguradora."
+      description: "Autorização: qualquer papel do módulo (leitura). BR-SEG-22 (lista por seguradora, sem catálogo comum). Filtros: q, status. Paginação limit/cursor. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerServicePage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance Portal]
+      operationId: createInsurerService
+      summary: "Criar serviço."
+      description: "Autorização: INSURANCE_ADMIN. BR-SEG-22: código único por seguradora (duplicado ⇒ CONFLICT). Auditoria INSURER_SERVICE_CREATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerServiceInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerService" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/services/{serviceId}:
+    patch:
+      tags: [Insurance Portal]
+      operationId: updateInsurerService
+      summary: "Editar ou inativar serviço."
+      description: "Autorização: INSURANCE_ADMIN. BR-SEG-22: nome, categoria e estado; o código não se altera. Auditoria INSURER_SERVICE_UPDATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: serviceId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerServicePatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerService" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/partner-clinics:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerPartnerClinics
+      summary: "Listar as clínicas parceiras que a seguradora pode ligar."
+      description: "Autorização: INSURANCE_ADMIN (único papel que liga clínicas; os restantes ⇒ 403 FORBIDDEN). Catálogo das clínicas `PARTNER` e `ACTIVE` da plataforma, para a seguradora escolher a que liga em `POST /insurance-portal/providers` (decisão do proprietário, 2026-11-11). Devolve só o mínimo (`id`, `name`): sem contactos, morada, contas, equipa, agenda nem qualquer dado interno ou de saúde. `name` = `display_name` se existir, senão `name`. Pesquisa opcional por nome (`q`, contém, sem distinguir maiúsculas; nunca registada em auditoria nem logs). Inclui as clínicas já ligadas (a ligação vê-se em `GET /insurance-portal/providers`). Paginação limit/cursor, ordenada por nome. Só leitura: não se audita (catálogo sem dados pessoais). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: q, in: query, schema: { type: string, minLength: 1, maxLength: 100 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PartnerClinicPage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/providers:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerProviders
+      summary: "Listar as clínicas ligadas à seguradora."
+      description: "Autorização: qualquer papel do módulo (leitura). Fase A: só a ligação `clinic_id` (Provider mínimo, plan insurer-phase-a §2); unidades e serviços por prestador ficam fora. Paginação limit/cursor. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerProviderPage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance Portal]
+      operationId: createInsurerProvider
+      summary: "Ligar uma clínica parceira à seguradora."
+      description: "Autorização: INSURANCE_ADMIN. BR-SEG-18/§8.4: sem ligação ativa a clínica não valida (404). `clinicId` é escolhido na listagem `GET /insurance-portal/partner-clinics`; a clínica tem de ser PARTNER e ACTIVE (senão 404 NOT_FOUND, sem distinguir inexistente de não parceira); já ligada ⇒ CONFLICT. Auditoria INSURER_PROVIDER_CREATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerProviderInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerProvider" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/providers/{providerId}/status:
+    post:
+      tags: [Insurance Portal]
+      operationId: setInsurerProviderStatus
+      summary: "Suspender ou reativar a ligação da clínica."
+      description: "Autorização: INSURANCE_ADMIN. ACTIVE⇄SUSPENDED; suspensa ⇒ a clínica deixa de ver a seguradora. Auditoria INSURER_PROVIDER_STATUS. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: providerId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerProviderStatusRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerProvider" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/insurers:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicInsurers
+      summary: "Listar as seguradoras a que a clínica está ligada."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b). Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). BR-SEG-23, Q4 (decidida 2026-11-11): a seguradora é a do cartão apresentado; a clínica escolhe nesta lista a indicada no cartão. Sem pesquisa transversal entre seguradoras."
+      security:
+        - clinicBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClinicInsurer" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/insurers/{insurerId}/eligibility:
+    post:
+      tags: [Clinic Portal]
+      operationId: checkInsurerEligibility
+      summary: "Validar a elegibilidade de um beneficiário (resposta mínima)."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b). Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). UC-SEG-05, BR-SEG-01/02/04/18/23. Exatamente um de cardNumber, qrToken, idDocument (senão VALIDATION_ERROR). Resposta mínima (BR-SEG-18): inexistente, não elegível ou QR inválido/expirado/de outra seguradora devolvem a **mesma** resposta `{eligible:false}` (sem motivo); nunca histórico clínico, ids de família nem dados de outras seguradoras. É verificação de cobertura, não garantia de pagamento (`notice`). Rate limit por conta de clínica e por IP (429 RATE_LIMITED + Retry-After; valores em security.md). Auditoria ELIGIBILITY_CHECK (sem o identificador pesquisado)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - { name: insurerId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerEligibilityRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerEligibilityResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/insurers/{insurerId}/services:
+    get:
+      tags: [Clinic Portal]
+      operationId: listClinicInsurerServices
+      summary: "Listar a lista de serviços da seguradora."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b). Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). BR-SEG-22: só serviços ACTIVE, só código/nome/categoria. Paginação limit/cursor."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - { name: insurerId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicInsurerServicePage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance/card-claims:
+    get:
+      tags: [Insurance]
+      operationId: listInsuranceCardClaims
+      summary: "Listar os pedidos de ligação de cartão do membro."
+      description: "Autorização: SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5. Só seguradoras com módulo operacional ativo. BR-SEG-20: estado dos pedidos (PENDING, CONFIRMED, REJECTED, REVOKED) para a app mostrar «a aguardar confirmação da seguradora»."
+      parameters:
+        - { name: familyId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: memberId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InsuranceCardClaim" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance]
+      operationId: claimInsuranceCard
+      summary: "Reclamar o cartão da seguradora (consentimento)."
+      description: "Autorização: SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5. Só seguradoras com módulo operacional ativo. BR-SEG-20, Q2: nº de apólice + código fornecido pela seguradora; cria um pedido PENDING que a seguradora confirma. Código/apólice inexistentes, expirados ou já ligados a outro paciente devolvem o mesmo 404 NOT_FOUND (anti-enumeração); rate limit (429). Já existe pedido PENDING ou ligação do membro nessa seguradora ⇒ CONFLICT. Auditoria INSURER_LINK_REQUEST. Ligar só autoriza cartão e cobertura — a seguradora nunca acede a dados de saúde."
+      parameters:
+        - { name: familyId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: memberId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsuranceCardClaimRequest" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsuranceCardClaim" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance/card-claims/{claimId}:
+    delete:
+      tags: [Insurance]
+      operationId: revokeInsuranceCardClaim
+      summary: "Desligar o cartão (revogar consentimento)."
+      description: "Autorização: SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5. Só seguradoras com módulo operacional ativo. BR-SEG-20: CONFIRMED→REVOKED a qualquer momento; o beneficiário e os dados da seguradora mantêm-se, só a ligação é desfeita. Pedido noutro estado ⇒ CONFLICT. Auditoria INSURER_LINK_REVOKE."
+      parameters:
+        - { name: familyId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: memberId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: claimId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance/cards:
+    get:
+      tags: [Insurance]
+      operationId: listInsuranceCards
+      summary: "Listar os cartões digitais do membro (um por seguradora)."
+      description: "Autorização: SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5. Só seguradoras com módulo operacional ativo. UC-SEG-15, BR-SEG-20/23: só ligações CONFIRMED; beneficiário não ACTIVE mostra o estado no cartão."
+      parameters:
+        - { name: familyId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: memberId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InsuranceCard" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance/cards/{beneficiaryId}/qr:
+    get:
+      tags: [Insurance]
+      operationId: getInsuranceCardQr
+      summary: "Obter o QR do cartão."
+      description: "Autorização: SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5. Só seguradoras com módulo operacional ativo. UC-SEG-15, BR-SEG-18: token assinado, de validade curta e revogável (`cardVersion`), sem dados clínicos; novo pedido ⇒ novo token. Auditoria CARD_QR_ISSUE."
+      parameters:
+        - { name: familyId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: memberId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: beneficiaryId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsuranceCardQr" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/insurance/cards/{beneficiaryId}/coverage:
+    get:
+      tags: [Insurance]
+      operationId: getInsuranceCardCoverage
+      summary: "Ver plano, validade, serviços cobertos e limites."
+      description: "Autorização: SELF (adulto) ou TUTOR_OF (BR-INS-02); sem categoria de partilha; OTHER ⇒ 404. authorization.md §8.5. Só seguradoras com módulo operacional ativo. UC-SEG-14 (Fase A), Q4/D-A2 (2026-11-11): mostra **só cobertura e limites** — sem «usado», «reservado» nem saldo consumido (esses campos só serão acrescentados, de forma retrocompatível, com S4/S5). Auditoria COVERAGE_VIEW quando lido por tutor."
+      parameters:
+        - { name: familyId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: memberId, in: path, schema: { type: string, format: uuid }, required: true }
+        - { name: beneficiaryId, in: path, schema: { type: string, format: uuid }, required: true }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsuranceCardCoverage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /admin/insurers:
     get:
       tags: [Admin]
@@ -8597,7 +10277,7 @@ paths:
       tags: [Admin]
       operationId: adminCreateInsurer
       summary: "Criar seguradora parceira."
-      description: "Autorização: PLATFORM_ADMIN. ADR-021."
+      description: "Autorização: PLATFORM_ADMIN. ADR-021; ADR-025: aceita `currency` (por omissão AOA) e `operationalModuleEnabled` (por omissão false)."
       requestBody:
         required: true
         content:
@@ -8629,7 +10309,7 @@ paths:
       tags: [Admin]
       operationId: adminUpdateInsurer
       summary: "Editar seguradora parceira."
-      description: "Autorização: PLATFORM_ADMIN. BR-ADM-05 (completa ADR-021): nome e/ou NIF (único); auditado (ADMIN_INSURER_UPDATE). Não há eliminação (schema.md §8). ADR-023."
+      description: "Autorização: PLATFORM_ADMIN. BR-ADM-05 (completa ADR-021): nome e/ou NIF (único); auditado (ADMIN_INSURER_UPDATE). Não há eliminação (schema.md §8). ADR-023. ADR-025: também `currency` e `operationalModuleEnabled` (só PLATFORM_ADMIN; auditoria ADMIN_INSURER_CURRENCY_UPDATE / ADMIN_INSURER_MODULE_ENABLE|DISABLE)."
       parameters:
         - { name: insurerId, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
@@ -8655,6 +10335,11 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '404':
           description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (alterar `currency` com beneficiários ou apólices já criados; BR-SEG-19, TC-SEG-09)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -8891,10 +10576,14 @@ components:
           format: email
     ResetPasswordRequest:
       type: object
-      required: [token, newPassword]
+      required: [email, token, newPassword]
       properties:
+        email:
+          type: string
+          format: email
         token:
           type: string
+          description: "Código OTP de 6 dígitos recebido por e-mail (1 h, uso único)."
         newPassword:
           type: string
     ChangePasswordRequest:
@@ -11969,7 +13658,7 @@ components:
           format: uuid
         role:
           type: string
-          enum: [INSURANCE_ADMIN, INSURANCE_AGENT]
+          enum: [INSURANCE_ADMIN, INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST, CLAIMS_MANAGER, FINANCE_MANAGER]
     InsuranceAccount:
       type: object
       required: [id, insurerId, email, role, status]
@@ -11985,7 +13674,7 @@ components:
           format: email
         role:
           type: string
-          enum: [INSURANCE_ADMIN, INSURANCE_AGENT]
+          enum: [INSURANCE_ADMIN, INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST, CLAIMS_MANAGER, FINANCE_MANAGER]
         status:
           type: string
           enum: [ACTIVE, SUSPENDED]
@@ -11996,7 +13685,12 @@ components:
         email:
           type: string
           format: email
-          description: "A conta criada é sempre INSURANCE_AGENT (BR-INS-06); palavra-passe inicial enviada por e-mail."
+          description: "Palavra-passe inicial enviada por e-mail (BR-INS-06)."
+        role:
+          type: string
+          enum: [INSURANCE_AGENT, BENEFICIARY_MANAGER]
+          default: INSURANCE_AGENT
+          description: "ADR-025 Fase A: BENEFICIARY_MANAGER só com operationalModuleEnabled (senão 422 VALIDATION_ERROR). AUTHORIZATION_ANALYST, CLAIMS_MANAGER e FINANCE_MANAGER existem no enum mas só são criáveis a partir de S4/S5 (sem rotas na Fase A)."
     InsuranceClaimView:
       type: object
       required: [id, status, amount, currency, policyHolderName, policyNumber, documentIds]
@@ -12042,7 +13736,7 @@ components:
           description: "Motivo; obrigatório em REJECT (BR-INS-05)."
     Insurer:
       type: object
-      required: [id, name, taxId, status]
+      required: [id, name, taxId, status, currency, operationalModuleEnabled]
       properties:
         id:
           type: string
@@ -12054,6 +13748,13 @@ components:
         status:
           type: string
           enum: [ACTIVE, SUSPENDED]
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: "ISO 4217; por omissão AOA (BR-SEG-19, ADR-025/Q1)."
+        operationalModuleEnabled:
+          type: boolean
+          description: "Módulo operacional ligado pelo Platform Admin (ADR-025). Sem ele, a seguradora só tem o fluxo de reembolso (ADR-021)."
     PartnerInsurer:
       type: object
       required: [id, name]
@@ -12066,12 +13767,17 @@ components:
           type: string
     InsurerPatch:
       type: object
-      description: "BR-ADM-05 (ADR-023)."
+      description: "BR-ADM-05 (ADR-023); `currency` e `operationalModuleEnabled` acrescentados por ADR-025 (só PLATFORM_ADMIN; auditoria ADMIN_INSURER_CURRENCY_UPDATE / ADMIN_INSURER_MODULE_ENABLE|DISABLE). Mudar `currency` com apólices/beneficiários já criados ⇒ CONFLICT (BR-SEG-19)."
       properties:
         name:
           type: string
         taxId:
           type: string
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        operationalModuleEnabled:
+          type: boolean
     InsurerInput:
       type: object
       required: [name, taxId]
@@ -12080,6 +13786,15 @@ components:
           type: string
         taxId:
           type: string
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          default: AOA
+          description: "ADR-025/Q1: moeda da seguradora (BR-SEG-19)."
+        operationalModuleEnabled:
+          type: boolean
+          default: false
+          description: "ADR-025: ativa o módulo operacional (BR-INS-08 emendada)."
     InsurerStatusRequest:
       type: object
       required: [status]
@@ -12094,3 +13809,426 @@ components:
         email:
           type: string
           format: email
+    InsurerCompany:
+      type: object
+      required: [id, name, taxId, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        taxId: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        createdAt: { type: string, format: date-time }
+    InsurerCompanyInput:
+      type: object
+      required: [name, taxId]
+      properties:
+        name: { type: string, maxLength: 200 }
+        taxId: { type: string, maxLength: 40 }
+    InsurerCompanyPatch:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    InsurerCompanyPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/InsurerCompany" } }
+        nextCursor: { type: string, nullable: true }
+    InsurerBeneficiary:
+      type: object
+      description: "Dado da seguradora (ADR-025/C2). Nunca expõe ids de família/membro: só `linked` (BR-SEG-20)."
+      required: [id, name, idDocumentType, idDocumentNumber, birthDate, relationship, cardNumber, status, linked, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        companyId: { type: string, format: uuid, nullable: true }
+        holderId: { type: string, format: uuid, nullable: true, description: "Nulo ⇔ relationship=HOLDER." }
+        name: { type: string }
+        idDocumentType: { type: string }
+        idDocumentNumber: { type: string }
+        birthDate: { type: string, format: date }
+        relationship: { type: string, enum: [HOLDER, SPOUSE, CHILD, OTHER] }
+        cardNumber: { type: string, description: "Gerado pelo servidor; único por seguradora." }
+        status: { type: string, enum: [PENDING, ACTIVE, SUSPENDED, CANCELLED] }
+        linked: { type: boolean, description: "Existe ligação confirmada a um paciente (BR-SEG-20)." }
+        createdAt: { type: string, format: date-time }
+    InsurerBeneficiaryInput:
+      type: object
+      required: [name, idDocumentType, idDocumentNumber, birthDate, relationship]
+      properties:
+        companyId: { type: string, format: uuid }
+        holderId: { type: string, format: uuid, description: "Obrigatório se relationship≠HOLDER; proibido se HOLDER." }
+        name: { type: string, maxLength: 200 }
+        idDocumentType: { type: string, maxLength: 40 }
+        idDocumentNumber: { type: string, maxLength: 60 }
+        birthDate: { type: string, format: date }
+        relationship: { type: string, enum: [HOLDER, SPOUSE, CHILD, OTHER] }
+    InsurerBeneficiaryPatch:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        birthDate: { type: string, format: date }
+        companyId: { type: string, format: uuid, nullable: true }
+    InsurerBeneficiaryStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ACTIVE, SUSPENDED, CANCELLED] }
+        note: { type: string, maxLength: 500, description: "Obrigatória em SUSPENDED e CANCELLED." }
+    InsurerBeneficiaryPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/InsurerBeneficiary" } }
+        nextCursor: { type: string, nullable: true }
+    InsurerClaimCode:
+      type: object
+      required: [code, expiresAt]
+      properties:
+        code: { type: string, description: "Mostrado uma única vez; só o hash fica guardado (BR-SEG-20)." }
+        expiresAt: { type: string, format: date-time }
+    InsurerImportUploadRequest:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: "CSV (UTF-8, separador `,` ou `;`) ou XLSX (1.ª folha), 1..5.000 linhas de dados, com cabeçalho. Colunas: name, idDocumentType, idDocumentNumber, birthDate (AAAA-MM-DD), relationship (HOLDER|SPOUSE|CHILD|OTHER), holderIdDocumentNumber (obrigatória se relationship≠HOLDER; o titular tem de existir na seguradora ou no mesmo ficheiro), companyTaxId (opcional; empresa existente). Tamanho máximo do ficheiro e tipos: errors.md (FILE_TOO_LARGE, FILE_TYPE_NOT_ALLOWED)."
+    InsurerImportRowError:
+      type: object
+      required: [row, code]
+      properties:
+        row: { type: integer, minimum: 2, description: "Nº da linha no ficheiro (cabeçalho = 1)." }
+        field: { type: string, nullable: true }
+        code: { type: string, enum: [REQUIRED, INVALID_FORMAT, INVALID_VALUE, DUPLICATE_IN_FILE, DUPLICATE_EXISTING, HOLDER_NOT_FOUND, COMPANY_NOT_FOUND] }
+        message: { type: string }
+    InsurerImportPreviewRow:
+      type: object
+      required: [row, name, idDocumentType, idDocumentNumber, birthDate, relationship]
+      properties:
+        row: { type: integer }
+        name: { type: string }
+        idDocumentType: { type: string }
+        idDocumentNumber: { type: string }
+        birthDate: { type: string, format: date }
+        relationship: { type: string, enum: [HOLDER, SPOUSE, CHILD, OTHER] }
+    InsurerImport:
+      type: object
+      required: [id, format, status, rowCount, validRows, errorRows, duplicateRows, errors, errorsTruncated, preview, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        format: { type: string, enum: [CSV, XLSX] }
+        status: { type: string, enum: [PREVIEW, COMMITTED, FAILED, CANCELLED] }
+        rowCount: { type: integer, minimum: 1, maximum: 5000 }
+        validRows: { type: integer }
+        errorRows: { type: integer, description: "Linhas com erro (inclui duplicados)." }
+        duplicateRows: { type: integer, description: "Subconjunto de errorRows: documento já existente na seguradora ou repetido no ficheiro." }
+        importedRows: { type: integer, nullable: true, description: "Preenchido após COMMITTED." }
+        errors: { type: array, items: { $ref: "#/components/schemas/InsurerImportRowError" }, description: "Erros por linha (até 500; ver errorsTruncated)." }
+        errorsTruncated: { type: boolean }
+        preview: { type: array, items: { $ref: "#/components/schemas/InsurerImportPreviewRow" }, description: "Primeiras 50 linhas válidas." }
+        createdAt: { type: string, format: date-time }
+    InsurerLinkRequest:
+      type: object
+      description: "Visão da seguradora: nunca ids de utilizador/família/membro do paciente (ADR-005)."
+      required: [id, beneficiaryId, beneficiaryName, cardNumber, status, requestedAt]
+      properties:
+        id: { type: string, format: uuid }
+        beneficiaryId: { type: string, format: uuid }
+        beneficiaryName: { type: string }
+        cardNumber: { type: string }
+        status: { type: string, enum: [PENDING, CONFIRMED, REJECTED, REVOKED] }
+        requestedAt: { type: string, format: date-time }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        decisionNote: { type: string, nullable: true }
+    InsurerLinkRequestPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/InsurerLinkRequest" } }
+        nextCursor: { type: string, nullable: true }
+    InsurerLinkRequestRejectRequest:
+      type: object
+      required: [note]
+      properties:
+        note: { type: string, minLength: 1, maxLength: 500 }
+    InsurerPolicy:
+      type: object
+      required: [id, number, planId, planName, planVersion, holderId, validFrom, validTo, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: string }
+        planId: { type: string, format: uuid }
+        planName: { type: string }
+        planVersion: { type: integer }
+        companyId: { type: string, format: uuid, nullable: true }
+        holderId: { type: string, format: uuid }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+        status: { type: string, enum: [DRAFT, ACTIVE, SUSPENDED, EXPIRED, CANCELLED] }
+        createdAt: { type: string, format: date-time }
+    InsurerPolicyInput:
+      type: object
+      required: [planId, holderId, number, validFrom, validTo]
+      properties:
+        planId: { type: string, format: uuid }
+        holderId: { type: string, format: uuid, description: "Beneficiário com relationship=HOLDER." }
+        companyId: { type: string, format: uuid }
+        number: { type: string, maxLength: 60 }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+    InsurerPolicyPatch:
+      type: object
+      properties:
+        planId: { type: string, format: uuid, description: "Só em DRAFT." }
+        companyId: { type: string, format: uuid, nullable: true }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+    InsurerPolicyStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ACTIVE, SUSPENDED, CANCELLED] }
+        note: { type: string, maxLength: 500, description: "Obrigatória em SUSPENDED e CANCELLED." }
+    InsurerPolicyPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/InsurerPolicy" } }
+        nextCursor: { type: string, nullable: true }
+    InsurerPlan:
+      type: object
+      required: [id, name, version, status, coverageCount, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        version: { type: integer, minimum: 1 }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+        coverageCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+    InsurerPlanInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, maxLength: 120 }
+    InsurerPlanStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ACTIVE, ARCHIVED] }
+    InsurerPlanPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/InsurerPlan" } }
+        nextCursor: { type: string, nullable: true }
+    InsurerPlanCoverage:
+      type: object
+      description: "Fase A: cobertura sim/não, % comparticipação, teto anual, carência e «exige autorização». Mapeamento para `coverage_type` (schema.md §3c): covered=false→EXCLUDED; covered=true com limitPerYear→LIMITED; covered=true sem limitPerYear→INCLUDED. Limites por beneficiário/família e saldo consumido ficam para S2/S4."
+      required: [serviceId, serviceCode, serviceName, covered, copayPct, waitingDays, requiresAuthorization]
+      properties:
+        serviceId: { type: string, format: uuid }
+        serviceCode: { type: string }
+        serviceName: { type: string }
+        covered: { type: boolean }
+        copayPct: { type: number, minimum: 0, maximum: 100, description: "% paga pela seguradora (BR-SEG-06)." }
+        limitPerYear: { type: number, nullable: true, minimum: 0, description: "Teto anual, na moeda da seguradora." }
+        waitingDays: { type: integer, minimum: 0, description: "Carência a contar de Policy.validFrom (BR-SEG-04)." }
+        requiresAuthorization: { type: boolean }
+    InsurerPlanCoverageInput:
+      type: object
+      required: [serviceId, covered]
+      properties:
+        serviceId: { type: string, format: uuid }
+        covered: { type: boolean }
+        copayPct: { type: number, minimum: 0, maximum: 100, default: 100 }
+        limitPerYear: { type: number, nullable: true, minimum: 0 }
+        waitingDays: { type: integer, minimum: 0, default: 0 }
+        requiresAuthorization: { type: boolean, default: false }
+    InsurerPlanCoveragesRequest:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/InsurerPlanCoverageInput" }, maxItems: 1000, description: "serviceId únicos no pedido." }
+    InsurerService:
+      type: object
+      required: [id, code, name, status]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        category: { type: string, nullable: true }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    InsurerServiceInput:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, maxLength: 40 }
+        name: { type: string, maxLength: 200 }
+        category: { type: string, maxLength: 80 }
+    InsurerServicePatch:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        category: { type: string, nullable: true, maxLength: 80 }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    InsurerServicePage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/InsurerService" } }
+        nextCursor: { type: string, nullable: true }
+    InsurerProvider:
+      type: object
+      required: [id, clinicId, name, status]
+      properties:
+        id: { type: string, format: uuid }
+        clinicId: { type: string, format: uuid, nullable: true }
+        name: { type: string, description: "Nome da clínica parceira à data da ligação." }
+        status: { type: string, enum: [ACTIVE, SUSPENDED] }
+    InsurerProviderInput:
+      type: object
+      required: [clinicId]
+      properties:
+        clinicId: { type: string, format: uuid, description: "`id` de uma clínica devolvida por GET /insurance-portal/partner-clinics." }
+    InsurerProviderStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ACTIVE, SUSPENDED] }
+    PartnerClinic:
+      type: object
+      description: "Mínimo para a seguradora escolher a clínica a ligar; sem dados internos."
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    PartnerClinicPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/PartnerClinic" } }
+        nextCursor: { type: string, nullable: true }
+    InsurerProviderPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/InsurerProvider" } }
+        nextCursor: { type: string, nullable: true }
+    ClinicInsurer:
+      type: object
+      required: [id, name, currency]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        currency: { type: string, description: "ISO 4217 (BR-SEG-19)." }
+    ClinicInsurerServicePage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [code, name]
+            properties:
+              code: { type: string }
+              name: { type: string }
+              category: { type: string, nullable: true }
+        nextCursor: { type: string, nullable: true }
+    InsurerEligibilityIdDocument:
+      type: object
+      required: [type, number]
+      properties:
+        type: { type: string }
+        number: { type: string }
+    InsurerEligibilityRequest:
+      type: object
+      description: "Exatamente um de cardNumber, qrToken, idDocument (BR-SEG-18)."
+      properties:
+        cardNumber: { type: string }
+        qrToken: { type: string, description: "Token do QR do cartão; o insurerId do token tem de coincidir com o do caminho (senão resposta eligible=false)." }
+        idDocument: { $ref: "#/components/schemas/InsurerEligibilityIdDocument" }
+        serviceCode: { type: string, description: "Opcional: limita `coverages` a este serviço da lista da seguradora." }
+    InsurerCoverageLimits:
+      type: object
+      required: [serviceCode, serviceName, coveredNow, copayPct, waitingDays, requiresAuthorization]
+      properties:
+        serviceCode: { type: string }
+        serviceName: { type: string }
+        coveredNow: { type: boolean, description: "false durante a carência (BR-SEG-04)." }
+        copayPct: { type: number }
+        limitPerYear: { type: number, nullable: true }
+        waitingDays: { type: integer }
+        waitingEndsOn: { type: string, format: date, nullable: true }
+        requiresAuthorization: { type: boolean }
+    InsurerEligibilityResult:
+      type: object
+      description: "Resposta mínima (BR-SEG-18). Com eligible=false só vêm `eligible` e `notice`, idênticos para inexistente, inelegível ou QR inválido. Sem saldo «usado» (Fase A, D-A2)."
+      required: [eligible, notice]
+      properties:
+        eligible: { type: boolean }
+        notice: { type: string, description: "Verificação de cobertura, não garantia de pagamento." }
+        beneficiaryName: { type: string }
+        status: { type: string, enum: [ACTIVE], description: "Só presente quando eligible=true." }
+        planName: { type: string }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+        currency: { type: string }
+        coverages: { type: array, items: { $ref: "#/components/schemas/InsurerCoverageLimits" }, description: "Serviços cobertos (EXCLUDED não listados), ou só o de serviceCode." }
+    InsuranceCardClaimRequest:
+      type: object
+      required: [insurerId, policyNumber, code]
+      properties:
+        insurerId: { type: string, format: uuid, description: "De GET /families/{f}/insurers." }
+        policyNumber: { type: string }
+        code: { type: string }
+    InsuranceCardClaim:
+      type: object
+      required: [id, insurerId, insurerName, status, requestedAt]
+      properties:
+        id: { type: string, format: uuid }
+        insurerId: { type: string, format: uuid }
+        insurerName: { type: string }
+        beneficiaryId: { type: string, format: uuid, nullable: true, description: "Só depois de CONFIRMED." }
+        status: { type: string, enum: [PENDING, CONFIRMED, REJECTED, REVOKED] }
+        requestedAt: { type: string, format: date-time }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        decisionNote: { type: string, nullable: true, description: "Motivo da rejeição pela seguradora." }
+    InsuranceCard:
+      type: object
+      required: [beneficiaryId, insurerId, insurerName, currency, beneficiaryName, cardNumber, status]
+      properties:
+        beneficiaryId: { type: string, format: uuid }
+        insurerId: { type: string, format: uuid }
+        insurerName: { type: string }
+        currency: { type: string }
+        beneficiaryName: { type: string }
+        cardNumber: { type: string }
+        status: { type: string, enum: [PENDING, ACTIVE, SUSPENDED, CANCELLED] }
+        planName: { type: string, nullable: true }
+        policyNumber: { type: string, nullable: true }
+        validFrom: { type: string, format: date, nullable: true }
+        validTo: { type: string, format: date, nullable: true }
+    InsuranceCardQr:
+      type: object
+      required: [token, expiresAt, cardVersion]
+      properties:
+        token: { type: string }
+        expiresAt: { type: string, format: date-time }
+        cardVersion: { type: integer }
+    InsuranceCardCoverage:
+      type: object
+      description: "Fase A (D-A2): cobertura e limites, sem «usado»/«reservado»/saldo."
+      required: [beneficiaryId, insurerId, currency, status, coverages]
+      properties:
+        beneficiaryId: { type: string, format: uuid }
+        insurerId: { type: string, format: uuid }
+        currency: { type: string }
+        status: { type: string, enum: [PENDING, ACTIVE, SUSPENDED, CANCELLED] }
+        planName: { type: string, nullable: true }
+        policyNumber: { type: string, nullable: true }
+        validFrom: { type: string, format: date, nullable: true }
+        validTo: { type: string, format: date, nullable: true }
+        coverages: { type: array, items: { $ref: "#/components/schemas/InsurerCoverageLimits" } }

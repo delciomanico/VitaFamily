@@ -43,11 +43,14 @@ export function ForgotPasswordPage() {
           </span>
           <p className="text-muted">
             Se existir uma conta associada a <span className="font-medium text-foreground">{sentTo}</span>, enviámos
-            as instruções para redefinir a palavra-passe.
+            um código de 6 dígitos para redefinir a palavra-passe.
           </p>
         </div>
         <AuthFooter>
-          <ButtonLink to={paths.login} size="lg" fullWidth>
+          <ButtonLink to={`${paths.resetPassword}?${new URLSearchParams({ email: sentTo })}`} size="lg" fullWidth>
+            Já tenho o código
+          </ButtonLink>
+          <ButtonLink to={paths.login} variant="soft" size="lg" fullWidth>
             Voltar ao login
           </ButtonLink>
           <Button variant="soft" size="lg" fullWidth onClick={() => setSentTo(null)}>
