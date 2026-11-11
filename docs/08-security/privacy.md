@@ -33,7 +33,6 @@
 | Exatidão | O utilizador edita e corrige; sem interpretação pelo sistema. |
 | Limitação da conservação | Ver §5. |
 | Integridade e confidencialidade | `security.md`. |
-| Finalidade vedada: seguros (ADR-025) | **Os dados do app** (adesão à medicação, consultas, exames, registos de saúde, relatórios, alertas e qualquer outro tratamento do app) **nunca** alimentam subscrição, preço de prémio nem decisão de cobertura, autorização ou reembolso da seguradora; não são lidos nem agregados para esses fins, e a seguradora só vê dados **seus** (`Beneficiary`, `Policy`) e o que a clínica submete, nunca o perfil de saúde. A única ponte é a ligação consentida e revogável do cartão (BR-SEG-20), que não transporta dados de saúde. Verificado por teste (TC-SEG-08). |
 | Privacy by design/default | Privado por defeito (só nome e data de nascimento visíveis à família, BR-PRV-01/10); texto genérico em notificações; Platform Admin sem acesso a saúde. |
 
 ## 4. Direitos dos titulares → funcionalidade

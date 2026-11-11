@@ -52,7 +52,7 @@
 | `STORAGE_QUOTA_EXCEEDED` | 409 | Quota de 100 MB por família excedida (Q10). |
 | `INVITATION_EXPIRED` | 410 | Convite expirado. |
 | `FILE_TOO_LARGE` | 413 | Ficheiro acima de 10 MB. |
-| `FILE_TYPE_NOT_ALLOWED` | 415 | Tipo de ficheiro não permitido (só PDF, JPG, PNG; na importação de beneficiários da seguradora, só CSV e XLSX — ADR-025/BR-SEG-17). |
+| `FILE_TYPE_NOT_ALLOWED` | 415 | Tipo de ficheiro não permitido (só PDF, JPG, PNG). |
 | `AGE_REQUIREMENT_NOT_MET` | 422 | Registo autónomo exige 18 anos ou mais (BR-ACC-02). |
 | `BIRTHDATE_MISMATCH` | 422 | Data de nascimento não coincide com a do perfil convidado (BR-MEM-17). |
 | `DEPENDENT_ACCOUNT_AGE` | 422 | Conta de dependente menor exige 13 anos ou mais (B3). |
