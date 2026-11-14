@@ -290,10 +290,10 @@ Mapeamento com a máquina existente (`ExpenseClaim`):
 | aprovada | `APPROVED` |
 | paga | `PENDING_PAYMENT → PAID` (fase 2 hoje) |
 | contestada | **novo** (hoje `REJECTED`/`RETURNED`) |
-Reembolso fora da rede: hoje `ReimbursementClaim` (`SUBMITTED → APPROVED|REJECTED → PAID`, `PAID` pelo titular, BR-INS-05). **Q-F1 DECIDIDA:** quem regista `PAID` é a seguradora; alteração a BR-INS-05 **proposta, pendente** (`process-flows.md` §11a). Continua por decidir se se unifica com `ExpenseClaim` (`process-flows.md` D4).
+Reembolso fora da rede: hoje `ReimbursementClaim` (`SUBMITTED → APPROVED|REJECTED → PAID`, `PAID` pelo titular, BR-INS-05). **Q-F1 DECIDIDA:** quem regista `PAID` é a seguradora; alteração a BR-INS-05 **proposta, pendente** (`process-flows.md` §11a). **Unificação DECIDIDA 2026-11-14 (Q-F2):** `ReimbursementClaim` passa a `ExpenseClaim` de origem `FAMILY` (mesmos estados e fila única; migração e nova redação de BR-INS-05 **propostas** em ADR-032).
 
 ### Process (agregador) — proposta (Q-P1 DECIDIDO 2026-11-14; modelo PROPOSTO em `process-flows.md` §13)
-Sem máquina própria: o `family_status` (`AGENDADO → EM_VALIDACAO → A_ATENDER → ATENDIDO → EM_PAGAMENTO → CONCLUIDO | CANCELADO`) é **derivado** dos estados de `Appointment`, `AuthorizationRequest`, `Encounter`, `ExpenseClaim`/`ReimbursementClaim`. Mapeamento exato a escrever após aprovação; as máquinas acima não mudam por causa dele.
+Sem máquina própria: o `family_status` (`AGENDADO → EM_VALIDACAO → A_ATENDER → ATENDIDO → EM_PAGAMENTO → CONCLUIDO | CANCELADO`) é **derivado** dos estados de `Appointment`, `AuthorizationRequest`, `Encounter`, `ExpenseClaim`/`ReimbursementClaim`. Mapeamento exato a escrever após aprovação; as máquinas acima não mudam por causa dele. **Decidido 2026-11-14:** módulo próprio `processes`; todo o ato tem `Process`, com ou sem seguradora (sem seguradora: só marcação/atendimento, `family_status` sem `EM_VALIDACAO`/`EM_PAGAMENTO`); ver ADR-032.
 
 ## Alert / Notification
 ```text

@@ -32,5 +32,6 @@
 - ADR-029 — **PROPOSTO** (D25): posicionamento como software de ligação (não TPA) e modelo de negócio (hipótese não validada); **2026-11-14: copagamento no balcão, Vita só calcula e mostra (Q-C1 decidida)**
 - ADR-030 — **PROPOSTO** (D26): rede de prestadores (catálogo único verificado), Convenção seguradora↔prestador, página/endpoint público e prestador sem seguradora
 - ADR-031 — **PROPOSTO** (D27): Empresa/tomador de grupo e portal da empresa (fase 2), agregação anónima, vínculo revogável
+- ADR-032 — **PROPOSTO** (D28): entidade `Process` em módulo próprio `processes` (todo o ato, com ou sem seguradora) e Despesa unificada (origem prestador/família, fila única); migração do `ReimbursementClaim`; supera parcialmente ADR-021; prazos 24–120 h (48 h) e recurso 15 dias/72 h
 
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).

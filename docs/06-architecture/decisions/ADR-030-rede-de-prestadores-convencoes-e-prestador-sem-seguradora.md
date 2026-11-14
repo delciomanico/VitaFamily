@@ -34,10 +34,10 @@ Hoje existem `clinics` (portal da clínica, ADR-020) e `insurer_providers` (ADR-
 ## Decisões do proprietário de 2026-11-14 com impacto neste ADR
 - **Q-U1 (urgência):** atende-se primeiro; aviso à seguradora em 48 h; falha ⇒ revisão manual, não recusa automática. A **convenção** não precisa de fixar o prazo (é 48 h); pode apenas definir a revisão manual.
 - **Q-S1 (análise):** 48 h; depois escala para o gestor e avisa o prestador (a convenção pode referir este compromisso); nunca aprova por silêncio.
-- **Q-P1 (processo):** entidade `Process` liga marcação/autorização/atendimento/despesa; o prestador sem seguradora tem `Process` só com marcação e atendimento (a confirmar). Modelo Proposto em `00-product/process-flows.md` §13.
+- **Q-P1 (processo):** entidade `Process` liga marcação/autorização/atendimento/despesa; o prestador sem seguradora **tem `Process`** (DECIDIDO 2026-11-14, Q-P3: todo o ato tem `Process`, com ou sem seguradora; histórico único para a família), módulo dono `processes` (Q-P2). Modelo Proposto em `00-product/process-flows.md` §13.
 - **Q-S1b:** prazo de decisão 48 h por omissão, configurável por seguradora/serviço (mínimo e máximo do Vita), que a convenção pode referir; «gestor» = novo papel `SUPERVISOR` (proposta em `authorization.md` §8.2c); `falta informação` caduca em 7 dias.
 - **Q-S2 / Q-S3 / Q-A1 / Q-T1 / Q-F1:** vários recursos sem limite fixo (salvaguardas propostas); falta não cancela a autorização; auto-aprovação só por regras simples do plano; prestador vê só sim/não e copagamento; seguradora regista pagamento e prestador confirma receção. Ver `00-product/process-flows.md` §10.1 e §11a. Nenhuma alteração a contratos.
-Este ADR continua **Proposto**. ADR-032 «Entidade Process» continua por redigir (aguarda as questões abertas de `process-flows.md` §10.2).
+Este ADR continua **Proposto**. **ADR-032** «Entidade Process e Despesa unificada» redigido (Proposto, D28). Prazos decididos (Q-V1): decisão de autorização 24–120 h (48 h por omissão); recurso até 15 dias após a recusa, respondido em 72 h.
 
 ## Pendências para o proprietário
 Aprovar; escolher `/public/providers` (A) ou `/public/partners` (B); decidir se seguradoras têm listagem pública própria; definir os critérios de verificação (documentos, licença sanitária) e os campos institucionais publicáveis.
