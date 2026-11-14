@@ -85,3 +85,9 @@ Implementação confirmada contra o código; alinhamentos de contrato (decisões
 - **`ProcessLinker.open/discard` ganham o campo `by`** (ator de auditoria: `actorType`, `actorUserId?`, `actorClinicAccountId?`, `requestId`, `ip?`, `userAgent?`), para que `PROCESS_OPEN/DISCARD` fiquem atribuídos ao ator real sem `processes` importar módulos donos.
 - **`ProcessFacts.getActFacts` devolve entradas `{originType, originId, fact}`** (e não `ActFact[]` solto), para correlacionar sem ambiguidade; atos inexistentes são omitidos.
 - `modules.md` §3 (linhas de `processes`, `appointments`, `examinations`) e nota 29 passam de "declarativo" a **implementado**.
+
+## Atualização 2026-11-14 (contrato da fatia 3 — ADR-034; resolve o risco 3 da atualização da fatia 1)
+- **Processo aberto por autorização, sem marcação:** `process_origin_type` ganha `AUTHORIZATION` (`originId` = primeiro pedido da cadeia) e `process_kind` ganha `AUTHORIZED` (`ADD VALUE`); o pedido pode, em alternativa, ligar-se ao `Process` do ato por `processId`. `ProcessLinker.open` (definida em `insurer-ops`) mantém a assinatura com `by`; acrescenta-se `findForClinic` (leitura) para validar o `processId`.
+- **Estado de cobertura por porta:** `ProcessFacts.getCoverageFacts(trx, familyId, processIds[])`, implementada por `insurer-ops`; `deriveFamilyStatus({act?, coverage?})` mantém-se pura; `nextStep.actor=INSURER`, códigos `AWAIT_INSURER_DECISION|AWAIT_CLINIC_INFORMATION|COVERAGE_NOT_APPROVED`, `dueAt?`. 1 `Process` : N pedidos.
+- **BR-PRC-07:** apagar o ato apaga o `Process` e deixa `process_id = NULL` no pedido (o pedido mantém-se na seguradora; antes ficava a questão em aberto «um processo com autorização não se apaga com o ato»: **decidido por defeito** a favor do direito de apagar da família, PROPOSTO).
+- Leitura da família de processos `AUTHORIZATION` por `MANAGE_INSURANCE` (§8.5), sem categoria de dados de saúde. Detalhe e alternativas em ADR-034.

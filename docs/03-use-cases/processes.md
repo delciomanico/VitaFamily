@@ -6,6 +6,7 @@
 - **Ator:** o fluxo existente que cria o ato — família (`createAppointment`, `createExamination`), clínica (marcação presencial D20, exame de horário). Sem endpoint próprio · **Regras:** BR-PRC-01, BR-PRC-04.
 - **Fluxo:** o caso de uso do módulo dono chama a porta `ProcessLinker.open` **dentro da transação** do ato → `processes` cria a linha (ou devolve a existente, idempotente por `(originType, originId)`) → o dono grava o `processId` no ato → auditoria `PROCESS_OPEN`.
 - **Alternativos:** falha ao abrir ⇒ a transação do ato reverte (não existe ato sem processo); visita manual da clínica / recibo (sem ids Vita) ⇒ não abre (BR-CLN-24).
+- **Fatia 3 (ADR-034, BR-AUT-01):** também abre o processo o **pedido de autorização** (`insurer-ops`, `UC-SEG-06`) quando o beneficiário está ligado a um membro e o pedido não traz o `processId` de um ato: `ProcessLinker.open({originType: AUTHORIZATION, originId: id do 1.º pedido, clinicId, by: conta de clínica})`, `kind=AUTHORIZED`; a porta é definida em `insurer-ops/application` e implementada por `processes`. Leitura pela família: UC-PRC-03/04 com a categoria estrutural de seguro (`MANAGE_INSURANCE`, `authorization.md` §6.8).
 
 ### UC-PRC-02 Fechar o ciclo ao apagar o ato (automático)
 - **Ator:** o fluxo que apaga consulta/exame · **Regras:** BR-PRC-07.

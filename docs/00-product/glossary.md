@@ -8,6 +8,10 @@
 | **Family** | Grupo cuja saúde é gerida em conjunto. Fronteira de isolamento de dados. |
 | **FamilyMember** | Pessoa dentro de uma família; pode ou não ter conta (D1). |
 | **Process / Processo** | (ADR-032, marco B fatia 1) Registo agregador com identificador único (`processId`) por ato com ids Vita (consulta, exame). Mostra à família **um** de 4 estados (Marcado / A tratar / Feito / Cancelado) e uma frase "o que falta e de quem", ambos **derivados** do ato; não tem estados próprios nem dados clínicos. Termo de UI da família: "processo" (sem "autorização/despesa/glosa/elegibilidade/sinistro" no ecrã da família). |
+| **Pedido de autorização / Autorização** | (ADR-034, marco B fatia 3) Pedido do **prestador** à seguradora para um serviço do catálogo, com justificação **administrativa** (sem diagnóstico). Estados (profissional): `SUBMITTED`, `IN_REVIEW` (em análise), `INFO_REQUESTED` (falta informação), `APPROVED`, `REJECTED` (recusada), `CANCELLED`; «aprovada em parte» = `APPROVED` com valor autorizado menor (derivado). **Não** é termo do ecrã da família (a família vê o `Process`). |
+| **Semáforo (elegibilidade)** | (BR-SEG-43) Resposta de cobertura à clínica para um serviço: **verde** (coberto, sem autorização), **amarelo** (pedir autorização), **vermelho** (não coberto), mais o copagamento; nunca a razão nem o saldo. |
+| **Recurso** | (BR-AUT-08) Novo pedido de autorização ligado a um pedido recusado, dentro de 15 dias (valor da seguradora); o recusado não muda; vários, sem limite fixo. |
+| **Concluir ato** | (BR-CLN-57) Ação única da clínica que conclui a consulta e grava, na mesma transação, o relatório (Médico), os pedidos de exame (Médico) e o recibo (Admin/Gestor); a despesa junta-se na fatia 2b. |
 | **Dependente** | FamilyMember sob responsabilidade de um tutor; pode ter conta de acesso limitado (M4). |
 | **Family Admin** | Papel com permissões de gestão da família. Âmbito exato: Fase 5. |
 | **Family Member** | Papel com permissões limitadas. Âmbito exato: Fase 5. |

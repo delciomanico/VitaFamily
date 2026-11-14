@@ -4751,7 +4751,7 @@ paths:
       tags: [Clinic Portal]
       operationId: completeClinicAppointment
       summary: "Completar a consulta em curso: resultado e receita opcional."
-      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-06, BR-RX-07, D18: a receita (se incluída) é criada no módulo prescriptions com issuedBy=CLINIC e appointmentId de origem, e passa a aparecer no histórico do paciente; só a consulta em curso que a própria clínica está a atender. M15 S (BR-CLN-42/44): `report` presente grava e finaliza o relatório na mesma transação (só CLINIC_DOCTOR da marcação; Admin/Gestor com `report` ⇒ FORBIDDEN sem efeito); ausente não toca no rascunho."
+      description: "Autorização: CLINIC_ACCOUNT. BR-CLN-06, BR-RX-07, D18: a receita (se incluída) é criada no módulo prescriptions com issuedBy=CLINIC e appointmentId de origem, e passa a aparecer no histórico do paciente; só a consulta em curso que a própria clínica está a atender. M15 S (BR-CLN-42/44): `report` presente grava e finaliza o relatório na mesma transação (só CLINIC_DOCTOR da marcação; Admin/Gestor com `report` ⇒ FORBIDDEN sem efeito); ausente não toca no rascunho. Marco B fatia 3 («Concluir ato», BR-CLN-57): `receipt` presente emite o recibo (BR-CLN-31..35) na mesma transação (só Admin/Gestor; Médico ⇒ FORBIDDEN sem efeito); falha do recibo ⇒ nada é gravado."
       security:
         - clinicBearerAuth: []
       parameters:
@@ -10298,7 +10298,7 @@ paths:
       tags: [Clinic Portal]
       operationId: checkInsurerEligibility
       summary: "Validar a elegibilidade de um beneficiário (resposta mínima)."
-      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b). Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). UC-SEG-05, BR-SEG-01/02/04/18/23. Exatamente um de cardNumber, qrToken, idDocument (senão VALIDATION_ERROR). Resposta mínima (BR-SEG-18): inexistente, não elegível ou QR inválido/expirado/de outra seguradora devolvem a **mesma** resposta `{eligible:false}` (sem motivo); nunca histórico clínico, ids de família nem dados de outras seguradoras. É verificação de cobertura, não garantia de pagamento (`notice`). Rate limit por conta de clínica e por IP (429 RATE_LIMITED + Retry-After; valores em security.md). Auditoria ELIGIBILITY_CHECK (sem o identificador pesquisado)."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b). Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). UC-SEG-05, BR-SEG-01/02/04/18/23. Exatamente um de cardNumber, qrToken, idDocument (senão VALIDATION_ERROR). Resposta mínima (BR-SEG-18): inexistente, não elegível ou QR inválido/expirado/de outra seguradora devolvem a **mesma** resposta `{eligible:false}` (sem motivo); nunca histórico clínico, ids de família nem dados de outras seguradoras. É verificação de cobertura, não garantia de pagamento (`notice`). Rate limit por conta de clínica e por IP (429 RATE_LIMITED + Retry-After; valores em security.md). Auditoria ELIGIBILITY_CHECK (sem o identificador pesquisado). Marco B fatia 3 (BR-SEG-43): com serviceCode e eligible=true a resposta acrescenta o semáforo `light` (verde/amarelo/vermelho) e `patientSharePct` (copagamento), ambos de evaluateCoverage; o prestador vê só sim/não e copagamento, nunca saldo (BR-AUT-11)."
       security:
         - clinicBearerAuth: []
       parameters:
@@ -10370,6 +10370,358 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '404':
           description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/authorizations:
+    post:
+      tags: [Clinic Portal]
+      operationId: createAuthorizationRequest
+      summary: "Pedir autorização a uma seguradora (serviço do catálogo + justificação administrativa)."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. UC-SEG-06, BR-AUT-01/02/09/12/16, BR-SEG-18/22/29/41. Escrita: exige ligação ACTIVE da clínica à seguradora e módulo ativo (senão 404). O beneficiário identifica-se como na elegibilidade (exatamente um de cardNumber, qrToken, idDocument) e é revalidado no servidor: não elegível/inexistente/QR inválido ⇒ o mesmo 404 NOT_FOUND (sem motivo). O servidor avalia evaluateCoverage na data expectedOn: semáforo VERMELHO ⇒ 422 VALIDATION_ERROR (field serviceCode, sem motivo); VERDE (não exige autorização) ⇒ 422 VALIDATION_ERROR (field serviceCode); só AMARELO cria o pedido. guideType deduz-se do serviço (service_kind) e só pode ser indicado como override para um tipo ativo de guide_types; serviço por classificar sem guideType ⇒ 422 (field guideType). justification é administrativa (1–500 caracteres; **sem diagnóstico nem dados clínicos**, C2/BR-SEG-23; a UI avisa) e requestedAmount > 0 na moeda da seguradora. processId (opcional) liga o pedido ao Process do ato (de ClinicBooking.processId); inválido ou de outro beneficiário ⇒ 422 (field processId, mensagem única); ausente e beneficiário ligado a um membro (BR-SEG-20) ⇒ abre-se um Process novo (originType AUTHORIZATION) pela porta ProcessLinker; beneficiário não ligado ⇒ sem Process. Nasce SUBMITTED e passa a IN_REVIEW na mesma transação (decisão pela seguradora: fatia 4). decisionDueAt = agora + AUTHORIZATION_DECISION_HOURS resolvido (BR-SEG-40). Pedido em curso (SUBMITTED/IN_REVIEW/INFO_REQUESTED) para o mesmo beneficiário, prestador, serviço e expectedOn ⇒ 409 CONFLICT (BR-AUT-09; sem Idempotency-Key, fora do MVP). Mesmo rate limit de elegibilidade (por conta de clínica e por IP; 429 RATE_LIMITED + Retry-After). Auditoria AUTHORIZATION_SUBMIT."
+      security:
+        - clinicBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationRequestInput" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorizationRequest" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    get:
+      tags: [Clinic Portal]
+      operationId: listAuthorizationRequests
+      summary: "Listar os pedidos de autorização da clínica."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. UC-SEG-06. Ordem: createdAt decrescente (cursor por createdAt+id). Filtros opcionais: insurerId, status (um valor de AuthorizationStatus, ou OPEN = SUBMITTED, IN_REVIEW e INFO_REQUESTED), processId. Leitura sem auditoria (ato próprio). A leitura **não** depende do estado da ligação nem do módulo (os pedidos em curso mantêm-se visíveis, BR-INS-10). Nunca devolve ids de utilizador/família/membro, nº de cartão, saldo nem a identidade do analista."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - { name: insurerId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, SUBMITTED, IN_REVIEW, INFO_REQUESTED, APPROVED, REJECTED, CANCELLED] } }
+        - { name: processId, in: query, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorizationRequestPage" }
+        '400':
+          description: "MALFORMED_REQUEST (query inválida)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/authorizations/{authorizationId}:
+    get:
+      tags: [Clinic Portal]
+      operationId: getAuthorizationRequest
+      summary: "Ver um pedido de autorização (estado, motivo, prazo e ações possíveis)."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. UC-SEG-06/08. Inclui timeline (estados com data e, só nas decisões e respostas, a nota) e allowedActions (RESPOND, CANCEL, APPEAL, ATTACH) calculadas no servidor (domínio, relógio injetado): a UI mostra só estes botões. O prestador vê só o estado e o motivo da decisão, o código e o valor autorizado quando aprovado, e **nunca** saldo, usado/reservado, notas internas nem a identidade do analista (BR-AUT-11, Q-T1). Leitura sem auditoria."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorizationRequestDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/authorizations/{authorizationId}/respond:
+    post:
+      tags: [Clinic Portal]
+      operationId: respondAuthorizationInfo
+      summary: "Responder a um pedido de informação («falta informação»)."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. UC-SEG-08, BR-AUT-14. Só INFO_REQUESTED (senão 409 INVALID_STATE_TRANSITION) e com ligação ACTIVE (senão 404). message administrativa 1–500 caracteres (sem dados clínicos); anexos adicionais antes, por POST …/attachments. INFO_REQUESTED → IN_REVIEW; recalcula decisionDueAt; limpa infoExpiresAt. Auditoria AUTHORIZATION_INFO_RESPOND (sem o texto)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationRespondRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorizationRequestDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/authorizations/{authorizationId}/cancel:
+    post:
+      tags: [Clinic Portal]
+      operationId: cancelAuthorizationRequest
+      summary: "Cancelar um pedido de autorização pendente."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. BR-AUT-15, authorization.md §8.4. SUBMITTED, IN_REVIEW ou INFO_REQUESTED → CANCELLED com closedReason=CLINIC_CANCELLED; noutro estado ⇒ 409 INVALID_STATE_TRANSITION (cancelar um pedido APPROVED fica para a fatia 4, com a reserva de saldo). note opcional (≤200). Auditoria AUTHORIZATION_CANCEL."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationCancelRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorizationRequestDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/authorizations/{authorizationId}/appeals:
+    post:
+      tags: [Clinic Portal]
+      operationId: appealAuthorizationRequest
+      summary: "Recorrer de um pedido recusado (novo pedido ligado ao anterior)."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. BR-AUT-08. Só sobre um pedido REJECTED (senão 409 INVALID_STATE_TRANSITION) até APPEAL_REQUEST_DAYS (15 por omissão, resolvido por BR-SEG-40) após a recusa (depois ⇒ 409 CONFLICT, mensagem «Prazo de recurso terminado»). Cria um **novo** pedido (SUBMITTED → IN_REVIEW) com parentRequestId = este, o mesmo beneficiário, serviço, guideType e processId; herda requestedAmount e expectedOn se omitidos (expectedOn já passada ⇒ 422 field expectedOn). justification obrigatória e administrativa. Vários recursos em cadeia, sem limite fixo (Q-S2); no máximo um recurso não cancelado por pedido recusado (outro ⇒ 409 CONFLICT). Não reabre o pedido recusado. Aplica o mesmo critério de semáforo da criação (VERMELHO ⇒ 422). Auditoria AUTHORIZATION_SUBMIT com metadata.appeal=true."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationAppealRequest" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorizationRequest" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT / INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/authorizations/{authorizationId}/attachments:
+    post:
+      tags: [Clinic Portal]
+      operationId: addAuthorizationAttachment
+      summary: "Anexar um documento administrativo ao pedido."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. BR-AUT-13. Só PDF, JPG ou PNG ≤ 10 MB, no máximo 5 por pedido (DOCUMENT_LIMIT_EXCEEDED), em pedido SUBMITTED, IN_REVIEW ou INFO_REQUESTED (senão 409 INVALID_STATE_TRANSITION) e com ligação ACTIVE (senão 404). kind obrigatório e **só administrativo** (QUOTE, INSURER_FORM, ID_COPY, OTHER_ADMIN): não existe tipo para laudo, receita, exame ou relatório (C2/D29). Antivírus síncrono antes de gravar (infetado ⇒ 422 VALIDATION_ERROR field file, nada gravado; antivírus indisponível ⇒ 503 SERVICE_UNAVAILABLE). A resposta só tem metadados; o prestador não descarrega (o analista descarrega na fatia 4); a família nunca vê. Auditoria AUTHORIZATION_ATTACHMENT_ADD (sem nome do ficheiro)."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/AuthorizationAttachmentUploadRequest" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorizationAttachment" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION / DOCUMENT_LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '413':
+          description: "FILE_TOO_LARGE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '415':
+          description: "FILE_TYPE_NOT_ALLOWED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '503':
+          description: "SERVICE_UNAVAILABLE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/authorizations/{authorizationId}/attachments/{attachmentId}:
+    delete:
+      tags: [Clinic Portal]
+      operationId: removeAuthorizationAttachment
+      summary: "Remover um anexo de um pedido pendente."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. BR-AUT-13. Só em pedido SUBMITTED, IN_REVIEW ou INFO_REQUESTED e só anexos carregados pela própria clínica; senão 409 INVALID_STATE_TRANSITION. Apaga o ficheiro pelo outbox file_deletions. Auditoria AUTHORIZATION_ATTACHMENT_REMOVE."
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: attachmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -12631,26 +12983,27 @@ components:
       description: "Estado visível à família (marco-b-construcao.md §6): Marcado / A tratar / Feito / Cancelado. Derivado, nunca escrito (BR-PRC-02)."
     ProcessKind:
       type: string
-      enum: [ROUTINE]
-      description: "Fatia 1: só ROUTINE (ato sem seguradora). Valores novos (AUTHORIZED, URGENT, OUT_OF_NETWORK, PHARMACY) entram nas fatias seguintes por ADD VALUE; os clientes tratam valores desconhecidos como genéricos."
+      enum: [ROUTINE, AUTHORIZED]
+      description: "ROUTINE (fatia 1: ato sem seguradora); AUTHORIZED (fatia 3: processo aberto por um pedido de autorização). URGENT, OUT_OF_NETWORK e PHARMACY entram nas fatias seguintes por ADD VALUE; os clientes tratam valores desconhecidos como genéricos."
     ProcessOriginType:
       type: string
-      enum: [APPOINTMENT, EXAMINATION]
-      description: "Ato que abriu o processo. Valores novos nas fatias seguintes."
+      enum: [APPOINTMENT, EXAMINATION, AUTHORIZATION]
+      description: "Ato que abriu o processo. AUTHORIZATION (fatia 3): pedido de autorização sem marcação prévia; `origin.id` é opaco para a família (sem rota de detalhe até à fatia 5). Valores novos nas fatias seguintes."
     ProcessNextStepCode:
       type: string
-      enum: [AWAIT_CLINIC_RESPONSE, ATTEND, BEING_ATTENDED, RESCHEDULE, NOTHING_PENDING]
+      enum: [AWAIT_CLINIC_RESPONSE, ATTEND, BEING_ATTENDED, RESCHEDULE, NOTHING_PENDING, AWAIT_INSURER_DECISION, AWAIT_CLINIC_INFORMATION, COVERAGE_NOT_APPROVED]
       description: "Frase estruturada 'o que falta' (a UI traduz, lib/labels.ts). Conjunto aberto: os clientes tratam códigos desconhecidos como NOTHING_PENDING/genérico."
     ProcessNextStepActor:
       type: string
-      enum: [FAMILY, CLINIC, NONE]
-      description: "De quem falta. Fatias seguintes acrescentam INSURER."
+      enum: [FAMILY, CLINIC, INSURER, NONE]
+      description: "De quem falta (INSURER desde a fatia 3). Clientes toleram valores desconhecidos."
     ProcessNextStep:
       type: object
       required: [code, actor]
       properties:
         code: { $ref: "#/components/schemas/ProcessNextStepCode" }
         actor: { $ref: "#/components/schemas/ProcessNextStepActor" }
+        dueAt: { type: string, format: date-time, nullable: true, description: "Fatia 3: só em AWAIT_INSURER_DECISION (= decisionDueAt do pedido, BR-AUT-06); permite «resposta até quinta». Informativo." }
     ProcessActPhase:
       type: string
       enum: [PENDING, SCHEDULED, IN_PROGRESS, DONE, CANCELLED, NO_SHOW]
@@ -12693,7 +13046,7 @@ components:
           properties:
             type: { $ref: "#/components/schemas/ProcessOriginType" }
             id: { type: string, format: uuid, description: "Id da marcação/exame na agenda da própria clínica." }
-        phase: { $ref: "#/components/schemas/ProcessActPhase" }
+        phase: { type: string, enum: [PENDING, SCHEDULED, IN_PROGRESS, DONE, CANCELLED, NO_SHOW, null], nullable: true, description: "Nulo quando a origem é AUTHORIZATION (não há ato; o estado do pedido lê-se em GET /clinic-portal/authorizations/{id})." }
         openedAt: { type: string, format: date-time }
     ClinicPatientPage:
       type: object
@@ -12921,6 +13274,12 @@ components:
           allOf:
             - $ref: "#/components/schemas/PrescriptionInput"
           description: "Opcional; se presente, cria a receita com issuedBy=CLINIC (BR-RX-07)."
+        receipt:
+          type: object
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ClinicCompleteReceiptInput"
+          description: "«Concluir ato» (marco B fatia 3, BR-CLN-57): emite o recibo interno na mesma transação, depois de a consulta ficar COMPLETED. Só CLINIC_ADMIN/CLINIC_MANAGER (CLINIC_DOCTOR com `receipt` ⇒ FORBIDDEN sem efeito, BR-CLN-39). Reservado para a fatia 2b: `expense` (despesa de origem PROVIDER)."
         report:
           type: object
           nullable: true
@@ -13121,6 +13480,19 @@ components:
           minItems: 1
           maxItems: 20
           description: "Omitido ⇒ uma linha com o serviço do horário da marcação (preço do catálogo); sem serviço ⇒ VALIDATION_ERROR."
+        note: { type: string, maxLength: 200 }
+    ClinicCompleteReceiptInput:
+      type: object
+      additionalProperties: false
+      required: [paymentMethod]
+      description: "Como ClinicReceiptInput, sem bookingKind/bookingId (é a própria consulta que se conclui)."
+      properties:
+        paymentMethod: { $ref: "#/components/schemas/ReceiptPaymentMethod" }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/ClinicReceiptLineInput" }
+          minItems: 1
+          maxItems: 20
         note: { type: string, maxLength: 200 }
     ClinicReceiptVoidRequest:
       type: object
@@ -14819,7 +15191,7 @@ components:
         cardNumber: { type: string }
         qrToken: { type: string, description: "Token do QR do cartão; o insurerId do token tem de coincidir com o do caminho (senão resposta eligible=false)." }
         idDocument: { $ref: "#/components/schemas/InsurerEligibilityIdDocument" }
-        serviceCode: { type: string, description: "Opcional: limita `coverages` a este serviço da lista da seguradora." }
+        serviceCode: { type: string, description: "Opcional: limita `coverages` a este serviço da lista da seguradora e, com eligible=true, devolve o semáforo `light` e `patientSharePct` (marco B fatia 3)." }
     InsurerCoverageLimits:
       type: object
       required: [serviceCode, serviceName, coveredNow, copayPct, waitingDays, requiresAuthorization]
@@ -14846,6 +15218,141 @@ components:
         validTo: { type: string, format: date }
         currency: { type: string }
         coverages: { type: array, items: { $ref: "#/components/schemas/InsurerCoverageLimits" }, description: "Serviços cobertos (EXCLUDED não listados), ou só o de serviceCode." }
+        light: { allOf: [{ $ref: "#/components/schemas/EligibilityLight" }], description: "Marco B fatia 3 (BR-SEG-43). Só com eligible=true **e** serviceCode (código ATIVO da lista da seguradora); calculado por evaluateCoverage com a data de hoje (UTC). Ausente com eligible=false (a resposta continua idêntica, BR-SEG-18) e sem serviceCode." }
+        patientSharePct: { type: number, minimum: 0, maximum: 100, nullable: true, description: "Copagamento: % que o paciente paga no balcão (100 − copayPct; o Vita só calcula e mostra, Q-C1). Só com `light` e nulo se VERMELHO. Nunca saldo, usado nem reservado (BR-AUT-11, Q-T1)." }
+    AuthorizationStatus:
+      type: string
+      enum: [SUBMITTED, IN_REVIEW, INFO_REQUESTED, APPROVED, REJECTED, CANCELLED]
+      description: "S4 simplificado (marco-b-construcao.md §6): sem AUTO_APPROVED (= APPROVED com decidedBy=SYSTEM, fatia 4), EXPIRED, USED nem PARTIAL (derivados ou closedReason). SUBMITTED é transitório (passa a IN_REVIEW na mesma transação). Conjunto aberto: os clientes toleram valores desconhecidos."
+    AuthorizationClosedReason:
+      type: string
+      enum: [INFO_TIMEOUT, CLINIC_CANCELLED]
+      description: "Só em CANCELLED (BR-AUT-14/15). INFO_TIMEOUT: sem resposta ao pedido de informação em INFO_REQUEST_EXPIRY_DAYS (7 por omissão). Valores novos (EXPIRED, USED, ANALYST_CANCELLED) entram nas fatias seguintes por ADD VALUE."
+    AuthorizationAction:
+      type: string
+      enum: [RESPOND, CANCEL, APPEAL, ATTACH]
+      description: "Ações que o servidor permite agora (BR-AUT-08/13/14/15); a UI mostra só estas. Conjunto aberto."
+    AuthorizationAttachmentKind:
+      type: string
+      enum: [QUOTE, INSURER_FORM, ID_COPY, OTHER_ADMIN]
+      description: "Só documentos administrativos (orçamento, impresso da seguradora, cópia do cartão/BI, outro administrativo). Sem tipo para laudo, receita, exame ou relatório (C2/D29; BR-AUT-13)."
+    AuthorizationAttachmentUploadRequest:
+      type: object
+      required: [file, kind]
+      properties:
+        file: { type: string, format: binary }
+        kind: { $ref: "#/components/schemas/AuthorizationAttachmentKind" }
+    AuthorizationAttachment:
+      type: object
+      required: [id, kind, originalName, mimeType, sizeBytes, createdAt]
+      description: "Só metadados; o prestador não descarrega e a família nunca vê. `originalName` pode conter dados pessoais: nunca em logs nem auditoria."
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/AuthorizationAttachmentKind" }
+        originalName: { type: string }
+        mimeType: { type: string, enum: [application/pdf, image/jpeg, image/png] }
+        sizeBytes: { type: integer, minimum: 1, maximum: 10485760 }
+        createdAt: { type: string, format: date-time }
+    AuthorizationRequestInput:
+      type: object
+      additionalProperties: false
+      required: [insurerId, serviceCode, requestedAmount, expectedOn, justification]
+      description: "Exatamente um de cardNumber, qrToken, idDocument (como na elegibilidade, BR-SEG-18). Nunca campos de diagnóstico ou clínicos (C2): campos desconhecidos ⇒ 400/422."
+      properties:
+        insurerId: { type: string, format: uuid, description: "De GET /clinic-portal/insurers (a seguradora do cartão apresentado, Q4)." }
+        cardNumber: { type: string }
+        qrToken: { type: string }
+        idDocument: { $ref: "#/components/schemas/InsurerEligibilityIdDocument" }
+        serviceCode: { type: string, description: "Código da lista de serviços da seguradora (BR-SEG-22), de GET /clinic-portal/insurers/{id}/services." }
+        guideType: { type: string, description: "Opcional. Por omissão deduz-se do serviço (service_kind, BR-SEG-39). Override só para um código ativo de guide_types (hoje CONSULTATION, SERVICES, ADMISSION). Obrigatório se o serviço está por classificar." }
+        requestedAmount: { type: number, exclusiveMinimum: true, minimum: 0, maximum: 999999999999.99, multipleOf: 0.01, description: "Na moeda da seguradora (BR-SEG-42); a moeda nunca se envia." }
+        expectedOn: { type: string, format: date, description: "Data prevista do serviço; hoje ou futura (UTC). É a `date` do evaluateCoverage." }
+        justification: { type: string, minLength: 1, maxLength: 500, description: "Justificação ADMINISTRATIVA curta (porque é pedido, quando, onde). Sem diagnóstico nem dados clínicos (C2)." }
+        processId: { type: string, format: uuid, description: "Opcional. `processId` do ato (de ClinicBooking.processId). Ausente ⇒ abre-se um Process novo se o beneficiário está ligado a um membro (BR-AUT-01)." }
+    AuthorizationRespondRequest:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 500, description: "Resposta ADMINISTRATIVA ao pedido de informação (sem dados clínicos)." }
+    AuthorizationCancelRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        note: { type: string, maxLength: 200 }
+    AuthorizationAppealRequest:
+      type: object
+      additionalProperties: false
+      required: [justification]
+      properties:
+        justification: { type: string, minLength: 1, maxLength: 500, description: "Motivo do recurso (administrativo, sem dados clínicos)." }
+        requestedAmount: { type: number, exclusiveMinimum: true, minimum: 0, maximum: 999999999999.99, multipleOf: 0.01, description: "Omitido ⇒ o do pedido recusado." }
+        expectedOn: { type: string, format: date, description: "Omitido ⇒ o do pedido recusado (se já passou ⇒ 422)." }
+    AuthorizationRequest:
+      type: object
+      required: [id, insurerId, insurerName, beneficiaryName, serviceCode, serviceName, guideType, currency, requestedAmount, expectedOn, justification, status, allowedActions, createdAt, updatedAt]
+      description: "Vista do prestador (Q-T1, BR-AUT-11): estado, motivo e, se aprovado, código e valor autorizado. Nunca saldo/usado/reservado, notas internas, identidade do analista, ids de família/membro nem nº de cartão."
+      properties:
+        id: { type: string, format: uuid }
+        insurerId: { type: string, format: uuid }
+        insurerName: { type: string }
+        beneficiaryName: { type: string, description: "Nome do beneficiário validado (já visível na elegibilidade, BR-SEG-18)." }
+        serviceCode: { type: string }
+        serviceName: { type: string }
+        guideType: { type: string }
+        currency: { type: string }
+        requestedAmount: { type: number }
+        authorizedAmount: { type: number, nullable: true, description: "Só APPROVED (fatia 4). Menor que requestedAmount ⇒ `partial` = true (BR-AUT-04)." }
+        partial: { type: boolean, description: "Derivado: APPROVED com authorizedAmount < requestedAmount (BR-AUT-04). Não é um estado." }
+        expectedOn: { type: string, format: date }
+        justification: { type: string }
+        status: { $ref: "#/components/schemas/AuthorizationStatus" }
+        closedReason: { type: string, enum: [INFO_TIMEOUT, CLINIC_CANCELLED, null], nullable: true, description: "Ver AuthorizationClosedReason (só CANCELLED)." }
+        decisionNote: { type: string, nullable: true, description: "Motivo da recusa ou do pedido de informação, escrito pela seguradora." }
+        code: { type: string, nullable: true, description: "Código de autorização (BR-SEG-05); só APPROVED." }
+        validUntil: { type: string, format: date-time, nullable: true }
+        decisionDueAt: { type: string, format: date-time, nullable: true, description: "Prazo de decisão da seguradora (BR-AUT-06); informativo: a escalada é da fatia 4; nunca há aprovação por silêncio." }
+        infoExpiresAt: { type: string, format: date-time, nullable: true, description: "Só INFO_REQUESTED: limite para responder antes de INFO_TIMEOUT (BR-AUT-14)." }
+        appealOpenUntil: { type: string, format: date-time, nullable: true, description: "Só REJECTED: fim do prazo de recurso (BR-AUT-08)." }
+        processId: { type: string, format: uuid, nullable: true }
+        parentRequestId: { type: string, format: uuid, nullable: true, description: "Recurso: o pedido recusado a que responde (BR-AUT-08)." }
+        allowedActions:
+          type: array
+          items: { $ref: "#/components/schemas/AuthorizationAction" }
+        attachments:
+          type: array
+          items: { $ref: "#/components/schemas/AuthorizationAttachment" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AuthorizationTimelineEntry:
+      type: object
+      required: [status, occurredAt, by]
+      properties:
+        status: { $ref: "#/components/schemas/AuthorizationStatus" }
+        occurredAt: { type: string, format: date-time }
+        by: { type: string, enum: [CLINIC, INSURER, SYSTEM] }
+        note: { type: string, nullable: true, description: "Só decisões (motivo) e respostas da clínica; nunca notas internas." }
+    AuthorizationRequestDetail:
+      allOf:
+        - $ref: "#/components/schemas/AuthorizationRequest"
+        - type: object
+          required: [timeline]
+          properties:
+            timeline:
+              type: array
+              items: { $ref: "#/components/schemas/AuthorizationTimelineEntry" }
+    AuthorizationRequestPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AuthorizationRequest" }
+        nextCursor: { type: string, nullable: true }
+    EligibilityLight:
+      type: string
+      enum: [GREEN, YELLOW, RED]
+      description: "Semáforo (BR-SEG-43): VERDE = coberto e sem autorização; AMARELO = pedir autorização (exige autorização, carência ou limite esgotado: a razão não se distingue); VERMELHO = não coberto. Função pura de CoverageDecision; a razão nunca sai (BR-SEG-18)."
     InsuranceCardClaimRequest:
       type: object
       required: [insurerId, policyNumber, code]

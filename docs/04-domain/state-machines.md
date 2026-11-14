@@ -1,6 +1,6 @@
 # Vita Family — Estados e transições (Fase 10)
 
-> Estado: **v0.9 — secção PROPOSTA "fluxo de processo" (Autorização S4, Despesa/Reembolso S5, alinhamento de Marcação; 2026-11-14, não aprovada, não altera as máquinas em vigor); v0.8 — `ExamOrder` (M15 U, ADR-028); v0.7 — `ConsultationReport` (`DRAFT → FINAL`, M15 S, ADR-027); v0.6 — `ClinicReceipt` (`ISSUED → VOIDED`, M14 R, ADR-026); v0.5 — módulo operacional de seguradoras: `Beneficiary`, `Policy`, `Plan`, `BeneficiaryLinkRequest`, `AuthorizationRequest`, `ExpenseClaim`, `Provider` (ADR-025); v0.4 — `Examination` com marcação direta (nasce `SCHEDULED`), sem `REQUESTED`/`REJECTED` (ADR-023 revisto 2026-11-04); v0.3 introduzira-os; v0.2 acrescentou `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
+> Estado: **v1.0 (2026-11-14, marco B fatia 3, ADR-034): `AuthorizationRequest` passa a S4 simplificado VIGENTE (6 estados, sem `AUTO_APPROVED`/`USED`/`EXPIRED`; `closedReason`; recurso = novo pedido ligado) e `deriveFamilyStatus` ganha o facto de cobertura (§Process, tabela 3);** v0.9 — secção PROPOSTA "fluxo de processo" (Autorização S4, Despesa/Reembolso S5, alinhamento de Marcação; 2026-11-14, não aprovada, não altera as máquinas em vigor); v0.8 — `ExamOrder` (M15 U, ADR-028); v0.7 — `ConsultationReport` (`DRAFT → FINAL`, M15 S, ADR-027); v0.6 — `ClinicReceipt` (`ISSUED → VOIDED`, M14 R, ADR-026); v0.5 — módulo operacional de seguradoras: `Beneficiary`, `Policy`, `Plan`, `BeneficiaryLinkRequest`, `AuthorizationRequest`, `ExpenseClaim`, `Provider` (ADR-025); v0.4 — `Examination` com marcação direta (nasce `SCHEDULED`), sem `REQUESTED`/`REJECTED` (ADR-023 revisto 2026-11-04); v0.3 introduzira-os; v0.2 acrescentou `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
 > Notação: `A → B [quem / condição]`. Transições não listadas são **proibidas** e devolvem `INVALID_STATE_TRANSITION` (409).
 
 ## User
@@ -194,19 +194,23 @@ CONFIRMED → REVOKED    [paciente (SELF/TUTOR_OF) ou seguradora]
 ```
 Pedido com código inválido/expirado não cria linha (resposta genérica; rate limit).
 
-### AuthorizationRequest
+### AuthorizationRequest — S4 simplificado, VIGENTE para o marco B (fatia 3; ADR-034; `marco-b-construcao.md` §6)
+> **Substitui** a máquina de 9 estados de ADR-025 (`AUTO_APPROVED`, `USED`, `EXPIRED`, aprovada em parte e SLA deixam de ser estados). Uma só máquina por entidade, **centralizada num ficheiro** (`insurer-ops/domain/authorization-machine.ts`: tabela de transições com ator e guarda; os testes percorrem todas as transições legais e rejeitam as ilegais, TC-AUT-01). Todo o estado muda por transição nomeada; cada transição grava um `AuthorizationEvent` e a auditoria correspondente.
 ```text
-SUBMITTED → AUTO_APPROVED   [sistema, só se todas as condições de BR-SEG-03 forem verdadeiras]
-SUBMITTED → IN_REVIEW       [sistema, caso contrário]
-IN_REVIEW → APPROVED        [AUTHORIZATION_ANALYST; define authorizedAmount/validUntil; reserva saldo]
-IN_REVIEW → REJECTED        [idem, motivo obrigatório; final]
-IN_REVIEW → INFO_REQUESTED  [idem, motivo obrigatório]
-INFO_REQUESTED → IN_REVIEW  [clínica responde]
-APPROVED|AUTO_APPROVED → USED       [sistema, ao aprovar a despesa ligada; reserva → used]
-APPROVED|AUTO_APPROVED → EXPIRED    [sistema, após validUntil; liberta reserva]
-APPROVED|AUTO_APPROVED → CANCELLED  [AUTHORIZATION_ANALYST (com motivo; reverte auto-aprovação, BR-SEG-16) ou clínica; liberta reserva]
+(criação)         → SUBMITTED   [clínica; fatia 3]
+SUBMITTED → IN_REVIEW           [sistema, na mesma transação da criação; na fatia 4 a auto-aprovação desvia para APPROVED com decidedBy=SYSTEM (BR-AUT-03)]
+IN_REVIEW → APPROVED            [AUTHORIZATION_ANALYST — FATIA 4; define authorizedAmount/validUntil/code; "em parte" = authorizedAmount < requestedAmount, derivado]
+IN_REVIEW → REJECTED            [analista, motivo obrigatório — FATIA 4; final; recurso = NOVO pedido ligado]
+IN_REVIEW → INFO_REQUESTED      [analista, motivo obrigatório; define infoExpiresAt — FATIA 4]
+INFO_REQUESTED → IN_REVIEW      [clínica responde (message); fatia 3]
+INFO_REQUESTED → CANCELLED      [sistema, sem resposta até infoExpiresAt: closedReason = INFO_TIMEOUT; job insurer.expire-info-requests; fatia 3]
+SUBMITTED|IN_REVIEW|INFO_REQUESTED → CANCELLED  [clínica, closedReason = CLINIC_CANCELLED; fatia 3]
+APPROVED → CANCELLED            [analista, com motivo (reverte, BR-SEG-16) — FATIA 4; a clínica só a partir da fatia 4, com a reserva de saldo]
 ```
-Cada decisão é um evento imutável (quem, quando, motivo, estado). `REJECTED`, `USED`, `EXPIRED`, `CANCELLED` são finais.
+**Finais:** `REJECTED`, `CANCELLED`. `APPROVED` não é final (pode ser cancelada na fatia 4; «usada» e «expirada» serão derivadas/`closedReason` nas fatias 4/2b). **Nunca aprova por silêncio** (Q-V2 A): o atraso só gera sinal (`decisionDueAt`, fatia 4: `escalated_at`), não transição.
+**Recurso (BR-AUT-08):** de um `REJECTED`, até `APPEAL_REQUEST_DAYS` (15) após `decidedAt`, **cria-se um novo pedido** (`parentRequestId`, mesmo beneficiário/serviço/guia/processo) que nasce `SUBMITTED → IN_REVIEW`; o pedido recusado **não muda de estado**; no máximo um recurso não cancelado por recusa; cadeias de recursos sem limite fixo (Q-S2).
+**Fatia 3 vs fatia 4:** esta fatia contrata a máquina completa (para o ficheiro único e os testes) e **só expõe** as transições da clínica e do sistema; as decisões do analista (`IN_REVIEW → APPROVED|REJECTED|INFO_REQUESTED`, `APPROVED → CANCELLED`) não têm rota até à fatia 4 (os testes de integração simulam-nas por repositório/fixture).
+Cada decisão é um evento imutável (`channel`, ator, nota, data; correções = novo evento).
 
 ### ExpenseClaim
 ```text
@@ -239,7 +243,7 @@ Fluxo proposto: `marcada → confirmada → atendida | cancelada | falta`.
 | falta | `NO_SHOW` |
 Notas: `REQUESTED/REJECTED` existem para clínica parceira (D17) e não constam do fluxo proposto (listado como divergência D10). "Confirmada" mantém-se atributo independente.
 
-### Autorização (S4) — proposta
+### Autorização (S4) — proposta (HISTÓRICO; **vigente: «AuthorizationRequest — S4 simplificado» acima**, fatia 3)
 Estados propostos: `pedida → em análise → aprovada | aprovada em parte | recusada | falta informação → usada → expirada`.
 ```text
 pedida → em análise            [sistema, ao submeter; ou → aprovada se auto-aprovação, BR-SEG-03]
@@ -329,6 +333,20 @@ Sem máquina própria: o `family_status` (`AGENDADO → EM_VALIDACAO → A_ATEND
 | `CANCELLED` | `CANCELLED` | `NOTHING_PENDING` | `NONE` |
 | `NO_SHOW` | `CANCELLED` | `RESCHEDULE` | `FAMILY` |
 Decisão por defeito: a falta (`NO_SHOW`) aparece à família como "Cancelado" com o passo "voltar a marcar" (a autorização, quando existir, mantém-se válida, Q-S3). Alterar é change control (muda só esta linha e TC-PRC-06).
+
+**3) Fatia 3 (ADR-034): facto de cobertura e extensão da função.** `insurer-ops` publica, pela porta `ProcessFacts` (`getCoverageFacts(trx, familyId, processIds[])`), um `CoverageFact { phase, dueAt?, changedAt }` por processo, projeção **pura** (`insurer-ops/domain/coverage-phase.ts`, TC-AUT-12) dos pedidos com esse `process_id` — pedidos `CANCELLED` ignoram-se (se todos o estão, `CLOSED`); por pedido: `SUBMITTED|IN_REVIEW → PENDING_DECISION`, `INFO_REQUESTED → NEEDS_INFO`, `APPROVED → APPROVED`, `REJECTED` **sem** recurso não cancelado → `NOT_APPROVED` (com recurso, conta o recurso); vários pedidos agregam-se pela **prioridade** `NEEDS_INFO > NOT_APPROVED > PENDING_DECISION > APPROVED > CLOSED`; `dueAt` = o menor `decisionDueAt` dos `PENDING_DECISION`. `deriveFamilyStatus({ act?, coverage? })` mantém-se **pura** e acrescenta linhas (as 6 anteriores não mudam):
+| Caso | `familyStatus` | `nextStep.code` | `nextStep.actor` |
+|---|---|---|---|
+| com ato `PENDING`/`SCHEDULED` e `coverage.phase = PENDING_DECISION` | `IN_PROGRESS` | `AWAIT_INSURER_DECISION` (`dueAt`) | `INSURER` |
+| com ato `PENDING`/`SCHEDULED` e `NEEDS_INFO` | `IN_PROGRESS` | `AWAIT_CLINIC_INFORMATION` | `CLINIC` |
+| com ato `PENDING`/`SCHEDULED` e `NOT_APPROVED` | `IN_PROGRESS` | `COVERAGE_NOT_APPROVED` | `CLINIC` |
+| com ato (qualquer fase) e `APPROVED`, `CLOSED` ou sem facto; ou ato `IN_PROGRESS`/`DONE`/`CANCELLED`/`NO_SHOW` | **linha do ato (tabela 2, inalterada)** | | |
+| **sem ato** (origem `AUTHORIZATION`) e `PENDING_DECISION` | `IN_PROGRESS` | `AWAIT_INSURER_DECISION` (`dueAt`) | `INSURER` |
+| sem ato e `NEEDS_INFO` | `IN_PROGRESS` | `AWAIT_CLINIC_INFORMATION` | `CLINIC` |
+| sem ato e `NOT_APPROVED` | `IN_PROGRESS` | `COVERAGE_NOT_APPROVED` | `CLINIC` |
+| sem ato e `APPROVED` | `IN_PROGRESS` | `ATTEND` | `FAMILY` |
+| sem ato e `CLOSED` | `CANCELLED` | `NOTHING_PENDING` | `NONE` |
+Origem `AUTHORIZATION` nunca chega a `DONE` nesta fatia (não há atendimento nem despesa ligados; fatias 4/2b/5). Um pedido `APPROVED` cuja `validUntil` passou continua `IN_PROGRESS/ATTEND` até à fatia 4 (a função não tem relógio): **limitação registada**. Processo de origem `AUTHORIZATION` sem facto de cobertura legível ⇒ BR-PRC-09 (omitido/404). A família nunca vê `INSURER` como termo técnico: a UI traduz («A seguradora está a analisar; resposta até quinta»).
 
 ## Alert / Notification
 ```text

@@ -76,6 +76,19 @@
 | `insurer_services (insurer_id, service_kind_id)` | contagem por tipo, `classify`, inativação de tipo com serviços ativos |
 | UNIQUE parcial `insurer_policy_settings (insurer_id, setting_key) WHERE service_id IS NULL` · `(insurer_id, setting_key, service_id) WHERE service_id IS NOT NULL` | upsert idempotente; resolução serviço > seguradora (BR-SEG-40) |
 
+## Autorizações do prestador (marco B fatia 3; `schema.md` §3c, migração `0039`)
+| Índice | Para quê |
+|---|---|
+| UNIQUE `insurer_authorizations (insurer_id, id)` | alvo das FKs compostas (eventos, anexos, recurso) |
+| UNIQUE parcial `(insurer_id, code) WHERE code IS NOT NULL` | código de autorização único (BR-SEG-05) |
+| UNIQUE parcial `(insurer_id, beneficiary_id, provider_id, service_id, expected_on) WHERE status IN ('SUBMITTED','IN_REVIEW','INFO_REQUESTED')` | duplicado em curso, também sob concorrência (BR-AUT-09) |
+| UNIQUE parcial `(parent_request_id) WHERE parent_request_id IS NOT NULL AND status <> 'CANCELLED'` | um recurso não cancelado por recusa (BR-AUT-08) |
+| `insurer_authorizations (provider_id, created_at DESC, id DESC)` | lista da clínica, cursor por (`created_at`, `id`) |
+| `insurer_authorizations (process_id) WHERE process_id IS NOT NULL` | factos de cobertura do `Process` (porta `ProcessFacts`) e `SET NULL` da FK |
+| `insurer_authorizations (info_expires_at) WHERE status = 'INFO_REQUESTED'` | job `insurer.expire-info-requests` |
+| `insurer_authorization_events (authorization_id, id)` | `timeline` do pedido |
+| `insurer_attachments (authorization_id)` · UNIQUE `(storage_key)` | anexos do pedido (máx. 5) |
+
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).
 2. Antes de M10, validar os 5 caminhos quentes: scanner, agenda do dia, lista de alertas, resolução de membership, relatório individual.

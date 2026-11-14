@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.10** (+Seguradoras Fase A, 2026-11-11, ADR-025: contrato `/insurance-portal/{companies,beneficiaries,imports,link-requests,policies,plans,services,partner-clinics,providers}`, `/clinic-portal/insurers*`, `/families/{f}/members/{m}/insurance/*`, `currency`/`operationalModuleEnabled` em `/admin/insurers` — secção própria) — v0.9 (+M15 U/V, 2026-11-10, ADR-028: pedido de exame `/clinic-portal/agenda/{id}/exam-orders*`, `…/members/{m}/exam-orders`, `examOrders` em `complete`, `examOrderId` em `createExamination`, declaração de presença `…/attendance-statement/pdf`) — v0.8 (+M15 S/T, 2026-11-08, ADR-027: relatório da consulta `/clinic-portal/agenda/{id}/report*` e `…/appointments/{id}/report*`, rascunho de resultados `…/exam-agenda/{id}/results-draft` e laudo `…/report/pdf`; `report` em `complete`, `generateReport`) — v0.7 (+M14 R, 2026-11-08: recibos `/clinic-portal/receipts*` e `…/clinic-receipts*`, `profile`, `audit`, papel `CLINIC_DOCTOR` e matriz por papel em `authorization.md` §6.2b, `receiptIds` nos pedidos de reembolso) — v0.6 (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
+> Estado: **v0.11 (+Autorizações pedidas pelo prestador, marco B fatia 3, ADR-034, 2026-11-14: `/clinic-portal/authorizations*`, semáforo na elegibilidade, `receipt` em «Concluir ato», `AUTHORIZATION` em `Process`)** — v0.10 (+Seguradoras Fase A, 2026-11-11, ADR-025: contrato `/insurance-portal/{companies,beneficiaries,imports,link-requests,policies,plans,services,partner-clinics,providers}`, `/clinic-portal/insurers*`, `/families/{f}/members/{m}/insurance/*`, `currency`/`operationalModuleEnabled` em `/admin/insurers` — secção própria) — v0.9 (+M15 U/V, 2026-11-10, ADR-028: pedido de exame `/clinic-portal/agenda/{id}/exam-orders*`, `…/members/{m}/exam-orders`, `examOrders` em `complete`, `examOrderId` em `createExamination`, declaração de presença `…/attendance-statement/pdf`) — v0.8 (+M15 S/T, 2026-11-08, ADR-027: relatório da consulta `/clinic-portal/agenda/{id}/report*` e `…/appointments/{id}/report*`, rascunho de resultados `…/exam-agenda/{id}/results-draft` e laudo `…/report/pdf`; `report` em `complete`, `generateReport`) — v0.7 (+M14 R, 2026-11-08: recibos `/clinic-portal/receipts*` e `…/clinic-receipts*`, `profile`, `audit`, papel `CLINIC_DOCTOR` e matriz por papel em `authorization.md` §6.2b, `receiptIds` nos pedidos de reembolso) — v0.6 (+M14 Q, 2026-11-08: confirmação ativa, fluxo do dia, indicadores e retorno — `…/appointments/{id}/confirmation`, `/clinic-portal/agenda/{id}/confirm|arrive|start|no-show|follow-up`, `/clinic-portal/follow-ups`, `/clinic-portal/reports/summary`) — v0.5 (+ESBOÇO do módulo operacional de seguradoras, ADR-025 — secção própria, **fora de `openapi.yaml`**) — v0.4 (+D20: `patient-lookup`, `walk-in-appointments`, ADR-024) — ADR-023 (D19): exames, resultados e recomendações da clínica (`/clinic-portal/exam-agenda*`, `PATCH /clinic-portal/slots/{id}` — marcação direta com capacidade, revisto 2026-11-04; `/clinic-portal/recommendations`, `kind` nos horários), recomendações para a família, administração de contas (`/admin/users/{id}`, `reset-access`, `/admin/clinics/{id}/accounts*`, `PATCH /admin/insurers/{id}`) e `GET /families/{id}/insurers`. v0.3 acrescenta o portal da seguradora parceira (ADR-021): `/insurance-portal/*`, `/admin/insurers/{id}/root-account`, apólices e pedidos de reembolso do titular. Mantém v0.2 (portal da clínica, D17/D18): `/clinic-portal/*`, `/admin/clinics/{id}/root-account`, estados `REQUESTED`/`REJECTED` de `Appointment`. Gerado em conjunto com `openapi.yaml` (fonte de verdade). Base: `/api/v1`. Corpo JSON salvo indicação. Autenticação: `Authorization: Bearer <accessToken>`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -1069,7 +1069,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **REQUEST:** `ClinicCompleteAppointmentRequest`
 - **RESPONSE:** `200` `ClinicBooking`
 - **ERRORS:** `CONFLICT` (consulta não está `SCHEDULED` ou já passou da janela, ST4), `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** BR-CLN-06, BR-RX-07: a receita (se incluída) é criada no módulo `prescriptions` com `issuedBy=CLINIC` e `appointmentId` de origem, e passa a aparecer no histórico do paciente; a clínica só pode completar a consulta em curso que a própria clínica está a atender.
+- **BUSINESS RULES:** BR-CLN-06, BR-RX-07: a receita (se incluída) é criada no módulo `prescriptions` com `issuedBy=CLINIC` e `appointmentId` de origem, e passa a aparecer no histórico do paciente; a clínica só pode completar a consulta em curso que a própria clínica está a atender. **«Concluir ato» (fatia 3, BR-CLN-57):** `receipt` opcional (`ClinicCompleteReceiptInput`: `paymentMethod`, `lines?`, `note?`) emite o recibo (BR-CLN-31..35) na mesma transação, depois de `COMPLETED`; só Admin/Gestor (Médico com `receipt` ⇒ `FORBIDDEN` sem efeito, BR-CLN-39); falha do recibo ⇒ nada gravado. `expense` fica reservado à fatia 2b.
 
 ### `GET /clinic-portal/agenda/{appointmentId}/report`  — getClinicConsultationReport
 - **AUTHORIZATION:** CLINIC_ACCOUNT (Admin e Gestor qualquer marcação; Médico as suas — `authorization.md` §6.2b)
@@ -2063,7 +2063,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **REQUEST:** `InsurerEligibilityRequest`
 - **RESPONSE:** `200` `InsurerEligibilityResult`
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `RATE_LIMITED`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). UC-SEG-05, BR-SEG-01/02/04/18/23. Exatamente um de cardNumber, qrToken, idDocument (senão VALIDATION_ERROR). Resposta mínima (BR-SEG-18): inexistente, não elegível ou QR inválido/expirado/de outra seguradora devolvem a **mesma** resposta `{eligible:false}` (sem motivo); nunca histórico clínico, ids de família nem dados de outras seguradoras. É verificação de cobertura, não garantia de pagamento (`notice`). Rate limit por conta de clínica e por IP (429 RATE_LIMITED + Retry-After; valores em security.md). Auditoria ELIGIBILITY_CHECK (sem o identificador pesquisado).
+- **BUSINESS RULES:** Só seguradoras a que a clínica está ligada (insurer_providers ativo) e com módulo operacional ativo; caso contrário 404 NOT_FOUND sem enumeração (§8.4). UC-SEG-05, BR-SEG-01/02/04/18/23. Exatamente um de cardNumber, qrToken, idDocument (senão VALIDATION_ERROR). Resposta mínima (BR-SEG-18): inexistente, não elegível ou QR inválido/expirado/de outra seguradora devolvem a **mesma** resposta `{eligible:false}` (sem motivo); nunca histórico clínico, ids de família nem dados de outras seguradoras. É verificação de cobertura, não garantia de pagamento (`notice`). Rate limit por conta de clínica e por IP (429 RATE_LIMITED + Retry-After; valores em security.md). Auditoria ELIGIBILITY_CHECK (sem o identificador pesquisado). **Fatia 3 (BR-SEG-43):** com `serviceCode` e `eligible=true` acrescenta `light` e `patientSharePct`; nunca saldo.
 
 ### `GET /clinic-portal/insurers/{insurerId}/services`  — listClinicInsurerServices
 - **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b)
@@ -2122,6 +2122,73 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `MEMBER_BLOCKED`, `NOT_FOUND`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** Só seguradoras com módulo operacional ativo. UC-SEG-14 (Fase A), Q4/D-A2 (2026-11-11): mostra **só cobertura e limites** — sem «usado», «reservado» nem saldo consumido (esses campos só serão acrescentados, de forma retrocompatível, com S4/S5). Com beneficiário não ACTIVE devolve o estado e `coverages: []`; sem apólice `ACTIVE` vigente, plano/validade `null` (BR-SEG-36). Auditoria COVERAGE_VIEW quando lido por tutor.
 
+## Autorizações pedidas pelo prestador (marco B, fatia 3 — ADR-034) — CONTRATUAL
+
+> Contrato `11-implementation/marco-b-construcao.md` §4 (fatia 3). Rotas **`/clinic-portal/authorizations*`** (ator `ClinicAccount`, `clinicBearerAuth`, fora de `AccessPolicy`; `authorization.md` §6.2b/§8.4): substituem as linhas provisórias `POST/GET /clinic-portal/insurers/{insurerId}/authorizations…` do esboço S2–S6 (a seguradora vai no corpo, `insurerId` de `GET /clinic-portal/insurers`; uma só lista para a clínica). Só `CLINIC_ADMIN`/`CLINIC_MANAGER` (`CLINIC_DOCTOR` ⇒ `FORBIDDEN`). **Percurso do prestador: 4 passos** — (1) identificar o cartão e escolher o serviço (elegibilidade, devolve o **semáforo**); (2) ver o semáforo e carregar «Pedir autorização» (campos pré-preenchidos); (3) valor, data e justificação administrativa (+ anexo opcional); (4) submeter. Escrita exige ligação `ACTIVE` da clínica à seguradora e módulo ativo (senão `404`, BR-SEG-29); a **leitura** mantém-se enquanto o pedido existir. **Fora deste contrato:** decisão, auto-aprovação, SLA/escalada, `SUPERVISOR` (fatia 4); urgência (fatia 6); diagnóstico/consentimento por guia (D29/C2); despesa unificada (2b). Estados S4 simplificados (`state-machines.md`, BR-AUT-01..16). Erros: só códigos já existentes (`errors.md`).
+
+### `POST /clinic-portal/authorizations`  — createAuthorizationRequest
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER
+- **DESCRIPTION:** Pedir autorização a uma seguradora para um serviço do catálogo, com justificação administrativa.
+- **REQUEST:** `AuthorizationRequestInput` (`insurerId`, um de `cardNumber|qrToken|idDocument`, `serviceCode`, `guideType?`, `requestedAmount`, `expectedOn`, `justification`, `processId?`)
+- **RESPONSE:** `201` `AuthorizationRequest`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-AUT-01/02/06/09/12/16, BR-SEG-18/22/29/41/43. (1) Beneficiário **revalidado** no servidor pela mesma identificação da elegibilidade: inexistente, não elegível ou QR inválido ⇒ o **mesmo** `404 NOT_FOUND` (sem motivo). (2) `evaluateCoverage(plan, beneficiary, service, expectedOn)` + `toEligibilityLight`: **VERMELHO** ⇒ `422` (`field=serviceCode`, mensagem única, sem razão); **VERDE** (o serviço não exige autorização) ⇒ `422` (`field=serviceCode`); só **AMARELO** cria o pedido. (3) `guideType` deduz-se de `service_kind`; override só para um código ativo de `guide_types`; serviço por classificar sem `guideType` ⇒ `422` (`field=guideType`). (4) `justification` 1–500 caracteres, **administrativa**: sem campo de diagnóstico, campos desconhecidos rejeitados; a UI mostra o aviso «não escreva dados clínicos» (C2). (5) `processId` (de `ClinicBooking.processId`) liga ao `Process` do ato (inválido ou de outro beneficiário ⇒ `422`, `field=processId`, mensagem única); ausente e beneficiário ligado a membro (BR-SEG-20) ⇒ abre `Process` novo (`originType=AUTHORIZATION`) pela porta `ProcessLinker.open({…, by})`; beneficiário não ligado ⇒ `processId` nulo. (6) Nasce `SUBMITTED` → `IN_REVIEW` na mesma transação; `decisionDueAt` = agora + `AUTHORIZATION_DECISION_HOURS` (BR-SEG-40). (7) Duplicado em curso (mesmo beneficiário, prestador, serviço e `expectedOn`, estado `SUBMITTED|IN_REVIEW|INFO_REQUESTED`) ⇒ `409 CONFLICT` (`Idempotency-Key` fora do MVP). (8) Rate limit **partilhado** com a elegibilidade (por conta de clínica e por IP). Auditoria `AUTHORIZATION_SUBMIT`.
+
+### `GET /clinic-portal/authorizations`  — listAuthorizationRequests
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER
+- **DESCRIPTION:** Listar os pedidos da clínica, do mais recente para o mais antigo.
+- **QUERY:** `insurerId`, `status` (`OPEN` | valor de `AuthorizationStatus`), `processId`, `limit` (1–100, omissão 25), `cursor`
+- **RESPONSE:** `200` `AuthorizationRequestPage`
+- **ERRORS:** `MALFORMED_REQUEST` (query inválida), `UNAUTHENTICATED`, `FORBIDDEN`
+- **BUSINESS RULES:** BR-AUT-11. Só pedidos cujo prestador (`insurer_providers.clinic_id`) é a clínica do token. Sem auditoria (ato próprio). Nunca ids de família/membro, nº de cartão, saldo nem identidade do analista.
+
+### `GET /clinic-portal/authorizations/{authorizationId}`  — getAuthorizationRequest
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER
+- **DESCRIPTION:** Ver o pedido: estado, motivo, prazo, `timeline` e as ações possíveis agora (`allowedActions`).
+- **RESPONSE:** `200` `AuthorizationRequestDetail`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`
+- **BUSINESS RULES:** BR-AUT-11/08/14: `allowedActions` calculadas no domínio (`RESPOND` em `INFO_REQUESTED`; `CANCEL` em `SUBMITTED|IN_REVIEW|INFO_REQUESTED`; `APPEAL` em `REJECTED` dentro do prazo e sem recurso em curso; `ATTACH` nos estados pendentes). O prestador vê só estado, motivo da decisão e, se aprovado, código e valor autorizado.
+
+### `POST /clinic-portal/authorizations/{authorizationId}/respond`  — respondAuthorizationInfo
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER
+- **DESCRIPTION:** Responder a «falta informação».
+- **REQUEST:** `AuthorizationRespondRequest` (`message`)
+- **RESPONSE:** `200` `AuthorizationRequestDetail`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-AUT-14, UC-SEG-08. `INFO_REQUESTED → IN_REVIEW`; recalcula `decisionDueAt`; limpa `infoExpiresAt`. Auditoria `AUTHORIZATION_INFO_RESPOND`.
+
+### `POST /clinic-portal/authorizations/{authorizationId}/cancel`  — cancelAuthorizationRequest
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER
+- **DESCRIPTION:** Cancelar um pedido pendente.
+- **REQUEST:** `AuthorizationCancelRequest` (`note?`)
+- **RESPONSE:** `200` `AuthorizationRequestDetail`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-AUT-15. `SUBMITTED|IN_REVIEW|INFO_REQUESTED → CANCELLED` (`closedReason=CLINIC_CANCELLED`). Cancelar `APPROVED`: fatia 4. Auditoria `AUTHORIZATION_CANCEL`.
+
+### `POST /clinic-portal/authorizations/{authorizationId}/appeals`  — appealAuthorizationRequest
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER
+- **DESCRIPTION:** Recorrer de um pedido recusado: cria um novo pedido ligado ao anterior.
+- **REQUEST:** `AuthorizationAppealRequest` (`justification`, `requestedAmount?`, `expectedOn?`)
+- **RESPONSE:** `201` `AuthorizationRequest` (com `parentRequestId`)
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-AUT-08 (Q-S2, Q-V1). Só sobre `REJECTED`; prazo `APPEAL_REQUEST_DAYS` (15 por omissão, BR-SEG-40) após a recusa (depois ⇒ `409 CONFLICT`); herda beneficiário, serviço, `guideType` e `processId`; um recurso não cancelado por recusa (outro ⇒ `409 CONFLICT`); mesmo semáforo da criação. Não reabre o pedido recusado. Auditoria `AUTHORIZATION_SUBMIT` (`metadata.appeal=true`).
+
+### `POST /clinic-portal/authorizations/{authorizationId}/attachments`  — addAuthorizationAttachment
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER
+- **DESCRIPTION:** Anexar um documento **administrativo** (multipart: `file`, `kind`).
+- **RESPONSE:** `201` `AuthorizationAttachment`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `DOCUMENT_LIMIT_EXCEEDED`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `VALIDATION_ERROR`, `SERVICE_UNAVAILABLE`
+- **BUSINESS RULES:** BR-AUT-13. PDF/JPG/PNG ≤ 10 MB, máx. 5 por pedido; `kind` ∈ `QUOTE|INSURER_FORM|ID_COPY|OTHER_ADMIN` (sem tipo clínico); antivírus síncrono antes de gravar; só metadados na resposta; sem descarga pelo prestador nem pela família. Auditoria `AUTHORIZATION_ATTACHMENT_ADD`.
+
+### `DELETE /clinic-portal/authorizations/{authorizationId}/attachments/{attachmentId}`  — removeAuthorizationAttachment
+- **AUTHORIZATION:** CLINIC_ADMIN e CLINIC_MANAGER
+- **DESCRIPTION:** Remover um anexo de um pedido pendente.
+- **RESPONSE:** `204`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`
+- **BUSINESS RULES:** BR-AUT-13. Só anexos da própria clínica, em estado pendente. Auditoria `AUTHORIZATION_ATTACHMENT_REMOVE`.
+
+**Alterações a endpoints existentes (retrocompatíveis, fatia 3):** (1) `POST /clinic-portal/insurers/{insurerId}/eligibility`: com `serviceCode` e `eligible=true` a resposta acrescenta `light` (`GREEN|YELLOW|RED`) e `patientSharePct`; o resto da resposta **não muda** (snapshot TC-COV-12). (2) `PUT /clinic-portal/agenda/{appointmentId}/complete` aceita `receipt` (`ClinicCompleteReceiptInput`): «**Concluir ato**» = estado + relatório (`report`, só Médico) + pedidos de exame (`examOrders`, só Médico) + recibo (`receipt`, só Admin/Gestor) numa só ação atómica; `expense` (despesa de origem `PROVIDER`) reservado à fatia 2b; o exame (`…/exam-agenda/{id}/complete`) mantém-se sem `receipt` até à 2b. (3) `Process`/`ClinicProcess`: `kind=AUTHORIZED`, `origin.type=AUTHORIZATION`, `nextStep.code` ∈ `AWAIT_INSURER_DECISION|AWAIT_CLINIC_INFORMATION|COVERAGE_NOT_APPROVED`, `nextStep.actor=INSURER`, `nextStep.dueAt?`; `ClinicProcess.phase` nulo se a origem é `AUTHORIZATION`.
+
 ## Seguradoras — módulo operacional, S2–S6 — ESBOÇO, NÃO CONTRATUAL
 
 > Rotas **fora da Fase A**: **não existem em `openapi.yaml`** e **não podem ser implementadas** até o contrato do marco respetivo ser redigido e validado (`vita-architect`). Prefixos, papéis e nomes são propostos. Tokens, `insurerId` do token e erros como na secção anterior.
@@ -2130,7 +2197,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 | Método e caminho | Quem | Descrição | UC / BR |
 |---|---|---|---|
 | `GET/PUT .../providers/{id}` com unidades e `PUT .../{id}/services` (a Fase A só tem a ligação da clínica) | ADMIN (escrita) | Rede de prestadores completa. | UC-SEG-09 |
-| `GET /insurance-portal/authorizations`, `GET .../{id}`, `POST .../{id}/decide` (`APPROVE\|REJECT\|REQUEST_INFO\|CANCEL`) | AUTH_ANALYST (decide); ADMIN/CLAIMS/FINANCE R | Análise de autorizações (S4). | UC-SEG-07 |
+| `GET /insurance-portal/authorizations`, `GET .../{id}`, `POST .../{id}/decide` (`APPROVE\|REJECT\|REQUEST_INFO\|CANCEL`) | AUTH_ANALYST (decide); ADMIN/CLAIMS/FINANCE R | Análise de autorizações (S4) — **fatia 4** do marco B (fora do contrato da fatia 3). | UC-SEG-07 |
 | `GET /insurance-portal/expenses`, `GET .../{id}`, `POST .../{id}/decide` (`APPROVE\|REJECT\|RETURN`) | CLAIMS_MGR (decide); restantes R | Análise de despesas (S5). | UC-SEG-12 |
 | `GET /insurance-portal/dashboard` | todos (conteúdo por papel) | Indicadores agregados no servidor (S5). | UC-SEG-16 |
 | `GET /insurance-portal/audit` | ADMIN | Auditoria da seguradora (S5; ver pendência de `audit.md`). | UC-SEG-17 |
@@ -2141,9 +2208,9 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 | Método e caminho | Descrição | UC / BR |
 |---|---|---|
 | `POST /clinic-portal/insurers/{insurerId}/encounters` | Registar atendimento (sem diagnóstico). | UC-SEG-10 |
-| `POST/GET /clinic-portal/insurers/{insurerId}/authorizations`, `GET .../{id}`, `POST .../{id}/respond` (resposta a `INFO_REQUESTED`), `POST .../{id}/cancel` | Autorizações. | UC-SEG-06/08 |
+| ~~`POST/GET /clinic-portal/insurers/{insurerId}/authorizations`…~~ | **Contratado na fatia 3 do marco B** como `/clinic-portal/authorizations*` (secção «Autorizações pedidas pelo prestador», acima); esta linha fica só como histórico. | UC-SEG-06/08 |
 | `POST/GET /clinic-portal/insurers/{insurerId}/expenses`, `GET/PATCH .../{id}` (`PATCH` só em `RETURNED`) | Despesas. | UC-SEG-11/13 |
-| `POST .../authorizations/{id}/attachments`, `POST .../expenses/{id}/attachments` | Anexos (pendência de desenho, ADR-025). | `insurer_attachments` |
+| `POST .../expenses/{id}/attachments` | Anexos de despesa (fatia 2b). Os de autorização estão contratados na fatia 3 (`/clinic-portal/authorizations/{id}/attachments`). | `insurer_attachments` |
 
 ### App do paciente (`/families/{familyId}/members/{memberId}/insurance/*`; `SELF`/`TUTOR_OF`)
 | Método e caminho | Descrição | UC / BR |
@@ -2185,7 +2252,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 ### `GET /families/{familyId}/members/{memberId}/processes`  — listProcesses
 - **AUTHORIZATION:** READ da categoria da origem de cada processo (APPOINTMENTS para consulta, EXAMS para exame; `authorization.md` §6.8). A lista **filtra**: omite os processos que o actor não pode ler (DEPENDENT_SELF só consultas; OTHER só com SharingGrant da categoria).
 - **DESCRIPTION:** Listar os processos (atos) do membro, do mais recente para o mais antigo (`openedAt` desc, `id` desc).
-- **QUERY:** `status` (SCHEDULED|IN_PROGRESS|DONE|CANCELLED), `originType` (APPOINTMENT|EXAMINATION), `limit` (1–100, omissão 25), `cursor` (string opaca)
+- **QUERY:** `status` (SCHEDULED|IN_PROGRESS|DONE|CANCELLED), `originType` (APPOINTMENT|EXAMINATION|AUTHORIZATION — esta desde a fatia 3), `limit` (1–100, omissão 25), `cursor` (string opaca)
 - **REQUEST:** —
 - **RESPONSE:** `200` `{ items: [Process], nextCursor }` (`nextCursor` nulo no fim)
 - **ERRORS:** `MALFORMED_REQUEST` (400: `status`/`originType`/`limit` fora do contrato ou `cursor` inválido; parâmetros de query são validados pelo validador do contrato), `UNAUTHENTICATED`, `NOT_FOUND`, `MEMBER_BLOCKED`

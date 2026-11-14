@@ -171,6 +171,7 @@ Canal e retry como `Alert/Notification` (ST6). Os alertas à família não cont�
 | SLA da análise (48 h, DECIDIDO) ultrapassado | `SUPERVISOR` da seguradora (escalada; DECIDIDO Q-S1b) e prestador (aviso) | `SLA_BREACH` (+ `AUTH_ESCALATED` ao prestador, proposto) |
 
 ## 7. Regras de negócio candidatas (IDs PROVISÓRIOS; não substituem BR-SEG-*)
+> **Atualização 2026-11-14 (fatia 3 do marco B):** a numeração **definitiva** de BR-AUT-01..16 está em `01-requirements/business-rules.md` §17 (03, 05, 07 e 10 reservadas às fatias 4/6); onde houver diferença, vale o §17.
 Reutilizam BR-SEG-01..16/21/22 onde já cobrem; as abaixo são **novas ou estendidas** e só entram em `business-rules.md` após aprovação.
 
 | ID | Regra candidata | Relação com o existente |
