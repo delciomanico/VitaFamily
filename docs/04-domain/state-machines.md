@@ -290,6 +290,7 @@ Mapeamento com a máquina existente (`ExpenseClaim`):
 | aprovada | `APPROVED` |
 | paga | `PENDING_PAYMENT → PAID` (fase 2 hoje) |
 | contestada | **novo** (hoje `REJECTED`/`RETURNED`) |
+**Revisão v0.2 (2026-11-14, proposta; `process-flows.md` §0 b):** a Despesa tem duas formas, origem `PROVIDER` (fatura em lote; o retorno da seguradora é um **demonstrativo** com **glosa** por linha: recusa parcial com motivo, mapeada a `aprovada` parcial por linha + `contestada` para recurso) e `FAMILY` (reembolso com documentos por tipo, NIF e IBAN). **Não há estados novos**: glosa e recurso usam `REJECTED`/`RETURNED` por linha e `contestada` existentes; a granularidade por linha é a pormenorizar após aprovação.
 Reembolso fora da rede: hoje `ReimbursementClaim` (`SUBMITTED → APPROVED|REJECTED → PAID`, `PAID` pelo titular, BR-INS-05). **Q-F1 DECIDIDA:** quem regista `PAID` é a seguradora; alteração a BR-INS-05 **proposta, pendente** (`process-flows.md` §11a). **Unificação DECIDIDA 2026-11-14 (Q-F2):** `ReimbursementClaim` passa a `ExpenseClaim` de origem `FAMILY` (mesmos estados e fila única; migração e nova redação de BR-INS-05 **propostas** em ADR-032).
 
 ### Process (agregador) — proposta (Q-P1 DECIDIDO 2026-11-14; modelo PROPOSTO em `process-flows.md` §13)
