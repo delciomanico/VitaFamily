@@ -32,6 +32,8 @@ import type {
   ExaminationListFilter,
   ExaminationsDeps,
   ExaminationsRepository,
+  ProcessActor,
+  ProcessLinkerPort,
   ExamResultChanges,
   ExamResultHistoryItem,
   ExamResultsRepository,
@@ -327,6 +329,7 @@ export class FakeExaminationsRepository implements ExaminationsRepository<FakeTr
       issuedBy: "FAMILY",
       createdAt: record.createdAt,
       ...(record.slotId !== undefined ? { slotId: record.slotId } : {}),
+      ...(record.processId !== undefined ? { processId: record.processId } : {}),
       ...(record.scheduledAt !== undefined ? { scheduledAt: record.scheduledAt } : {}),
       ...(record.clinicId !== undefined ? { clinicId: record.clinicId } : {}),
       ...(record.clinicName !== undefined ? { clinicName: record.clinicName } : {}),
@@ -578,7 +581,30 @@ export interface ExaminationsFixtures {
   drafts: FakeResultsDraftRepository;
   reportGenerator: FakeExamReportGenerator;
   examOrders: FakeExamOrderLinker;
+  processes: FakeProcessLinker;
   audit: FakeAuditPort;
+}
+
+/** Fake de `ProcessLinkerPort` (marco B fatia 1): regista as chamadas; `failOpen` força a falha (rollback do exame, TC-PRC-10). */
+export class FakeProcessLinker implements ProcessLinkerPort<FakeTrx> {
+  readonly opened: { familyId: string; memberId: string; originId: string; clinicId?: string; by: ProcessActor; processId: string }[] = [];
+  readonly discarded: { originId: string; by: ProcessActor }[] = [];
+  failOpen?: Error;
+  private counter = 0;
+
+  async open(_trx: FakeTrx, input: Parameters<ProcessLinkerPort<FakeTrx>["open"]>[1]): Promise<{ processId: string }> {
+    if (this.failOpen) throw this.failOpen;
+    const existing = this.opened.find((o) => o.originId === input.originId);
+    if (existing) return Promise.resolve({ processId: existing.processId });
+    const processId = `process-${String(++this.counter)}`;
+    this.opened.push({ familyId: input.familyId, memberId: input.memberId, originId: input.originId, by: input.by, processId, ...(input.clinicId ? { clinicId: input.clinicId } : {}) });
+    return Promise.resolve({ processId });
+  }
+
+  async discard(_trx: FakeTrx, input: Parameters<ProcessLinkerPort<FakeTrx>["discard"]>[1]): Promise<void> {
+    this.discarded.push({ originId: input.originId, by: input.by });
+    return Promise.resolve();
+  }
 }
 
 export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
@@ -593,6 +619,7 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
   const drafts = new FakeResultsDraftRepository();
   const reportGenerator = new FakeExamReportGenerator();
   const examOrders = new FakeExamOrderLinker();
+  const processes = new FakeProcessLinker();
   const audit = new FakeAuditPort();
   const deps: ExaminationsDeps<FakeTrx> = {
     examinationsRepo,
@@ -607,10 +634,11 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
     clinics,
     documents,
     receipts,
+    processes,
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, memberNames, alerts, receipts, drafts, reportGenerator, examOrders, audit };
+  return { deps, examinationsRepo, examResultsRepo, policy, clinics, documents, memberNames, alerts, receipts, drafts, reportGenerator, examOrders, processes, audit };
 }

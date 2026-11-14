@@ -20,6 +20,7 @@ import {
   createListClinicExamAgendaUseCase,
   createUploadClinicExamDocumentUseCase,
 } from "./application/clinic-examinations.js";
+import { createGetActFactsUseCase } from "./application/act-facts.js";
 import { createAddExamResultUseCase } from "./application/add-exam-result.js";
 import { createCreateExaminationUseCase } from "./application/create-examination.js";
 import { createDeleteExaminationUseCase } from "./application/delete-examination.js";
@@ -27,12 +28,12 @@ import { createDeleteExamResultUseCase } from "./application/delete-exam-result.
 import { createExamResultHistoryUseCase } from "./application/exam-result-history.js";
 import { createGetExaminationUseCase } from "./application/get-examination.js";
 import { createListExaminationsUseCase } from "./application/list-examinations.js";
-import type { ExaminationsDeps, ExamAlertsPort, ExamOrderLinkerPort, ExamReportGeneratorPort, ReceiptIdsPort } from "./application/ports.js";
+import type { ActFactOfExamination, ExaminationsDeps, ExamAlertsPort, ExamOrderLinkerPort, ExamReportGeneratorPort, ProcessLinkerPort, ReceiptIdsPort } from "./application/ports.js";
 import { createDiscardResultsDraftUseCase, createDownloadExamReportUseCase, createGetResultsDraftUseCase, createSaveResultsDraftUseCase } from "./application/results-draft.js";
 import { createSetExaminationStatusUseCase } from "./application/set-examination-status.js";
 import { createUpdateExaminationUseCase } from "./application/update-examination.js";
 import { createUpdateExamResultUseCase } from "./application/update-exam-result.js";
-import { KyselyExamResultsDraftRepository, KyselyExamResultsRepository, KyselyExaminationsRepository } from "./infrastructure/repo.js";
+import { KyselyExaminationActFactsSource, KyselyExamResultsDraftRepository, KyselyExamResultsRepository, KyselyExaminationsRepository } from "./infrastructure/repo.js";
 import { toExaminationPage } from "./interface/dto.js";
 import { createExaminationsClinicPortalRouter, type ExaminationsClinicPortalController } from "./interface/clinic-portal-router.js";
 import { createExaminationsRouter, type ExaminationsController } from "./interface/router.js";
@@ -41,6 +42,7 @@ import type { Examination } from "./domain/examination.js";
 
 export type { Examination, ExaminationIssuer, ExaminationStatus } from "./domain/examination.js";
 export type { ExamResult } from "./domain/exam-result.js";
+export type { ActFactOfExamination, ProcessActor, ProcessLinkerPort } from "./application/ports.js";
 
 export interface ExaminationsModuleDeps {
   db: Kysely<Database>;
@@ -57,6 +59,8 @@ export interface ExaminationsModuleDeps {
   reportGenerator: ExamReportGeneratorPort<Kysely<Database>>;
   /** M15 U (BR-CLN-52): estado do pedido de exame ligado — ligada no composition root a `clinic-reports` (`examinations` não o importa). */
   examOrders: ExamOrderLinkerPort<Kysely<Database>>;
+  /** Marco B fatia 1 (BR-PRC-01/07, modules.md §3 nota 29): abre/apaga o `Process` do exame — ligada no composition root a `processes` (`examinations` não o importa). */
+  processes: ProcessLinkerPort<Kysely<Database>>;
   clock: Clock;
 }
 
@@ -119,6 +123,8 @@ export interface ExaminationsModule {
   releaseGate: { isReleased: (trx: Kysely<Database>, document: { familyId: string; memberId: string; resourceId: string }) => Promise<boolean> };
   /** M14 R (BR-CLN-31, `clinic-receipts`, ligado no composition root): factos mínimos do exame da clínica para emitir recibo. */
   findReceiptFacts: (trx: Kysely<Database>, clinicId: string, examinationId: string) => Promise<ClinicExamReceiptFacts | null>;
+  /** Marco B fatia 1 (BR-PRC-04): factos dos exames (`phase`) para `processes` — ligado no composition root à porta `ProcessFacts`. */
+  getActFacts: (trx: Kysely<Database>, familyId: string, examinationIds: string[]) => Promise<{ originId: string; fact: ActFactOfExamination }[]>;
   /** BR-CLN-09 (`recommendations`, ligado no composition root): "este exame pertence à clínica X e está no estado Y". */
   findClinicOrigin: (trx: Kysely<Database>, clinicId: string, examinationId: string, professionalId?: string) => Promise<ClinicExamOrigin | null>;
   /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
@@ -136,6 +142,7 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
     draftsRepo: new KyselyExamResultsDraftRepository(),
     reportGenerator: deps.reportGenerator,
     examOrders: deps.examOrders,
+    processes: deps.processes,
     limiter: new InMemoryRateLimiter(deps.clock),
     policy: deps.access.policy,
     memberNames: { getMemberName: deps.access.getMemberName },
@@ -186,6 +193,7 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
     router: createExaminationsRouter(controller),
     clinicPortalRouter: createExaminationsClinicPortalRouter(clinicPortalController),
     countScheduledBySlot: (trx, slotIds) => examinationsRepo.countScheduledBySlot(trx, slotIds),
+    getActFacts: createGetActFactsUseCase(new KyselyExaminationActFactsSource()),
     listClinicFacts: async (trx, clinicId, filter, options = {}) => {
       const exams = await examinationsRepo.listForClinic(trx, clinicId, filter, options.limit);
       const facts: ClinicExamFact[] = [];

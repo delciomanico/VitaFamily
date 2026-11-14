@@ -4,7 +4,7 @@
 import { ValidationError } from "../../../platform/errors/index.js";
 import type { AccessContext } from "../../access/index.js";
 import { auditContextFields, type AuditAction } from "../../audit/index.js";
-import type { ExaminationsDeps, RequestContext } from "./ports.js";
+import type { ExaminationsDeps, ProcessActor, RequestContext } from "./ports.js";
 
 export async function auditViewIfNotSelf<Trx>(
   deps: ExaminationsDeps<Trx>,
@@ -50,4 +50,9 @@ export async function resolveClinicSnapshot<Trx>(
     throw new ValidationError([{ field: "clinicId", message: "clínica inválida, arquivada ou de outra família" }], { detail: "Clínica inválida." });
   }
   return { clinicId: clinic.id, clinicName: clinic.name };
+}
+
+/** Auditoria `PROCESS_*` (feita por `processes`): o ator da família que cria/apaga o exame. */
+export function userProcessActor(actor: { userId: string }, context: RequestContext): ProcessActor {
+  return { actorType: "USER", actorUserId: actor.userId, requestId: context.requestId, ...auditContextFields(context) };
 }

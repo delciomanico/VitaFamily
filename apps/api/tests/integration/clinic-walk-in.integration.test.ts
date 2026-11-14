@@ -17,6 +17,7 @@ import { KyselyAppointmentsRepository } from "../../src/modules/appointments/inf
 import { KyselyClinicSlotsRepository } from "../../src/modules/clinics/infrastructure/clinic-slots-repo.js";
 import { KyselyClinicsRepository } from "../../src/modules/clinics/infrastructure/repo.js";
 import type { AuditEvent } from "../../src/modules/audit/index.js";
+import { createRealProcessLinker } from "../support/process-linker.js";
 
 describe("integração: marcação presencial (walk-in) — migração 0026 e repositórios", () => {
   let container: StartedTestContainer;
@@ -109,6 +110,7 @@ describe("integração: marcação presencial (walk-in) — migração 0026 e re
         countActiveVisitsBySlot: () => Promise.resolve([]),
         findPatientIdsByMembers: () => Promise.resolve(new Map()),
       },
+      processes: createRealProcessLinker(db),
       consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()), createExamOrdersWithComplete: () => Promise.resolve(), examOrderCounts: () => Promise.resolve(new Map()), appointmentExamOrderCounts: () => Promise.resolve(new Map()) },
       walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
       audit: { record: (_trx, event) => Promise.resolve(void audit.push(event)) },

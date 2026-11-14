@@ -7,7 +7,7 @@ import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { assertValidCreationStatus, type Appointment, type AppointmentStatus } from "../domain/appointment.js";
 import type { ActorIdentity, AppointmentsDeps, NewAppointmentRecord, RequestContext } from "./ports.js";
-import { resolveClinicSnapshot, resolveSlotBooking } from "./support.js";
+import { resolveClinicSnapshot, resolveSlotBooking, userProcessActor } from "./support.js";
 
 export interface CreateAppointmentInput {
   scheduledAt: string;
@@ -93,7 +93,16 @@ export function createCreateAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>)
           ...clinicSnapshot,
         };
       }
-      const appointment = await deps.appointmentsRepo.insert(trx, record);
+      // BR-PRC-01: todo o ato tem exatamente um Process, aberto na mesma transação (falha => o ato não existe).
+      const { processId } = await deps.processes.open(trx, {
+        familyId,
+        memberId,
+        originType: "APPOINTMENT",
+        originId: record.id,
+        ...(record.clinicId ? { clinicId: record.clinicId } : {}),
+        by: userProcessActor(actor, context),
+      });
+      const appointment = await deps.appointmentsRepo.insert(trx, { ...record, processId });
 
       await deps.audit.record(trx, {
         occurredAt: now,

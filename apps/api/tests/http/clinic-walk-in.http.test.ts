@@ -222,6 +222,8 @@ describe("POST /clinic-portal/walk-in-appointments", () => {
       source: "VITA",
       clinicPatientId: (created.body as { clinicPatientId: string }).clinicPatientId,
       slotId: SLOT,
+      // Marco B fatia 1 (BR-PRC-06): a marcação Vita traz o `processId` do Process aberto com ela.
+      processId: expect.any(String) as string,
       // M14 Q: estado de confirmação e fluxo do dia (a marcação nasce "Sem resposta", sem chegada nem retorno).
       confirmationStatus: "PENDING",
       confirmationSource: null,

@@ -9,6 +9,7 @@ import type {
   ClinicAppointmentsFilter,
   AppointmentSlotBookingCount,
   AppointmentListFilter,
+  ActFactsSource,
   AppointmentsRepository,
   ClinicOutcomeChange,
   ClinicStatusChange,
@@ -46,6 +47,7 @@ interface AppointmentRow {
   arrived_at: Date | null;
   started_at: Date | null;
   followup_due_on: string | null;
+  process_id: string | null;
   created_at: Date;
 }
 
@@ -71,6 +73,7 @@ function toAppointment(row: AppointmentRow): Appointment {
   if (row.reason !== null) appointment.reason = row.reason;
   if (row.notes !== null) appointment.notes = row.notes;
   if (row.slot_id !== null) appointment.slotId = row.slot_id;
+  if (row.process_id !== null) appointment.processId = row.process_id;
   if (row.response_note !== null) appointment.responseNote = row.response_note;
   if (row.clinic_outcome_note !== null) appointment.clinicOutcomeNote = row.clinic_outcome_note;
   if (row.outcome_recorded_by_clinic_account_id !== null) appointment.outcomeRecordedByClinicAccountId = row.outcome_recorded_by_clinic_account_id;
@@ -106,6 +109,7 @@ const APPOINTMENT_COLUMNS = [
   "confirmed_at",
   "arrived_at",
   "started_at",
+  "process_id",
   "created_at",
 ] as const;
 
@@ -139,6 +143,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         reason: record.reason ?? null,
         notes: record.notes ?? null,
         slot_id: record.slotId ?? null,
+        process_id: record.processId ?? null,
         ...(record.durationMinutes !== undefined ? { duration_minutes: record.durationMinutes } : {}),
         ...(record.walkIn ? { walk_in: true, booked_by_clinic_account_id: record.bookedByClinicAccountId ?? null } : {}),
         created_at: record.createdAt,
@@ -463,5 +468,18 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
       .where(sql<boolean>`scheduled_at + duration_minutes * interval '1 minute' > ${from}`)
       .execute();
     return rows.map(toAppointment);
+  }
+}
+
+/** Leitura em lote do estado das consultas para `ProcessFacts` (marco B fatia 1, BR-PRC-04): só colunas de estado, sempre com `family_id`. */
+export class KyselyAppointmentActFactsSource implements ActFactsSource<Kysely<Database>> {
+  async findStateRows(trx: Kysely<Database>, familyId: string, appointmentIds: string[]) {
+    const rows = await trx
+      .selectFrom("appointments")
+      .select(["id", "status", "arrived_at", "started_at", "scheduled_at", "updated_at"])
+      .where("family_id", "=", familyId)
+      .where("id", "in", appointmentIds)
+      .execute();
+    return rows.map((row) => ({ id: row.id, status: row.status, arrivedAt: row.arrived_at, startedAt: row.started_at, scheduledAt: row.scheduled_at, updatedAt: row.updated_at }));
   }
 }

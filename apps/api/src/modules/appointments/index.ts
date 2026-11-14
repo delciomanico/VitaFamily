@@ -27,25 +27,26 @@ import {
   createListClinicRequestsUseCase,
   createRespondClinicRequestUseCase,
 } from "./application/clinic-appointments.js";
+import { createGetActFactsUseCase } from "./application/act-facts.js";
 import { createClinicPatientLookupUseCase, createCreateWalkInAppointmentUseCase } from "./application/clinic-walk-in.js";
 import { createCreateAppointmentUseCase } from "./application/create-appointment.js";
 import { createDeleteAppointmentUseCase } from "./application/delete-appointment.js";
 import { createGetAppointmentUseCase } from "./application/get-appointment.js";
 import { createListAppointmentsUseCase } from "./application/list-appointments.js";
 import { createListAvailableSlotsUseCase } from "./application/list-available-slots.js";
-import type { AppointmentsDeps, ClinicAppointmentsFilter, ClinicPatientDirectoryPort, ClinicPrescriptionInput, ConsultationReportsPort, PatientDirectoryPort, ReceiptIdsPort, ReminderWindows, RequestContext } from "./application/ports.js";
+import type { ActFactOfAppointment, AppointmentsDeps, ClinicAppointmentsFilter, ClinicPatientDirectoryPort, ClinicPrescriptionInput, ConsultationReportsPort, PatientDirectoryPort, ProcessLinkerPort, ReceiptIdsPort, ReminderWindows, RequestContext } from "./application/ports.js";
 import { createSetAppointmentConfirmationUseCase } from "./application/set-appointment-confirmation.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
 import { WalkInInMemoryRateLimiter, type WalkInRateLimiter } from "./domain/walk-in.js";
-import { KyselyAppointmentsRepository } from "./infrastructure/repo.js";
+import { KyselyAppointmentActFactsSource, KyselyAppointmentsRepository } from "./infrastructure/repo.js";
 import { createAppointmentsClinicPortalRouter, type AppointmentsClinicPortalController } from "./interface/clinic-portal-router.js";
 import { toAppointmentPage } from "./interface/dto.js";
 import { createAppointmentsRouter, type AppointmentsController } from "./interface/router.js";
 import type { Appointment } from "./domain/appointment.js";
 
 export type { Appointment, AppointmentStatus, ConfirmationSource, ConfirmationStatus } from "./domain/appointment.js";
-export type { ReminderWindows } from "./application/ports.js";
+export type { ActFactOfAppointment, ProcessActor, ProcessLinkerPort, ReminderWindows } from "./application/ports.js";
 
 /**
  * D18 (BR-CLN-06/BR-RX-07): a função pública `prescriptions.issuePrescriptionForClinic` devolve
@@ -85,6 +86,8 @@ export interface AppointmentsModuleDeps {
   receipts: ReceiptIdsPort<Kysely<Database>>;
   /** M15 S (BR-CLN-42/45): relatório da consulta — ligada no composition root a `clinic-reports` (`appointments` não o importa). */
   consultationReports: ConsultationReportsPort<Kysely<Database>>;
+  /** Marco B fatia 1 (BR-PRC-01/07, modules.md §3 nota 29): abre/apaga o `Process` do ato — ligada no composition root a `processes` (`appointments` não o importa). */
+  processes: ProcessLinkerPort<Kysely<Database>>;
   clock: Clock;
 }
 
@@ -109,6 +112,8 @@ export interface AppointmentsModule {
   findReportFacts: (trx: Kysely<Database>, clinicId: string, appointmentId: string) => Promise<ReportBookingFacts | null>;
   /** M15 S (BR-CLN-45, `clinic-reports`): a consulta existe no membro/família e a sua clínica — sem dados clínicos. */
   findFamilyAppointmentClinic: (trx: Kysely<Database>, familyId: string, memberId: string, appointmentId: string) => Promise<{ clinicId: string } | null>;
+  /** Marco B fatia 1 (BR-PRC-04): factos das consultas (`phase`) para `processes` — ligado no composition root à porta `ProcessFacts`. */
+  getActFacts: (trx: Kysely<Database>, familyId: string, appointmentIds: string[]) => Promise<{ originId: string; fact: ActFactOfAppointment }[]>;
   /** BR-CLN-09 (`recommendations`, ligado no composition root): "esta consulta pertence à clínica X e está no estado Y". */
   findClinicOrigin: (trx: Kysely<Database>, clinicId: string, appointmentId: string, professionalId?: string) => Promise<ClinicOrigin | null>;
 }
@@ -194,6 +199,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     clinicPatients: deps.clinicPatients,
     receipts: deps.receipts,
     consultationReports: deps.consultationReports,
+    processes: deps.processes,
     walkInRateLimiter,
     audit: deps.audit,
     db: deps.db,
@@ -232,6 +238,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     router: createAppointmentsRouter(controller),
     clinicPortalRouter: createAppointmentsClinicPortalRouter(clinicPortalController),
     countActiveBySlot: (trx, slotIds) => appointmentsRepo.countActiveBySlot(trx, slotIds),
+    getActFacts: createGetActFactsUseCase(new KyselyAppointmentActFactsSource()),
     walkInRateLimiter,
     listClinicFacts: async (trx, clinicId, filter, limit) =>
       (await appointmentsRepo.listForClinic(trx, clinicId, filter, limit)).map((a) => ({

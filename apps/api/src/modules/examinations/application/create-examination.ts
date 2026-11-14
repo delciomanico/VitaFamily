@@ -8,7 +8,7 @@ import { auditContextFields } from "../../audit/index.js";
 import { assertValidExamDate, assertValidExaminationName, deriveInitialExaminationStatus, localExamDate } from "../domain/examination.js";
 import { buildExaminationView, type ExaminationView } from "./examination-view.js";
 import type { ActorIdentity, ExaminationsDeps, NewExaminationRecord, RequestContext } from "./ports.js";
-import { resolveClinicSnapshot } from "./support.js";
+import { resolveClinicSnapshot, userProcessActor } from "./support.js";
 
 export interface CreateExaminationInput {
   name: string;
@@ -68,8 +68,12 @@ export function createCreateExaminationUseCase<Trx>(deps: ExaminationsDeps<Trx>)
         throw new ConflictError({ detail: "Esse horário já não tem vagas." });
       }
 
+      // BR-PRC-01: todo o exame tem exatamente um Process, aberto na mesma transação (falha => o exame não existe).
+      const examinationId = newId();
+      const { processId } = await deps.processes.open(trx, { familyId, memberId, originType: "EXAMINATION", originId: examinationId, clinicId: clinic.id, by: userProcessActor(actor, context) });
       const examination = await deps.examinationsRepo.insert(trx, {
-        id: newId(),
+        id: examinationId,
+        processId,
         familyId,
         memberId,
         name: slot.specialty,
@@ -137,7 +141,15 @@ export function createCreateExaminationUseCase<Trx>(deps: ExaminationsDeps<Trx>)
         ...(input.notes ? { notes: input.notes } : {}),
         ...clinicSnapshot,
       };
-      const examination = await deps.examinationsRepo.insert(trx, record);
+      const { processId } = await deps.processes.open(trx, {
+        familyId,
+        memberId,
+        originType: "EXAMINATION",
+        originId: record.id,
+        ...(record.clinicId ? { clinicId: record.clinicId } : {}),
+        by: userProcessActor(actor, context),
+      });
+      const examination = await deps.examinationsRepo.insert(trx, { ...record, processId });
       if (input.examOrderId) {
         await deps.examOrders.link(
           trx,

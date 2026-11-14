@@ -29,6 +29,7 @@ import { KyselyClinicSlotsRepository } from "../../src/modules/clinics/infrastru
 import { KyselyClinicsRepository } from "../../src/modules/clinics/infrastructure/repo.js";
 import type { ClinicSlot } from "../../src/modules/clinics/domain/clinic-slot.js";
 import type { AuditEvent } from "../../src/modules/audit/index.js";
+import { createRealProcessLinker } from "../support/process-linker.js";
 
 describe("integração: pacientes da clínica (migração 0028)", () => {
   let container: StartedTestContainer;
@@ -121,6 +122,7 @@ describe("integração: pacientes da clínica (migração 0028)", () => {
         confirmVisit: createConfirmVisitUseCase(cp), arriveVisit: createArriveVisitUseCase(cp), startVisit: createStartVisitUseCase(cp), noShowVisit: createNoShowVisitUseCase(cp), setVisitFollowUp: createSetVisitFollowUpUseCase(cp), clearVisitFollowUp: createClearVisitFollowUpUseCase(cp),
         countActiveVisitsBySlot: createCountActiveVisitsBySlotUseCase(cp), findPatientIdsByMembers: createFindPatientIdsByMembersUseCase(cp),
       },
+      processes: createRealProcessLinker(db),
       consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()), createExamOrdersWithComplete: () => Promise.resolve(), examOrderCounts: () => Promise.resolve(new Map()), appointmentExamOrderCounts: () => Promise.resolve(new Map()) },
       walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
       audit: cp.audit, db, withTransaction: cp.withTransaction, clock,

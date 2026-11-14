@@ -18,6 +18,7 @@ import {
 } from "../domain/walk-in.js";
 import { toView, type ClinicAppointmentView } from "./clinic-appointments.js";
 import type { AppointmentsDeps, ClinicPortalActor, RequestContext } from "./ports.js";
+import { clinicProcessActor } from "./support.js";
 
 const PATIENT_NOT_FOUND_DETAIL = "Utilizador não encontrado.";
 
@@ -188,8 +189,19 @@ export function createCreateWalkInAppointmentUseCase<Trx>(deps: AppointmentsDeps
         await deps.clinicPatients.ensureLinkedByEmail(trx, actor, { familyId: patient.familyId, memberId: patient.memberId, fullName: patient.fullName }, context);
       }
 
+      // BR-PRC-01: a marcação presencial também abre o seu Process, na mesma transação.
+      const appointmentId = newId();
+      const { processId } = await deps.processes.open(trx, {
+        familyId: patient.familyId,
+        memberId: patient.memberId,
+        originType: "APPOINTMENT",
+        originId: appointmentId,
+        clinicId: clinic.id,
+        by: clinicProcessActor(actor, context),
+      });
       const appointment = await deps.appointmentsRepo.insert(trx, {
-        id: newId(),
+        id: appointmentId,
+        processId,
         familyId: patient.familyId,
         memberId: patient.memberId,
         scheduledAt: slot.startsAt,

@@ -24,6 +24,7 @@ import { KyselyAppointmentsRepository } from "../../src/modules/appointments/inf
 import { KyselyClinicSlotsRepository } from "../../src/modules/clinics/infrastructure/clinic-slots-repo.js";
 import { KyselyDocumentsRepository } from "../../src/modules/documents/infrastructure/repo.js";
 import { KyselyExamResultsRepository, KyselyExaminationsRepository } from "../../src/modules/examinations/infrastructure/repo.js";
+import { createRealProcessLinker } from "../support/process-linker.js";
 
 describe("integração: migrações 0018..0022 e repositórios do portal da clínica (exames)", () => {
   let container: StartedTestContainer;
@@ -283,6 +284,7 @@ describe("integração: migrações 0018..0022 e repositórios do portal da clí
         clinics: { getBookableClinic: (_trx, _familyId, clinicId) => Promise.resolve({ id: clinicId, name: "Clínica Sol" }), lockSlot: (trx, slotId) => slots.lockById(trx, slotId) },
         documents: { listForResource: () => Promise.resolve([]) } as unknown as ExaminationsDeps<Kysely<Database>>["documents"],
         audit: { record: () => Promise.resolve() },
+        processes: createRealProcessLinker(db),
         db,
         withTransaction: (fn) => withTransaction(db, fn),
         clock,

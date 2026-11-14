@@ -60,6 +60,10 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   // porta `InsurerOperationalData` ligam-se em `main/api.ts` (nenhuma aresta com `insurance`; não importa módulos de saúde).
   "insurer-ops": ["audit"],
   examinations: ["access", "clinics", "documents", "audit"],
+  // ADR-032 (modules.md §3 nota 29, marco B fatia 1): `processes` só importa `access` (decisão de leitura por categoria) e
+  // `audit`. NENHUM módulo o importa (não aparece em nenhuma outra lista): `appointments`/`examinations` abrem/apagam o
+  // processo pela porta `ProcessLinker` e publicam factos pela `ProcessFacts`, ligadas em `main/api.ts`.
+  processes: ["access", "audit"],
   // ADR-023 (modules.md §2): lê a origem (consulta/exame) pelas raízes de `appointments`/`examinations`.
   recommendations: ["access", "appointments", "examinations", "audit"],
   documents: ["access", "audit"],
@@ -107,6 +111,12 @@ const LAYER_DEPENDENCIES: Record<Layer, Layer[]> = {
   interface: ["application", "domain", "interface"],
   root: ["domain", "application", "infrastructure", "interface", "root"],
 };
+
+/**
+ * Módulos cujo `domain/` é puro ao ponto de só importar o próprio `domain/` (sem `platform`, `Clock`, I/O, nem pacotes):
+ * `deriveFamilyStatus` tem de ser função pura (BR-PRC-02, TC-PRC-07/20).
+ */
+export const STRICT_PURE_DOMAIN_MODULES = ["processes"];
 
 /** Pacotes de I/O que `domain`/`application` nunca podem importar (conventions.md §3.9). */
 const IO_PACKAGES_BANNED_IN_DOMAIN_AND_APPLICATION = [
@@ -214,6 +224,17 @@ export function checkArchitecture(
         `módulo desconhecido modules/${from.module} (declarar em architecture-rules.ts e modules.md)`,
       );
       continue;
+    }
+
+    if (from.kind === "module" && from.layer === "domain" && STRICT_PURE_DOMAIN_MODULES.includes(from.module)) {
+      for (const target of file.relativeImports) {
+        if (!target.startsWith(`modules/${from.module}/domain/`)) {
+          violations.push(`${file.file}: domain de ${from.module} só importa o próprio domain (importa ${target})`);
+        }
+      }
+      for (const bareImport of file.bareImports) {
+        violations.push(`${file.file}: domain de ${from.module} não importa pacotes (importa "${bareImport}")`);
+      }
     }
 
     for (const bareImport of file.bareImports) {

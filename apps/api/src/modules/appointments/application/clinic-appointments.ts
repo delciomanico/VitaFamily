@@ -25,6 +25,8 @@ export interface ClinicAppointmentView {
   source?: "VITA" | "MANUAL";
   clinicPatientId?: string;
   slotId?: string;
+  /** Marco B fatia 1 (BR-PRC-06): `Process` da marcação Vita; ausente nas visitas manuais (BR-CLN-24). */
+  processId?: string;
   /** M14 Q (BR-CLN-25/28/30). */
   confirmationStatus: ConfirmationStatus;
   confirmationSource?: ConfirmationSource;
@@ -124,6 +126,7 @@ export async function toView<Trx>(deps: AppointmentsDeps<Trx>, trx: Trx, appoint
     ...(appointment.followUpDueOn ? { followUpDueOn: appointment.followUpDueOn } : {}),
     ...(clinicPatientId ? { clinicPatientId } : {}),
     ...(appointment.slotId ? { slotId: appointment.slotId } : {}),
+    ...(appointment.processId ? { processId: appointment.processId } : {}),
     ...(appointment.specialty ? { specialty: appointment.specialty } : {}),
     ...(appointment.professionalName ? { professionalName: appointment.professionalName } : {}),
     ...(appointment.notes ? { notes: appointment.notes } : {}),

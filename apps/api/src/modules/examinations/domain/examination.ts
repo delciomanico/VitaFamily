@@ -37,6 +37,8 @@ export interface Examination {
   resultsIssuedAt?: Date;
   /** Nota da clínica ao completar (BR-CLN-08); nunca escrita pela família — distinta de `notes`. */
   clinicResultNote?: string;
+  /** Marco B fatia 1 (BR-PRC-01): id do `Process` aberto com o exame; só leitura; ausente só antes do backfill. */
+  processId?: string;
   createdAt: Date;
 }
 

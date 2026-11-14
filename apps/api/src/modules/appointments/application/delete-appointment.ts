@@ -3,6 +3,7 @@
 import { NotFoundError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { ActorIdentity, AppointmentsDeps, RequestContext } from "./ports.js";
+import { userProcessActor } from "./support.js";
 
 export function createDeleteAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>) {
   return async function deleteAppointment(actor: ActorIdentity, familyId: string, memberId: string, appointmentId: string, context: RequestContext): Promise<void> {
@@ -22,6 +23,8 @@ export function createDeleteAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>)
       }
 
       await deps.appointmentsRepo.delete(trx, familyId, memberId, appointmentId);
+      // BR-PRC-07: apagar o ato apaga o seu Process na mesma transação.
+      await deps.processes.discard(trx, { originType: "APPOINTMENT", originId: appointmentId, by: userProcessActor(actor, context) });
 
       await deps.audit.record(trx, {
         occurredAt: deps.clock.now(),

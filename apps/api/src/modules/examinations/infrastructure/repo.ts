@@ -15,6 +15,7 @@ import type {
   CursorPage,
   ExaminationChanges,
   ExaminationListFilter,
+  ActFactsSource,
   ExaminationsRepository,
   ExamResultChanges,
   ExamResultHistoryItem,
@@ -45,6 +46,7 @@ interface ExaminationRow {
   issued_by_clinic_account_id: string | null;
   results_issued_at: Date | null;
   clinic_result_note: string | null;
+  process_id: string | null;
   created_at: Date;
 }
 
@@ -64,6 +66,7 @@ function toExamination(row: ExaminationRow): Examination {
   if (row.notes !== null) examination.notes = row.notes;
   if (row.scheduled_at !== null) examination.scheduledAt = row.scheduled_at;
   if (row.slot_id !== null) examination.slotId = row.slot_id;
+  if (row.process_id !== null) examination.processId = row.process_id;
   if (row.response_note !== null) examination.responseNote = row.response_note;
   if (row.issued_by_clinic_account_id !== null) examination.issuedByClinicAccountId = row.issued_by_clinic_account_id;
   if (row.results_issued_at !== null) examination.resultsIssuedAt = row.results_issued_at;
@@ -88,6 +91,7 @@ const EXAMINATION_COLUMNS = [
   "issued_by_clinic_account_id",
   "results_issued_at",
   "clinic_result_note",
+  "process_id",
   "created_at",
 ] as const;
 
@@ -115,6 +119,7 @@ export class KyselyExaminationsRepository implements ExaminationsRepository<Kyse
           clinic_name: record.clinicName ?? null,
           slot_id: record.slotId ?? null,
           scheduled_at: record.scheduledAt ?? null,
+          process_id: record.processId ?? null,
           notes: record.notes ?? null,
           created_at: record.createdAt,
         })
@@ -475,5 +480,18 @@ export class KyselyExamResultsDraftRepository implements ExamResultsDraftReposit
     if (examinationIds.length === 0) return new Set();
     const rows = await trx.selectFrom("clinic_exam_result_drafts").select("examination_id").where("examination_id", "in", examinationIds).execute();
     return new Set(rows.map((r) => r.examination_id));
+  }
+}
+
+/** Leitura em lote do estado dos exames para `ProcessFacts` (marco B fatia 1, BR-PRC-04): só colunas de estado, sempre com `family_id`. */
+export class KyselyExaminationActFactsSource implements ActFactsSource<Kysely<Database>> {
+  async findStateRows(trx: Kysely<Database>, familyId: string, examinationIds: string[]) {
+    const rows = await trx
+      .selectFrom("examinations")
+      .select(["id", "status", "scheduled_at", "updated_at"])
+      .where("family_id", "=", familyId)
+      .where("id", "in", examinationIds)
+      .execute();
+    return rows.map((row) => ({ id: row.id, status: row.status, scheduledAt: row.scheduled_at, updatedAt: row.updated_at }));
   }
 }

@@ -12,6 +12,8 @@ import type {
   AppointmentChanges,
   AppointmentListFilter,
   AppointmentsDeps,
+  ProcessActor,
+  ProcessLinkerPort,
   AppointmentsRepository,
   AuditPort,
   ClinicOutcomeChange,
@@ -234,6 +236,7 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
       ...(record.reason !== undefined ? { reason: record.reason } : {}),
       ...(record.notes !== undefined ? { notes: record.notes } : {}),
       ...(record.slotId !== undefined ? { slotId: record.slotId } : {}),
+      ...(record.processId !== undefined ? { processId: record.processId } : {}),
       durationMinutes: record.durationMinutes ?? 30,
       ...(record.walkIn ? { walkIn: true } : {}),
       ...(record.bookedByClinicAccountId !== undefined ? { bookedByClinicAccountId: record.bookedByClinicAccountId } : {}),
@@ -507,6 +510,7 @@ export interface AppointmentsFixtures {
   clinicPatients: FakeClinicPatientDirectory;
   receipts: FakeReceiptIdsPort;
   consultationReports: FakeConsultationReportsPort;
+  processes: FakeProcessLinker;
   audit: FakeAuditPort;
 }
 
@@ -682,6 +686,28 @@ export class FakeConsultationReportsPort implements ConsultationReportsPort<Fake
   }
 }
 
+/** Fake de `ProcessLinkerPort` (marco B fatia 1): regista as chamadas; `failOpen` força a falha (rollback do ato, TC-PRC-10). */
+export class FakeProcessLinker implements ProcessLinkerPort<FakeTrx> {
+  readonly opened: { familyId: string; memberId: string; originId: string; clinicId?: string; by: ProcessActor; processId: string }[] = [];
+  readonly discarded: { originId: string; by: ProcessActor }[] = [];
+  failOpen?: Error;
+  private counter = 0;
+
+  async open(_trx: FakeTrx, input: Parameters<ProcessLinkerPort<FakeTrx>["open"]>[1]): Promise<{ processId: string }> {
+    if (this.failOpen) throw this.failOpen;
+    const existing = this.opened.find((o) => o.originId === input.originId);
+    if (existing) return Promise.resolve({ processId: existing.processId });
+    const processId = `process-${String(++this.counter)}`;
+    this.opened.push({ familyId: input.familyId, memberId: input.memberId, originId: input.originId, by: input.by, processId, ...(input.clinicId ? { clinicId: input.clinicId } : {}) });
+    return Promise.resolve({ processId });
+  }
+
+  async discard(_trx: FakeTrx, input: Parameters<ProcessLinkerPort<FakeTrx>["discard"]>[1]): Promise<void> {
+    this.discarded.push({ originId: input.originId, by: input.by });
+    return Promise.resolve();
+  }
+}
+
 export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const appointmentsRepo = new FakeAppointmentsRepository();
   const policy = new FakeAccessPolicy();
@@ -694,6 +720,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const clinicPatients = new FakeClinicPatientDirectory(clinics);
   const receipts = new FakeReceiptIdsPort();
   const consultationReports = new FakeConsultationReportsPort();
+  const processes = new FakeProcessLinker();
   const audit = new FakeAuditPort();
   const deps: AppointmentsDeps<FakeTrx> = {
     appointmentsRepo,
@@ -707,11 +734,12 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     clinicPatients,
     receipts,
     consultationReports,
+    processes,
     walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, clinicPatients, receipts, consultationReports, audit };
+  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, clinicPatients, receipts, consultationReports, processes, audit };
 }

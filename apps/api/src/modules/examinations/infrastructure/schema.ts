@@ -21,6 +21,8 @@ export interface ExaminationsTable {
   issued_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
   results_issued_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
   clinic_result_note: ColumnType<string | null, string | null | undefined, string | null>;
+  /** Marco B fatia 1 (BR-PRC-01) — `db/migrations/0036_processes.sql`; só leitura depois de criado. */
+  process_id: ColumnType<string | null, string | null | undefined, never>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

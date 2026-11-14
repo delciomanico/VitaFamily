@@ -37,6 +37,7 @@ export function toExaminationResponse(examination: ExaminationView) {
     clinicResultNote: examination.clinicResultNote ?? null,
     results: examination.results.map(toExamResultResponse),
     documentIds: examination.documentIds,
+    processId: examination.processId ?? null,
   };
 }
 
@@ -72,6 +73,7 @@ export function toClinicExamResponse(view: ClinicExamView) {
     receiptId: view.receiptId ?? null,
     hasResultsDraft: view.hasResultsDraft,
     reportAvailable: view.reportAvailable,
+    processId: view.processId ?? null,
   };
 }
 

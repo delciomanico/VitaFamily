@@ -38,6 +38,7 @@ import { createAlertsModule } from "../modules/alerts/index.js";
 import { createInsurerSettingsReader, createInsuranceModule, parseInsuranceSigningKeys } from "../modules/insurance/index.js";
 import { createInsurerOpsModule } from "../modules/insurer-ops/index.js";
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
+import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
 /**
@@ -108,7 +109,7 @@ export function main(): void {
   // da criação do User.
   // `families` precisa de `documents` (ficheiros) e `lifecycle` (pacote de dados), que dependem dele:
   // a porta `memberData` resolve-os tardiamente (atribuídos mais abaixo, antes de o servidor ouvir).
-  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule; clinicReports?: ClinicReportsModule } = {};
+  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule; clinicReports?: ClinicReportsModule; processes?: ProcessesModule } = {};
   const required = <T>(module: T | undefined, name: string): T => {
     if (!module) throw new Error(`${name} ainda não inicializado`);
     return module;
@@ -272,6 +273,12 @@ export function main(): void {
       release: (trx, examinationId) => required(late.clinicReports, "clinicReports").examOrderLinker.release(trx, examinationId),
       fulfil: (trx, examinationId) => required(late.clinicReports, "clinicReports").examOrderLinker.fulfil(trx, examinationId),
     },
+    // Marco B fatia 1 (BR-PRC-01/07, modules.md §3 nota 29): `processes` depende dos factos de `appointments`/`examinations`,
+    // por isso o `ProcessLinker` resolve-se tardiamente; os módulos donos nunca importam `processes`.
+    processes: {
+      open: (trx, input) => required(late.processes, "processes").linker.open(trx, input),
+      discard: (trx, input) => required(late.processes, "processes").linker.discard(trx, input),
+    },
     clock,
   });
   late.examinations = examinations;
@@ -319,6 +326,11 @@ export function main(): void {
     receipts: { findIssuedReceiptIds: (trx, clinicId, kind, bookingIds) => required(late.clinicReceipts, "clinicReceipts").findIssuedReceiptIds(trx, clinicId, kind, bookingIds) },
     // M15 S (BR-CLN-42/45, modules.md §2 nota 27): `ConsultationReportFinalizer` & co. implementados por `clinic-reports` (criado
     // mais abaixo); `appointments` nunca o importa. O ator sem `professionalId` (Admin/Gestor) é recusado por quem implementa.
+    // Marco B fatia 1 (BR-PRC-01/07): ver a ligação tardia de `examinations` acima.
+    processes: {
+      open: (trx, input) => required(late.processes, "processes").linker.open(trx, input),
+      discard: (trx, input) => required(late.processes, "processes").linker.discard(trx, input),
+    },
     consultationReports: {
       finalizeWithComplete: (trx, actor, kind, bookingId, report, context) =>
         required(late.clinicReports, "clinicReports").finalizeWithComplete(
@@ -347,6 +359,31 @@ export function main(): void {
     clock,
   });
   late.appointments = appointments;
+
+  // Marco B fatia 1 (ADR-032, modules.md §3 nota 29): `processes` só importa `access`/`audit`; os factos dos atos entram
+  // por este adaptador composto (porta `ProcessFacts`) sobre as APIs públicas de `appointments`/`examinations`, e os
+  // donos abrem/apagam o processo pelo `ProcessLinker` ligado acima.
+  const processes = createProcessesModule({
+    db,
+    audit,
+    access,
+    clock,
+    facts: {
+      getActFacts: async (trx, familyId, refs) => {
+        const idsOf = (type: "APPOINTMENT" | "EXAMINATION") => refs.filter((ref) => ref.originType === type).map((ref) => ref.originId);
+        const [appointmentFacts, examinationFacts] = await Promise.all([appointments.getActFacts(trx, familyId, idsOf("APPOINTMENT")), examinations.getActFacts(trx, familyId, idsOf("EXAMINATION"))]);
+        return [
+          ...appointmentFacts.map((entry) => ({ originType: "APPOINTMENT" as const, originId: entry.originId, fact: entry.fact })),
+          ...examinationFacts.map((entry) => ({ originType: "EXAMINATION" as const, originId: entry.originId, fact: entry.fact })),
+        ];
+      },
+    },
+    // BR-PRC-09: log técnico sem dados de saúde (só ids e o tipo da origem).
+    onInconsistency: (info) => {
+      logger.warn({ processId: info.processId, originType: info.originType }, "process_without_readable_act");
+    },
+  });
+  late.processes = processes;
 
   // D19/ADR-023 (M7c): `recommendations` lê a origem pelas APIs públicas de `appointments`/`examinations`
   // e dispara `recommendation.added` por uma porta ligada à API pública de `alerts`.
@@ -657,6 +694,8 @@ export function main(): void {
       router.use(examinations.clinicPortalRouter);
       router.use(recommendations.router);
       router.use(recommendations.clinicPortalRouter);
+      router.use(processes.router);
+      router.use(processes.clinicPortalRouter);
       router.use(clinicPatients.router);
       router.use(clinicPatients.clinicPortalRouter);
       router.use(clinicReceipts.router);

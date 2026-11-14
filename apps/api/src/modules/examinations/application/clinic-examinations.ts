@@ -41,6 +41,8 @@ export interface ClinicExamView {
   hasResultsDraft: boolean;
   /** M15 T (BR-CLN-49): existe laudo PDF gerado e descarregável em `…/report/pdf`. */
   reportAvailable: boolean;
+  /** Marco B fatia 1 (BR-PRC-06): `Process` do exame Vita; abre `GET /clinic-portal/processes/{id}`. */
+  processId?: string;
 }
 
 /**
@@ -88,6 +90,7 @@ async function toView<Trx>(deps: ExaminationsDeps<Trx>, trx: Trx, examination: E
     patientName,
     resultsCount,
     documents,
+    ...(examination.processId ? { processId: examination.processId } : {}),
     ...(examination.name ? { examType: examination.name } : {}),
     ...(examination.notes ? { notes: examination.notes } : {}),
     ...(examination.responseNote ? { responseNote: examination.responseNote } : {}),

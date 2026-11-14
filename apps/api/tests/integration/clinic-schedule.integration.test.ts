@@ -27,6 +27,7 @@ import { createGenerateScheduleJobUseCase } from "../../src/modules/clinics/appl
 import { KyselyClinicCatalogRepository, KyselyClinicScheduleRulesRepository, KyselyClinicTimeOffRepository } from "../../src/modules/clinics/infrastructure/clinic-catalog-repo.js";
 import { KyselyClinicSlotsRepository } from "../../src/modules/clinics/infrastructure/clinic-slots-repo.js";
 import { KyselyClinicsRepository } from "../../src/modules/clinics/infrastructure/repo.js";
+import { createRealProcessLinker } from "../support/process-linker.js";
 
 function must<T>(value: T | undefined, what = "valor"): T {
   if (value === undefined) {
@@ -423,6 +424,7 @@ describe("integração: catálogo, regras, bloqueios e duração (migração 002
           },
         },
         clinicPatients: { resolvePatient: () => Promise.resolve(null), ensureLinkedByEmail: () => Promise.resolve({ clinicPatientId: randomUUID() }), bookVisit: () => Promise.reject(new Error("não usado")), listVisits: () => Promise.resolve([]), cancelVisit: () => Promise.resolve(null), completeVisit: () => Promise.resolve(null), confirmVisit: () => Promise.resolve(null), arriveVisit: () => Promise.resolve(null), startVisit: () => Promise.resolve(null), noShowVisit: () => Promise.resolve(null), setVisitFollowUp: () => Promise.resolve(null), clearVisitFollowUp: () => Promise.resolve(null), countActiveVisitsBySlot: () => Promise.resolve([]), findPatientIdsByMembers: () => Promise.resolve(new Map()) },
+        processes: createRealProcessLinker(db),
         consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()), createExamOrdersWithComplete: () => Promise.resolve(), examOrderCounts: () => Promise.resolve(new Map()), appointmentExamOrderCounts: () => Promise.resolve(new Map()) },
         walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
         audit: { record: () => Promise.resolve() },
@@ -493,6 +495,7 @@ describe("integração: catálogo, regras, bloqueios e duração (migração 002
         patients: { findSelfByEmail: () => Promise.resolve({ familyId: ids.family, memberId, fullName: "Rui Dias" }) },
         memberNames: { getMemberName: () => Promise.resolve("Rui Dias") },
         clinicPatients: { resolvePatient: () => Promise.resolve(null), ensureLinkedByEmail: () => Promise.resolve({ clinicPatientId: randomUUID() }), bookVisit: () => Promise.reject(new Error("não usado")), listVisits: () => Promise.resolve([]), cancelVisit: () => Promise.resolve(null), completeVisit: () => Promise.resolve(null), countActiveVisitsBySlot: () => Promise.resolve([]), findPatientIdsByMembers: () => Promise.resolve(new Map()) },
+        processes: createRealProcessLinker(db),
         consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()), createExamOrdersWithComplete: () => Promise.resolve(), examOrderCounts: () => Promise.resolve(new Map()), appointmentExamOrderCounts: () => Promise.resolve(new Map()) },
         walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
         audit: { record: () => Promise.resolve() },

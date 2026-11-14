@@ -4,7 +4,7 @@
 import type { AccessContext } from "../../access/index.js";
 import { auditContextFields, type AuditAction } from "../../audit/index.js";
 import { DomainError, ValidationError } from "../../../platform/errors/index.js";
-import type { Appointment, AppointmentsDeps, RequestContext } from "./ports.js";
+import type { Appointment, AppointmentsDeps, ProcessActor, RequestContext } from "./ports.js";
 
 export async function auditViewIfNotSelf<Trx>(
   deps: AppointmentsDeps<Trx>,
@@ -126,4 +126,14 @@ export async function resolveSlotBooking<Trx>(deps: AppointmentsDeps<Trx>, trx: 
     durationMinutes: slot.durationMinutes,
     ...(slot.professionalName ? { professionalName: slot.professionalName } : {}),
   };
+}
+
+/** Auditoria `PROCESS_*` (feita por `processes`): o ator do fluxo que cria/apaga a consulta (família). */
+export function userProcessActor(actor: { userId: string }, context: RequestContext): ProcessActor {
+  return { actorType: "USER", actorUserId: actor.userId, requestId: context.requestId, ...auditContextFields(context) };
+}
+
+/** Idem, na marcação presencial D20 (conta da clínica). */
+export function clinicProcessActor(actor: { clinicAccountId: string }, context: RequestContext): ProcessActor {
+  return { actorType: "CLINIC_ACCOUNT", actorClinicAccountId: actor.clinicAccountId, requestId: context.requestId, ...auditContextFields(context) };
 }

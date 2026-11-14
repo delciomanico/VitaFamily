@@ -63,6 +63,9 @@ const ALL: Row[] = [
   [["DELETE"], ["/clinic-portal/exam-agenda/:examinationId/documents/:documentId"], "yes", "yes", "own"],
   [["PUT"], ["/clinic-portal/exam-agenda/:examinationId/cancel"], "yes", "yes", "no"],
   [["GET", "POST"], ["/clinic-portal/recommendations"], "yes", "yes", "own"],
+  // Marco B fatia 1 (ADR-032, BR-PRC-06, authorization.md §6.2b/§6.8): processo do atendimento da própria clínica — Admin e Gestor;
+  // o Médico ⇒ FORBIDDEN (o filtro "suas" não existe em `processes`). Isolamento por clínica: `processes.clinic_id` (404).
+  [["GET"], ["/clinic-portal/processes/:processId"], "yes", "yes", "no"],
   [["GET"], ["/clinic-portal/patients", "/clinic-portal/patients/:patientId", "/clinic-portal/patients/:patientId/record", "/clinic-portal/patients/:patientId/shared-history"], "yes", "yes", "own"],
   [["POST"], ["/clinic-portal/patients", "/clinic-portal/patients/link"], "yes", "yes", "no"],
   [["PATCH"], ["/clinic-portal/patients/:patientId"], "yes", "yes", "no"],

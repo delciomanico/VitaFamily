@@ -165,7 +165,7 @@ describe("listas e minimização (BR-CLN-03)", () => {
 
     const own = await list(CLINIC_ACTOR, {});
     expect(own).toHaveLength(1);
-    expect(Object.keys(own[0] ?? {}).sort()).toEqual(["documents", "examType", "hasResultsDraft", "id", "notes", "patientName", "reportAvailable", "resultsCount", "scheduledAt", "status"]);
+    expect(Object.keys(own[0] ?? {}).sort()).toEqual(["documents", "examType", "hasResultsDraft", "id", "notes", "patientName", "processId", "reportAvailable", "resultsCount", "scheduledAt", "status"]);
     expect(own[0]).toMatchObject({ patientName: "Maria Silva", examType: "Ecografia abdominal", status: "SCHEDULED", notes: "em jejum", resultsCount: 0 });
     expect(await list(OTHER_CLINIC_ACTOR, {})).toEqual([]);
   });

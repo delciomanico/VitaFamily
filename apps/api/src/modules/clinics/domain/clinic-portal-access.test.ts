@@ -12,6 +12,7 @@ import { createClinicReceiptsPortalRouter } from "../../clinic-receipts/interfac
 import { createClinicReportsPortalRouter } from "../../clinic-reports/interface/portal-router.js";
 import { createInsurerClinicRouter } from "../../insurer-ops/interface/clinic-router.js";
 import { createExaminationsClinicPortalRouter } from "../../examinations/interface/clinic-portal-router.js";
+import { createProcessesClinicPortalRouter } from "../../processes/interface/clinic-portal-router.js";
 import { createRecommendationsClinicPortalRouter } from "../../recommendations/interface/clinic-portal-router.js";
 import { createClinicPortalRouter } from "../interface/clinic-portal-router.js";
 import { CLINIC_PORTAL_ACCESS, accessFor, assertPortalAccess, findPortalRule, type PortalAccess } from "./clinic-portal-access.js";
@@ -49,6 +50,7 @@ const ROUTERS = [
   createAppointmentsClinicPortalRouter(stub),
   createExaminationsClinicPortalRouter(stub),
   createRecommendationsClinicPortalRouter(stub),
+  createProcessesClinicPortalRouter(stub),
   createClinicPatientsPortalRouter(stub),
   createClinicReceiptsPortalRouter(stub),
   createClinicReportsPortalRouter(stub),
@@ -87,6 +89,8 @@ describe("matriz papel × rota do portal da clínica (TC-AZ-CLN-V5)", () => {
     ["POST", "/clinic-portal/patients/link", "yes", "yes", "no"],
     ["PUT", "/clinic-portal/exam-agenda/abc/cancel", "yes", "yes", "no"],
     ["POST", "/clinic-portal/recommendations", "yes", "yes", "own"],
+    // Marco B fatia 1 (TC-AZ-PRC-04, authorization.md §6.2b): processo do atendimento — Admin e Gestor; o Médico => FORBIDDEN.
+    ["GET", "/clinic-portal/processes/abc", "yes", "yes", "no"],
     // M15 (authorization.md §6.2b, TC-AZ-CLN-V6): relatório da consulta — só o Médico escreve; Admin/Gestor leem.
     ["GET", "/clinic-portal/agenda/abc/report", "yes", "yes", "own"],
     ["GET", "/clinic-portal/agenda/abc/report/pdf", "yes", "yes", "own"],

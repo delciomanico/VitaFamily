@@ -2,10 +2,11 @@
 // tem de respeitar as fronteiras de camadas (ADR-015) e as dependências entre módulos
 // (docs/06-architecture/modules.md §2-3). Em M0 só existe `platform`; a verificação por módulo
 // fica pronta e provada (com dados sintéticos) para M1 em diante usar imediatamente.
+import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { checkArchitecture, type FileImports } from "./architecture-rules.js";
+import { checkArchitecture, MODULE_DEPENDENCIES, type FileImports } from "./architecture-rules.js";
 import { collectImports } from "./collect-imports.js";
 
 const SRC_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "src");
@@ -16,6 +17,37 @@ describe("arquitetura do código real (src/)", () => {
     expect(files.length).toBeGreaterThan(0); // o scanner tem de encontrar ficheiros reais
     const violations = checkArchitecture(files);
     expect(violations).toEqual([]);
+  });
+
+  it("TC-PRC-20 / AC-PRC-07: nenhum módulo importa `processes` (só main), e `processes` só importa `access` e `audit`", async () => {
+    const files = await collectImports(SRC_ROOT);
+    const processesFiles = files.filter((f) => f.file.startsWith("modules/processes/"));
+    expect(processesFiles.length).toBeGreaterThan(0);
+
+    const importers = files.filter((f) => !f.file.startsWith("modules/processes/") && f.relativeImports.some((target) => target.startsWith("modules/processes/")));
+    expect(importers.map((f) => f.file)).toEqual(["main/api"]);
+
+    const importedModules = new Set(processesFiles.flatMap((f) => f.relativeImports).filter((t) => t.startsWith("modules/") && !t.startsWith("modules/processes/")).map((t) => t.split("/")[1]));
+    expect([...importedModules].sort()).toEqual([...(MODULE_DEPENDENCIES.processes ?? [])].sort());
+    for (const [name, dependencies] of Object.entries(MODULE_DEPENDENCIES)) {
+      expect(dependencies.includes("processes"), `${name} não pode depender de processes`).toBe(false);
+    }
+  });
+
+  it("TC-PRC-20: processes/domain só importa o próprio domain (sem platform/Clock/I/O) e as portas ficam onde o contrato manda", async () => {
+    const files = await collectImports(SRC_ROOT);
+    for (const file of files.filter((f) => f.file.startsWith("modules/processes/domain/"))) {
+      expect(file.bareImports, file.file).toEqual([]);
+      for (const target of file.relativeImports) expect(target.startsWith("modules/processes/domain/"), `${file.file} -> ${target}`).toBe(true);
+    }
+    // `ProcessFacts` em processes/application; `ProcessLinker` definida em cada dono (nunca importada de processes).
+    const [processPorts, appointmentPorts, examinationPorts] = await Promise.all(
+      ["processes", "appointments", "examinations"].map((m) => readFile(join(SRC_ROOT, "modules", m, "application", "ports.ts"), "utf8")),
+    );
+    expect(processPorts).toMatch(/export interface ProcessFacts</);
+    expect(appointmentPorts).toMatch(/export interface ProcessLinkerPort</);
+    expect(examinationPorts).toMatch(/export interface ProcessLinkerPort</);
+    expect(processPorts).not.toMatch(/export interface ProcessLinkerPort</);
   });
 
   it("platform nunca importa de main ou de modules/*", async () => {
@@ -145,6 +177,28 @@ describe("checkArchitecture (dados sintéticos)", () => {
   it.each(cases)("deteta: $name", ({ files, expectedSubstring }) => {
     const violations = checkArchitecture(files, deps);
     expect(violations.some((v) => v.includes(expectedSubstring))).toBe(true);
+  });
+
+  describe("módulo processes (TC-PRC-20, dependências reais de modules.md §2)", () => {
+    const real: { name: string; files: FileImports[]; expectedSubstring: string }[] = [
+      { name: "processes importa appointments", files: [{ file: "modules/processes/application/x", relativeImports: ["modules/appointments/index"], bareImports: [] }], expectedSubstring: "não pode depender de modules/appointments" },
+      { name: "appointments importa processes", files: [{ file: "modules/appointments/application/x", relativeImports: ["modules/processes/index"], bareImports: [] }], expectedSubstring: "não pode depender de modules/processes" },
+      { name: "examinations importa processes", files: [{ file: "modules/examinations/application/x", relativeImports: ["modules/processes/index"], bareImports: [] }], expectedSubstring: "não pode depender de modules/processes" },
+      { name: "processes/domain importa platform (Clock)", files: [{ file: "modules/processes/domain/x", relativeImports: ["platform/clock/index"], bareImports: [] }], expectedSubstring: "só importa o próprio domain" },
+      { name: "processes/domain importa um pacote", files: [{ file: "modules/processes/domain/x", relativeImports: [], bareImports: ["zod"] }], expectedSubstring: "não importa pacotes" },
+    ];
+    it.each(real)("deteta: $name", ({ files, expectedSubstring }) => {
+      expect(checkArchitecture(files).some((v) => v.includes(expectedSubstring))).toBe(true);
+    });
+
+    it("aceita o que o contrato permite: processes -> access/audit pela raiz e main -> processes", () => {
+      const files: FileImports[] = [
+        { file: "modules/processes/application/x", relativeImports: ["modules/access/index", "modules/audit/index", "modules/processes/domain/process"], bareImports: [] },
+        { file: "modules/processes/domain/derive", relativeImports: ["modules/processes/domain/process"], bareImports: [] },
+        { file: "main/api", relativeImports: ["modules/processes/index"], bareImports: [] },
+      ];
+      expect(checkArchitecture(files)).toEqual([]);
+    });
   });
 
   it("deteta ciclos de dependência entre módulos", () => {

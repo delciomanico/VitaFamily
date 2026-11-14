@@ -5,6 +5,7 @@
 import { NotFoundError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { ActorIdentity, ExaminationsDeps, RequestContext } from "./ports.js";
+import { userProcessActor } from "./support.js";
 
 export function createDeleteExaminationUseCase<Trx>(deps: ExaminationsDeps<Trx>) {
   return async function deleteExamination(actor: ActorIdentity, familyId: string, memberId: string, examinationId: string, context: RequestContext): Promise<void> {
@@ -27,6 +28,8 @@ export function createDeleteExaminationUseCase<Trx>(deps: ExaminationsDeps<Trx>)
       await deps.examOrders.release(trx, examinationId);
       await deps.documents.deleteAllForResource(trx, familyId, memberId, "EXAMINATION", examinationId);
       await deps.examinationsRepo.delete(trx, familyId, memberId, examinationId);
+      // BR-PRC-07: apagar o ato apaga o seu Process na mesma transação.
+      await deps.processes.discard(trx, { originType: "EXAMINATION", originId: examinationId, by: userProcessActor(actor, context) });
 
       await deps.audit.record(trx, {
         occurredAt: deps.clock.now(),

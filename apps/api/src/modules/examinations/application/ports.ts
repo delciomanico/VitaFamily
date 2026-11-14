@@ -7,6 +7,7 @@ import type { RateLimiter } from "../../../platform/rate-limit/index.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Document, ResourceType } from "../../documents/index.js";
+import type { ActPhase } from "../domain/act-phase.js";
 import type { ExamResult } from "../domain/exam-result.js";
 import type { Examination, ExaminationStatus } from "../domain/examination.js";
 
@@ -203,6 +204,8 @@ export interface NewExaminationRecord {
   slotId?: string;
   scheduledAt?: Date;
   notes?: string;
+  /** Marco B fatia 1 (BR-PRC-01): `Process` aberto (`ProcessLinkerPort.open`) antes de gravar o exame. */
+  processId?: string;
   createdAt: Date;
 }
 
@@ -317,6 +320,39 @@ export interface ExamResultsRepository<Trx> {
   historyByParameter(trx: Trx, familyId: string, memberId: string, parameter: string): Promise<ExamResultHistoryItem[]>;
 }
 
+/** Quem abriu/apagou o ato, para a auditoria `PROCESS_*` (feita por `processes`; audit.md §3). */
+export interface ProcessActor {
+  actorType: "USER" | "CLINIC_ACCOUNT";
+  actorUserId?: string;
+  actorClinicAccountId?: string;
+  requestId: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+/**
+ * `ProcessLinker` (marco B fatia 1, BR-PRC-01/07, modules.md §3 nota 29): definida aqui, implementada por `processes` e ligada
+ * em `main/api.ts` (`examinations` nunca importa `processes`). Corre na transação do ato: se `open` falha, o exame não existe.
+ */
+export interface ProcessLinkerPort<Trx> {
+  /** Idempotente por `(originType, originId)`. */
+  open(trx: Trx, input: { familyId: string; memberId: string; originType: "EXAMINATION"; originId: string; clinicId?: string; by: ProcessActor }): Promise<{ processId: string }>;
+  discard(trx: Trx, input: { originType: "EXAMINATION"; originId: string; by: ProcessActor }): Promise<void>;
+}
+
+/** Facto do ato publicado a `processes` (BR-PRC-04; state-machines.md "Process"): pequeno e estável. */
+export interface ActFactOfExamination {
+  source: "EXAMINATION";
+  phase: ActPhase;
+  scheduledAt?: Date;
+  changedAt: Date;
+}
+
+/** Leitura em lote do estado dos exames para `ProcessFacts` (implementada em `infrastructure`; só leitura). `status` é texto: os valores obsoletos não existem no tipo mas a BD tem-nos no enum. */
+export interface ActFactsSource<Trx> {
+  findStateRows(trx: Trx, familyId: string, examinationIds: string[]): Promise<{ id: string; status: string; scheduledAt: Date | null; updatedAt: Date }[]>;
+}
+
 export interface ExaminationsDeps<Trx> {
   examinationsRepo: ExaminationsRepository<Trx>;
   examResultsRepo: ExamResultsRepository<Trx>;
@@ -334,6 +370,8 @@ export interface ExaminationsDeps<Trx> {
   clinics: ClinicsPort<Trx>;
   documents: DocumentsPort<Trx>;
   receipts: ReceiptIdsPort<Trx>;
+  /** Marco B fatia 1 (BR-PRC-01/07): abre/apaga o `Process` do exame (implementada por `processes`). */
+  processes: ProcessLinkerPort<Trx>;
   audit: AuditPort<Trx>;
   db: Trx;
   withTransaction: WithTransaction<Trx>;

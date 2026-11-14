@@ -237,7 +237,12 @@ export type AuditAction =
   // NUNCA o código de reclamação, o nº de apólice, o nº de cartão nem o token do QR.
   | "INSURER_LINK_REVOKE"
   | "CARD_QR_ISSUE"
-  | "COVERAGE_VIEW";
+  | "COVERAGE_VIEW"
+  // Processos (marco B fatia 1, ADR-032, BR-PRC-11, audit.md §3): `metadata` só com `originType`/`kind`/contagens — NUNCA
+  // `familyStatus`, `nextStep`, fase do ato, nome da clínica nem datas.
+  | "PROCESS_OPEN"
+  | "PROCESS_DISCARD"
+  | "PROCESS_VIEW";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT";
 

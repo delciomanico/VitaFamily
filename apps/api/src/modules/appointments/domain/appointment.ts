@@ -51,6 +51,8 @@ export interface Appointment {
   reportAvailable?: boolean;
   /** M15 U (BR-CLN-53): derivado — pedidos de exame não cancelados desta consulta Vita; só para SELF/TUTOR_OF (senão 0). */
   examOrderCount?: number;
+  /** Marco B fatia 1 (BR-PRC-01): id do `Process` aberto com a consulta; só leitura; ausente só antes do backfill. */
+  processId?: string;
   createdAt: Date;
 }
 

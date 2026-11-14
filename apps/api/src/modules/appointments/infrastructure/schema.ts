@@ -35,6 +35,8 @@ export interface AppointmentsTable {
   arrived_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
   started_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
   followup_due_on: ColumnType<string | null, string | null | undefined, string | null>;
+  /** Marco B fatia 1 (BR-PRC-01) — `db/migrations/0036_processes.sql`; só leitura depois de criada. */
+  process_id: ColumnType<string | null, string | null | undefined, never>;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
 }

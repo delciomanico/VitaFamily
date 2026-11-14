@@ -5,6 +5,7 @@
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
+import type { ActPhase } from "../domain/act-phase.js";
 import type { Appointment, AppointmentStatus, ConfirmationSource, ConfirmationStatus } from "../domain/appointment.js";
 import type { WalkInRateLimiter } from "../domain/walk-in.js";
 
@@ -135,6 +136,8 @@ export interface NewAppointmentRecord {
   bookedByClinicAccountId?: string;
   /** BR-CLN-16: copiada do horário ao reservar; omitido = 30 (default da BD). */
   durationMinutes?: number;
+  /** Marco B fatia 1 (BR-PRC-01): `Process` aberto (`ProcessLinkerPort.open`) antes de gravar o ato. */
+  processId?: string;
   createdAt: Date;
 }
 
@@ -405,6 +408,39 @@ export interface ConsultationReportsPort<Trx> {
   appointmentExamOrderCounts(trx: Trx, appointmentIds: string[]): Promise<Map<string, number>>;
 }
 
+/** Quem abriu/apagou o ato, para a auditoria `PROCESS_*` (feita por `processes`; audit.md §3). */
+export interface ProcessActor {
+  actorType: "USER" | "CLINIC_ACCOUNT";
+  actorUserId?: string;
+  actorClinicAccountId?: string;
+  requestId: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+/**
+ * `ProcessLinker` (marco B fatia 1, BR-PRC-01/07, modules.md §3 nota 29): definida aqui, implementada por `processes` e ligada
+ * em `main/api.ts` (`appointments` nunca importa `processes`). Corre na transação do ato: se `open` falha, o ato não existe.
+ */
+export interface ProcessLinkerPort<Trx> {
+  /** Idempotente por `(originType, originId)`. */
+  open(trx: Trx, input: { familyId: string; memberId: string; originType: "APPOINTMENT"; originId: string; clinicId?: string; by: ProcessActor }): Promise<{ processId: string }>;
+  discard(trx: Trx, input: { originType: "APPOINTMENT"; originId: string; by: ProcessActor }): Promise<void>;
+}
+
+/** Facto do ato publicado a `processes` (BR-PRC-04; state-machines.md "Process"): pequeno e estável. */
+export interface ActFactOfAppointment {
+  source: "APPOINTMENT";
+  phase: ActPhase;
+  scheduledAt?: Date;
+  changedAt: Date;
+}
+
+/** Leitura em lote do estado das consultas para `ProcessFacts` (implementada em `infrastructure`; só leitura). */
+export interface ActFactsSource<Trx> {
+  findStateRows(trx: Trx, familyId: string, appointmentIds: string[]): Promise<{ id: string; status: AppointmentStatus; arrivedAt: Date | null; startedAt: Date | null; scheduledAt: Date; updatedAt: Date }[]>;
+}
+
 export interface AppointmentsDeps<Trx> {
   appointmentsRepo: AppointmentsRepository<Trx>;
   policy: AccessPolicyPort<Trx>;
@@ -423,6 +459,8 @@ export interface AppointmentsDeps<Trx> {
   receipts: ReceiptIdsPort<Trx>;
   /** M15 S (BR-CLN-42/45): relatório da consulta (implementada por `clinic-reports`). */
   consultationReports: ConsultationReportsPort<Trx>;
+  /** Marco B fatia 1 (BR-PRC-01): abre/apaga o `Process` do ato (implementada por `processes`). */
+  processes: ProcessLinkerPort<Trx>;
   /** BR-CLN-10: rate limit dos endpoints walk-in (por conta, por IP, falhas 404). */
   walkInRateLimiter: WalkInRateLimiter;
   audit: AuditPort<Trx>;
