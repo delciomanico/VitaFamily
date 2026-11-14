@@ -2,6 +2,9 @@
 
 **Estado:** **Proposto — aguarda aprovação do proprietário** (change control **D26**, proposto em 2026-11-14). Adenda a ADR-020/ADR-025/ADR-026; **proporia emendas** a `BR-SEG-22` e ao desenho de `insurer_providers` (ver Consequências) — **só se aprovado**. Funde a decisão "prestador sem seguradora" (originalmente item d) por serem a mesma entidade. Não substitui nenhum ADR.
 
+> **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `11-implementation/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".
+> Âmbito aceite: Convenção mínima necessária à autorização e prestador sem seguradora (todo o ato tem `Process`). **Não aceite:** endpoint público da rede (`/public/providers`, C6), emendas a BR-SEG-22 e a `insurer_providers` (C5).
+
 ## Contexto
 Hoje existem `clinics` (portal da clínica, ADR-020) e `insurer_providers` (ADR-025: por seguradora, com `name`, `tax_id`, `type` CLINIC/HOSPITAL/LABORATORY/PHARMACY e `clinic_id` opcional) — a **mesma entidade real pode existir várias vezes**, uma por seguradora. A UI pública (`apps/web/src/services/partners.service.ts`) já assume `GET /public/partners` que **não está no contrato** (`openapi.yaml`/`endpoints.md`). O proprietário quer uma rede única e verificada, e que o prestador possa usar o Vita sem seguradora.
 

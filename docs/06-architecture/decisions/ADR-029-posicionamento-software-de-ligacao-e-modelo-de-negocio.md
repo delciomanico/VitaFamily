@@ -2,6 +2,9 @@
 
 **Estado:** **Proposto — aguarda aprovação do proprietário** (change control **D25**, proposto em 2026-11-14). Em termos de **direção de produto**, o proprietário já decidiu o posicionamento (conversa de 2026-11-14); este ADR formaliza-o e lista o que dele decorre. Os preços e o modelo comercial são **hipótese não validada**. Adenda a ADR-021/ADR-025; **não substitui** nenhum ADR. Conflitos com regras existentes estão em `00-product/business-model.md` §7 e **não** são resolvidos aqui.
 
+> **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `11-implementation/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".
+> Âmbito aceite: posicionamento software de ligação (não TPA), seguradora decide e paga, copagamento no balcão. **Não aceite:** preços/modelo comercial (hipótese), medição/faturação por transação (C9), emendas de BR/ADR conflituantes de `business-model.md` §7.
+
 ## Contexto
 O Vita nasceu como app de saúde familiar (`vision.md`) e ganhou portais de clínica (ADR-020/026) e de seguradora (ADR-021/025). Falta fixar **o que o Vita é** perante o mercado (e perante o regulador) e **como se financia**, porque isso condiciona partes, acessos, faturação e riscos legais.
 

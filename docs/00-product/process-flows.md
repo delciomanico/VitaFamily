@@ -248,6 +248,16 @@ Se a seguradora precisar de informação clínica para decidir, só pela lista f
 | **Q-V2** Prazo com consequência | **NOVA (2026-11-14), para o proprietário decidir. NÃO altera Q-S1/Q-S1b** ("nunca aprova por silêncio", 48 h por omissão). Precedente nigeriano (NHIA, maio 2025, fonte secundária [V-sec]): código de pré-autorização em **1 h** e, se a HMO não responder, o prestador **pode avançar**. Opções: (A) manter só escalada ao Supervisor (atual); (B) para **urgentes**, prazo de **1 h** com consequência "prestador pode avançar **sem** garantia de pagamento, revisão manual" e **48 h** para os restantes; (C) outra. Efeito de (B): não equivale a aprovação tácita (o pagamento continua dependente da decisão), mas é uma consequência do silêncio — por isso fica a decidir. | Manter (A) até decisão; confirmar a regra NHIA em fonte primária. |
 | Valores | ~~Mínimo/máximo do prazo de decisão e prazo do recurso~~ **DECIDIDOS** (Q-V1). Em aberto: N-ésimo recurso para decisão final do Supervisor e restantes salvaguardas (§11a). | A propor com a seguradora piloto. |
 
+## 10.3 Decisões de 2026-11-14 (após parecer de revisor independente de clareza/complexidade)
+Registadas sem apagar o histórico acima; detalhe em `11-implementation/marco-b-construcao.md` §6–§7 e Anexo A.
+1. Módulo `processes` **próprio** com tabela própria (vista derivada rejeitada); salvaguardas: `deriveFamilyStatus(facts)` pura com tabela de verdade; módulos publicam factos pequenos e estáveis.
+2. **Despesa unificada e migração do `ReimbursementClaim` já no marco B** (origem PROVIDER|FAMILY); origem FAMILY aceita no mínimo "valor + anexos" e a família nunca escolhe o tipo de despesa; moeda por defeito corrigida antes (única fonte: moeda da seguradora).
+3. Papel `SUPERVISOR` criado já (§8.2c de `authorization.md` a aceitar no contrato da fatia 4).
+4. Estados visíveis simplificados: 4 (Marcado, A tratar, Feito, Cancelado) + frase; `AUTO_APPROVED`/aprovada em parte/`usada`/`expirada` derivados; `INFO_TIMEOUT` como `closedReason`; SLA e urgência atrasada como relógios/flags; recurso e contestação = novo pedido ligado.
+5. Requisitos: `evaluateCoverage` única; `AutoApprovalRule[]`; catálogo `service_kind`; `insurer_policy_settings`; `channel` no evento; `lib/labels.ts` com variantes família/profissional; vocabulário da família sem "autorização/despesa/glosa/elegibilidade/sinistro".
+6. Donos provisórios: `vita-health` (`processes`, insurer-ops), `vita-alerts` (jobs/notificações), `vita-identity` (SUPERVISOR); revisão de fluxo por agente independente.
+7. Teste de usabilidade (SUS ≥ 75, 0 erros críticos) e teste dos 5 segundos como anexo do plano.
+
 ## 11. Divergências e conflitos com a documentação (LISTADAS, NÃO decididas)
 | # | Divergência | Onde | Observação |
 |---|---|---|---|

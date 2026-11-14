@@ -296,6 +296,11 @@ Reembolso fora da rede: hoje `ReimbursementClaim` (`SUBMITTED → APPROVED|REJEC
 ### Process (agregador) — proposta (Q-P1 DECIDIDO 2026-11-14; modelo PROPOSTO em `process-flows.md` §13)
 Sem máquina própria: o `family_status` (`AGENDADO → EM_VALIDACAO → A_ATENDER → ATENDIDO → EM_PAGAMENTO → CONCLUIDO | CANCELADO`) é **derivado** dos estados de `Appointment`, `AuthorizationRequest`, `Encounter`, `ExpenseClaim`/`ReimbursementClaim`. Mapeamento exato a escrever após aprovação; as máquinas acima não mudam por causa dele. **Decidido 2026-11-14:** módulo próprio `processes`; todo o ato tem `Process`, com ou sem seguradora (sem seguradora: só marcação/atendimento, `family_status` sem `EM_VALIDACAO`/`EM_PAGAMENTO`); ver ADR-032.
 
+### Revisão 2026-11-14 — estados simplificados (decisão do proprietário; substitui, sem apagar, os estados propostos acima)
+- `Process.family_status` visível = 4: `SCHEDULED | IN_PROGRESS | DONE | CANCELLED` + frase "o que falta e de quem"; calculado por `deriveFamilyStatus(facts)` (função pura, tabela de verdade testada). Enums em inglês; tradução só na apresentação.
+- Autorização (S4): `AUTO_APPROVED` = `APPROVED` com `decidedBy = SYSTEM|ANALYST`; "aprovada em parte" = `APPROVED` com `authorizedAmount < requestedAmount` (derivado na UI); `usada`/`expirada` derivados ou `closedReason`; `INFO_TIMEOUT` = `closedReason` explícito; SLA, escalada e urgência atrasada = relógios/flags (`due_at`, `escalated_at`), não estados; recurso e contestação = novo pedido ligado ao anterior.
+- Despesa (S5) núcleo: `SUBMITTED → IN_REVIEW → APPROVED | REJECTED | RETURNED → PAID`; `validada` = flag `autoChecked`. **Despesa unificada e migração do `ReimbursementClaim` antecipadas para o marco B (fatia 2b).** Detalhe: `11-implementation/marco-b-construcao.md` §6.
+
 ## Alert / Notification
 ```text
 Alert: não lido → lido [destinatário]  (campo readAt; não há estados de máquina)

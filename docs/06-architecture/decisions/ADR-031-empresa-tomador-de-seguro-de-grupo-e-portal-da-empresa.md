@@ -2,6 +2,9 @@
 
 **Estado:** **Proposto — aguarda aprovação do proprietário** (change control **D27**, proposto em 2026-11-14). Adenda a ADR-021/ADR-025 (que já têm `insurer_companies`, geridas pela seguradora). Não substitui nenhum ADR. Quarto ator parceiro (mirror de ADR-020/021).
 
+> **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `11-implementation/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".
+> Âmbito aceite: **nenhum de construção no marco B** (direção reconhecida). Empresa fica na fase 2; C1/C10, k mínimo e entidade por decidir.
+
 ## Contexto
 `insurer_companies` (ADR-025) representa a empresa **dentro de cada seguradora** (Fase A: a seguradora gere empresas e colaboradores em Beneficiários → empresas). O proprietário quer, mais tarde, um **portal próprio leve** para a empresa.
 

@@ -2,6 +2,9 @@
 
 **Estado:** **Proposto — aguarda aprovação do proprietário** (change control **D28**, proposto em 2026-11-14). As quatro **decisões de direção** abaixo foram tomadas pelo proprietário em 2026-11-14 (registadas em `00-product/process-flows.md` §10.1); o **desenho, a migração e as emendas a regras aprovadas** são propostas e só entram em vigor com aprovação. **Supera parcialmente ADR-021** (apenas o pedido de reembolso, `ReimbursementClaim`) **se aprovado**; adenda a ADR-025/ADR-030. Nenhum contrato (`openapi.yaml`), `schema.md`, `entities.md`, `modules.md` §3 ou código foi alterado por este ADR.
 
+> **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `11-implementation/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".
+> Âmbito aceite: módulo `processes`, `Process` universal, `family_status` derivado, prazos 24–120 h (48 h) e recurso 15 dias/72 h, só no necessário às fatias 0–6. **Não aceite (marco C):** Despesa unificada, migração do `ReimbursementClaim`, nova redação de BR-INS-05, fase "contrair", ligação a registos de clínica sem ids Vita (BR-CLN-24), salvaguardas de recurso (§11a).
+
 ## Contexto
 O fluxo entre apps (`00-product/process-flows.md`) exige um identificador único e uma vista única por ato (marcar, cobrir, autorizar, atender, faturar). Hoje existem entidades separadas sem ligação (`Appointment`/`ClinicVisit`, `AuthorizationRequest`, `Encounter`, `ExpenseClaim` e `ReimbursementClaim`, esta última implementada, ADR-021). Dois caminhos de despesa paralelos (despesa do prestador S5 e reembolso fora da rede) duplicariam estados, filas, regras de duplicados e dashboard; o proprietário quer uma fila única. A Q-P1 já decidiu a existência de uma entidade `Process`; ficavam em aberto o módulo dono, o prestador sem seguradora e a unificação da despesa.
 
@@ -55,3 +58,11 @@ Fase A não tem despesas S4/S5 pelo que só o `reimbursement_claims` existente t
 
 ## Pendências para o proprietário
 Aprovar o ADR (módulo `processes`, `Process` universal, despesa unificada, migração e nova redação de BR-INS-05); confirmar o nome/dono da tabela de despesa unificada; confirmar os prazos (24/120/48 h; recurso 15 dias/72 h) e as restantes salvaguardas de recurso (§11a); decidir o momento da fase "contrair".
+
+## Atualização 2026-11-14 (decisões do proprietário após parecer de revisor independente)
+Histórico acima mantido. Decidido:
+- **Módulo `processes` próprio, com tabela própria** (a vista derivada sugerida pelo revisor foi rejeitada). Salvaguardas incorporadas: `deriveFamilyStatus(facts)` função pura com tabela de verdade testada; os módulos de origem publicam factos pequenos e estáveis ("ato avançou: fase, quando"), sem acoplamento bidirecional amplo.
+- **A migração do `ReimbursementClaim` para a Despesa unificada (origin PROVIDER|FAMILY) sobe do marco C para o B** (fatia 2b: expand, backfill, fachada, contrair; testes de contagens e somas; "contrair" só após verificação e autorização). Origem FAMILY aceita no mínimo "valor + anexos"; tipo de despesa, NIF, motivo e linhas são opcionais ou preenchidos pela seguradora; a família nunca escolhe I/P/C/EAD/T/E/PO/M/SD. **Pré-requisito:** corrigir a moeda por defeito (EUR vs AOA), com única fonte = moeda da seguradora. Nova redação de BR-INS-05 entra no contrato da fatia 2b.
+- Núcleo da despesa: `SUBMITTED → IN_REVIEW → APPROVED | REJECTED | RETURNED → PAID`; `validada` = flag `autoChecked`.
+- Estados simplificados e requisitos de engenharia (`evaluateCoverage`, `AutoApprovalRule[]`, `service_kind`, `insurer_policy_settings`, `channel`): ver `11-implementation/marco-b-construcao.md` §6–§7.
+- **Riscos novos:** migração de dados reais antecipada (somas/contagens, moeda, anexos de recibos, fachada); contrato do marco B maior; dois fluxos de despesa em transição; mitigação = fatia própria, passos reversíveis, cópia de dados reais para ensaio.
