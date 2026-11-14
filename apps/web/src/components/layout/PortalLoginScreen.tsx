@@ -1,8 +1,8 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, Check, Mail, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, Mail, type LucideIcon } from 'lucide-react'
 import { z } from 'zod'
 import { Button } from '@/components/ui/Button'
 import { HeroMedia } from '@/components/ui/HeroMedia'
@@ -24,22 +24,14 @@ interface PortalLoginScreenProps {
   badgeIcon: LucideIcon
   /** Título do formulário (h1). */
   title: string
-  /** Texto de apoio por baixo do título. */
-  intro: string
   /** Frase grande sobre a fotografia. */
   tagline: string
-  /** Três a quatro pontos sobre a fotografia. */
-  highlights: string[]
   images: string[]
   emailLabel: string
   emailPlaceholder: string
   passwordPlaceholder: string
-  /** Texto sobre perda do acesso de Admin. */
-  lostAccess: string
   requestAccessTo: string
   login: (email: string, password: string) => Promise<void>
-  /** Conteúdo extra por baixo do formulário. */
-  footer?: ReactNode
 }
 
 /**
@@ -51,17 +43,13 @@ export function PortalLoginScreen({
   badge,
   badgeIcon: BadgeIcon,
   title,
-  intro,
   tagline,
-  highlights,
   images,
   emailLabel,
   emailPlaceholder,
   passwordPlaceholder,
-  lostAccess,
   requestAccessTo,
   login,
-  footer,
 }: PortalLoginScreenProps) {
   const [formError, setFormError] = useState<string | null>(null)
   const {
@@ -88,19 +76,7 @@ export function PortalLoginScreen({
           <Link to={paths.splash} aria-label="Vita Family, página inicial" className="self-start rounded-full bg-surface px-4 py-2 text-foreground">
             <Logo />
           </Link>
-          <div className="flex max-w-xl flex-col gap-8">
-            <p className="text-5xl leading-[1.1] font-bold tracking-tight text-balance xl:text-6xl">{tagline}</p>
-            <ul className="flex flex-col gap-3 text-xl">
-              {highlights.map((line) => (
-                <li key={line} className="flex items-start gap-3">
-                  <span className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-white/20">
-                    <Check className="size-4" aria-hidden />
-                  </span>
-                  {line}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <p className="max-w-xl text-5xl leading-[1.1] font-bold tracking-tight text-balance xl:text-6xl">{tagline}</p>
         </div>
       </aside>
 
@@ -119,13 +95,12 @@ export function PortalLoginScreen({
         </div>
 
         <div className="relative mx-auto flex w-full max-w-lg flex-1 animate-rise flex-col justify-center gap-8 px-6 py-12 lg:px-0">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             <span className="flex w-fit items-center gap-2 rounded-full bg-primary-soft px-4 py-2 text-base font-semibold text-primary">
               <BadgeIcon className="size-5" aria-hidden />
               {badge}
             </span>
             <h1 className="text-4xl leading-[1.1] font-bold tracking-tight text-balance md:text-5xl">{title}</h1>
-            <p className="text-lg text-muted">{intro}</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
@@ -151,22 +126,12 @@ export function PortalLoginScreen({
             </Button>
           </form>
 
-          <div className="flex flex-col gap-3 border-t border-border pt-6 text-base text-muted">
-            <p>{lostAccess}</p>
-            <p>
-              Ainda não tem acesso?{' '}
-              <Link to={requestAccessTo} className="font-semibold text-primary hover:underline">
-                Solicitar acesso
-              </Link>
-            </p>
-            <p>
-              É utilizador da aplicação?{' '}
-              <Link to={paths.login} className="font-semibold text-primary hover:underline">
-                Entrar na Vita Family
-              </Link>
-            </p>
-            {footer}
-          </div>
+          <p className="text-base text-muted">
+            Sem acesso?{' '}
+            <Link to={requestAccessTo} className="font-semibold text-primary hover:underline">
+              Solicitar acesso
+            </Link>
+          </p>
         </div>
       </main>
     </div>

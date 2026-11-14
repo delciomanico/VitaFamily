@@ -17,14 +17,11 @@ export function InsuranceLoginPage() {
       badge="Portal da seguradora"
       badgeIcon={Landmark}
       title="Entrar na área da seguradora"
-      intro="Beneficiários, apólices, planos e análise de pedidos de reembolso. É uma conta diferente da conta da aplicação Vita Family."
       tagline="Beneficiários e clínicas ligados, sem papel."
-      highlights={['Beneficiários e apólices em lote', 'Elegibilidade validada pela clínica', 'Reembolsos com estados claros']}
       images={['/images/site/recepcao.webp', '/images/site/medicacao.webp']}
       emailLabel="E-mail da conta da seguradora"
       emailPlaceholder="nome@seguradora.pt"
       passwordPlaceholder="A sua palavra-passe"
-      lostAccess="Perdeu o acesso de Admin da seguradora? Contacte a equipa Vita Family — só ela repõe essa conta."
       requestAccessTo={paths.requestAccess('seguradora')}
       login={login}
     />

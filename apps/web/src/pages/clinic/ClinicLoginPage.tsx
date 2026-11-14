@@ -18,14 +18,11 @@ export function ClinicLoginPage() {
       badge="Portal da clínica"
       badgeIcon={Stethoscope}
       title="Entrar na área da clínica"
-      intro="Pedidos de consulta, agenda e horários das clínicas parceiras. É uma conta diferente da conta da aplicação Vita Family."
       tagline="A sua agenda, os seus pacientes, tudo num só portal."
-      highlights={['Agenda e vagas por profissional', 'Pacientes ligados com consentimento', 'Relatórios, laudos e recibos']}
       images={['/images/site/consulta.webp', '/images/site/recepcao.webp']}
       emailLabel="E-mail da conta da clínica"
       emailPlaceholder="nome@clinica.pt"
       passwordPlaceholder="A sua palavra-passe"
-      lostAccess="Perdeu o acesso de Admin da clínica? Contacte a equipa Vita Family — só ela repõe essa conta."
       requestAccessTo={paths.requestAccess('clinica')}
       login={login}
     />

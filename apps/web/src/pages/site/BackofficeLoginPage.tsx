@@ -50,10 +50,10 @@ export function BackofficeLoginPage() {
         <div className="absolute -top-32 -left-24 size-[30rem] animate-drift rounded-full bg-primary-soft blur-3xl" />
       </div>
       <div className="relative mx-auto max-w-xl animate-rise px-5 py-20 lg:py-28">
-        <span className="flex size-16 items-center justify-center rounded-2xl bg-foreground text-white">
+        <span className="flex size-14 items-center justify-center rounded-2xl bg-foreground text-white">
           <LockKeyhole className="size-8" aria-hidden />
         </span>
-        <h1 className="mt-6 text-4xl leading-tight font-bold tracking-tight md:text-5xl">Backoffice</h1>
+        <h1 className="mt-5 text-4xl leading-tight font-bold tracking-tight md:text-5xl">Backoffice</h1>
         <p className="mt-3 text-lg text-muted">Acesso interno da equipa Vita Family.</p>
 
         {user ? (
@@ -70,7 +70,7 @@ export function BackofficeLoginPage() {
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-10 flex flex-col gap-5 rounded-3xl border border-border bg-surface p-7 shadow-card md:p-9">
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-10 flex flex-col gap-5">
             <Input
               label="E-mail"
               type="email"
@@ -95,12 +95,6 @@ export function BackofficeLoginPage() {
             </Link>
           </form>
         )}
-        <p className="mt-8 text-center text-base text-muted">
-          Procura outro acesso?{' '}
-          <Link to={paths.enter} className="font-semibold text-primary hover:underline">
-            Escolher portal
-          </Link>
-        </p>
       </div>
     </section>
   )
