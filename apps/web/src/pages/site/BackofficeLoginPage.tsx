@@ -26,7 +26,7 @@ export function BackofficeLoginPage() {
       login={login}
       notice={
         user ? (
-          <div role="alert" className="mt-8 flex flex-col gap-4 rounded-2xl bg-warning-soft p-5">
+          <div role="alert" className="mt-8 flex flex-col gap-4 rounded-md bg-warning-soft p-5">
             <p className="text-lg font-semibold">Esta conta não tem acesso ao backoffice.</p>
             <p className="text-base">
               Tem a sessão iniciada como {user.email}. Termine-a e entre com uma conta de administrador da plataforma.

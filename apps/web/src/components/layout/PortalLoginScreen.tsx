@@ -71,7 +71,7 @@ export function PortalLoginScreen({
 
   return (
     <div className="grid min-h-dvh bg-surface lg:grid-cols-2">
-      <div className="flex flex-col px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-8 lg:px-14">
+      <div className="flex flex-col bg-background px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-8 lg:px-14">
         <header className="flex items-center justify-between">
           <Link to={paths.splash} aria-label="Vita Family, página inicial">
             <Logo />
@@ -85,15 +85,16 @@ export function PortalLoginScreen({
           </Link>
         </header>
 
-        <main className="mx-auto flex w-full max-w-md flex-1 animate-rise flex-col justify-center py-12">
-          <span className="flex size-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+        <main className="flex flex-1 items-center justify-center py-10">
+          <div className="w-full max-w-md animate-rise rounded-md border border-border bg-surface p-8 shadow-card md:p-10">
+          <span className="flex size-12 items-center justify-center rounded-md bg-primary-soft text-primary">
             <BadgeIcon className="size-7" aria-hidden />
           </span>
-          <p className="mt-6 text-base font-semibold tracking-wide text-primary uppercase">{badge}</p>
-          <h1 className="mt-2 text-4xl leading-[1.1] font-bold tracking-tight text-balance md:text-5xl">{title}</h1>
+          <p className="mt-5 text-sm font-semibold tracking-wide text-primary uppercase">{badge}</p>
+          <h1 className="mt-2 text-3xl leading-[1.15] font-bold tracking-tight text-balance md:text-4xl">{title}</h1>
 
           {notice ?? (
-            <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-10 flex flex-col gap-5">
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-8 flex flex-col gap-5">
               <Input
                 label={emailLabel}
                 type="email"
@@ -110,7 +111,7 @@ export function PortalLoginScreen({
                 {...register('password')}
               />
               <FormError message={formError} />
-              <Button type="submit" size="lg" fullWidth loading={isSubmitting} className="h-14 text-base">
+              <Button type="submit" size="lg" fullWidth loading={isSubmitting} className="h-14 rounded-md! text-base">
                 {submitLabel}
               </Button>
               {footerLink && (
@@ -123,6 +124,7 @@ export function PortalLoginScreen({
               )}
             </form>
           )}
+          </div>
         </main>
       </div>
 
