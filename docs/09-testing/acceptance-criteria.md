@@ -140,6 +140,15 @@ Ligados às métricas do piloto: (M1) chamadas «tenho cobertura?», (M2) tempo/
 - **AC-SEG-11 (BR-SEG-28)** *Given* apólices `ACTIVE` com `validTo` passado, *When* corre `insurer.expire-policies` (00:20 UTC) duas vezes, *Then* passam a `EXPIRED` uma só vez (idempotente) e a elegibilidade passa a `false`.
 - **AC-SEG-12 (NFR-PRV-07)** *Given* fluxos de seguradora com dados canário (nome, documento, nº de cartão, código, QR) e um erro de BD forçado, *Then* nenhum aparece em logs (campos `detail`, `where`, `parameters`, `values`… redigidos).
 
+## Processos — marco B fatia 1 (ADR-032; `11-implementation/marco-b-construcao.md` §4)
+- **AC-PRC-01 (BR-PRC-01)** *Given* uma consulta ou um exame criado por qualquer caminho existente (família, marcação presencial, exame de horário), *Then* existe exatamente um `Process` com `processId` único, o ato guarda o `processId` e as respostas do ato o devolvem; visitas manuais e recibos da clínica (sem ids Vita) não têm processo.
+- **AC-PRC-02 (BR-PRC-02/03)** *Given* um processo, *When* a família o lê, *Then* vê um de 4 estados (`SCHEDULED | IN_PROGRESS | DONE | CANCELLED`, "Marcado / A tratar / Feito / Cancelado") e `nextStep {code, actor}` ("o que falta e de quem"), ambos calculados em leitura pela função pura segundo a tabela de verdade (TC-PRC-01..07); nenhum estado interno nem coluna persistida; 0 passos novos para a família.
+- **AC-PRC-03 (BR-PRC-05)** *Given* um membro com vários processos, *When* a família lista com `status`/`originType`/`limit`, *Then* recebe-os do mais recente para o mais antigo, sem duplicados, com `nextCursor` até ao fim, mesmo quando o filtro `status` obriga a varrer mais de uma página interna.
+- **AC-PRC-04 (BR-PRC-06)** *Given* uma clínica com marcação Vita, *Then* o `ClinicBooking` traz `processId` e `GET /clinic-portal/processes/{id}` (Admin/Gestor) devolve só o mínimo; outra clínica, processo sem clínica ou inexistente ⇒ 404 idêntico; Médico ⇒ 403.
+- **AC-PRC-05 (BR-PRC-08)** *Given* uma BD com consultas e exames anteriores à migração `0036`, *When* a migração corre (uma ou duas vezes), *Then* cada um tem `Process` e `process_id`, sem duplicados nem órfãos, e o resultado é igual ao da abertura em direto.
+- **AC-PRC-06 (BR-PRC-05)** *Given* utilizador de outra família, dependente com conta, `OTHER` com/sem partilha, tutor, *Then* a leitura segue `authorization.md` §6.8 (lista filtra; detalhe de categoria não legível ou de outra família ⇒ 404 sem enumeração); a leitura por quem não é o titular gera `PROCESS_VIEW` sem dados de saúde.
+- **AC-PRC-07 (BR-PRC-04)** *Given* o grafo de imports, *Then* `processes` só importa `access` e `audit`, nenhum módulo importa `processes` e os módulos donos só falam com ele pelas portas `ProcessFacts`/`ProcessLinker` ligadas em `main/api.ts`.
+
 ## Auditoria, exportação e RGPD
 - **AC-AUD-01 (FR-AUD-01)** *Given* ação sensível, *Then* existe registo com utilizador, ação, recurso, hora, IP, user-agent e resultado; **sem** dados de saúde.
 - **AC-AUD-02 (D15)** *Given* um User eliminado, *Then* os seus registos de auditoria têm `actorUserId`, IP e user-agent a nulo.

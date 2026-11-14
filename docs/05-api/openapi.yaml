@@ -22,6 +22,7 @@ tags:
   - name: Prescriptions
   - name: Medications
   - name: Appointments
+  - name: Processes
   - name: Clinics
   - name: Clinic Portal
   - name: Examinations
@@ -10499,6 +10500,143 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /families/{familyId}/members/{memberId}/processes:
+    get:
+      tags: [Processes]
+      operationId: listProcesses
+      summary: "Listar os processos (atos) de um membro, com estado simples para a família."
+      description: |
+        Autorização: READ da categoria da origem de cada processo (APPOINTMENTS para consulta, EXAMS para exame; authorization.md §6.8). A lista **filtra** (omite) os processos cuja categoria o actor não pode ler (§5.3); DEPENDENT_SELF vê só os de consulta; OTHER só com SharingGrant da categoria. Sem nenhuma leitura permitida devolve lista vazia.
+        `familyStatus` e `nextStep` são **derivados** em leitura por deriveFamilyStatus(facts) (BR-PRC-02/03); não existem na BD nem em escrita.
+        Ordenação fixa: `openedAt` decrescente, depois `id` decrescente. `status` é filtrado **depois** da derivação: o servidor percorre a BD em lotes (máx. 200 processos por pedido) e devolve até `limit` itens; se o limite de varrimento for atingido com menos itens, `nextCursor` continua não nulo — o cliente segue `nextCursor` até ser nulo. Processos cujo ato já não existe são omitidos (BR-PRC-09). Leitura por quem não é o titular é auditada (PROCESS_VIEW). Sem rate limit específico (limite global da API).
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/ProcessFamilyStatus" }
+        - name: originType
+          in: query
+          schema: { $ref: "#/components/schemas/ProcessOriginType" }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProcessPage" }
+        '400':
+          description: "MALFORMED_REQUEST (cursor inválido)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND (família/membro de outra família ou inexistente)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (status/originType/limit inválidos)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/processes/{processId}:
+    get:
+      tags: [Processes]
+      operationId: getProcess
+      summary: "Detalhe de um processo (estado simples e o que falta e de quem)."
+      description: |
+        Autorização: READ da categoria da origem do processo (authorization.md §6.8). Processo inexistente, de outro membro/família **ou cuja categoria o actor não pode ler** ⇒ `404 NOT_FOUND` (sem enumeração, BR-PRC-05). Leitura por quem não é o titular é auditada (PROCESS_VIEW). Sem rate limit específico.
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: processId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Process" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /clinic-portal/processes/{processId}:
+    get:
+      tags: [Clinic Portal]
+      operationId: getClinicProcess
+      summary: "Ler o processo do atendimento da própria clínica (mínimo necessário)."
+      description: |
+        Autorização: CLINIC_ACCOUNT, papéis CLINIC_ADMIN e CLINIC_MANAGER (authorization.md §6.2b); CLINIC_DOCTOR ⇒ 403 FORBIDDEN. O processo tem de ter `clinic_id` = clínica do token; inexistente, de outra clínica ou sem clínica ⇒ `404 NOT_FOUND` (BR-PRC-06). Devolve só id, tipo, origem, abertura e fase do ato — nunca `memberId`/`familyId`, `familyStatus` nem `nextStep`. Não auditada (leitura de ato próprio, como a agenda). Sem rate limit específico.
+      security:
+        - clinicBearerAuth: []
+      parameters:
+        - name: processId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClinicProcess" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN (CLINIC_DOCTOR)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
 components:
   securitySchemes:
     bearerAuth:
@@ -11447,6 +11585,11 @@ components:
         reportAvailable:
           type: boolean
           description: "M15 S (BR-CLN-45). true só se existe relatório FINAL partilhado desta consulta Vita e o actor é SELF/TUTOR_OF (para os restantes é sempre false). Abre GET .../report."
+        processId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Marco B fatia 1 (BR-PRC-01, ADR-032). Id do Process aberto com a consulta; só leitura, nunca aceite em escrita. Nulo apenas se a consulta é anterior ao backfill ainda por correr."
     ConfirmationStatus:
       type: string
       enum: [PENDING, CONFIRMED, DECLINED]
@@ -12082,6 +12225,11 @@ components:
           type: integer
           minimum: 0
           description: "M15 U (BR-CLN-51). Pedidos de exame não cancelados da marcação."
+        processId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Marco B fatia 1 (BR-PRC-06). Id do Process da marcação, só para consultas Vita (source=VITA); nulo em visitas manuais (BR-CLN-24) e antes do backfill. Abre GET /clinic-portal/processes/{processId}."
     ClinicPatientLookupRequest:
       type: object
       additionalProperties: false
@@ -12196,6 +12344,76 @@ components:
         email: { type: string, format: email, maxLength: 254, nullable: true }
         birthDate: { type: string, format: date, nullable: true }
         notes: { type: string, maxLength: 2000, nullable: true }
+    ProcessFamilyStatus:
+      type: string
+      enum: [SCHEDULED, IN_PROGRESS, DONE, CANCELLED]
+      description: "Estado visível à família (marco-b-construcao.md §6): Marcado / A tratar / Feito / Cancelado. Derivado, nunca escrito (BR-PRC-02)."
+    ProcessKind:
+      type: string
+      enum: [ROUTINE]
+      description: "Fatia 1: só ROUTINE (ato sem seguradora). Valores novos (AUTHORIZED, URGENT, OUT_OF_NETWORK, PHARMACY) entram nas fatias seguintes por ADD VALUE; os clientes tratam valores desconhecidos como genéricos."
+    ProcessOriginType:
+      type: string
+      enum: [APPOINTMENT, EXAMINATION]
+      description: "Ato que abriu o processo. Valores novos nas fatias seguintes."
+    ProcessNextStepCode:
+      type: string
+      enum: [AWAIT_CLINIC_RESPONSE, ATTEND, BEING_ATTENDED, RESCHEDULE, NOTHING_PENDING]
+      description: "Frase estruturada 'o que falta' (a UI traduz, lib/labels.ts). Conjunto aberto: os clientes tratam códigos desconhecidos como NOTHING_PENDING/genérico."
+    ProcessNextStepActor:
+      type: string
+      enum: [FAMILY, CLINIC, NONE]
+      description: "De quem falta. Fatias seguintes acrescentam INSURER."
+    ProcessNextStep:
+      type: object
+      required: [code, actor]
+      properties:
+        code: { $ref: "#/components/schemas/ProcessNextStepCode" }
+        actor: { $ref: "#/components/schemas/ProcessNextStepActor" }
+    ProcessActPhase:
+      type: string
+      enum: [PENDING, SCHEDULED, IN_PROGRESS, DONE, CANCELLED, NO_SHOW]
+      description: "Facto estável publicado pelo módulo dono do ato (BR-PRC-04). Mapeamento em state-machines.md (Process)."
+    Process:
+      type: object
+      required: [id, memberId, kind, familyStatus, nextStep, origin, openedAt]
+      properties:
+        id: { type: string, format: uuid, description: "= processId (BR-PRC-01)." }
+        memberId: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/ProcessKind" }
+        familyStatus: { $ref: "#/components/schemas/ProcessFamilyStatus" }
+        nextStep: { $ref: "#/components/schemas/ProcessNextStep" }
+        origin:
+          type: object
+          required: [type, id]
+          properties:
+            type: { $ref: "#/components/schemas/ProcessOriginType" }
+            id: { type: string, format: uuid, description: "Id da consulta/exame; abre GET .../appointments/{id} ou .../examinations/{id}." }
+        scheduledAt: { type: string, format: date-time, nullable: true, description: "Quando o ato está/esteve marcado (facto do ato); nulo se o ato não tem hora." }
+        openedAt: { type: string, format: date-time }
+    ProcessPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Process" }
+        nextCursor: { type: string, nullable: true }
+    ClinicProcess:
+      type: object
+      required: [id, kind, origin, openedAt, phase]
+      description: "BR-PRC-06: mínimo necessário; nunca ids Vita (família/membro), familyStatus nem nextStep."
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/ProcessKind" }
+        origin:
+          type: object
+          required: [type, id]
+          properties:
+            type: { $ref: "#/components/schemas/ProcessOriginType" }
+            id: { type: string, format: uuid, description: "Id da marcação/exame na agenda da própria clínica." }
+        phase: { $ref: "#/components/schemas/ProcessActPhase" }
+        openedAt: { type: string, format: date-time }
     ClinicPatientPage:
       type: object
       required: [items, nextCursor]
@@ -12512,6 +12730,11 @@ components:
         reportAvailable:
           type: boolean
           description: "M15 T (BR-CLN-49). Existe laudo PDF gerado e descarregável em .../report/pdf."
+        processId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Marco B fatia 1 (BR-PRC-06). Id do Process do exame (marcação Vita); nulo antes do backfill. Abre GET /clinic-portal/processes/{processId}."
     ClaimReceiptRef:
       type: object
       required: [receiptId, number, status, totalMinor, currency]
@@ -13193,6 +13416,11 @@ components:
         clinicResultNote:
           type: string
           nullable: true
+        processId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "Marco B fatia 1 (BR-PRC-01, ADR-032). Id do Process aberto com o exame; só leitura, nunca aceite em escrita. Nulo apenas antes do backfill."
         results:
           type: array
           items:

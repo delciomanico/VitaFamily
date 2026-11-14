@@ -7,6 +7,7 @@
 | **User** | Pessoa com conta e credenciais. Pode pertencer a várias famílias (D2). |
 | **Family** | Grupo cuja saúde é gerida em conjunto. Fronteira de isolamento de dados. |
 | **FamilyMember** | Pessoa dentro de uma família; pode ou não ter conta (D1). |
+| **Process / Processo** | (ADR-032, marco B fatia 1) Registo agregador com identificador único (`processId`) por ato com ids Vita (consulta, exame). Mostra à família **um** de 4 estados (Marcado / A tratar / Feito / Cancelado) e uma frase "o que falta e de quem", ambos **derivados** do ato; não tem estados próprios nem dados clínicos. Termo de UI da família: "processo" (sem "autorização/despesa/glosa/elegibilidade/sinistro" no ecrã da família). |
 | **Dependente** | FamilyMember sob responsabilidade de um tutor; pode ter conta de acesso limitado (M4). |
 | **Family Admin** | Papel com permissões de gestão da família. Âmbito exato: Fase 5. |
 | **Family Member** | Papel com permissões limitadas. Âmbito exato: Fase 5. |

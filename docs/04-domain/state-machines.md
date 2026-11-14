@@ -293,13 +293,42 @@ Mapeamento com a máquina existente (`ExpenseClaim`):
 **Revisão v0.2 (2026-11-14, proposta; `process-flows.md` §0 b):** a Despesa tem duas formas, origem `PROVIDER` (fatura em lote; o retorno da seguradora é um **demonstrativo** com **glosa** por linha: recusa parcial com motivo, mapeada a `aprovada` parcial por linha + `contestada` para recurso) e `FAMILY` (reembolso com documentos por tipo, NIF e IBAN). **Não há estados novos**: glosa e recurso usam `REJECTED`/`RETURNED` por linha e `contestada` existentes; a granularidade por linha é a pormenorizar após aprovação.
 Reembolso fora da rede: hoje `ReimbursementClaim` (`SUBMITTED → APPROVED|REJECTED → PAID`, `PAID` pelo titular, BR-INS-05). **Q-F1 DECIDIDA:** quem regista `PAID` é a seguradora; alteração a BR-INS-05 **proposta, pendente** (`process-flows.md` §11a). **Unificação DECIDIDA 2026-11-14 (Q-F2):** `ReimbursementClaim` passa a `ExpenseClaim` de origem `FAMILY` (mesmos estados e fila única; migração e nova redação de BR-INS-05 **propostas** em ADR-032).
 
-### Process (agregador) — proposta (Q-P1 DECIDIDO 2026-11-14; modelo PROPOSTO em `process-flows.md` §13)
+### Process (agregador) — proposta histórica (Q-P1 DECIDIDO 2026-11-14; os 7 estados abaixo ficam como histórico; **vigente: mapeamento da fatia 1 mais abaixo**)
 Sem máquina própria: o `family_status` (`AGENDADO → EM_VALIDACAO → A_ATENDER → ATENDIDO → EM_PAGAMENTO → CONCLUIDO | CANCELADO`) é **derivado** dos estados de `Appointment`, `AuthorizationRequest`, `Encounter`, `ExpenseClaim`/`ReimbursementClaim`. Mapeamento exato a escrever após aprovação; as máquinas acima não mudam por causa dele. **Decidido 2026-11-14:** módulo próprio `processes`; todo o ato tem `Process`, com ou sem seguradora (sem seguradora: só marcação/atendimento, `family_status` sem `EM_VALIDACAO`/`EM_PAGAMENTO`); ver ADR-032.
 
 ### Revisão 2026-11-14 — estados simplificados (decisão do proprietário; substitui, sem apagar, os estados propostos acima)
 - `Process.family_status` visível = 4: `SCHEDULED | IN_PROGRESS | DONE | CANCELLED` + frase "o que falta e de quem"; calculado por `deriveFamilyStatus(facts)` (função pura, tabela de verdade testada). Enums em inglês; tradução só na apresentação.
 - Autorização (S4): `AUTO_APPROVED` = `APPROVED` com `decidedBy = SYSTEM|ANALYST`; "aprovada em parte" = `APPROVED` com `authorizedAmount < requestedAmount` (derivado na UI); `usada`/`expirada` derivados ou `closedReason`; `INFO_TIMEOUT` = `closedReason` explícito; SLA, escalada e urgência atrasada = relógios/flags (`due_at`, `escalated_at`), não estados; recurso e contestação = novo pedido ligado ao anterior.
 - Despesa (S5) núcleo: `SUBMITTED → IN_REVIEW → APPROVED | REJECTED | RETURNED → PAID`; `validada` = flag `autoChecked`. **Despesa unificada e migração do `ReimbursementClaim` antecipadas para o marco B (fatia 2b).** Detalhe: `11-implementation/marco-b-construcao.md` §6.
+
+### Process — mapeamento VIGENTE da fatia 1 (contrato 2026-11-14; `marco-b-construcao.md` §4, BR-PRC-02/03/04)
+**Sem máquina própria e sem estado persistido.** O `family_status` é calculado em leitura por `deriveFamilyStatus(facts)` (função pura de `processes/domain`, sem relógio nem I/O) a partir do facto do ato (`ActFact`) que o módulo dono publica pela porta `ProcessFacts`. Fatias seguintes acrescentam factos de autorização/despesa à mesma função e linhas a esta tabela; as máquinas dos módulos donos **não mudam**.
+
+**1) Projeção do estado do ato → `phase`** (função pura em cada módulo dono, testada; TC-PRC-08/09)
+| Módulo | Estado do ato | `phase` |
+|---|---|---|
+| `appointments` | `REQUESTED` | `PENDING` |
+| `appointments` | `SCHEDULED` e (`arrived_at` ou `started_at` não nulo) | `IN_PROGRESS` |
+| `appointments` | `SCHEDULED` (sem chegada/início) | `SCHEDULED` |
+| `appointments` | `COMPLETED` | `DONE` |
+| `appointments` | `NO_SHOW` | `NO_SHOW` |
+| `appointments` | `CANCELLED`, `REJECTED` | `CANCELLED` |
+| `examinations` | `SCHEDULED` | `SCHEDULED` |
+| `examinations` | `COMPLETED` | `DONE` |
+| `examinations` | `CANCELLED` | `CANCELLED` |
+| `examinations` | `REQUESTED`, `REJECTED` (obsoletos, ADR-023) | erro de integridade (nunca ocorre; CHECK da BD) |
+`changedAt` = `updated_at` da linha do ato; `scheduledAt` = `scheduled_at` do ato (nulo num exame sem horário).
+
+**2) Tabela de verdade de `deriveFamilyStatus` (fatia 1, 6 linhas, totalidade verificada)**
+| `phase` | `familyStatus` | `nextStep.code` | `nextStep.actor` |
+|---|---|---|---|
+| `PENDING` | `SCHEDULED` | `AWAIT_CLINIC_RESPONSE` | `CLINIC` |
+| `SCHEDULED` | `SCHEDULED` | `ATTEND` | `FAMILY` |
+| `IN_PROGRESS` | `IN_PROGRESS` | `BEING_ATTENDED` | `CLINIC` |
+| `DONE` | `DONE` | `NOTHING_PENDING` | `NONE` |
+| `CANCELLED` | `CANCELLED` | `NOTHING_PENDING` | `NONE` |
+| `NO_SHOW` | `CANCELLED` | `RESCHEDULE` | `FAMILY` |
+Decisão por defeito: a falta (`NO_SHOW`) aparece à família como "Cancelado" com o passo "voltar a marcar" (a autorização, quando existir, mantém-se válida, Q-S3). Alterar é change control (muda só esta linha e TC-PRC-06).
 
 ## Alert / Notification
 ```text

@@ -1,6 +1,6 @@
 # Vita Family — Autorização (Fase 14)
 
-> Estado: **v0.8** — pedido de exame e declaração de presença (M15 U/V, ADR-028: §6.2b linhas novas e nota 7, novo §6.7); v0.7 — relatório da consulta, rascunho de resultados e laudo gerado (M15 S/T, ADR-027: §6.2b linhas novas e nota 6, novo §6.6); v0.6 — papel `CLINIC_DOCTOR` e matriz por papel de **todas** as rotas do portal da clínica (M14 R, ADR-026: §6.2b, §6.3, §6.5); v0.5 — papéis e matriz do módulo operacional de seguradoras (ADR-025: §8.2b, §8.4, §8.5); v0.4 — exames, resultados e recomendações da clínica e administração de contas (ADR-023, D19: §3 nota, §4, §6.2–6.4, novo §7); v0.3 acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
+> Estado: **v0.9** — leitura de processos (marco B fatia 1, ADR-032: §3 nota, §4 linha, §6.2b linha, novo §6.8; **sem** `SUPERVISOR`, que só entra na fatia 4); v0.8 — pedido de exame e declaração de presença (M15 U/V, ADR-028: §6.2b linhas novas e nota 7, novo §6.7); v0.7 — relatório da consulta, rascunho de resultados e laudo gerado (M15 S/T, ADR-027: §6.2b linhas novas e nota 6, novo §6.6); v0.6 — papel `CLINIC_DOCTOR` e matriz por papel de **todas** as rotas do portal da clínica (M14 R, ADR-026: §6.2b, §6.3, §6.5); v0.5 — papéis e matriz do módulo operacional de seguradoras (ADR-025: §8.2b, §8.4, §8.5); v0.4 — exames, resultados e recomendações da clínica e administração de contas (ADR-023, D19: §3 nota, §4, §6.2–6.4, novo §7); v0.3 acrescenta o portal da clínica parceira (D17/D18, ADR-020) e o portal da seguradora parceira (ADR-021). Implementa `02-users/permissions.md` (v0.2). Racional: ADR-008 (ator de User/família), ADR-020 (segundo ator, `ClinicAccount`), ADR-021 (terceiro ator, `InsuranceAccount`).
 
 ## 1. Entradas e saída da decisão
 
@@ -53,6 +53,7 @@ Notas:
 - Um adulto com conta que é dependente (N3) é tratado como qualquer dependente com conta: os tutores têm `TUTOR_OF` e o próprio tem `DEPENDENT_SELF` (acesso limitado, N2). Como se marcou dependente por vontade própria (Q7), pode deixar de o ser a qualquer momento (`PUT .../dependent` com `isDependent=false`), recuperando `SELF` completo.
 - `DEPENDENT_SELF` aplica-se a **qualquer idade**: o que o define é ser dependente, não ser menor.
 - `Recommendation` (ADR-023) **não** é categoria nova: herda a da origem — consulta ⇒ `APPOINTMENTS`, exame ⇒ `EXAMS`. Leitura: SELF/TUTOR_OF; `DEPENDENT_SELF` só as de consulta (N2); `OTHER` só com `SharingGrant` da categoria da origem. Nunca escrita por utilizadores de família (só a clínica cria). Listas filtram, não anulam (§5.3). Documentos emitidos pela clínica seguem `EXAMS` (BR-DOC-04/BR-CLN-08).
+- `Process` (ADR-032, marco B fatia 1) **não** é categoria nova: herda a da origem — consulta ⇒ `APPOINTMENTS`, exame ⇒ `EXAMS` — como `Recommendation`. Só leitura (não há escrita de utilizadores). Detalhe em §6.8.
 - `InsurancePolicy`/`ReimbursementClaim` (ADR-021) **não** são uma categoria desta matriz: não têm
   `SharingGrant`, logo não há acesso de `OTHER` nesta versão. Só `SELF`/`TUTOR_OF` leem/criam/editam
   (mesma regra de leitura/escrita que as restantes categorias para estas duas relações); `OTHER` e
@@ -78,6 +79,7 @@ Notas:
 | Contas do portal da clínica (`CLINIC_ADMIN`/`CLINIC_MANAGER`) | Fora de `AccessPolicy` — ver §6 (ADR-020). |
 | Marcar exame num horário de clínica parceira (nasce `SCHEDULED` se houver vaga) | WRITE(EXAMS): SELF ou TUTOR_OF (UC-EXM-08, BR-APT-11). |
 | Ler recomendações | READ da categoria da origem (APPOINTMENTS/EXAMS), ver §3. |
+| Ler processos de um membro (lista/detalhe, marco B fatia 1) | READ da categoria da origem de cada processo (APPOINTMENTS/EXAMS), ver §6.8. Sem ações de escrita. |
 | Responder ao pedido de confirmação de uma consulta ("Vou" / "Não posso", `PUT …/appointments/{id}/confirmation`; M14 Q, BR-CLN-26) | WRITE(APPOINTMENTS): a mesma permissão de `setAppointmentStatus` (SELF, TUTOR_OF; `DEPENDENT_SELF` com conta, FR-ALR-08); `OTHER` ⇒ `FORBIDDEN`. Sem categoria nova. Ler `confirmationStatus`/`followUpDueOn`: READ(APPOINTMENTS). |
 | Pesquisar/ver utilizador, repor acesso, listar/suspender contas de clínica, gerir seguradoras | PLATFORM_ADMIN — ver §7 (nunca dados de saúde). |
 | Criar/ver apólice (`InsurancePolicy`), criar/submeter pedido de reembolso (`ReimbursementClaim`) | SELF (adulto) ou TUTOR_OF (dependente); ADR-021. |
@@ -166,6 +168,7 @@ Legenda: **sim** · **não** = `FORBIDDEN` (papel insuficiente; não revela mais
 | `exam-agenda` `GET`, `complete`, `documents` (upload/remover) | sim | sim | suas |
 | `exam-agenda/{id}/results-draft` (`GET`/`PUT`/`DELETE`) e `exam-agenda/{id}/report/pdf` `GET` (laudo, M15 T, BR-CLN-47..49) | sim | sim | suas |
 | `exam-agenda/{id}/cancel` | sim | sim | não |
+| `processes/{id}` `GET` (processo do atendimento da própria clínica, marco B fatia 1, BR-PRC-06) | sim | sim | **não** (`FORBIDDEN`) |
 | `recommendations` (`GET`/`POST`) | sim | sim | suas |
 | `patients` `GET` (lista/`q`) e `GET /{id}`, `record`, `shared-history` | sim | sim | suas |
 | `patients` `POST`/`PATCH`, `patients/link` | sim | sim | não |
@@ -213,6 +216,20 @@ O **laudo de exame gerado** (`Document.generatedBySystem`) segue as regras de do
 |---|---|---|---|---|
 | Listar os pedidos de exame de consultas Vita e ligar um exame a um pedido `ORDERED` | sim (do próprio) | sim (do dependente) | não (`FORBIDDEN`) | não (`FORBIDDEN`), **mesmo com `SharingGrant` de `APPOINTMENTS`** |
 Critério: `READ(APPOINTMENTS)` do membro **e** relação `SELF`/`TUTOR_OF` (o nome do exame pode sugerir diagnóstico), como §6.6. **Ligar** exige, além disso, `WRITE(EXAMS)` do membro (regra normal de `createExamination`) e que o pedido seja do **mesmo membro** (senão `NOT_FOUND`). **Implementação:** `clinic-reports` não importa `access`; autoriza pela porta `PatientAccess` (a mesma de §6.6) com a nova ação de `access` **`VIEW_EXAM_ORDERS`** (só `SELF`/`TUTOR_OF`, negada a `DEPENDENT_SELF`/`OTHER` mesmo com `SharingGrant`); a ligação ao criar o exame usa a porta `ExamOrderLinker` (definida em `examinations/application`) que chama `VIEW_EXAM_ORDERS` antes de ligar. Alteração mínima a `access`: uma ação nova + teste da matriz. **Não** depende de `ClinicConsent`. `Appointment.examOrderCount` é `0` para quem não pode ler. O alerta `EXAM_ORDER_ADDED` só tem como destinatários `SELF`/`TUTOR_OF`. A clínica nunca lê por esta via, e **não há rota da família para a declaração de presença**.
+### 6.8 Processos (marco B, fatia 1, ADR-032) — lado família e portal da clínica
+#### Lado família (`GET /families/{f}/members/{m}/processes` e `…/processes/{processId}`)
+A decisão é `AccessPolicy.can(READ, categoria da origem)` com a categoria **do processo**: `originType=APPOINTMENT` ⇒ `APPOINTMENTS`; `EXAMINATION` ⇒ `EXAMS`. Calcula-se **uma vez por pedido e categoria** (§5.4).
+| Relação do actor com o sujeito | Processo de consulta | Processo de exame |
+|---|---|---|
+| `SELF` (adulto) | lê | lê |
+| `TUTOR_OF` | lê | lê |
+| `DEPENDENT_SELF` | lê (N2) | **não** (omitido na lista; `404` no detalhe) |
+| `OTHER` / Family Admin como OTHER | só com `SharingGrant` de `APPOINTMENTS` | só com `SharingGrant` de `EXAMS` |
+| `PLATFORM_ADMIN` / sem pertença à família | `404` (sem enumeração) | `404` |
+Regras: (1) a lista **filtra** (omite), nunca anula; sem nenhuma categoria legível devolve `[]` com `200`. (2) O detalhe de processo inexistente, de outro membro/família **ou de categoria não legível** devolve `404 NOT_FOUND` (não `403`: o `processId` não pode servir para sondar a existência de atos). (3) Membro `BLOCKED` ⇒ `MEMBER_BLOCKED` (§2.7). (4) Leitura por quem **não é o titular** (tutor, `OTHER` com partilha) é auditada `PROCESS_VIEW`; a do próprio titular não (§ audit.md). (5) Sem `CREATE/UPDATE/DELETE` para nenhuma relação (não há rotas). (6) O `processId` devolvido em `Appointment`/`Examination` não dá acesso por si: a rota do processo repete a decisão. **Sem ação nova em `AccessPolicy`** (reutiliza `READ` × categoria); o módulo `processes` depende de `access` só para esta decisão.
+#### Portal da clínica (`GET /clinic-portal/processes/{processId}`)
+Algoritmo de §6.1: conta ativa ⇒ `processes.clinic_id` = `clinicId` do token, senão `404` (também para processo sem clínica); papel: `CLINIC_ADMIN` e `CLINIC_MANAGER` leem; `CLINIC_DOCTOR` ⇒ `FORBIDDEN` (o filtro "suas" por profissional não existe em `processes`; o Médico obtém o `processId` na sua agenda mas não lê o processo na fatia 1). Resposta mínima (BR-PRC-06): nunca ids Vita, `familyStatus` nem `nextStep`. Token de User ou de seguradora nunca é aceite aqui, nem token de clínica nas rotas de família (claims distintas).
+Testes gerados desta secção: `TC-AZ-PRC-01..06`.
 ## 7. Administração da plataforma (`PLATFORM_ADMIN`, ADR-023)
 
 Segue §2.2: só ações `ADMIN_*`; **nunca** dados de saúde (BR-PRV-07, BR-ADM-01); `admin` não importa módulos de saúde.
@@ -300,4 +317,4 @@ Fase A (contrato 2026-11-11): `CLINIC_DOCTOR` (M14 R, §6.2b) **não** acede a `
 Rotas `/families/{f}/members/{m}/insurance/*` (cartão digital, saldo, autorizações, despesas, reclamar cartão): **SELF** (adulto) ou **TUTOR_OF**, mesma regra de `BR-INS-02` — **sem** categoria de partilha nova e sem acesso de `OTHER`. Só com ligação confirmada ao `Beneficiary` (BR-SEG-20; reclamar/desligar o cartão e listar os seus pedidos não exigem ligação prévia, mas exigem o mesmo ator); **Fase A:** o paciente vê só plano, validade, serviços cobertos e limites — **sem «usado»/«reservado»/saldo** (D-A2, 2026-11-11); o paciente vê apenas os valores comparticipados e o saldo, nunca dados internos de análise (notas do analista além do motivo da decisão). **Fase A, implementado (delegação 2026-11-12, a rever):** a ação é `MANAGE_INSURANCE` e qualquer recusa (`OTHER`, dependente, não-membro, Platform Admin) devolve **`404 NOT_FOUND`**, nunca `403` (sem enumeração); `MEMBER_BLOCKED` (423) mantém-se como nas restantes rotas do membro. Reclamar exige seguradora `ACTIVE` e módulo ativo; cartões, QR e cobertura exigem módulo ativo; listar pedidos próprios e desligar **não dependem** do módulo nem do estado da seguradora (privacidade: revogar o consentimento é sempre possível) e expõem apenas `insurerName` (BR-SEG-37, P-SEG-1 resolvida). Pressupostos em BR-SEG-32..37. O módulo `insurer-ops` consulta `AccessPolicy.can()` para este ator; as rotas `/insurance-portal/*` e `/clinic-portal/*` nunca a usam.
 
 ## 9. Testes
-Os testes de autorização são **gerados a partir da matriz** acima (incl. §7: `TC-AZ-ADM-*`): para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. As matrizes §6.2 (clínica), §8.2/§8.2b (seguradora) e §8.4 (clínica sobre seguradora) seguem a mesma regra: geradas a partir da tabela, com casos próprios `TC-AZ-CLN-*`/`TC-AZ-INS-*` (e `TC-AZ-SEG-*` para §8.2b/§8.4/§8.5, incluindo isolamento entre seguradoras).
+Os testes de autorização são **gerados a partir da matriz** acima (incl. §7: `TC-AZ-ADM-*`): para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. As matrizes §6.2 (clínica), §8.2/§8.2b (seguradora) e §8.4 (clínica sobre seguradora) seguem a mesma regra: geradas a partir da tabela, com casos próprios `TC-AZ-CLN-*`/`TC-AZ-INS-*` (e `TC-AZ-SEG-*` para §8.2b/§8.4/§8.5, incluindo isolamento entre seguradoras); §6.8 gera `TC-AZ-PRC-*`.

@@ -195,6 +195,41 @@
 | TC-SEG-14 | Limites de cobertura: `waitingDays` 36 500 OK / 36 501 ⇒ `VALIDATION_ERROR`; `limitPerYear` 999 999 999 999,99 OK / acima ⇒ `VALIDATION_ERROR`; `covered=false` com `copayPct`/`limitPerYear`/`waitingDays` enviados ⇒ aceite, gravado `type=EXCLUDED`, `limitPerYear=null` | U + A | BR-SEG-02/22 |
 | TC-SEG-15 | Rotas do paciente (BR-SEG-32..37): código de reclamação de uso único (2.ª tentativa com o mesmo código ⇒ mesmo `NOT_FOUND`); rate limit reclamar 10/15 min por utilizador e 30/15 min por IP, QR 20/10 min por cartão ⇒ `429`; desligar sobe `cardVersion` e o QR emitido antes deixa de validar na clínica (`eligible:false`); 2.º pedido do mesmo membro na mesma seguradora ⇒ `CONFLICT`; cartão/cobertura com apólice `ACTIVE` vigente do titular, senão plano/validade `null`; beneficiário não `ACTIVE` ⇒ estado e `coverages: []`; `OTHER` ⇒ `NOT_FOUND` (nunca 403); perfil bloqueado ⇒ `MEMBER_BLOCKED` (423); reclamar com seguradora suspensa ou módulo desativado ⇒ `NOT_FOUND` | A + S | BR-SEG-20/32..37 |
 
+## 8c. Processos (TC-PRC / TC-AZ-PRC; marco B fatia 1, ADR-032; `vita-qa-security` + `vita-health`)
+> Ligam-se a BR-PRC-01..11 e AC-PRC-01..07. Tabela de verdade de `deriveFamilyStatus` em `04-domain/state-machines.md` (Process). Níveis: U unidade, I integração, A API/contrato, S segurança, ARQ arquitetura.
+| ID | Caso | Nível | Liga a |
+|---|---|---|---|
+| TC-PRC-01 | `deriveFamilyStatus({act:{phase:PENDING}})` = `SCHEDULED` / `AWAIT_CLINIC_RESPONSE` / `CLINIC` | U | AC-PRC-02 |
+| TC-PRC-02 | `phase=SCHEDULED` = `SCHEDULED` / `ATTEND` / `FAMILY` | U | AC-PRC-02 |
+| TC-PRC-03 | `phase=IN_PROGRESS` = `IN_PROGRESS` / `BEING_ATTENDED` / `CLINIC` | U | AC-PRC-02 |
+| TC-PRC-04 | `phase=DONE` = `DONE` / `NOTHING_PENDING` / `NONE` | U | AC-PRC-02 |
+| TC-PRC-05 | `phase=CANCELLED` = `CANCELLED` / `NOTHING_PENDING` / `NONE` | U | AC-PRC-02 |
+| TC-PRC-06 | `phase=NO_SHOW` = `CANCELLED` / `RESCHEDULE` / `FAMILY` | U | AC-PRC-02 |
+| TC-PRC-07 | Totalidade e pureza: para **todos** os valores de `ProcessActPhase` (`it.each` sobre a lista do contrato) a função devolve um dos 4 `familyStatus` e um par `code`/`actor` do contrato; mesma entrada ⇒ mesma saída; o ficheiro de `domain` não importa `Clock`/`Date.now`/I/O (verificado por ARQ) | U + ARQ | BR-PRC-02/03 |
+| TC-PRC-08 | `appointments`: projeção estado→`phase` (`it.each`: REQUESTED→PENDING; SCHEDULED sem chegada→SCHEDULED; SCHEDULED com `arrivedAt` ou só `startedAt`→IN_PROGRESS; COMPLETED→DONE; NO_SHOW→NO_SHOW; CANCELLED e REJECTED→CANCELLED); `changedAt`=`updated_at`, `scheduledAt`=`scheduled_at` | U | BR-PRC-04 |
+| TC-PRC-09 | `examinations`: SCHEDULED→SCHEDULED; COMPLETED→DONE; CANCELLED→CANCELLED; REQUESTED/REJECTED ⇒ erro de integridade (nunca 5xx na lista: BR-PRC-09) | U | BR-PRC-04/09 |
+| TC-PRC-10 | Abertura em direto: criar consulta pela família, por marcação presencial D20 e criar exame (família e de horário) ⇒ exatamente 1 `Process` por ato com `origin`/`clinicId` corretos e `processId` no ato e nas respostas `Appointment`/`Examination`/`ClinicBooking`/`ClinicExamBooking`; falha forçada em `open` ⇒ o ato não existe (rollback) | I + A | AC-PRC-01, BR-PRC-01 |
+| TC-PRC-11 | `open` idempotente: duas chamadas com o mesmo `(originType, originId)` ⇒ o mesmo `processId`, 1 linha; UNIQUE da BD verificada | I | BR-PRC-01 |
+| TC-PRC-12 | Visita manual da clínica e recibo (sem ids Vita) **não** criam `Process` | I | BR-PRC-01, BR-CLN-24 |
+| TC-PRC-13 | Apagar consulta/exame pela API apaga o `Process` (`PROCESS_DISCARD`); apagar membro/família apaga por cascata; apagar clínica põe `clinic_id` a `NULL` | I | BR-PRC-07 |
+| TC-PRC-14 | Backfill: BD com consultas/exames antigos ⇒ após `0036` #processos = #atos por `origin_type`, nenhum `process_id` nulo, nenhum órfão; **segunda execução não altera nada**; `familyStatus` do backfill = o da abertura em direto para o mesmo estado | I (migração) | AC-PRC-05, BR-PRC-08 |
+| TC-PRC-15 | Lista: ordenação `openedAt` desc/`id` desc; `limit` 1–100 (0 e 101 ⇒ `VALIDATION_ERROR`); `cursor` inválido ⇒ `MALFORMED_REQUEST`; filtro `originType`; filtro `status` aplicado depois da derivação (um membro com 30 processos e 2 `DONE` devolve os 2 seguindo `nextCursor` até nulo; limite de varrimento 200 respeitado); sem duplicados entre páginas | I + A | AC-PRC-03 |
+| TC-PRC-16 | Detalhe: campos do contrato; `nextStep` e `familyStatus` coerentes com a tabela de verdade para cada estado do ato; resposta **não contém** estados internos (REQUESTED, NO_SHOW, ARRIVED…), nome da clínica nem notas | A | AC-PRC-02/03 |
+| TC-PRC-17 | `family_status` não persistido: o schema da BD **não** tem coluna `family_status`/`next_step`; `POST/PUT/PATCH/DELETE` em `…/processes*` ⇒ 404/405; `processId` ignorado/rejeitado em `AppointmentInput`/`ExaminationInput` (whitelist) | I + A + S | BR-PRC-01/02 |
+| TC-PRC-18 | Portal da clínica: `CLINIC_ADMIN`/`CLINIC_MANAGER` leem o processo do seu ato (sem `memberId`/`familyId`/`familyStatus`/`nextStep` no corpo — teste de chaves); `processId` aparece só nas marcações Vita | A + S | AC-PRC-04, BR-PRC-06 |
+| TC-PRC-19 | Conformidade OpenAPI das 3 rotas e dos 4 schemas alterados (`pnpm gen` verde; respostas validadas contra o contrato); `nextCursor` sempre presente | A | contrato |
+| TC-PRC-20 | Arquitetura: `processes` só importa `access` e `audit`; nenhum módulo em `src/modules` importa `processes`; `appointments`/`examinations` não importam `processes`; `processes/domain` sem imports de I/O; `ProcessLinker` definida em cada dono e `ProcessFacts` em `processes/application` | ARQ | BR-PRC-04 |
+| TC-PRC-21 | Auditoria: `PROCESS_OPEN`/`PROCESS_DISCARD` na transação do ato (rollback ⇒ sem registo); `PROCESS_VIEW` só para tutor/`OTHER` (não para o titular nem para a clínica); `metadata` só `originType`/`kind`/`count`; 404 não audita | I + S | BR-PRC-11 |
+| TC-PRC-22 | Membro `BLOCKED` ⇒ `MEMBER_BLOCKED` em lista e detalhe | A | BR-PRC-05 |
+| TC-PRC-23 | Processo cujo ato foi removido por inconsistência forçada: lista omite, detalhe 404, nunca 5xx, log sem dados de saúde | I | BR-PRC-09 |
+| TC-PRC-24 | Vocabulário: o corpo das respostas usa só os valores do contrato; teste de contrato falha se surgir `phase`/código fora das listas (guarda a extensibilidade controlada) | A | BR-PRC-03/10 |
+| TC-AZ-PRC-01 | Matriz gerada de `authorization.md` §6.8: relação (SELF, TUTOR_OF, DEPENDENT_SELF, OTHER com e sem `SharingGrant` por categoria, Admin-como-OTHER) × origem (APPOINTMENT, EXAMINATION) × (lista, detalhe): lê / omitido / 404 | U + A | AC-PRC-06 |
+| TC-AZ-PRC-02 | IDOR: trocar `processId`/`memberId`/`familyId` por ids de outro membro, outra família ou inexistentes ⇒ 404 igual (mesmo corpo/`detail`) em todos; `TC-AZ-ISO`/`TC-AZ-IDOR` incluem as rotas novas | S | AC-PRC-06 |
+| TC-AZ-PRC-03 | Isolamento da clínica: processo de outra clínica, sem `clinic_id` e inexistente ⇒ 404 idêntico | S | AC-PRC-04 |
+| TC-AZ-PRC-04 | Papéis do portal (§6.2b): Admin e Gestor 200; Médico 403 `FORBIDDEN` | A | AC-PRC-04 |
+| TC-AZ-PRC-05 | Tokens cruzados: token de clínica nas rotas de família e token de User/seguradora em `/clinic-portal/processes/*` ⇒ 401 | S | AC-PRC-06 |
+| TC-AZ-PRC-06 | Platform Admin e utilizador sem pertença à família ⇒ 404 nas rotas de família; `TC-AZ-POLICY-CALLED` cobre as rotas novas (policy invocada) | S + I | AC-PRC-06 |
+
 ## 9. Segurança adicional (TC-SEC)
 Cabeçalhos de segurança · CORS restrito · rejeição de campos desconhecidos (whitelist) · limites de corpo · injeção em texto livre · enumeração (registo/recuperação/convites) · SSRF em endpoints push · refresh sem cabeçalho CSRF recusado · cookie com flags corretas.
 

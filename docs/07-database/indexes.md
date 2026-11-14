@@ -61,6 +61,14 @@
 | `audit_logs` | `(occurred_at)` · `(actor_user_id, occurred_at)` · `(family_id, occurred_at)` | Purga a 24 meses; investigações. Particionamento mensal avaliado se o volume o justificar. |
 | `file_deletions` | `(deleted_at) WHERE deleted_at IS NULL` | Worker de apagamento. |
 
+## Processos (marco B fatia 1, ADR-032; `schema.md` §4b, migração `0036`)
+| Índice | Para quê |
+|---|---|
+| UNIQUE `processes (origin_type, origin_id)` | idempotência de `ProcessLinker.open` (BR-PRC-01) |
+| `processes (family_id, member_id, opened_at DESC, id DESC)` | lista da família por membro, cursor por (`opened_at`, `id`) (BR-PRC-05) |
+| `processes (clinic_id) WHERE clinic_id IS NOT NULL` | leitura do portal da clínica e `SET NULL` da FK (BR-PRC-06) |
+| UNIQUE parcial `appointments (process_id) WHERE process_id IS NOT NULL` · idem `examinations` | 1 ato : 1 processo; resolução ato→processo |
+
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).
 2. Antes de M10, validar os 5 caminhos quentes: scanner, agenda do dia, lista de alertas, resolução de membership, relatório individual.

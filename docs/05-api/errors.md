@@ -66,3 +66,6 @@
 | `RATE_LIMITED` | 429 | Demasiados pedidos; ver cabeçalho `Retry-After`. |
 | `INTERNAL_ERROR` | 500 | Erro inesperado (genérico). |
 | `SERVICE_UNAVAILABLE` | 503 | Dependência indisponível (readiness falhou). |
+
+## Processos (marco B, fatia 1 — ADR-032)
+Sem códigos novos. Reutilizam-se `NOT_FOUND` (processo inexistente, de outro membro/família, de categoria não legível pelo actor, de outra clínica ou sem clínica — **sempre 404, sem enumeração**, BR-PRC-05/06), `FORBIDDEN` (só no portal da clínica: `CLINIC_DOCTOR`), `MEMBER_BLOCKED` (423, membro bloqueado), `MALFORMED_REQUEST` (cursor inválido) e `VALIDATION_ERROR` (`status`/`originType`/`limit` inválidos). Não há erros de escrita: não existem endpoints de escrita. `detail` nunca nomeia o ato nem a categoria negada.

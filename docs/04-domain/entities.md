@@ -70,10 +70,11 @@ Tem 1+ MedicationPlan e 0..5 Documents.
 ### Appointment — categoria C5
 `scheduledAt` (UTC) · `status` (REQUESTED | SCHEDULED | REJECTED | COMPLETED | NO_SHOW | CANCELLED) · `professionalName?` · `specialty?` · `clinicId?` · `clinicName?` (texto de reserva, BR-CLN-02) · `slotId?` (horário da clínica parceira, D17) · `responseNote?` (motivo da clínica ao recusar/cancelar, D17) · `reason?` · `notes?` · `outcomeRequestedAt?`
 **M14 Q (BR-CLN-25..30):** `confirmationStatus` (PENDING | CONFIRMED | DECLINED; omissão PENDING) · `confirmationSource?` (PATIENT | CLINIC) · `confirmedAt?` · `arrivedAt?` · `startedAt?` (fluxo do dia; **sem estados Vita novos**) · `followUpDueOn?` (date; `patientNotified` na API é derivado: consulta Vita e hoje ≥ `followUpDueOn` − 7 dias). Estados de dia derivados (`dayState`) em `state-machines.md`.
+**Marco B fatia 1 (ADR-032):** `processId?` (uuid do `Process` aberto com a consulta; só leitura; BR-PRC-01).
 
 ### Examination — categoria C6
 `name` · `examDate` (date) · `scheduledAt?` (UTC; só em exame de horário da clínica, D19) · `status` (SCHEDULED | COMPLETED | CANCELLED; `REQUESTED`/`REJECTED` obsoletos, só no enum de BD, state-machines.md) · `clinicId?` · `clinicName?` · `slotId?` (horário `EXAM` de origem, D19) · `responseNote?` (motivo da clínica ao cancelar) · `notes?` · `issuedBy` (FAMILY | CLINIC, default FAMILY) · `issuedByClinicAccountId?` · `resultsIssuedAt?` · `clinicResultNote?` (nota livre da clínica ao completar)
-**Regras:** BR-CLN-07/08, BR-EXM-05..08. `issuedBy=CLINIC` ⇔ `issuedByClinicAccountId` preenchido (espelho de BR-RX-07).
+**Regras:** BR-CLN-07/08, BR-EXM-05..08. `issuedBy=CLINIC` ⇔ `issuedByClinicAccountId` preenchido (espelho de BR-RX-07). **Marco B fatia 1:** `processId?` (uuid do `Process` aberto com o exame; só leitura; BR-PRC-01).
 
 ### ExamResult — categoria C6
 `examinationId` · `parameter` · `valueNumeric?` · `valueText?` · `unit?` · `referenceMin?` · `referenceMax?` (informados pelo utilizador). Pelo menos um de `valueNumeric`/`valueText`.
@@ -171,6 +172,13 @@ Documento **gerado, sem entidade nem tabela**: derivado de uma marcação `COMPL
 **`Document` (M15 T):** novo `generatedBySystem` (bool, omissão false): laudo PDF gerado pelo servidor (BR-CLN-49); implica `uploadedByClinic`, recurso EXAMINATION, `scanStatus=CLEAN`; um por exame. **`Appointment` (M15 S):** `reportAvailable` (derivado, só leitura). **`ClinicBooking`/`ClinicExamBooking`:** `reportStatus` · `hasResultsDraft`, `reportAvailable` (derivados).
 
 **`Clinic` (M14 R):** campos de perfil `displayName?` · `description?` · `openingHours?` (BR-CLN-38) e `address?`/`phone?`/`email?` editáveis pela própria clínica parceira. **`ReimbursementClaim` (M14 R):** associação opcional a recibos (`receiptIds`, BR-CLN-36), sem `Encounter` nem despesa novos.
+
+## Processos (ADR-032, marco B fatia 1) — categoria da **origem** (APPOINTMENTS ou EXAMS); sem categoria de partilha própria
+
+### Process
+`id` (= `processId`) · `familyId` · `memberId` · `kind` (ROUTINE na fatia 1; AUTHORIZED | URGENT | OUT_OF_NETWORK | PHARMACY nas seguintes) · `originType` (APPOINTMENT | EXAMINATION) · `originId` (ato âncora) · `clinicId?` (clínica do ato à abertura) · `openedAt`
+**Derivados em leitura (nunca persistidos, BR-PRC-02/03):** `familyStatus` (SCHEDULED | IN_PROGRESS | DONE | CANCELLED) e `nextStep { code, actor }` por `deriveFamilyStatus(facts)`; `scheduledAt?` e `phase` vêm do facto do ato (`ActFact { source, phase, scheduledAt?, changedAt }`, publicado pelo módulo dono, `state-machines.md` Process).
+**Agregador, não dono:** não tem máquina de estados, não duplica estados dos atos, não guarda dados clínicos nem de seguradora. Relações: 1 `Process` : 1 ato nesta fatia (`appointments.process_id`/`examinations.process_id`); as fatias 2b–6 acrescentam 1 : N autorizações/despesas por `process_id` nas suas tabelas. Registos da clínica sem ids Vita (BR-CLN-24) não têm `Process`. Regras: BR-PRC-01..11.
 
 ## Seguros (ADR-021 — sem categoria de partilha; só SELF/TUTOR_OF)
 

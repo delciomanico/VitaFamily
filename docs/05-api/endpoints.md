@@ -2160,6 +2160,35 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `UNAUTHENTICATED`
 - **BUSINESS RULES:** —
 
+## Processes (marco B, fatia 1 — ADR-032) — CONTRATUAL
+
+> Contrato `11-implementation/marco-b-construcao.md` §4 (fatia 1). **Sem endpoint público de criação, edição ou eliminação**: o `Process` abre-se e apaga-se como efeito da criação/eliminação do ato (BR-PRC-01/07). `familyStatus` e `nextStep` são **derivados** (BR-PRC-02/03). Erros: só códigos já existentes (`errors.md`). Sem rate limit específico (leituras autenticadas, ids opacos; limite global da API).
+
+### `GET /families/{familyId}/members/{memberId}/processes`  — listProcesses
+- **AUTHORIZATION:** READ da categoria da origem de cada processo (APPOINTMENTS para consulta, EXAMS para exame; `authorization.md` §6.8). A lista **filtra**: omite os processos que o actor não pode ler (DEPENDENT_SELF só consultas; OTHER só com SharingGrant da categoria).
+- **DESCRIPTION:** Listar os processos (atos) do membro, do mais recente para o mais antigo (`openedAt` desc, `id` desc).
+- **QUERY:** `status` (SCHEDULED|IN_PROGRESS|DONE|CANCELLED), `originType` (APPOINTMENT|EXAMINATION), `limit` (1–100, omissão 25), `cursor` (string opaca)
+- **REQUEST:** —
+- **RESPONSE:** `200` `{ items: [Process], nextCursor }` (`nextCursor` nulo no fim)
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `NOT_FOUND`, `VALIDATION_ERROR`, `MEMBER_BLOCKED`
+- **BUSINESS RULES:** BR-PRC-02/03/05/09. `status` filtra **depois** da derivação: o servidor varre em lotes (máx. 200 processos por pedido) e pode devolver menos de `limit` itens com `nextCursor` não nulo; o cliente segue o cursor até ser nulo. Auditoria `PROCESS_VIEW` só se o actor não é o titular.
+
+### `GET /families/{familyId}/members/{memberId}/processes/{processId}`  — getProcess
+- **AUTHORIZATION:** READ da categoria da origem do processo (como acima).
+- **DESCRIPTION:** Detalhe do processo: estado simples e "o que falta e de quem".
+- **REQUEST:** —
+- **RESPONSE:** `200` `Process`
+- **ERRORS:** `UNAUTHENTICATED`, `NOT_FOUND`, `MEMBER_BLOCKED`
+- **BUSINESS RULES:** BR-PRC-05: inexistente, de outro membro/família ou de categoria não legível ⇒ `404` (sem enumeração). `GET .../appointments/{id}` e `.../examinations/{id}` devolvem `processId` para o caminho inverso.
+
+### `GET /clinic-portal/processes/{processId}`  — getClinicProcess
+- **AUTHORIZATION:** CLINIC_ACCOUNT (`CLINIC_ADMIN`, `CLINIC_MANAGER`; `CLINIC_DOCTOR` ⇒ `FORBIDDEN`, `authorization.md` §6.2b)
+- **DESCRIPTION:** Ler o processo do atendimento da própria clínica (`processId` vem em `ClinicBooking`/`ClinicExamBooking`).
+- **REQUEST:** —
+- **RESPONSE:** `200` `ClinicProcess`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`
+- **BUSINESS RULES:** BR-PRC-06: `clinic_id` do processo = clínica do token, senão `404` (inclui processo sem clínica e de outra clínica). Só id, tipo, origem, fase do ato e abertura; nunca `memberId`/`familyId`, `familyStatus` nem `nextStep`. Não auditada.
+
 ## Reports
 
 ### `GET /families/{familyId}/members/{memberId}/report`  — memberReport
@@ -2473,7 +2502,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **DoseCorrectionRequest** — `status`: TAKEN|NOT_TAKEN, `note?`: string
 
-**Appointment** — `id`: uuid, `memberId`: uuid, `scheduledAt`: datetime, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (horário de clínica parceira de origem, D17), `responseNote?`: string (motivo da clínica ao recusar/cancelar, D17), `reason?`: string, `notes?`: string, `confirmationStatus`: ConfirmationStatus, `followUpDueOn?`: date (M14 Q)
+**Appointment** — `id`: uuid, `memberId`: uuid, `scheduledAt`: datetime, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (horário de clínica parceira de origem, D17), `responseNote?`: string (motivo da clínica ao recusar/cancelar, D17), `reason?`: string, `notes?`: string, `confirmationStatus`: ConfirmationStatus, `followUpDueOn?`: date (M14 Q) · marco B fatia 1: `processId?`: uuid (só leitura; BR-PRC-01)
 
 **AppointmentInput** — `scheduledAt`: datetime, `professionalName?`: string, `specialty?`: string, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (marcação de clínica parceira; incompatível com `clinicId`/`clinicName`, nasce `REQUESTED`, D17), `reason?`: string, `notes?`: string, `status?`: SCHEDULED|COMPLETED (ignorado se `slotId` presente — nasce sempre `REQUESTED`)
 
@@ -2513,7 +2542,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **ClinicSlotBatchInput** — `kind?`: APPOINTMENT|EXAM (default APPOINTMENT), `capacity?`: int (1–50, default 1; > 1 só com `kind=EXAM`, BR-APT-11), `date`: date (dia local), `times`: [string] (HH:mm locais), `specialty`: string, `professionalName?`: string, `durationMinutes`: int (15|20|30|45|60, BR-CLN-04)
 
-**ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família), `source?`: VITA|MANUAL, `clinicPatientId?`: uuid, `slotId?`: uuid (M14 P), `confirmationStatus`, `confirmationSource?`: PATIENT|CLINIC, `dayState`: SCHEDULED|ARRIVED|IN_PROGRESS|COMPLETED|NO_SHOW|CANCELLED|REQUESTED|REJECTED, `arrivedAt?`, `startedAt?`: datetime, `waitingMinutes?`: int, `followUpDueOn?`: date (M14 Q) · M14 R: `receiptId?`: uuid (recibo `ISSUED`; nunca para o Médico)
+**ClinicBooking** — `id`: uuid, `status`: REQUESTED|SCHEDULED|REJECTED|COMPLETED|NO_SHOW|CANCELLED, `scheduledAt`: datetime, `specialty?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string (mínimo necessário, BR-CLN-03 — nunca dados de saúde da família), `source?`: VITA|MANUAL, `clinicPatientId?`: uuid, `slotId?`: uuid (M14 P), `confirmationStatus`, `confirmationSource?`: PATIENT|CLINIC, `dayState`: SCHEDULED|ARRIVED|IN_PROGRESS|COMPLETED|NO_SHOW|CANCELLED|REQUESTED|REJECTED, `arrivedAt?`, `startedAt?`: datetime, `waitingMinutes?`: int, `followUpDueOn?`: date (M14 Q) · M14 R: `receiptId?`: uuid (recibo `ISSUED`; nunca para o Médico) · marco B fatia 1: `processId?`: uuid (só consultas Vita; BR-PRC-06)
 
 **ConfirmationStatus** — PENDING|CONFIRMED|DECLINED (M14 Q, BR-CLN-25)
 
@@ -2557,7 +2586,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **ClinicConsent** (família) — `clinicId`, `clinicName`, `level`: BOOKINGS|HISTORY (efetivo), `validUntil?`, `renewalNeeded`: bool, `linked`: bool; **ClinicConsentInput** — `level`; **ClinicLinkCode** — `code`: string, `expiresAt`: datetime
 
-**ClinicExamBooking** — `id`: uuid, `status`: SCHEDULED|COMPLETED|CANCELLED, `slotId?`: uuid, `scheduledAt`: datetime, `examType?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string, `resultsCount?`: int, `documents?`: [ClinicDocumentView], `resultsIssuedAt?`: datetime, `receiptId?`: uuid (M14 R; recibo `ISSUED`, nunca para o Médico) (mínimo necessário, BR-CLN-03; nunca os valores dos resultados)
+**ClinicExamBooking** — `id`: uuid, `status`: SCHEDULED|COMPLETED|CANCELLED, `slotId?`: uuid, `scheduledAt`: datetime, `examType?`: string, `professionalName?`: string, `patientName`: string, `notes?`: string, `responseNote?`: string, `resultsCount?`: int, `documents?`: [ClinicDocumentView], `resultsIssuedAt?`: datetime, `receiptId?`: uuid (M14 R; recibo `ISSUED`, nunca para o Médico) (mínimo necessário, BR-CLN-03; nunca os valores dos resultados) · marco B fatia 1: `processId?`: uuid (BR-PRC-06)
 
 **ClinicReceipt** (M14 R) — `id`, `number`: int (apresentar `R-` + 6 dígitos), `bookingKind`: APPOINTMENT|EXAM|VISIT, `bookingId`: uuid, `status`: ISSUED|VOIDED, `paymentMethod`: CASH|CARD|TRANSFER|INSURANCE, `currency`, `totalMinor`: int (cêntimos), `patientName`, `note?`, `issuer`: {`name`, `address?`, `phone?`, `email?`}, `lines`: [`position`, `description`, `amountMinor`, `serviceTypeId?`], `issuedAt`, `issuedByClinicAccountId?`, `voidedAt?`, `voidReason?`, `voidedByClinicAccountId?`, `notice` ("Documento não fiscal — não substitui fatura"), `availableToPatient`: bool
 
@@ -2599,7 +2628,11 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **ExamResultHistoryItem** — `examinationId`: uuid, `examDate`: date, `valueNumeric?`: number, `valueText?`: string, `unit?`: string, `referenceMin?`: number, `referenceMax?`: number
 
-**Examination** — `id`: uuid, `memberId`: uuid, `name`: string, `examDate`: date, `status`: SCHEDULED|COMPLETED|CANCELLED, `scheduledAt?`: datetime, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid, `responseNote?`: string, `notes?`: string, `issuedBy`: FAMILY|CLINIC, `issuedByClinicAccountId?`: uuid, `resultsIssuedAt?`: datetime, `clinicResultNote?`: string, `results`: [ExamResult], `documentIds`: [uuid]
+**Process** — `id`: uuid, `memberId`: uuid, `kind`: ROUTINE (fatia 1; aberto), `familyStatus`: SCHEDULED|IN_PROGRESS|DONE|CANCELLED (derivado), `nextStep`: `{ code: AWAIT_CLINIC_RESPONSE|ATTEND|BEING_ATTENDED|RESCHEDULE|NOTHING_PENDING, actor: FAMILY|CLINIC|NONE }` (a UI traduz; conjuntos abertos, clientes toleram valores desconhecidos), `origin`: `{ type: APPOINTMENT|EXAMINATION, id: uuid }`, `scheduledAt?`: datetime, `openedAt`: datetime
+
+**ClinicProcess** — `id`: uuid, `kind`: ROUTINE, `origin`: `{ type, id }`, `phase`: PENDING|SCHEDULED|IN_PROGRESS|DONE|CANCELLED|NO_SHOW, `openedAt`: datetime (BR-PRC-06: sem ids Vita, sem `familyStatus`/`nextStep`)
+
+**Examination** — `id`: uuid, `memberId`: uuid, `name`: string, `examDate`: date, `status`: SCHEDULED|COMPLETED|CANCELLED, `scheduledAt?`: datetime, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid, `responseNote?`: string, `notes?`: string, `issuedBy`: FAMILY|CLINIC, `issuedByClinicAccountId?`: uuid, `resultsIssuedAt?`: datetime, `clinicResultNote?`: string, `results`: [ExamResult], `documentIds`: [uuid] · marco B fatia 1: `processId?`: uuid (só leitura; BR-PRC-01)
 
 **ExaminationInput** — `name`: string, `examDate`: date, `clinicId?`: uuid, `clinicName?`: string, `slotId?`: uuid (marcação num horário `EXAM` com vaga; nasce SCHEDULED e name/examDate/clínica são os do horário, BR-EXM-05), `notes?`: string
 
