@@ -36,12 +36,13 @@ export function LandingPage() {
   return (
     <>
       {/* Hero com vídeo de fundo */}
-      <section className="relative isolate flex min-h-[calc(100dvh-5rem)] overflow-hidden text-white">
+      <div className="relative">
+      <section className="relative isolate flex min-h-[calc(100dvh-10rem)] overflow-hidden text-white">
         <HeroMedia images={HERO_IMAGES} sources={HERO_VIDEO} />
         <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-black/65 via-black/35 to-transparent" />
         <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-2/5 bg-gradient-to-t from-black/60 to-transparent" />
 
-        <div className="mx-auto flex w-full max-w-7xl flex-col px-5 pt-16 pb-10 lg:px-10 lg:pt-24 lg:pb-14">
+        <div className="mx-auto flex w-full max-w-7xl flex-col px-5 pt-16 pb-24 lg:px-10 lg:pt-20 lg:pb-28">
           <div className="flex flex-1 items-center">
             <div className="flex max-w-3xl animate-rise flex-col items-start gap-8">
               <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 text-base font-semibold backdrop-blur">
@@ -68,38 +69,43 @@ export function LandingPage() {
             </div>
           </div>
 
-          <ul className="mt-14 grid animate-rise bg-surface text-foreground shadow-overlay [animation-delay:200ms] md:grid-cols-3 md:divide-x md:divide-border max-md:divide-y max-md:divide-border">
-            {[
-              [Users, 'Famílias', 'Organize a saúde de todos', '#familias'],
-              [Stethoscope, 'Clínicas', 'Agenda e pacientes ligados', paths.clinics],
-              [ShieldCheck, 'Seguradoras', 'Beneficiários e reembolsos', paths.insurers],
-            ].map(([Icon, title, text, href]) => {
-              const I = Icon as typeof Users
-              return (
-                <li key={title as string}>
-                  <a
-                    href={href as string}
-                    className="group flex items-center gap-5 p-8 transition-colors hover:bg-primary-soft lg:p-10"
-                  >
-                    <span className="flex size-14 shrink-0 items-center justify-center bg-primary-soft text-primary transition-colors group-hover:bg-surface">
-                      <I className="size-7" aria-hidden />
-                    </span>
-                    <span className="flex-1">
-                      <span className="block text-xl font-semibold">{title as string}</span>
-                      <span className="block text-base text-muted">{text as string}</span>
-                    </span>
-                    <ArrowRight className="size-6 text-primary transition-transform group-hover:translate-x-1" aria-hidden />
-                  </a>
-                </li>
-              )
-            })}
-          </ul>
         </div>
       </section>
 
+      {/* Acessos: centrados na borda inferior do hero, mais largos que o texto */}
+      <div className="relative z-10 mx-auto -mt-12 w-[calc(100%-2.5rem)] max-w-[90rem] animate-rise [animation-delay:200ms] md:absolute md:inset-x-0 md:bottom-0 md:mt-0 md:w-[calc(100%-5rem)] md:translate-y-1/2">
+      <ul className="grid bg-surface text-foreground shadow-overlay md:grid-cols-3 md:divide-x md:divide-border max-md:divide-y max-md:divide-border">
+        {[
+          [Users, 'Famílias', 'Organize a saúde de todos', '#familias'],
+          [Stethoscope, 'Clínicas', 'Agenda e pacientes ligados', paths.clinics],
+          [ShieldCheck, 'Seguradoras', 'Beneficiários e reembolsos', paths.insurers],
+        ].map(([Icon, title, text, href]) => {
+          const I = Icon as typeof Users
+          return (
+            <li key={title as string}>
+              <a
+                href={href as string}
+                className="group flex items-center gap-5 p-8 transition-colors hover:bg-primary-soft lg:p-10"
+              >
+                <span className="flex size-14 shrink-0 items-center justify-center bg-primary-soft text-primary transition-colors group-hover:bg-surface">
+                  <I className="size-7" aria-hidden />
+                </span>
+                <span className="flex-1">
+                  <span className="block text-xl font-semibold">{title as string}</span>
+                  <span className="block text-base text-muted">{text as string}</span>
+                </span>
+                <ArrowRight className="size-6 text-primary transition-transform group-hover:translate-x-1" aria-hidden />
+              </a>
+            </li>
+          )
+        })}
+      </ul>
+      </div>
+      </div>
+
       {/* Como funciona */}
       <section id="como-funciona" className="scroll-mt-20 bg-surface">
-        <div className="mx-auto max-w-7xl px-5 py-24 lg:px-10 lg:py-36">
+        <div className="mx-auto max-w-7xl px-5 py-24 md:pt-48 lg:px-10 lg:py-36 lg:pt-60">
           <Reveal>
             <Eyebrow>Como funciona</Eyebrow>
             <Heading className="mt-4 max-w-3xl">Três passos. Sem papéis perdidos.</Heading>
