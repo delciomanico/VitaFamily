@@ -2,14 +2,13 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, Mail, type LucideIcon } from 'lucide-react'
+import { ArrowLeft, LockKeyhole, Mail, type LucideIcon } from 'lucide-react'
 import { z } from 'zod'
 import { Button } from '@/components/ui/Button'
 import { HeroMedia } from '@/components/ui/HeroMedia'
 import { Input, PasswordInput } from '@/components/ui/Input'
 import { FormError } from '@/components/ui/states'
 import { errorMessage } from '@/lib/errors'
-import { cn } from '@/lib/cn'
 import { paths } from '@/routes/paths'
 import { Logo } from './Logo'
 
@@ -38,8 +37,8 @@ interface PortalLoginScreenProps {
 }
 
 /**
- * Login dos portais: cartão branco ao centro sobre fotografia em carrossel (ou fundo escuro, no
- * backoffice). Uma só coluna, só o essencial. O redirecionamento depois de entrar é feito pelo guard
+ * Login dos portais: formulário simples à esquerda e fotografia em carrossel numa moldura
+ * arredondada à direita (fundo escuro no backoffice); em ecrãs pequenos, só o formulário. O redirecionamento depois de entrar é feito pelo guard
  * de cada portal.
  */
 export function PortalLoginScreen({
@@ -71,42 +70,30 @@ export function PortalLoginScreen({
   }
 
   return (
-    <div className="relative isolate flex min-h-dvh flex-col overflow-hidden text-foreground">
-      {images ? (
-        <>
-          <HeroMedia images={images.map((src) => ({ src }))} />
-          <div aria-hidden className="absolute inset-0 -z-10 bg-black/50" />
-        </>
-      ) : (
-        <div aria-hidden className="absolute inset-0 -z-10 bg-foreground">
-          <div className="absolute -top-32 -left-24 size-[32rem] animate-drift rounded-full bg-primary/50 blur-3xl" />
-          <div className="absolute -right-32 -bottom-32 size-[30rem] animate-drift rounded-full bg-accent/30 blur-3xl [animation-delay:-8s]" />
-        </div>
-      )}
+    <div className="grid min-h-dvh bg-surface lg:grid-cols-2">
+      <div className="flex flex-col px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-8 lg:px-14">
+        <header className="flex items-center justify-between">
+          <Link to={paths.splash} aria-label="Vita Family, página inicial">
+            <Logo />
+          </Link>
+          <Link
+            to={paths.enter}
+            className="-mr-3 inline-flex h-11 items-center gap-2 rounded-full px-3 text-base font-medium text-muted hover:bg-surface-muted hover:text-foreground"
+          >
+            <ArrowLeft className="size-5" aria-hidden />
+            Escolher portal
+          </Link>
+        </header>
 
-      <header className="flex items-center justify-between px-5 pt-[max(1.25rem,env(safe-area-inset-top))] lg:px-10">
-        <Link to={paths.splash} aria-label="Vita Family, página inicial" className="rounded-full bg-surface px-4 py-2">
-          <Logo />
-        </Link>
-        <Link
-          to={paths.enter}
-          className="inline-flex h-11 items-center gap-2 rounded-full px-4 text-base font-medium text-white hover:bg-white/15"
-        >
-          <ArrowLeft className="size-5" aria-hidden />
-          Escolher portal
-        </Link>
-      </header>
-
-      <main className="flex flex-1 items-center justify-center px-5 py-10">
-        <div className="w-full max-w-md animate-rise rounded-[2rem] bg-surface p-8 shadow-overlay md:p-10">
+        <main className="mx-auto flex w-full max-w-md flex-1 animate-rise flex-col justify-center py-12">
           <span className="flex size-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
             <BadgeIcon className="size-7" aria-hidden />
           </span>
           <p className="mt-6 text-base font-semibold tracking-wide text-primary uppercase">{badge}</p>
-          <h1 className="mt-2 text-3xl leading-tight font-bold tracking-tight text-balance md:text-4xl">{title}</h1>
+          <h1 className="mt-2 text-4xl leading-[1.1] font-bold tracking-tight text-balance md:text-5xl">{title}</h1>
 
           {notice ?? (
-            <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-8 flex flex-col gap-5">
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-10 flex flex-col gap-5">
               <Input
                 label={emailLabel}
                 type="email"
@@ -127,7 +114,7 @@ export function PortalLoginScreen({
                 {submitLabel}
               </Button>
               {footerLink && (
-                <p className={cn('text-center text-base text-muted')}>
+                <p className="text-center text-base text-muted">
                   {footerLink.prefix}{' '}
                   <Link to={footerLink.to} className="font-semibold text-primary hover:underline">
                     {footerLink.label}
@@ -136,8 +123,23 @@ export function PortalLoginScreen({
               )}
             </form>
           )}
+        </main>
+      </div>
+
+      {/* Imagem à direita, em moldura arredondada; sem texto por cima. */}
+      <aside aria-hidden className="hidden p-4 lg:block">
+        <div className="relative isolate h-full overflow-hidden rounded-[2rem] bg-foreground">
+          {images ? (
+            <HeroMedia images={images.map((src) => ({ src }))} />
+          ) : (
+            <div className="absolute inset-0">
+              <div className="absolute -top-24 -left-24 size-[32rem] animate-drift rounded-full bg-primary/60 blur-3xl" />
+              <div className="absolute -right-24 -bottom-24 size-[30rem] animate-drift rounded-full bg-accent/40 blur-3xl [animation-delay:-8s]" />
+              <LockKeyhole className="absolute top-1/2 left-1/2 size-24 -translate-x-1/2 -translate-y-1/2 text-white/30" strokeWidth={1.25} />
+            </div>
+          )}
         </div>
-      </main>
+      </aside>
     </div>
   )
 }
