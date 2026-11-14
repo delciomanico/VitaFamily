@@ -69,6 +69,9 @@
   --animate-float: float 6s ease-in-out infinite;
   --animate-float-delayed: float 7s ease-in-out 1.2s infinite;
   --animate-drift: drift 18s ease-in-out infinite alternate;
+  /* Carrossel do hero: zoom in / zoom out suave durante cada foto. */
+  --animate-kb-in: kb-in 9s ease-in-out forwards;
+  --animate-kb-out: kb-out 9s ease-in-out forwards;
   --animate-rise: rise 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
   /* Foto do login: fade de entrada (1,6s) e zoom lento contínuo; fica no estado final. */
   --animate-login-slide: login-slide 8s linear forwards;
@@ -94,6 +97,24 @@
     }
     50% {
       transform: translateY(-0.75rem);
+    }
+  }
+
+  @keyframes kb-in {
+    from {
+      transform: scale(1);
+    }
+    to {
+      transform: scale(1.18);
+    }
+  }
+
+  @keyframes kb-out {
+    from {
+      transform: scale(1.18);
+    }
+    to {
+      transform: scale(1);
     }
   }
 

@@ -132,7 +132,7 @@ function ProfessionalPage({ content }: { content: ProfessionalContent }) {
   return (
     <>
       <section className="relative isolate flex min-h-[28rem] items-end overflow-hidden text-white lg:min-h-[34rem]">
-        <HeroMedia poster={content.image} alt={content.imageAlt} />
+        <HeroMedia images={[{ src: content.image }, { src: content.image === '/images/login/consulta.webp' ? '/images/login/familia.webp' : '/images/login/consulta.webp' }]} />
         <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/45 to-black/20" />
         <div className="mx-auto w-full max-w-7xl animate-rise px-5 pt-24 pb-14 lg:px-10 lg:pb-20">
           <p className="text-base font-semibold tracking-wide uppercase">{content.eyebrow}</p>

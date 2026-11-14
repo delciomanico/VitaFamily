@@ -9,6 +9,9 @@ import { paths } from '@/routes/paths'
 
 const bigButton = 'h-14 px-8 text-base'
 
+/** Fotografias do carrossel do hero. */
+const HERO_IMAGES = [{ src: '/images/login/familia.webp' }, { src: '/images/login/consulta.webp' }]
+
 /** Vídeo do hero: colocar os ficheiros em apps/web/public/videos/. Sem eles, fica a fotografia. */
 const HERO_VIDEO = [
   { src: '/videos/hero.webm', type: 'video/webm' },
@@ -34,7 +37,7 @@ export function LandingPage() {
     <>
       {/* Hero com vídeo de fundo */}
       <section className="relative isolate flex min-h-[calc(100dvh-5rem)] overflow-hidden text-white">
-        <HeroMedia poster="/images/login/familia.webp" sources={HERO_VIDEO} />
+        <HeroMedia images={HERO_IMAGES} sources={HERO_VIDEO} />
         <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-black/65 via-black/35 to-transparent" />
         <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-2/5 bg-gradient-to-t from-black/60 to-transparent" />
 
