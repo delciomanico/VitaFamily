@@ -78,6 +78,18 @@ describe('site público (F0.2)', () => {
     expect(screen.getAllByRole('link', { name: 'Solicitar acesso' })[0]).toHaveAttribute('href', '/solicitar-acesso/seguradora')
   })
 
+  it('a pesquisa pública de parceiros filtra por texto (sem acentos) e por tipo', async () => {
+    renderAt('/parceiros')
+    expect(await screen.findByText('6 parceiros encontrados')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar parceiros' }), { target: { value: 'pediatria' } })
+    expect(await screen.findByText('2 parceiros encontrados')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar parceiros' }), { target: { value: 'seguradora' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Seguradoras' }))
+    expect(await screen.findByText('2 parceiros encontrados')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar parceiros' }), { target: { value: 'xyz' } })
+    expect(await screen.findByText('Nenhum parceiro corresponde à pesquisa')).toBeInTheDocument()
+  })
+
   it('FAQ, termos, privacidade e contacto estão acessíveis sem sessão', async () => {
     renderAt('/faq')
     expect(await screen.findByRole('heading', { name: 'Perguntas frequentes' })).toBeInTheDocument()

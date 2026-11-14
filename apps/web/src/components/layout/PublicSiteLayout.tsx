@@ -12,6 +12,7 @@ const links = [
   { to: `${paths.splash}#familias`, label: 'Famílias', hash: true },
   { to: paths.clinics, label: 'Clínicas', hash: false },
   { to: paths.insurers, label: 'Seguradoras', hash: false },
+  { to: paths.partners, label: 'Parceiros', hash: false },
   { to: paths.faq, label: 'Perguntas frequentes', hash: false },
   { to: paths.contact, label: 'Contacto', hash: false },
 ]
@@ -113,6 +114,9 @@ export function SiteFrame({ children }: { children: ReactNode }) {
             </Link>
             <Link to={paths.insurers} className="text-muted hover:text-foreground">
               Seguradoras
+            </Link>
+            <Link to={paths.partners} className="text-muted hover:text-foreground">
+              Pesquisar parceiros
             </Link>
           </nav>
           <nav aria-label="Institucional" className="flex flex-col gap-3 text-base">

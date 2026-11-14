@@ -13,6 +13,7 @@ export const paths = {
   enter: '/entrar',
   requestAccess: (kind: 'clinica' | 'seguradora') => `/solicitar-acesso/${kind}`,
   requestAccessPattern: '/solicitar-acesso/:kind',
+  partners: '/parceiros',
   clinics: '/clinicas',
   insurers: '/seguradoras',
   contact: '/contacto',
