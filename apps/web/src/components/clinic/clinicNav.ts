@@ -36,7 +36,7 @@ export interface ClinicNavGroup {
 
 /**
  * Navegação do portal da clínica (docs/11-implementation/clinic-portal-v2.md), partilhada pela
- * barra lateral (desktop) e pelos separadores (telemóvel). Só entram áreas que já existem:
+ * barra lateral (desktop) e pelo menu (telemóvel). Só entram áreas que já existem:
  * as das fases seguintes (pacientes, serviços, financeiro…) aparecem quando forem entregues.
  */
 export const clinicNavGroups: ClinicNavGroup[] = [
@@ -62,9 +62,6 @@ export const clinicNavGroups: ClinicNavGroup[] = [
     ],
   },
 ]
-
-/** Lista plana (separadores do telemóvel). */
-export const clinicNav: ClinicNavItem[] = clinicNavGroups.flatMap((group) => group.items)
 
 /** O que o papel pode ver (a decisão real é do servidor; isto só poupa cliques inúteis). */
 export function visibleNavItems(items: ClinicNavItem[], role: { isAdmin: boolean; isDoctor: boolean }): ClinicNavItem[] {
