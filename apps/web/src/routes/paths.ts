@@ -14,7 +14,9 @@ export const paths = {
   backofficeLogin: '/backoffice',
   requestAccess: (kind: 'clinica' | 'seguradora') => `/solicitar-acesso/${kind}`,
   requestAccessPattern: '/solicitar-acesso/:kind',
-  partners: '/parceiros',
+  partners: '/rede-de-prestadores',
+  /** Endereço antigo da pesquisa de prestadores: redireciona. */
+  partnersLegacy: '/parceiros',
   clinics: '/clinicas',
   insurers: '/seguradoras',
   contact: '/contacto',

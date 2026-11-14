@@ -79,21 +79,21 @@ describe('site público (F0.2)', () => {
     expect(screen.getAllByRole('link', { name: 'Solicitar acesso' })[0]).toHaveAttribute('href', '/solicitar-acesso/seguradora')
   })
 
-  it('a pesquisa pública de parceiros filtra por texto (sem acentos) e por tipo', async () => {
-    renderAt('/parceiros')
-    expect(await screen.findByText('9 parceiros encontrados')).toBeInTheDocument()
+  it('a pesquisa pública da rede de prestadores filtra por texto (sem acentos) e por tipo', async () => {
+    renderAt('/rede-de-prestadores')
+    expect(await screen.findByText('9 prestadores encontrados')).toBeInTheDocument()
     expect(screen.getByText('A mostrar 1–5 de 9')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Página seguinte' }))
     expect(await screen.findByText('A mostrar 6–9 de 9')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page')
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar parceiros' }), { target: { value: 'pediatria' } })
-    expect(await screen.findByText('3 parceiros encontrados')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar prestadores' }), { target: { value: 'pediatria' } })
+    expect(await screen.findByText('3 prestadores encontrados')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Paginação' })).not.toBeInTheDocument()
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar parceiros' }), { target: { value: 'seguradora' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar prestadores' }), { target: { value: 'seguradora' } })
     fireEvent.click(screen.getByRole('button', { name: 'Seguradoras' }))
-    expect(await screen.findByText('2 parceiros encontrados')).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar parceiros' }), { target: { value: 'xyz' } })
-    expect(await screen.findByText('Nenhum parceiro corresponde à pesquisa')).toBeInTheDocument()
+    expect(await screen.findByText('2 prestadores encontrados')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar prestadores' }), { target: { value: 'xyz' } })
+    expect(await screen.findByText('Nenhum prestador corresponde à pesquisa')).toBeInTheDocument()
   })
 
   it('o backoffice leva o administrador à sua área e recusa as outras contas', async () => {
@@ -107,6 +107,11 @@ describe('site público (F0.2)', () => {
     const family = renderAt('/backoffice')
     expect(await screen.findByText('Esta conta não tem acesso ao backoffice.')).toBeInTheDocument()
     expect(family.state.location.pathname).toBe('/backoffice')
+  })
+
+  it('o endereço antigo /parceiros redireciona para a rede de prestadores', async () => {
+    const router = renderAt('/parceiros')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/rede-de-prestadores'))
   })
 
   it('FAQ, termos, privacidade e contacto estão acessíveis sem sessão', async () => {

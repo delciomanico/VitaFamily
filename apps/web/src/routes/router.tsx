@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { createBrowserRouter, type RouteObject } from 'react-router-dom'
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
 import { AdminShell } from '@/components/layout/AdminShell'
 import { AppShell } from '@/components/layout/AppShell'
 import { ClinicPortalRoot, ClinicShell } from '@/components/layout/ClinicShell'
@@ -56,6 +56,7 @@ export const routes: RouteObject[] = [
       { path: paths.enter, ...page(() => import('@/pages/site/EnterPage'), 'EnterPage') },
       { path: paths.requestAccessPattern, ...page(() => import('@/pages/site/RequestAccessPage'), 'RequestAccessPage') },
       { path: paths.partners, ...page(() => import('@/pages/site/PartnersPage'), 'PartnersPage') },
+      { path: paths.partnersLegacy, element: <Navigate to={paths.partners} replace /> },
       { path: paths.clinics, ...page(() => import('@/pages/site/ProfessionalPages'), 'ClinicsPage') },
       { path: paths.insurers, ...page(() => import('@/pages/site/ProfessionalPages'), 'InsurersPage') },
       { path: paths.contact, ...page(() => import('@/pages/site/ContactPage'), 'ContactPage') },

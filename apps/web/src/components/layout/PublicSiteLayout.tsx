@@ -12,7 +12,7 @@ const links = [
   { to: `${paths.splash}#familias`, label: 'Famílias', hash: true },
   { to: paths.clinics, label: 'Clínicas', hash: false },
   { to: paths.insurers, label: 'Seguradoras', hash: false },
-  { to: paths.partners, label: 'Parceiros', hash: false },
+  { to: paths.partners, label: 'Rede de prestadores', hash: false },
   { to: paths.faq, label: 'Perguntas frequentes', hash: false },
   { to: paths.contact, label: 'Contacto', hash: false },
 ]
@@ -21,7 +21,7 @@ const links = [
 export function SiteFrame({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const appEntry = useAppEntry()
-  const linkClass = 'rounded-full px-4 py-2 text-base font-medium text-muted transition-colors hover:text-foreground'
+  const linkClass = 'whitespace-nowrap rounded-full px-4 py-2 text-base font-medium text-muted transition-colors hover:text-foreground'
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
@@ -33,10 +33,10 @@ export function SiteFrame({ children }: { children: ReactNode }) {
       </a>
       <header className="sticky top-0 z-30 border-b border-border bg-surface/95 pt-safe backdrop-blur">
         <div className="mx-auto flex h-20 max-w-7xl items-center gap-4 px-5 lg:px-10">
-          <Link to={paths.splash} aria-label="Vita Family, página inicial">
+          <Link to={paths.splash} aria-label="Vita Family, página inicial" className="shrink-0 whitespace-nowrap">
             <Logo />
           </Link>
-          <nav aria-label="Principal" className="ml-6 hidden items-center gap-1 lg:flex">
+          <nav aria-label="Principal" className="ml-6 hidden items-center gap-1 xl:flex">
             {links.map((link) =>
               link.hash ? (
                 <a key={link.to} href={link.to} className={linkClass}>
@@ -69,14 +69,14 @@ export function SiteFrame({ children }: { children: ReactNode }) {
               aria-expanded={open}
               aria-controls="menu-site"
               aria-label={open ? 'Fechar menu' : 'Abrir menu'}
-              className="flex size-11 items-center justify-center rounded-full text-foreground hover:bg-surface-muted lg:hidden"
+              className="flex size-11 items-center justify-center rounded-full text-foreground hover:bg-surface-muted xl:hidden"
             >
               {open ? <X className="size-5" aria-hidden /> : <Menu className="size-5" aria-hidden />}
             </button>
           </div>
         </div>
         {open && (
-          <nav id="menu-site" aria-label="Menu" className="flex flex-col gap-1 border-t border-border px-4 py-3 lg:hidden">
+          <nav id="menu-site" aria-label="Menu" className="flex flex-col gap-1 border-t border-border px-4 py-3 xl:hidden">
             {links.map((link) =>
               link.hash ? (
                 <a key={link.to} href={link.to} onClick={() => setOpen(false)} className={linkClass}>
@@ -116,7 +116,7 @@ export function SiteFrame({ children }: { children: ReactNode }) {
               Seguradoras
             </Link>
             <Link to={paths.partners} className="text-muted hover:text-foreground">
-              Pesquisar parceiros
+              Rede de prestadores
             </Link>
           </nav>
           <nav aria-label="Institucional" className="flex flex-col gap-3 text-base">

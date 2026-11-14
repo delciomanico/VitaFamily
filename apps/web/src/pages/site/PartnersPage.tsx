@@ -144,11 +144,11 @@ function PartnerRow({ partner }: { partner: PublicPartner }) {
 }
 
 /**
- * Pesquisa pública da rede de parceiros (clínicas e seguradoras ligadas ao Vita Family).
+ * Pesquisa pública da rede de prestadores (clínicas e seguradoras ligadas ao Vita Family).
  * Filtros e pesquisa ficam no URL (`?q=&tipo=&cidade=&especialidade=`) para se poder partilhar.
  */
 export function PartnersPage() {
-  usePageTitle('Parceiros')
+  usePageTitle('Rede de prestadores')
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const kind = (['CLINIC', 'INSURER'].includes(params.get('tipo') ?? '') ? params.get('tipo') : 'ALL') as KindFilter
@@ -200,17 +200,17 @@ export function PartnersPage() {
           <div className="absolute -top-32 -left-24 size-[30rem] animate-drift rounded-full bg-primary-soft blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-7xl px-5 py-20 lg:px-10 lg:py-28">
-          <p className="text-base font-semibold tracking-wide text-primary uppercase">Rede de parceiros</p>
+          <p className="text-base font-semibold tracking-wide text-primary uppercase">Rede de prestadores</p>
           <h1 className="mt-4 max-w-3xl text-4xl leading-[1.1] font-bold tracking-tight text-balance md:text-6xl">
-            Encontre clínicas e seguradoras perto de si.
+            Encontre prestadores de saúde perto de si.
           </h1>
           <p className="mt-5 max-w-2xl text-xl text-muted">
-            Pesquise por nome, especialidade ou cidade e veja quem está ligado ao Vita Family.
+            Pesquise por nome, especialidade ou cidade e veja quem faz parte da rede Vita Family.
           </p>
 
           <form role="search" onSubmit={(event) => event.preventDefault()} className="mt-10 flex flex-col gap-4">
             <Input
-              label="Pesquisar parceiros"
+              label="Pesquisar prestadores"
               type="search"
               icon={Search}
               placeholder="Ex.: Pediatria, Luanda, Clínica…"
@@ -234,7 +234,7 @@ export function PartnersPage() {
                 options={specialties.map((value) => ({ value, label: value }))}
               />
             </div>
-            <div role="group" aria-label="Tipo de parceiro" className="flex flex-wrap gap-2">
+            <div role="group" aria-label="Tipo de prestador" className="flex flex-wrap gap-2">
               {kindFilters.map((option) => (
                 <button
                   key={option.value}
@@ -258,10 +258,10 @@ export function PartnersPage() {
 
       <section className="bg-surface-muted">
         <div className="mx-auto max-w-7xl px-5 py-16 lg:px-10 lg:py-20">
-          {state.status === 'loading' && <LoadingState rows={3} label="A carregar parceiros…" />}
+          {state.status === 'loading' && <LoadingState rows={3} label="A carregar prestadores…" />}
           {state.status === 'error' && (
             <ErrorState
-              message="O diretório de parceiros não está disponível de momento. Tente mais tarde ou fale connosco."
+              message="A rede de prestadores não está disponível de momento. Tente mais tarde ou fale connosco."
               onRetry={reload}
             />
           )}
@@ -269,7 +269,7 @@ export function PartnersPage() {
             <>
               <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
                 <p role="status" className="text-lg font-semibold">
-                  {results.length === 1 ? '1 parceiro encontrado' : `${results.length} parceiros encontrados`}
+                  {results.length === 1 ? '1 prestador encontrado' : `${results.length} prestadores encontrados`}
                 </p>
                 {hasFilters && (
                   <Button variant="ghost" onClick={() => setParams({}, { replace: true })}>
@@ -280,18 +280,18 @@ export function PartnersPage() {
               {results.length === 0 ? (
                 <EmptyState
                   icon={Building2}
-                  title="Nenhum parceiro corresponde à pesquisa"
+                  title="Nenhum prestador corresponde à pesquisa"
                   description="Experimente outro nome, cidade ou especialidade."
                 />
               ) : (
                 <>
                 <div className="overflow-hidden rounded-3xl border border-border bg-surface shadow-card">
                   <table className="block w-full border-collapse text-left md:table">
-                    <caption className="sr-only">Parceiros do Vita Family</caption>
+                    <caption className="sr-only">Rede de prestadores do Vita Family</caption>
                     <thead className="hidden bg-surface-muted md:table-header-group">
                       <tr>
                         <th scope="col" className="px-6 py-4 text-sm font-semibold tracking-wide text-muted uppercase">
-                          Parceiro
+                          Prestador
                         </th>
                         <th scope="col" className="px-6 py-4 text-sm font-semibold tracking-wide text-muted uppercase">
                           Localização
@@ -330,7 +330,7 @@ export function PartnersPage() {
       <section className="bg-surface">
         <div className="mx-auto flex max-w-7xl flex-col items-start gap-6 px-5 py-16 lg:flex-row lg:items-center lg:justify-between lg:px-10 lg:py-20">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">A sua clínica ou seguradora quer aparecer aqui?</h2>
+            <h2 className="text-3xl font-bold tracking-tight">Quer fazer parte da rede de prestadores?</h2>
             <p className="mt-2 text-lg text-muted">Peça acesso ao portal e ligue-se às famílias.</p>
           </div>
           <div className="flex flex-wrap gap-3">
