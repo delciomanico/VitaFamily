@@ -10,7 +10,11 @@ import { paths } from '@/routes/paths'
 const bigButton = 'h-14 px-8 text-base'
 
 /** Fotografias do carrossel do hero. */
-const HERO_IMAGES = [{ src: '/images/login/familia.webp' }, { src: '/images/login/consulta.webp' }]
+const HERO_IMAGES = [
+  { src: '/images/site/familia.webp' },
+  { src: '/images/site/consulta.webp' },
+  { src: '/images/site/medicacao.webp' },
+]
 
 /** Vídeo do hero: colocar os ficheiros em apps/web/public/videos/. Sem eles, fica a fotografia. */
 const HERO_VIDEO = [
@@ -185,10 +189,10 @@ export function LandingPage() {
                 className="group flex h-full scroll-mt-24 flex-col overflow-hidden rounded-[2rem] bg-surface shadow-card transition-shadow duration-300 hover:shadow-overlay"
               >
                 <img
-                  src="/images/login/consulta.webp"
+                  src="/images/site/consulta.webp"
                   alt="Médico e enfermeira a observar uma criança com a mãe"
-                  width={600}
-                  height={400}
+                  width={1536}
+                  height={864}
                   loading="lazy"
                   decoding="async"
                   className="aspect-[3/2] w-full object-cover transition-transform duration-700 group-hover:scale-105"

@@ -68,7 +68,7 @@ export function HeroMedia({ images, sources = [] }: HeroMediaProps) {
           decoding="async"
           style={{ transitionDuration: `${FADE_MS}ms` }}
           className={cn(
-            'absolute inset-0 size-full object-cover transition-opacity ease-in-out',
+            'absolute inset-0 size-full object-cover object-[72%_center] transition-opacity ease-in-out md:object-center',
             index === active ? 'z-10 opacity-100' : index === previous ? 'z-0 opacity-100' : 'z-0 opacity-0',
             motion(index),
           )}
@@ -83,7 +83,7 @@ export function HeroMedia({ images, sources = [] }: HeroMediaProps) {
           preload="metadata"
           onLoadedData={() => setVideoReady(true)}
           className={cn(
-            'absolute inset-0 z-20 size-full object-cover transition-opacity duration-1000',
+            'absolute inset-0 z-20 size-full object-cover object-[72%_center] transition-opacity duration-1000 md:object-center',
             videoReady ? 'opacity-100' : 'opacity-0',
           )}
         >

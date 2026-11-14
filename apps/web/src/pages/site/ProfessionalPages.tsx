@@ -31,8 +31,7 @@ interface ProfessionalContent {
   eyebrow: string
   headline: string
   lead: string
-  image: string
-  imageAlt: string
+  images: string[]
   loginPath: string
   requestPath: string
   benefits: Point[]
@@ -48,8 +47,7 @@ const clinics: ProfessionalContent = {
   eyebrow: 'Para clínicas',
   headline: 'Uma agenda cheia e pacientes bem acompanhados.',
   lead: 'Um portal para a receção e para os médicos, ligado às famílias que usam o Vita Family.',
-  image: '/images/login/consulta.webp',
-  imageAlt: 'Médico e enfermeira a observar uma criança com a mãe',
+  images: ['/images/site/consulta.webp', '/images/site/recepcao.webp'],
   loginPath: paths.clinicLogin,
   requestPath: paths.requestAccess('clinica'),
   benefits: [
@@ -90,8 +88,7 @@ const insurers: ProfessionalContent = {
   eyebrow: 'Para seguradoras',
   headline: 'Beneficiários e clínicas ligados, sem papel.',
   lead: 'Um portal para gerir beneficiários, apólices e planos, e uma ligação direta às clínicas e às famílias.',
-  image: '/images/login/familia.webp',
-  imageAlt: 'Família de várias gerações a conversar no sofá',
+  images: ['/images/site/recepcao.webp', '/images/site/medicacao.webp'],
   loginPath: paths.insuranceLogin,
   requestPath: paths.requestAccess('seguradora'),
   benefits: [
@@ -132,7 +129,7 @@ function ProfessionalPage({ content }: { content: ProfessionalContent }) {
   return (
     <>
       <section className="relative isolate flex min-h-[28rem] items-end overflow-hidden text-white lg:min-h-[34rem]">
-        <HeroMedia images={[{ src: content.image }, { src: content.image === '/images/login/consulta.webp' ? '/images/login/familia.webp' : '/images/login/consulta.webp' }]} />
+        <HeroMedia images={content.images.map((src) => ({ src }))} />
         <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/45 to-black/20" />
         <div className="mx-auto w-full max-w-7xl animate-rise px-5 pt-24 pb-14 lg:px-10 lg:pb-20">
           <p className="text-base font-semibold tracking-wide uppercase">{content.eyebrow}</p>
