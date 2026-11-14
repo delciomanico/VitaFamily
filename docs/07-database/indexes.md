@@ -69,6 +69,13 @@
 | `processes (clinic_id) WHERE clinic_id IS NOT NULL` | leitura do portal da clínica e `SET NULL` da FK (BR-PRC-06) |
 | UNIQUE parcial `appointments (process_id) WHERE process_id IS NOT NULL` · idem `examinations` | 1 ato : 1 processo; resolução ato→processo |
 
+## Catálogo e política da seguradora (marco B fatia 2; `schema.md` §3c, migração `0037`)
+| Índice | Para quê |
+|---|---|
+| UNIQUE `insurer_service_kinds (insurer_id, code)` e `(insurer_id, id)` | código único por seguradora; alvo da FK composta (BR-SEG-39) |
+| `insurer_services (insurer_id, service_kind_id)` | contagem por tipo, `classify`, inativação de tipo com serviços ativos |
+| UNIQUE parcial `insurer_policy_settings (insurer_id, setting_key) WHERE service_id IS NULL` · `(insurer_id, setting_key, service_id) WHERE service_id IS NOT NULL` | upsert idempotente; resolução serviço > seguradora (BR-SEG-40) |
+
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).
 2. Antes de M10, validar os 5 caminhos quentes: scanner, agenda do dia, lista de alertas, resolução de membership, relatório individual.

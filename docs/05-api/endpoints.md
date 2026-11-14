@@ -1997,6 +1997,24 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
 - **BUSINESS RULES:** BR-SEG-22: nome, categoria e estado; o código não se altera. Auditoria INSURER_SERVICE_UPDATE.
 
+### `GET /insurance-portal/catalog-types`  — listInsurerCatalogTypes (marco B fatia 2, BR-SEG-39)
+- **AUTHORIZATION:** qualquer papel do módulo (leitura) · **RESPONSE:** `200` `InsurerCatalogTypes` (`guideTypes[].code`, `expenseTypes[].code/legacyCode`) · **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED` · Sem auditoria; rótulos pt na apresentação.
+
+### `GET|POST /insurance-portal/service-kinds`, `PATCH /insurance-portal/service-kinds/{kindId}`  — listInsurerServiceKinds, createInsurerServiceKind, updateInsurerServiceKind (BR-SEG-39, UC-SEG-18)
+- **AUTHORIZATION:** `GET`: qualquer papel do módulo; `POST`/`PATCH`: `INSURANCE_ADMIN`.
+- **QUERY (GET):** `status`. Sem paginação (máx. 100 por seguradora) · **REQUEST:** `InsurerServiceKindInput` / `InsurerServiceKindPatch` (o `code` não se altera) · **RESPONSE:** `200` `[InsurerServiceKind]`, `201`/`200` `InsurerServiceKind` (`servicesCount`).
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `CONFLICT` (`code` repetido; inativar tipo com serviços ATIVOS ligados), `VALIDATION_ERROR` (`guideType`/`expenseType` fora dos catálogos globais), `UNAUTHENTICATED`. Auditoria `INSURER_SERVICE_KIND_CREATE/UPDATE`. Os 9 tipos por omissão semeiam-se na primeira utilização (sem auditoria).
+
+### `POST /insurance-portal/services/classify`  — classifyInsurerServices (BR-SEG-39, UC-SEG-18)
+- **AUTHORIZATION:** `INSURANCE_ADMIN` · **REQUEST:** `InsurerServiceClassifyRequest` (`category` normalizada, `serviceKindId`, `onlyUnclassified` omissão `true`) · **RESPONSE:** `200` `{updated}` · **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR` (tipo inexistente/de outra seguradora/inativo), `UNAUTHENTICATED`. Uma transação; auditoria `INSURER_SERVICE_CLASSIFY`. **Nota de implementação:** a rota literal `/services/classify` regista-se **antes** de `/services/{serviceId}`.
+- `InsurerService` ganha `serviceKindId?`, `guideType?`, `expenseType?` (os dois últimos derivados, só leitura); `InsurerServiceInput`/`Patch` ganham `serviceKindId`. `GET /clinic-portal/insurers/{insurerId}/services` ganha `guideType?` e `expenseType?` por serviço (só estes dois; nunca o id do tipo nem a política).
+
+### `GET /insurance-portal/policy-settings`, `PUT|DELETE /insurance-portal/policy-settings/{key}`  — listInsurerPolicySettings, setInsurerPolicySetting, resetInsurerPolicySetting (BR-SEG-40, UC-SEG-19)
+- **AUTHORIZATION:** `GET`: qualquer papel do módulo; `PUT`/`DELETE`: `INSURANCE_ADMIN` (`SUPERVISOR` a partir da fatia 4).
+- **REQUEST (PUT):** `InsurerPolicySettingInput` (`value`, `serviceId?`) · **QUERY (DELETE):** `serviceId?` · **RESPONSE:** `200` `[InsurerPolicySetting]` / `InsurerPolicySetting`; `204` no `DELETE` (idempotente).
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND` (chave desconhecida; `serviceId` de outra seguradora), `VALIDATION_ERROR` (`value` fora de `min..max`; `serviceId` em chave sem escopo por serviço), `UNAUTHENTICATED`. Auditoria `INSURER_POLICY_SETTING_UPDATE/RESET`. Sem leitura para a clínica nesta fatia (o prazo chega-lhe no pedido, fatia 3).
+- **Alteração (BR-SEG-42):** `POST /families/{f}/members/{m}/insurance-policies/{policyId}/reimbursement-claims`: `currency` do pedido deprecado; a moeda gravada e devolvida é a da seguradora; `currency` diferente ⇒ `VALIDATION_ERROR`.
+
 ### `GET /insurance-portal/partner-clinics`  — listInsurerPartnerClinics
 - **AUTHORIZATION:** INSURANCE_ADMIN (os restantes papéis do módulo e `INSURANCE_AGENT`: `FORBIDDEN`)
 - **DESCRIPTION:** Listar as clínicas parceiras (`PARTNER`, `ACTIVE`) que a seguradora pode ligar (decisão do proprietário, 2026-11-11).
@@ -2170,7 +2188,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 - **QUERY:** `status` (SCHEDULED|IN_PROGRESS|DONE|CANCELLED), `originType` (APPOINTMENT|EXAMINATION), `limit` (1–100, omissão 25), `cursor` (string opaca)
 - **REQUEST:** —
 - **RESPONSE:** `200` `{ items: [Process], nextCursor }` (`nextCursor` nulo no fim)
-- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `NOT_FOUND`, `VALIDATION_ERROR`, `MEMBER_BLOCKED`
+- **ERRORS:** `MALFORMED_REQUEST` (400: `status`/`originType`/`limit` fora do contrato ou `cursor` inválido; parâmetros de query são validados pelo validador do contrato), `UNAUTHENTICATED`, `NOT_FOUND`, `MEMBER_BLOCKED`
 - **BUSINESS RULES:** BR-PRC-02/03/05/09. `status` filtra **depois** da derivação: o servidor varre em lotes (máx. 200 processos por pedido) e pode devolver menos de `limit` itens com `nextCursor` não nulo; o cliente segue o cursor até ser nulo. Auditoria `PROCESS_VIEW` só se o actor não é o titular.
 
 ### `GET /families/{familyId}/members/{memberId}/processes/{processId}`  — getProcess
@@ -2672,7 +2690,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **ReimbursementClaim** — `id`: uuid, `policyId`: uuid, `amount`: number, `currency`: string, `status`: SUBMITTED|APPROVED|REJECTED|PAID, `decisionNote?`: string, `documentIds`: [uuid], `receipts`: [ClaimReceiptRef] (M14 R), `createdAt`: datetime (ADR-021)
 
-**ReimbursementClaimInput** — `amount`: number, `currency?`: string, `documentIds?`: [uuid], `receiptIds?`: [uuid] (M14 R, BR-CLN-36; `documentIds` + `receiptIds` entre 1 e 10 no total, BR-INS-04)
+**ReimbursementClaimInput** — `amount`: number, `currency?`: string (**deprecado**, BR-SEG-42: ignorado se igual à moeda da seguradora, diferente ⇒ `VALIDATION_ERROR`), `documentIds?`: [uuid], `receiptIds?`: [uuid] (M14 R, BR-CLN-36; `documentIds` + `receiptIds` entre 1 e 10 no total, BR-INS-04)
 
 **InsuranceLoginRequest** — `email`: email, `password`: string
 
@@ -2688,7 +2706,7 @@ As rotas `/insurance-portal/*` usam um **token distinto** do de User e do de cl�
 
 **Insurer** — `id`: uuid, `name`: string, `taxId`: string, `status`: ACTIVE|SUSPENDED
 
-**PartnerInsurer** — `id`: uuid, `name`: string (BR-INS-09)
+**PartnerInsurer** — `id`: uuid, `name`: string, `currency`: string (BR-INS-09; BR-SEG-42: moeda da seguradora)
 
 **InsurerPatch** — `name?`: string, `taxId?`: string (BR-ADM-05)
 

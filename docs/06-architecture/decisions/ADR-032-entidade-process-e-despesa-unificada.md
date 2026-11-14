@@ -78,3 +78,10 @@ Contrato escrito por `vita-architect` (`openapi.yaml`, `endpoints.md`, `schema.m
 7. **Backfill de todos os atos anteriores** (substitui "marcações antigas ficam sem processo" de `process-flows.md` §13) e `NOT NULL` só mais tarde.
 8. **Clínica:** `GET /clinic-portal/processes/{id}` mínimo, só Admin/Gestor; o Médico fica de fora na fatia 1 (o filtro por profissional não existe em `processes`).
 Fatias 2–6 e fronteira com este contrato: ver `marco-b-construcao.md` §4 (Fatia 1, "Contrato fechado").
+
+## Atualização 2026-11-14 (fatia 1 implementada, commit aefe606)
+Implementação confirmada contra o código; alinhamentos de contrato (decisões do proprietário, seguir o recomendado):
+- **Query inválida em `GET …/processes` = `400 MALFORMED_REQUEST`** (convenção da plataforma: parâmetros de pedido validados pelo validador do contrato e traduzidos pelo `error-middleware`), não `422 VALIDATION_ERROR`. `openapi.yaml`, `endpoints.md`, `errors.md` e TC-PRC-15 corrigidos.
+- **`ProcessLinker.open/discard` ganham o campo `by`** (ator de auditoria: `actorType`, `actorUserId?`, `actorClinicAccountId?`, `requestId`, `ip?`, `userAgent?`), para que `PROCESS_OPEN/DISCARD` fiquem atribuídos ao ator real sem `processes` importar módulos donos.
+- **`ProcessFacts.getActFacts` devolve entradas `{originType, originId, fact}`** (e não `ActFact[]` solto), para correlacionar sem ambiguidade; atos inexistentes são omitidos.
+- `modules.md` §3 (linhas de `processes`, `appointments`, `examinations`) e nota 29 passam de "declarativo" a **implementado**.

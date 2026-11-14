@@ -9821,6 +9821,292 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/catalog-types:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerCatalogTypes
+      summary: "Listar os tipos de guia e de despesa conhecidos (para selects)."
+      description: "Autorização: qualquer papel do módulo (leitura). Fatia 2 (BR-SEG-39): códigos em inglês dos catálogos globais do Vita (`guide_types`, `expense_types`); `legacyCode` = código curto do formulário da seguradora (I, P, C, EAD, T, E, PO, M, SD). Os rótulos em pt vivem na apresentação (apps/web `lib/labels.ts`), nunca aqui. Sem auditoria (catálogo sem dados pessoais). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerCatalogTypes" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/service-kinds:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerServiceKinds
+      summary: "Listar os tipos de serviço (service_kind) da seguradora."
+      description: "Autorização: qualquer papel do módulo (leitura). Fatia 2 (BR-SEG-39). Sem paginação (máx. 100 por seguradora). Filtro `status`. Na primeira utilização do módulo a seguradora recebe os 9 tipos por omissão (semeadura idempotente, sem auditoria; BR-SEG-39). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, INACTIVE] } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/InsurerServiceKind" } }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance Portal]
+      operationId: createInsurerServiceKind
+      summary: "Criar tipo de serviço."
+      description: "Autorização: INSURANCE_ADMIN. BR-SEG-39: `code` único por seguradora (duplicado ⇒ CONFLICT); `guideType`/`expenseType` têm de existir nos catálogos globais (senão VALIDATION_ERROR). Auditoria INSURER_SERVICE_KIND_CREATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerServiceKindInput" }
+      responses:
+        '201':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerServiceKind" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/service-kinds/{kindId}:
+    patch:
+      tags: [Insurance Portal]
+      operationId: updateInsurerServiceKind
+      summary: "Editar ou inativar tipo de serviço."
+      description: "Autorização: INSURANCE_ADMIN. BR-SEG-39: nome, `guideType`, `expenseType` e estado; o `code` não se altera. Inativar um tipo com serviços ATIVOS ligados ⇒ CONFLICT. Mudar `guideType`/`expenseType` não altera pedidos já feitos (a guia fica gravada no pedido, fatia 3). Auditoria INSURER_SERVICE_KIND_UPDATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: kindId, in: path, schema: { type: string, format: uuid }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerServiceKindPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerServiceKind" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/services/classify:
+    post:
+      tags: [Insurance Portal]
+      operationId: classifyInsurerServices
+      summary: "Atribuir um tipo de serviço a todos os serviços de uma categoria (1 passo por regra)."
+      description: "Autorização: INSURANCE_ADMIN. BR-SEG-39: mapeamento por seguradora da `category` livre para o `service_kind`. Com `onlyUnclassified=true` (omissão) só toca nos serviços ainda sem tipo. `category` compara-se normalizada (trim, minúsculas, sem acentos); `null`/vazio = serviços sem categoria. `serviceKindId` tem de ser da própria seguradora e ACTIVE (senão VALIDATION_ERROR). Uma única transação. Auditoria INSURER_SERVICE_CLASSIFY (`metadata`: `insurerId`, `serviceKindId`, `count`; nunca a categoria). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerServiceClassifyRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerServiceClassifyResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/policy-settings:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerPolicySettings
+      summary: "Listar a política da seguradora (prazos) com limites do Vita e valor efetivo."
+      description: "Autorização: qualquer papel do módulo (leitura). Fatia 2 (BR-SEG-40). Devolve, por chave, os limites e o valor por omissão definidos pelo Vita, o valor efetivo da seguradora e as exceções por serviço. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/InsurerPolicySetting" } }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/policy-settings/{key}:
+    put:
+      tags: [Insurance Portal]
+      operationId: setInsurerPolicySetting
+      summary: "Definir o valor de uma regra de política (da seguradora ou de um serviço)."
+      description: "Autorização: INSURANCE_ADMIN (o papel SUPERVISOR passa a poder, sem outra alteração de contrato, quando for criado na fatia 4: authorization.md §8.2c). BR-SEG-40: `value` inteiro entre o mínimo e o máximo do Vita para a chave (fora ⇒ VALIDATION_ERROR com `errors[].field=value`); `serviceId` opcional só se a chave admitir exceção por serviço (senão VALIDATION_ERROR) e tem de ser da própria seguradora (senão NOT_FOUND); chave desconhecida ⇒ NOT_FOUND. Idempotente (upsert). Auditoria INSURER_POLICY_SETTING_UPDATE (`metadata`: `insurerId`, `key`, `serviceId?`, `from`, `to`). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: key, in: path, schema: { type: string, pattern: '^[A-Z][A-Z0-9_]{2,59}$' }, required: true }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InsurerPolicySettingInput" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerPolicySetting" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Insurance Portal]
+      operationId: resetInsurerPolicySetting
+      summary: "Repor o valor por omissão (apaga a definição da seguradora ou do serviço)."
+      description: "Autorização: INSURANCE_ADMIN. BR-SEG-40: sem `serviceId` apaga a definição da seguradora (volta ao valor por omissão do Vita); com `serviceId` apaga a exceção do serviço (volta ao valor da seguradora). Idempotente (204 mesmo que não exista). Auditoria INSURER_POLICY_SETTING_RESET só quando algo foi apagado. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: key, in: path, schema: { type: string, pattern: '^[A-Z][A-Z0-9_]{2,59}$' }, required: true }
+        - { name: serviceId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /insurance-portal/partner-clinics:
     get:
       tags: [Insurance Portal]
@@ -10537,7 +10823,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ProcessPage" }
         '400':
-          description: "MALFORMED_REQUEST (cursor inválido)"
+          description: "MALFORMED_REQUEST (query inválida: status/originType/limit fora do contrato ou cursor inválido; convenção da plataforma para parâmetros de pedido)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -10548,11 +10834,6 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '404':
           description: "NOT_FOUND (família/membro de outra família ou inexistente)"
-          content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/Problem" }
-        '422':
-          description: "VALIDATION_ERROR (status/originType/limit inválidos)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -13869,7 +14150,7 @@ components:
           type: number
         currency:
           type: string
-          default: EUR
+          description: "BR-SEG-42: sempre a moeda da seguradora (`insurer_accounts.currency`), copiada na criação; nunca escolhida pelo cliente."
         status:
           type: string
           enum: [SUBMITTED, APPROVED, REJECTED, PAID]
@@ -13897,7 +14178,7 @@ components:
           type: number
         currency:
           type: string
-          default: EUR
+          description: "Deprecado (BR-SEG-42). Opcional e ignorado se igual à moeda da seguradora; se diferente ⇒ VALIDATION_ERROR. Não há moeda por omissão: a moeda é a da seguradora."
         documentIds:
           type: array
           items:
@@ -14035,14 +14316,17 @@ components:
           description: "Módulo operacional ligado pelo Platform Admin (ADR-025). Sem ele, a seguradora só tem o fluxo de reembolso (ADR-021)."
     PartnerInsurer:
       type: object
-      required: [id, name]
-      description: "BR-INS-09: seguradora parceira ACTIVE escolhível pelo titular."
+      required: [id, name, currency]
+      description: "BR-INS-09: seguradora parceira ACTIVE escolhível pelo titular. `currency` (BR-SEG-42) = moeda da seguradora, para a app a mostrar; é a única moeda dos pedidos de reembolso."
       properties:
         id:
           type: string
           format: uuid
         name:
           type: string
+        currency:
+          type: string
+          description: "ISO 4217 (`insurer_accounts.currency`)."
     InsurerPatch:
       type: object
       description: "BR-ADM-05 (ADR-023); `currency` e `operationalModuleEnabled` acrescentados por ADR-025 (só PLATFORM_ADMIN; auditoria ADMIN_INSURER_CURRENCY_UPDATE / ADMIN_INSURER_MODULE_ENABLE|DISABLE). Mudar `currency` com apólices/beneficiários já criados ⇒ CONFLICT (BR-SEG-19)."
@@ -14350,8 +14634,11 @@ components:
         id: { type: string, format: uuid }
         code: { type: string }
         name: { type: string }
-        category: { type: string, nullable: true }
+        category: { type: string, nullable: true, description: "Rótulo livre de agrupamento (legado); a classificação que conta é `serviceKindId` (BR-SEG-39)." }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+        serviceKindId: { type: string, format: uuid, nullable: true, description: "Fatia 2 (BR-SEG-39). Nulo = por classificar (o tipo de guia não pode ser deduzido)." }
+        guideType: { type: string, nullable: true, description: "Derivado, só leitura: `guideType` do tipo de serviço (CONSULTATION | SERVICES | ADMISSION)." }
+        expenseType: { type: string, nullable: true, description: "Derivado, só leitura: `expenseType` do tipo de serviço (INPATIENT, CHILDBIRTH, CONSULTATION, DIAGNOSTICS, TREATMENT, DENTAL, PROSTHETICS, MEDICATION, DAILY_ALLOWANCE)." }
     InsurerServiceInput:
       type: object
       required: [code, name]
@@ -14359,18 +14646,106 @@ components:
         code: { type: string, maxLength: 40 }
         name: { type: string, maxLength: 200 }
         category: { type: string, maxLength: 80 }
+        serviceKindId: { type: string, format: uuid, description: "Opcional; tipo da própria seguradora e ACTIVE (senão VALIDATION_ERROR)." }
     InsurerServicePatch:
       type: object
       properties:
         name: { type: string, maxLength: 200 }
         category: { type: string, nullable: true, maxLength: 80 }
         status: { type: string, enum: [ACTIVE, INACTIVE] }
+        serviceKindId: { type: string, format: uuid, nullable: true, description: "null remove o tipo (volta a «por classificar»)." }
     InsurerServicePage:
       type: object
       required: [items, nextCursor]
       properties:
         items: { type: array, items: { $ref: "#/components/schemas/InsurerService" } }
         nextCursor: { type: string, nullable: true }
+    InsurerCatalogTypes:
+      type: object
+      required: [guideTypes, expenseTypes]
+      properties:
+        guideTypes:
+          type: array
+          items:
+            type: object
+            required: [code]
+            properties:
+              code: { type: string, description: "CONSULTATION | SERVICES | ADMISSION (extensível por dados, BR-SEG-39)." }
+        expenseTypes:
+          type: array
+          items:
+            type: object
+            required: [code, legacyCode]
+            properties:
+              code: { type: string, description: "INPATIENT | CHILDBIRTH | CONSULTATION | DIAGNOSTICS | TREATMENT | DENTAL | PROSTHETICS | MEDICATION | DAILY_ALLOWANCE." }
+              legacyCode: { type: string, description: "I | P | C | EAD | T | E | PO | M | SD (formulário das seguradoras)." }
+    InsurerServiceKind:
+      type: object
+      required: [id, code, name, guideType, expenseType, status, servicesCount]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, maxLength: 40 }
+        name: { type: string, maxLength: 120 }
+        guideType: { type: string }
+        expenseType: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        servicesCount: { type: integer, minimum: 0, description: "Serviços da seguradora ligados a este tipo." }
+    InsurerServiceKindInput:
+      type: object
+      required: [code, name, guideType, expenseType]
+      properties:
+        code: { type: string, maxLength: 40 }
+        name: { type: string, maxLength: 120 }
+        guideType: { type: string }
+        expenseType: { type: string }
+    InsurerServiceKindPatch:
+      type: object
+      properties:
+        name: { type: string, maxLength: 120 }
+        guideType: { type: string }
+        expenseType: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+    InsurerServiceClassifyRequest:
+      type: object
+      required: [serviceKindId]
+      properties:
+        category: { type: string, nullable: true, maxLength: 80, description: "Categoria livre a mapear; null = serviços sem categoria." }
+        serviceKindId: { type: string, format: uuid }
+        onlyUnclassified: { type: boolean, default: true }
+    InsurerServiceClassifyResult:
+      type: object
+      required: [updated]
+      properties:
+        updated: { type: integer, minimum: 0 }
+    InsurerPolicySetting:
+      type: object
+      description: "BR-SEG-40. `value` = efetivo ao nível da seguradora (definição própria ou omissão do Vita)."
+      required: [key, unit, min, max, defaultValue, value, source, allowsServiceScope, serviceOverrides]
+      properties:
+        key: { type: string, description: "AUTHORIZATION_DECISION_HOURS | APPEAL_REQUEST_DAYS | APPEAL_RESPONSE_HOURS | INFO_REQUEST_EXPIRY_DAYS | URGENT_NOTICE_HOURS (extensível por dados)." }
+        unit: { type: string, enum: [HOURS, DAYS] }
+        min: { type: integer, description: "Mínimo definido pelo Vita." }
+        max: { type: integer, description: "Máximo definido pelo Vita." }
+        defaultValue: { type: integer, description: "Valor por omissão definido pelo Vita." }
+        value: { type: integer }
+        source: { type: string, enum: [DEFAULT, INSURER] }
+        allowsServiceScope: { type: boolean }
+        serviceOverrides:
+          type: array
+          items:
+            type: object
+            required: [serviceId, serviceCode, serviceName, value]
+            properties:
+              serviceId: { type: string, format: uuid }
+              serviceCode: { type: string }
+              serviceName: { type: string }
+              value: { type: integer }
+    InsurerPolicySettingInput:
+      type: object
+      required: [value]
+      properties:
+        value: { type: integer }
+        serviceId: { type: string, format: uuid, description: "Só se a chave admitir exceção por serviço." }
     InsurerProvider:
       type: object
       required: [id, clinicId, name, status]
@@ -14428,6 +14803,8 @@ components:
               code: { type: string }
               name: { type: string }
               category: { type: string, nullable: true }
+              guideType: { type: string, nullable: true, description: "Fatia 2 (BR-SEG-39): tipo de guia deduzido do serviço; nulo se o serviço ainda não foi classificado. Nunca escolhido pelo utilizador." }
+              expenseType: { type: string, nullable: true }
         nextCursor: { type: string, nullable: true }
     InsurerEligibilityIdDocument:
       type: object

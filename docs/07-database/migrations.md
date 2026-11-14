@@ -90,7 +90,7 @@
   - **Reversão:** `DROP TABLE clinic_exam_order_links, clinic_exam_orders; DROP TYPE exam_order_status` (só antes de existirem dados; o valor de enum não se remove).
   - Teste de integração obrigatório (`test-cases.md`, TC-CLN-25/26): CHECKs; apagar o membro/consulta apaga a ligação e **não** o pedido; apagar a clínica apaga pedidos e ligações; apagar o exame ligado põe `examination_id` a nulo; UNIQUE parcial de `examination_id`; 6.º pedido ativo concorrente ⇒ `LIMIT_EXCEEDED` (advisory lock); o valor `EXAM_ORDER_ADDED` aceita-se depois da migração.
 
-## `0036_processes.sql` — Processos (marco B fatia 1, ADR-032; PROPOSTA, contrato 2026-11-14)
+## `0036_processes.sql` — Processos (marco B fatia 1, ADR-032; **implementada**, commit aefe606)
 Número seguinte a `0035_insurer_review_fixes.sql`. Expand + backfill numa só migração pequena (princípio 4; sem "contrair"):
 1. `CREATE TYPE process_kind AS ENUM ('ROUTINE')`; `CREATE TYPE process_origin_type AS ENUM ('APPOINTMENT','EXAMINATION')` (sem `ADD VALUE`).
 2. `CREATE TABLE processes` (`schema.md` §4b) com FK composta `(family_id, member_id) → family_members` `CASCADE`, `clinic_id` `SET NULL`, UNIQUE `(origin_type, origin_id)` e os índices de §4b. Sem coluna `family_status`.
@@ -99,3 +99,27 @@ Número seguinte a `0035_insurer_review_fixes.sql`. Expand + backfill numa só m
 - **Reversão:** `DROP` dos índices parciais, `ALTER TABLE … DROP COLUMN process_id` (2 tabelas), `DROP TABLE processes`, `DROP TYPE` dos 2 enums — só enquanto nenhuma fatia posterior depender (documentado; o runner não tem `down`).
 - Teste de integração obrigatório (TC-PRC-11/13/14): UNIQUE, FK composta e `SET NULL`, backfill duas vezes, contagens por `origin_type`.
 - `NOT NULL` em `process_id` **não** faz parte desta migração: migração posterior, só depois de o backfill ser verificado em cópia de dados reais.
+
+## `0037_insurer_catalog_policy.sql` — Catálogo `service_kind`, política da seguradora (marco B fatia 2, ADR-033; PROPOSTA, contrato 2026-11-14)
+Número seguinte a `0036_processes.sql`. Uma migração transacional, só aditiva (princípio «expandir»); **não toca em `reimbursement_claims`** nem apaga nada. Por ordem:
+1. `CREATE TABLE guide_types`, `expense_types`, `policy_setting_definitions` (`schema.md` §3c) + **sementes** (3 tipos de guia, 9 tipos de despesa com `legacy_code`/`default_guide_type`/`default_name`, 5 chaves de política).
+2. `CREATE TABLE insurer_service_kinds` (UNIQUE `(insurer_id, code)` e `(insurer_id, id)`) e `insurer_policy_settings` (UNIQUEs parciais).
+3. **Semeadura por seguradora:** `INSERT INTO insurer_service_kinds (insurer_id, code, name, guide_type, expense_type) SELECT i.id, e.code, e.default_name, e.default_guide_type, e.code FROM insurer_accounts i CROSS JOIN expense_types e WHERE e.active ON CONFLICT DO NOTHING` (idempotente; seguradoras novas: semeadas na primeira utilização do módulo, mesma instrução na `application`).
+4. `ALTER TABLE insurer_services ADD COLUMN service_kind_id uuid` + FK composta `(insurer_id, service_kind_id)`.
+5. **Mapeamento a partir da `category` livre (por seguradora, conservador):** tabela temporária `(padrão, expense_type)` com expressões regulares sobre `category` normalizada (minúsculas, sem acentos): `consult`→CONSULTATION; `internament|internac`→INPATIENT; `parto|matern`→CHILDBIRTH; `exame|diagn|laborat|imagem|radiolog|analise`→DIAGNOSTICS; `tratament|fisio|terap`→TREATMENT; `estomat|dent`→DENTAL; `protese|ortese`→PROSTHETICS; `medicament|farmac`→MEDICATION; `subsidio`→DAILY_ALLOWANCE. `UPDATE insurer_services s SET service_kind_id = k.id … WHERE s.service_kind_id IS NULL AND` **exatamente um** padrão corresponde (ambíguos e sem correspondência ficam `NULL`, «por classificar»). Idempotente.
+6. Índices de `indexes.md` («Catálogo e política»).
+- **Reversão:** `DROP COLUMN insurer_services.service_kind_id`, `DROP TABLE insurer_policy_settings, insurer_service_kinds, policy_setting_definitions, expense_types, guide_types` (só enquanto nada da fatia 3 dependa).
+- **Verificação obrigatória após correr (cópia de dados reais primeiro):** por seguradora, `total de serviços`, `classificados`, `por classificar` e a lista `(category, nº serviços, tipo atribuído)` entregue ao proprietário; nenhum serviço pode ter mudado de `code`/`name`/`status`; contagem de `insurer_services` igual antes/depois.
+- Teste de integração (TC-CAT-*, TC-POL-*): sementes presentes, UNIQUEs, FK composta (tipo de outra seguradora rejeitado), semeadura idempotente, mapeamento ambíguo fica `NULL`, `ON DELETE CASCADE` da seguradora.
+
+### Verificação da moeda (BR-SEG-42) — sem alteração de dados na `0037`
+A fonte única é `insurer_accounts.currency`; o DEFAULT da BD já foi retirado em `0033`. O defeito era **aplicacional** (`parseClaimInput` com `EUR`). Depois de corrigir o código, **antes da fatia 2b**, correr em cópia de dados reais (só leitura):
+```sql
+SELECT i.id AS insurer_id, i.currency AS insurer_currency, c.currency AS claim_currency,
+       c.status, count(*) AS claims, sum(c.amount) AS total
+FROM reimbursement_claims c JOIN insurer_accounts i ON i.id = c.insurer_id
+GROUP BY 1, 2, 3, 4 ORDER BY 1, 3, 4;
+```
+- **Zero divergências** (`claim_currency = insurer_currency` em todas as linhas): nada a corrigir; a 2b pode arrancar.
+- **Com divergências:** o relatório (por seguradora/estado) vai ao proprietário, que decide por seguradora. **Nunca se convertem valores** (`amount` intocável). Correção = migração corretiva **`0038_claims_currency_reconcile.sql`** (reservada; só se a verificação o exigir e o proprietário autorizar): copia `(claim_id, old_currency)` para uma tabela de salvaguarda `reimbursement_claims_currency_backup`, faz `UPDATE … SET currency = i.currency` **só** nas linhas divergentes aprovadas e termina com a verificação acima (0 divergências, `sum(amount)` e contagens idênticos antes/depois, por seguradora e estado). Opcional no mesmo passo: `UNIQUE (id, currency)` em `insurer_accounts` + FK composta `(insurer_id, currency) → insurer_accounts (id, currency)` em `reimbursement_claims`, para que a divergência passe a ser impossível na BD (e a mudança de moeda da seguradora com pedidos existentes falhe). **Divergência encontrada:** `operationalData.hasData` (`insurer-ops/index.ts:176`) só conta beneficiários e apólices, pelo que hoje a moeda de uma seguradora pode mudar com reembolsos já gravados; **emenda a BR-SEG-19 (parte da fatia 2): `hasData` também conta `reimbursement_claims` da seguradora** (⇒ `CONFLICT`), com teste (TC-MOE-05).
+- **Código (fatia 2):** `reimbursement-claim.ts` sem `DEFAULT_CURRENCY`; `createReimbursementClaim` usa `insurer.currency`; recibos comparados com a moeda da seguradora; `apps/web` (`insurance.service.ts`, `mocks/handlers/insurance.ts` e respetivos testes, `MemberInsurancePage.tsx`) deixam de enviar/assumir `EUR` e passam a usar a moeda da seguradora (`PartnerInsurer.currency`, acrescentado ao contrato em `GET /families/{f}/insurers`; no mock, AOA).

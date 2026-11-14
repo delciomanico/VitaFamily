@@ -33,5 +33,6 @@
 - ADR-030 — **ACEITE com âmbito de construção limitado (2026-11-14)** (antes PROPOSTO) (D26): rede de prestadores (catálogo único verificado), Convenção seguradora↔prestador, página/endpoint público e prestador sem seguradora
 - ADR-031 — **ACEITE com âmbito de construção limitado (2026-11-14; nada a construir no marco B, empresa fase 2)** (antes PROPOSTO) (D27): Empresa/tomador de grupo e portal da empresa (fase 2), agregação anónima, vínculo revogável
 - ADR-032 — **ACEITE com âmbito de construção limitado (2026-11-14)** (antes PROPOSTO) (D28): entidade `Process` em módulo próprio `processes` (todo o ato, com ou sem seguradora) e Despesa unificada (origem prestador/família, fila única); migração do `ReimbursementClaim`; supera parcialmente ADR-021; prazos 24–120 h (48 h) e recurso 15 dias/72 h
+- ADR-033 — **ACEITE com âmbito da fatia 2 do marco B (2026-11-14; limites propostos a ratificar)**: catálogo `service_kind` por seguradora (guia deduzida do serviço), política da seguradora em dados (`insurer_policy_settings`), `evaluateCoverage` única e moeda de fonte única (`insurer_accounts.currency`)
 
 Alterar uma decisão exige um novo ADR que a substitua (change control, prompt §23).

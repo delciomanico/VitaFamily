@@ -69,3 +69,11 @@
 ### UC-SEG-17 Consultar histórico/auditoria
 - **Ator:** `INSURANCE_ADMIN` (auditoria da seguradora); paciente (o seu próprio histórico, UC-SEG-15) · **BR:** BR-SEG-14/15 · **Fluxo:** lista paginada de eventos da seguradora (decisões, alterações de apólice/plano/cobertura, validações de elegibilidade, permissões) filtrada por `insurerId`.
 - **Alternativos:** outros papéis ⇒ `FORBIDDEN`; a leitura de auditoria global continua sem endpoint (`audit.md` §2 regra 4) — esta é uma vista restrita à seguradora (**pendência**: confirmar que não contradiz P7).
+
+### UC-SEG-18 Classificar serviços por tipo (`service_kind`) — marco B fatia 2
+- **Ator:** `INSURANCE_ADMIN` (leitura: qualquer papel do módulo) · **BR:** BR-SEG-22/39 · **Fluxo:** vê os tipos da seguradora (`GET /service-kinds`, 9 por omissão) → cria/edita tipos se precisar → atribui o tipo aos serviços: um a um (`PATCH` do serviço, 1 campo) ou **uma categoria de cada vez** (`POST /services/classify`, 1 passo por categoria). Serviços sem tipo ficam «por classificar» e a lista di-lo.
+- **Alternativos:** tipo inexistente/de outra seguradora/inativo ⇒ `VALIDATION_ERROR`; `code` repetido ⇒ `CONFLICT`; inativar tipo com serviços `ACTIVE` ⇒ `CONFLICT`. O utilizador da clínica nunca escolhe o tipo de guia: vê-o deduzido do serviço (fatia 3).
+
+### UC-SEG-19 Configurar a política da seguradora (prazos) — marco B fatia 2
+- **Ator:** `INSURANCE_ADMIN` (leitura: qualquer papel do módulo; `SUPERVISOR` escreve a partir da fatia 4) · **BR:** BR-SEG-40 · **Fluxo:** lista as regras (`GET /policy-settings`: mínimo/máximo do Vita, omissão, valor efetivo) → edita **1 valor por regra** (`PUT /policy-settings/{key}`) → opcionalmente define exceção por serviço (só `AUTHORIZATION_DECISION_HOURS`) → «repor» apaga a definição e volta ao valor acima.
+- **Alternativos:** fora de `min..max` ⇒ `VALIDATION_ERROR` com a mensagem do intervalo; `serviceId` numa chave que não o admite ⇒ `VALIDATION_ERROR`; serviço de outra seguradora ⇒ `NOT_FOUND`.

@@ -276,6 +276,8 @@ Aplica-se **só** a seguradoras com `operational_module_enabled` (BR-INS-08, eme
 | Contas/papéis da seguradora | ✓ | — | — | — | — |
 | Empresas, beneficiários, apólices, importações, ligações paciente↔beneficiário | ✓ | ✓ | R | R | R |
 | Planos, coberturas e lista de serviços | ✓ | R | R | R | R |
+| Tipos de serviço (`service_kind`) e classificação dos serviços (fatia 2, BR-SEG-39) | ✓ | R | R | R | R |
+| Política da seguradora — prazos (`insurer_policy_settings`, fatia 2, BR-SEG-40; `SUPERVISOR` ✓ a partir da fatia 4, §8.2c) | ✓ | R | R | R | R |
 | Rede de prestadores | ✓ | R | R | R | R (✓ nos preços: fase 2) |
 | Pedidos de autorização | R | — | ✓ | R | R |
 | Despesas (`ExpenseClaim`) | R | — | R | ✓ | R |
