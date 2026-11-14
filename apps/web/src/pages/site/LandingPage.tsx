@@ -1,12 +1,19 @@
 import type { ReactNode } from 'react'
 import { ArrowRight, CalendarCheck, Check, Lock, Pill, QrCode, ShieldCheck, Stethoscope, Users } from 'lucide-react'
 import { ButtonLink } from '@/components/ui/Button'
+import { HeroMedia } from '@/components/ui/HeroMedia'
 import { Reveal } from '@/components/ui/Reveal'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { OnboardingPreview } from '@/pages/public/OnboardingPreview'
 import { paths } from '@/routes/paths'
 
 const bigButton = 'h-14 px-8 text-base'
+
+/** Vídeo do hero: colocar os ficheiros em apps/web/public/videos/. Sem eles, fica a fotografia. */
+const HERO_VIDEO = [
+  { src: '/videos/hero.webm', type: 'video/webm' },
+  { src: '/videos/hero.mp4', type: 'video/mp4' },
+]
 
 function Eyebrow({ children }: { children: ReactNode }) {
   return <p className="text-base font-semibold tracking-wide text-primary uppercase">{children}</p>
@@ -20,82 +27,68 @@ function Heading({ children, className = '' }: { children: ReactNode; className?
   )
 }
 
-/** Cartão decorativo que flutua sobre a fotografia do hero. */
-function FloatingCard({ className, children }: { className: string; children: ReactNode }) {
-  return (
-    <div
-      aria-hidden
-      className={`absolute flex items-center gap-3 rounded-2xl border border-border bg-surface/95 px-4 py-3 shadow-overlay backdrop-blur ${className}`}
-    >
-      {children}
-    </div>
-  )
-}
-
 /** Página inicial pública: poucas ideias, muito espaço e uma chamada à ação clara por perfil. */
 export function LandingPage() {
   usePageTitle()
   return (
     <>
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-32 -left-24 size-[32rem] animate-drift rounded-full bg-primary-soft blur-3xl" />
-          <div className="absolute top-40 -right-32 size-[28rem] animate-drift rounded-full bg-accent/20 blur-3xl [animation-delay:-6s]" />
-        </div>
-        <div className="relative mx-auto grid max-w-7xl items-center gap-16 px-5 py-20 lg:grid-cols-2 lg:px-10 lg:py-32">
-          <div className="flex animate-rise flex-col items-start gap-8">
-            <span className="rounded-full bg-primary-soft px-4 py-2 text-base font-semibold text-primary">
-              Saúde familiar, organizada
-            </span>
-            <h1 className="text-5xl leading-[1.05] font-bold tracking-tight text-balance md:text-6xl lg:text-7xl">
-              A saúde de toda a família, num só lugar.
-            </h1>
-            <p className="max-w-lg text-xl text-muted md:text-2xl md:leading-9">
-              Medicação, consultas e exames de cada pessoa, ligados à sua clínica e seguradora.
-            </p>
-            <div className="flex flex-wrap gap-4 pt-2">
-              <ButtonLink to={paths.register} size="lg" className={bigButton}>
-                Criar conta gratuita
-              </ButtonLink>
-              <a
-                href="#como-funciona"
-                className={`inline-flex items-center justify-center gap-2 rounded-full font-medium text-foreground transition-colors hover:bg-surface-muted ${bigButton}`}
-              >
-                Ver como funciona
-                <ArrowRight className="size-5" aria-hidden />
-              </a>
+      {/* Hero com vídeo de fundo */}
+      <section className="relative isolate flex min-h-[calc(100dvh-5rem)] overflow-hidden text-white">
+        <HeroMedia poster="/images/login/familia.webp" sources={HERO_VIDEO} />
+        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-black/65 via-black/35 to-transparent" />
+        <div aria-hidden className="absolute inset-x-0 bottom-0 -z-10 h-2/5 bg-gradient-to-t from-black/60 to-transparent" />
+
+        <div className="mx-auto flex w-full max-w-7xl flex-col px-5 pt-16 pb-10 lg:px-10 lg:pt-24 lg:pb-14">
+          <div className="flex flex-1 items-center">
+            <div className="flex max-w-3xl animate-rise flex-col items-start gap-8">
+              <span className="rounded-full border border-white/30 bg-white/10 px-4 py-2 text-base font-semibold backdrop-blur">
+                Saúde familiar, organizada
+              </span>
+              <h1 className="text-5xl leading-[1.05] font-bold tracking-tight text-balance md:text-6xl lg:text-7xl">
+                A saúde de toda a família, num só lugar.
+              </h1>
+              <p className="max-w-xl text-xl text-white md:text-2xl md:leading-9">
+                Medicação, consultas e exames de cada pessoa, ligados à sua clínica e seguradora.
+              </p>
+              <div className="flex flex-wrap gap-4 pt-2">
+                <ButtonLink to={paths.register} variant="secondary" size="lg" className={bigButton}>
+                  Criar conta gratuita
+                </ButtonLink>
+                <a
+                  href="#como-funciona"
+                  className={`inline-flex items-center justify-center gap-2 rounded-full font-medium text-white transition-colors hover:bg-white/15 ${bigButton}`}
+                >
+                  Ver como funciona
+                  <ArrowRight className="size-5" aria-hidden />
+                </a>
+              </div>
             </div>
           </div>
 
-          <div className="relative mx-auto w-full max-w-xl animate-rise [animation-delay:150ms]">
-            <img
-              src="/images/login/familia.webp"
-              alt="Família de várias gerações a conversar no sofá"
-              width={800}
-              height={534}
-              decoding="async"
-              className="aspect-[4/5] w-full rounded-[2.5rem] object-cover shadow-overlay sm:aspect-[5/4]"
-            />
-            <FloatingCard className="top-8 -left-4 animate-float sm:-left-10">
-              <span className="flex size-11 items-center justify-center rounded-full bg-success-soft text-success">
-                <Check className="size-6" aria-hidden />
-              </span>
-              <span>
-                <span className="block text-sm text-muted">Medicação · 08:00</span>
-                <span className="block text-base font-semibold">Toma confirmada</span>
-              </span>
-            </FloatingCard>
-            <FloatingCard className="-right-3 bottom-10 animate-float-delayed sm:-right-8">
-              <span className="flex size-11 items-center justify-center rounded-full bg-primary-soft text-primary">
-                <CalendarCheck className="size-6" aria-hidden />
-              </span>
-              <span>
-                <span className="block text-sm text-muted">Amanhã · 10:30</span>
-                <span className="block text-base font-semibold">Consulta de pediatria</span>
-              </span>
-            </FloatingCard>
-          </div>
+          <ul className="mt-14 grid animate-rise gap-3 [animation-delay:200ms] md:grid-cols-3">
+            {[
+              [Users, 'Famílias', 'Organize a saúde de todos', '#familias'],
+              [Stethoscope, 'Clínicas', 'Agenda e pacientes ligados', paths.clinics],
+              [ShieldCheck, 'Seguradoras', 'Beneficiários e reembolsos', paths.insurers],
+            ].map(([Icon, title, text, href]) => {
+              const I = Icon as typeof Users
+              return (
+                <li key={title as string}>
+                  <a
+                    href={href as string}
+                    className="group flex items-center gap-4 rounded-2xl border border-white/25 bg-white/10 p-5 backdrop-blur-md transition-colors hover:bg-white/20"
+                  >
+                    <I className="size-8 shrink-0" aria-hidden />
+                    <span className="flex-1">
+                      <span className="block text-lg font-semibold">{title as string}</span>
+                      <span className="block text-base text-white/90">{text as string}</span>
+                    </span>
+                    <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" aria-hidden />
+                  </a>
+                </li>
+              )
+            })}
+          </ul>
         </div>
       </section>
 
@@ -194,11 +187,11 @@ export function LandingPage() {
                   <h3 className="text-3xl font-bold tracking-tight">Clínicas</h3>
                   <p className="text-lg text-muted">Agenda, pacientes, exames e laudos, num portal simples.</p>
                   <div className="mt-auto flex flex-wrap gap-3 pt-4">
-                    <ButtonLink to={paths.clinicLogin} size="lg">
-                      Entrar no portal
+                    <ButtonLink to={paths.clinics} size="lg">
+                      Saber mais
                     </ButtonLink>
-                    <ButtonLink to={paths.requestAccess('clinica')} variant="secondary" size="lg">
-                      Solicitar acesso
+                    <ButtonLink to={paths.clinicLogin} variant="secondary" size="lg">
+                      Entrar no portal
                     </ButtonLink>
                   </div>
                 </div>
@@ -215,11 +208,11 @@ export function LandingPage() {
                   <h3 className="text-3xl font-bold tracking-tight">Seguradoras</h3>
                   <p className="text-lg text-white">Beneficiários, planos, rede de clínicas e reembolsos.</p>
                   <div className="flex flex-wrap gap-3 pt-4">
-                    <ButtonLink to={paths.insuranceLogin} variant="secondary" size="lg">
-                      Entrar no portal
+                    <ButtonLink to={paths.insurers} variant="secondary" size="lg">
+                      Saber mais
                     </ButtonLink>
-                    <ButtonLink to={paths.requestAccess('seguradora')} variant="ghost" size="lg" className="text-white hover:bg-white/15">
-                      Solicitar acesso
+                    <ButtonLink to={paths.insuranceLogin} variant="ghost" size="lg" className="text-white hover:bg-white/15">
+                      Entrar no portal
                     </ButtonLink>
                   </div>
                 </div>

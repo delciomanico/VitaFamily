@@ -68,6 +68,16 @@ describe('site público (F0.2)', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/entrar'))
   })
 
+  it('clínicas e seguradoras têm página própria com pedido de acesso', async () => {
+    renderAt('/clinicas')
+    expect(await screen.findByRole('heading', { level: 1, name: /agenda cheia/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Solicitar acesso' })[0]).toHaveAttribute('href', '/solicitar-acesso/clinica')
+    cleanup()
+    renderAt('/seguradoras')
+    expect(await screen.findByRole('heading', { level: 1, name: /beneficiários e clínicas/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Solicitar acesso' })[0]).toHaveAttribute('href', '/solicitar-acesso/seguradora')
+  })
+
   it('FAQ, termos, privacidade e contacto estão acessíveis sem sessão', async () => {
     renderAt('/faq')
     expect(await screen.findByRole('heading', { name: 'Perguntas frequentes' })).toBeInTheDocument()
