@@ -61,7 +61,8 @@ export async function clinicApiFetch<T>(
 
   if (!res.ok) {
     const problem = data as Problem
-    throw new AppError(toErrorCode(problem?.code ?? 'UNKNOWN'))
+    const retryAfter = Number(res.headers.get('Retry-After'))
+    throw new AppError(toErrorCode(problem?.code ?? 'UNKNOWN'), Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined)
   }
 
   return data as T

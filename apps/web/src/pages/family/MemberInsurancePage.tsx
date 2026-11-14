@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Camera, Pencil, Plus, Receipt, ShieldCheck, Trash2 } from 'lucide-react'
+import { InsuranceCardsSection } from '@/components/domain/InsuranceCardsSection'
 import { Page } from '@/components/layout/Page'
 import { Badge, type Tone } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -9,6 +10,7 @@ import { Checkbox } from '@/components/ui/Checkbox'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, FormError, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
@@ -594,6 +596,11 @@ export function MemberInsurancePage() {
         ) : (
           <ErrorState onRetry={reload} />
         ))}
+      {state.status === 'success' && (
+        <ErrorBoundary resetKey={memberId}>
+          <InsuranceCardsSection scope={scope} insurers={state.data.insurers} />
+        </ErrorBoundary>
+      )}
       {state.status === 'success' &&
         (state.data.policies.length > 0 ? (
           <div className="flex flex-col gap-3">

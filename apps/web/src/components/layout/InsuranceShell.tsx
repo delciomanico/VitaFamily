@@ -1,11 +1,21 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { LogOut } from 'lucide-react'
+import { Outlet, useNavigate } from 'react-router-dom'
+import {
+  Building2,
+  ClipboardList,
+  FileText,
+  Inbox,
+  Link2,
+  Stethoscope,
+  Upload,
+  UserRound,
+  Users,
+  Layers,
+} from 'lucide-react'
 import { InsuranceAuthProvider, useInsuranceAuth } from '@/contexts/InsuranceAuthContext'
-import { cn } from '@/lib/cn'
 import { paths } from '@/routes/paths'
 import { insuranceRole } from '@/types/insurance'
-import { LogoMark } from './Logo'
-import { bandTitleClass } from './Page'
+import { PortalMobileHeader } from './PortalMobileHeader'
+import { PortalSidebar, portalMainClass, type PortalNavGroup } from './PortalSidebar'
 
 /**
  * Raiz de `/insurance/*` (ADR-021): monta a sessão de `InsuranceAccount` só nesta árvore de rotas,
@@ -19,14 +29,46 @@ export function InsurancePortalRoot() {
   )
 }
 
-/** Portal da seguradora: faixa com a conta em sessão e Sair; separadores Pedidos (+ Agentes, só Admin). */
+/** Portal da seguradora: barra lateral/menu agrupados conforme o papel (§8.2b). */
 export function InsuranceShell() {
-  const { session, isAdmin, logout } = useInsuranceAuth()
+  const { session, me, moduleEnabled, isAdmin, isOps, canSeeClaims, logout } = useInsuranceAuth()
   const navigate = useNavigate()
 
-  const tabs = [
-    { to: paths.insurance, label: 'Pedidos', end: true },
-    ...(isAdmin ? [{ to: paths.insuranceAgents, label: 'Agentes', end: false }] : []),
+  // O que o papel pode usar (§8.2b); a decisão real é do servidor, isto só poupa cliques inúteis.
+  // Módulo operacional desativado: sem entradas operacionais (as páginas mantêm o estado vazio por URL).
+  const groups: PortalNavGroup[] = [
+    {
+      items: canSeeClaims ? [{ to: paths.insurance, label: 'Pedidos', icon: Inbox, end: true }] : [],
+    },
+    {
+      title: 'Beneficiários',
+      items:
+        isOps && moduleEnabled
+          ? [
+              { to: paths.insuranceBeneficiaries, label: 'Beneficiários', icon: UserRound, end: false },
+              { to: paths.insurancePolicies, label: 'Apólices', icon: FileText, end: false },
+              { to: paths.insuranceLinks, label: 'Ligações', icon: Link2, end: false },
+              { to: paths.insuranceImports, label: 'Importação', icon: Upload, end: false },
+              { to: paths.insuranceCompanies, label: 'Empresas', icon: Building2, end: false },
+            ]
+          : [],
+    },
+    {
+      title: 'Planos e rede',
+      items: [
+        ...(isOps && moduleEnabled
+          ? [
+              { to: paths.insurancePlans, label: 'Planos', icon: Layers, end: false },
+              { to: paths.insuranceServices, label: 'Serviços', icon: ClipboardList, end: false },
+            ]
+          : []),
+        ...(isAdmin && moduleEnabled ? [{ to: paths.insuranceProviders, label: 'Clínicas', icon: Stethoscope, end: false }] : []),
+      ],
+    },
+    {
+      title: 'Gestão',
+      items: isAdmin ? [{ to: paths.insuranceAgents, label: 'Contas', icon: Users, end: false }] : [],
+    },
   ]
 
   async function signOut() {
@@ -36,46 +78,23 @@ export function InsuranceShell() {
 
   return (
     <div className="min-h-dvh">
-      <header className="bg-brand pt-safe text-white">
-        <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4 lg:px-8">
-          <LogoMark tone="inverse" className="size-8 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <p className={bandTitleClass}>{session?.email ?? 'Portal da seguradora'}</p>
-            {session && <p className="truncate text-xs text-white/80">{insuranceRole[session.role]}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            aria-label="Sair"
-            className="-mr-2 flex size-11 items-center justify-center rounded-full transition-colors hover:bg-white/15"
-          >
-            <LogOut className="size-5" aria-hidden />
-          </button>
-        </div>
-      </header>
-      <nav aria-label="Portal da seguradora" className="mx-auto max-w-3xl px-4 pt-4 lg:px-8">
-        <div className="flex gap-1 rounded-full bg-surface-muted p-1">
-          {tabs.map((tab) => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              end={tab.end}
-              className={({ isActive }) =>
-                cn(
-                  'flex h-9 flex-1 items-center justify-center rounded-full px-3 text-sm font-medium transition-colors',
-                  isActive ? 'bg-surface text-foreground shadow-card' : 'text-muted hover:text-foreground',
-                )
-              }
-            >
-              {tab.label}
-            </NavLink>
-          ))}
-        </div>
-      </nav>
-      <main
-        id="conteudo"
-        className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 pt-5 pb-[max(2rem,env(safe-area-inset-bottom))] lg:px-8"
-      >
+      <PortalSidebar
+        ariaLabel="Portal da seguradora"
+        title={me?.name ?? 'Portal da seguradora'}
+        subtitle={session ? insuranceRole[session.role] : undefined}
+        email={session?.email}
+        groups={groups}
+        onSignOut={() => void signOut()}
+      />
+      <PortalMobileHeader
+        ariaLabel="Portal da seguradora"
+        title={me?.name ?? session?.email ?? 'Portal da seguradora'}
+        subtitle={session ? insuranceRole[session.role] : undefined}
+        email={session?.email}
+        groups={groups}
+        onSignOut={() => void signOut()}
+      />
+      <main id="conteudo" className={portalMainClass}>
         <Outlet />
       </main>
     </div>

@@ -1,5 +1,5 @@
 import { AppError } from '@/lib/errors'
-import type { ClaimDecision, ClaimStatus, InsuranceAccount, InsuranceClaimView, InsuranceSession } from '@/types/insurance'
+import type { AgentRole, ClaimDecision, ClaimStatus, InsuranceAccount, InsuranceClaimView, InsurancePortalMe, InsuranceSession } from '@/types/insurance'
 import { DEMO_PASSWORD } from '../data/users'
 import type { MockInsuranceAccountRecord } from '../data/insurers'
 import { insuranceReceiptSummaries } from '../clinicReceipts'
@@ -60,14 +60,14 @@ export function listInsuranceAgents(accountId: string) {
   return respond(() => {
     const admin = requireAdmin(accountId)
     return db.insuranceAccounts
-      .filter((a) => a.insurerId === admin.insurerId && a.role === 'INSURANCE_AGENT')
+      .filter((a) => a.insurerId === admin.insurerId && (a.role === 'INSURANCE_AGENT' || a.role === 'BENEFICIARY_MANAGER'))
       .map(toPublicAccount)
       .sort((a, b) => a.email.localeCompare(b.email, 'pt-PT'))
   })
 }
 
-/** Cria sempre um `INSURANCE_AGENT`; e-mail em uso → 422. */
-export function createInsuranceAgent(accountId: string, email: string) {
+/** Cria um `INSURANCE_AGENT` (por omissão) ou `BENEFICIARY_MANAGER`; e-mail em uso → 422. */
+export function createInsuranceAgent(accountId: string, email: string, role: AgentRole = 'INSURANCE_AGENT') {
   return respond((): InsuranceAccount => {
     const admin = requireAdmin(accountId)
     const address = email.trim().toLowerCase()
@@ -78,7 +78,7 @@ export function createInsuranceAgent(accountId: string, email: string) {
       insurerId: admin.insurerId,
       email: address,
       password: DEMO_PASSWORD,
-      role: 'INSURANCE_AGENT',
+      role,
       status: 'ACTIVE',
     }
     db.insuranceAccounts.push(account)
@@ -90,7 +90,7 @@ export function removeInsuranceAgent(accountId: string, targetId: string) {
   return respond(() => {
     const admin = requireAdmin(accountId)
     const target = db.insuranceAccounts.find(
-      (a) => a.id === targetId && a.insurerId === admin.insurerId && a.role === 'INSURANCE_AGENT',
+      (a) => a.id === targetId && a.insurerId === admin.insurerId && (a.role === 'INSURANCE_AGENT' || a.role === 'BENEFICIARY_MANAGER'),
     )
     if (!target) throw new AppError('NOT_FOUND')
     db.insuranceAccounts = db.insuranceAccounts.filter((a) => a.id !== targetId)
@@ -147,5 +147,22 @@ export function decideInsuranceClaim(accountId: string, claimId: string, decisio
     claim.status = decision === 'APPROVE' ? 'APPROVED' : 'REJECTED'
     claim.decisionNote = text
     return toView(claim)
+  })
+}
+
+/** `GET /insurance-portal/me`: qualquer papel; não devolve NOT_FOUND com o módulo desativado. */
+export function getInsurancePortalMe(accountId: string) {
+  return respond((): InsurancePortalMe => {
+    const account = db.insuranceAccounts.find((a) => a.id === accountId && a.status === 'ACTIVE')
+    if (!account) throw new AppError('INVALID_CREDENTIALS')
+    const insurer = db.insurers.find((i) => i.id === account.insurerId)
+    const module = db.insurerOps.modules[account.insurerId]
+    return {
+      insurerId: account.insurerId,
+      name: insurer?.name ?? '',
+      currency: module?.currency ?? 'AOA',
+      operationalModuleEnabled: module?.enabled ?? false,
+      role: account.role,
+    }
   })
 }

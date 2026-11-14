@@ -32,7 +32,8 @@ export async function insuranceApiFetch<T>(
   if (!baseUrl) throw new Error('VITE_API_URL não está configurado.')
 
   const headers: Record<string, string> = {}
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+  const isForm = options.body instanceof FormData
+  if (options.body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (options.auth !== false && insuranceAccessToken) headers.Authorization = `Bearer ${insuranceAccessToken}`
 
   const res = await fetch(`${baseUrl}/insurance-portal${path}`, {
@@ -40,7 +41,7 @@ export async function insuranceApiFetch<T>(
     headers,
     // Envia/recebe o cookie `insurance_refresh_token` (HttpOnly, caminho próprio do portal).
     credentials: 'include',
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: options.body === undefined ? undefined : isForm ? (options.body as FormData) : JSON.stringify(options.body),
   })
 
   if (res.status === 204) return undefined as T

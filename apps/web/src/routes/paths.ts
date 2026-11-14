@@ -83,6 +83,8 @@ export const paths = {
   clinicAgenda: '/clinic/agenda',
   clinicSlots: '/clinic/slots',
   clinicServices: '/clinic/services',
+  /** Fase A de seguradoras: validação de beneficiário na clínica (UC-SEG-05). */
+  clinicInsurers: '/clinic/insurers',
   clinicPatients: '/clinic/patients',
   clinicPatient: (id: string) => `/clinic/patients/${id}`,
   clinicExams: '/clinic/exams',
@@ -99,6 +101,16 @@ export const paths = {
   insuranceLogin: '/insurance/login',
   insurance: '/insurance',
   insuranceAgents: '/insurance/agents',
+  // Módulo operacional, Fase A (ADR-025).
+  insuranceCompanies: '/insurance/companies',
+  insuranceBeneficiaries: '/insurance/beneficiaries',
+  insurancePolicies: '/insurance/policies',
+  insuranceImports: '/insurance/imports',
+  insuranceLinks: '/insurance/links',
+  insurancePlans: '/insurance/plans',
+  insurancePlan: (id: string) => `/insurance/plans/${id}`,
+  insuranceServices: '/insurance/services',
+  insuranceProviders: '/insurance/providers',
 
   // Área do Platform Admin: mesma conta/login de `User` (platformRole), mas sem família.
   admin: '/admin',

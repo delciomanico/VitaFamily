@@ -97,6 +97,20 @@ export function RequireInsuranceAdmin() {
   return <Outlet />
 }
 
+/** Módulo operacional (§8.2b): Admin e Gestor de beneficiários. O Agente só tem pedidos de reembolso. */
+export function RequireInsuranceOps() {
+  const { isOps } = useInsuranceAuth()
+  if (!isOps) return <Navigate to={paths.insurance} replace />
+  return <Outlet />
+}
+
+/** Pedidos de reembolso: Admin e Agente; o Gestor de beneficiários segue para os beneficiários. */
+export function RequireInsuranceClaims() {
+  const { canSeeClaims, isOps } = useInsuranceAuth()
+  if (!canSeeClaims) return <Navigate to={isOps ? paths.insuranceBeneficiaries : paths.insuranceLogin} replace />
+  return <Outlet />
+}
+
 /** Login do portal: com sessão já iniciada, segue para os pedidos. */
 export function InsuranceGuestOnly() {
   const { status, session } = useInsuranceAuth()

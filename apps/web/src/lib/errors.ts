@@ -19,15 +19,21 @@ export type ErrorCode =
   | 'LAST_GUARDIAN'
   | 'ACCOUNT_DELETION_BLOCKED'
   | 'RATE_LIMITED'
+  | 'MEMBER_BLOCKED'
+  | 'FILE_TOO_LARGE'
+  | 'FILE_TYPE_NOT_ALLOWED'
   | 'UNKNOWN'
 
 export class AppError extends Error {
   readonly code: ErrorCode
+  /** Segundos de espera (cabeçalho `Retry-After` de um 429), quando o servidor os indica. */
+  readonly retryAfterSeconds?: number
 
-  constructor(code: ErrorCode) {
+  constructor(code: ErrorCode, retryAfterSeconds?: number) {
     super(code)
     this.name = 'AppError'
     this.code = code
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -52,6 +58,9 @@ const messages: Record<ErrorCode, string> = {
   ACCOUNT_DELETION_BLOCKED:
     'Ainda não pode eliminar a conta: é o único tutor de um dependente ou o único Admin de uma família com outros membros.',
   RATE_LIMITED: 'Fez demasiados pedidos. Tente mais tarde.',
+  MEMBER_BLOCKED: 'O perfil deste membro está bloqueado.',
+  FILE_TOO_LARGE: 'O ficheiro é demasiado grande.',
+  FILE_TYPE_NOT_ALLOWED: 'Tipo de ficheiro não permitido. Use CSV ou XLSX.',
   UNKNOWN: 'Algo correu mal. Tente novamente.',
 }
 

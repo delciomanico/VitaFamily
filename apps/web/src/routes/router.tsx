@@ -25,6 +25,8 @@ import {
   InsuranceGuestOnly,
   RequireInsuranceAccount,
   RequireInsuranceAdmin,
+  RequireInsuranceClaims,
+  RequireInsuranceOps,
   GuestOnly,
   RequireAuth,
   RequireClinicAccount,
@@ -277,11 +279,53 @@ export const routes: RouteObject[] = [
           {
             element: <InsuranceShell />,
             children: [
-              { index: true, ...page(() => import('@/pages/insurance/InsuranceClaimsPage'), 'InsuranceClaimsPage') },
+              {
+                element: <RequireInsuranceClaims />,
+                children: [
+                  { index: true, ...page(() => import('@/pages/insurance/InsuranceClaimsPage'), 'InsuranceClaimsPage') },
+                ],
+              },
               {
                 element: <RequireInsuranceAdmin />,
                 children: [
                   { path: 'agents', ...page(() => import('@/pages/insurance/InsuranceAgentsPage'), 'InsuranceAgentsPage') },
+                  {
+                    // Ligação de clínicas: só o Admin (§8.2b, partner-clinics ⇒ FORBIDDEN ao Gestor).
+                    path: 'providers',
+                    ...page(() => import('@/pages/insurance/ops/InsuranceProvidersPage'), 'InsuranceProvidersPage'),
+                  },
+                ],
+              },
+              {
+                // Fase A (ADR-025): Admin e Gestor de beneficiários; o Agente só tem pedidos de reembolso.
+                element: <RequireInsuranceOps />,
+                children: [
+                  {
+                    path: 'companies',
+                    ...page(() => import('@/pages/insurance/ops/InsuranceCompaniesPage'), 'InsuranceCompaniesPage'),
+                  },
+                  {
+                    path: 'beneficiaries',
+                    ...page(() => import('@/pages/insurance/ops/InsuranceBeneficiariesPage'), 'InsuranceBeneficiariesPage'),
+                  },
+                  {
+                    path: 'policies',
+                    ...page(() => import('@/pages/insurance/ops/InsurancePoliciesPage'), 'InsurancePoliciesPage'),
+                  },
+                  {
+                    path: 'imports',
+                    ...page(() => import('@/pages/insurance/ops/InsuranceImportsPage'), 'InsuranceImportsPage'),
+                  },
+                  { path: 'links', ...page(() => import('@/pages/insurance/ops/InsuranceLinksPage'), 'InsuranceLinksPage') },
+                  { path: 'plans', ...page(() => import('@/pages/insurance/ops/InsurancePlansPage'), 'InsurancePlansPage') },
+                  {
+                    path: 'plans/:planId',
+                    ...page(() => import('@/pages/insurance/ops/InsurancePlanPage'), 'InsurancePlanPage'),
+                  },
+                  {
+                    path: 'services',
+                    ...page(() => import('@/pages/insurance/ops/InsuranceServicesPage'), 'InsuranceServicesPage'),
+                  },
                 ],
               },
             ],
@@ -333,6 +377,10 @@ export const routes: RouteObject[] = [
                 element: <RequireClinicStaff />,
                 children: [
                   { path: 'requests', ...page(() => import('@/pages/clinic/ClinicRequestsPage'), 'ClinicRequestsPage') },
+                  {
+                    path: 'insurers',
+                    ...page(() => import('@/pages/clinic/insurers/ClinicInsurersPage'), 'ClinicInsurersPage'),
+                  },
                   { path: 'reports', ...page(() => import('@/pages/clinic/ClinicReportsPage'), 'ClinicReportsPage') },
                   { path: 'slots', ...page(() => import('@/pages/clinic/ClinicSlotsPage'), 'ClinicSlotsPage') },
                   {

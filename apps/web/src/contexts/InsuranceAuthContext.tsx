@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { insurancePortalService } from '@/services/insurancePortal.service'
-import type { InsuranceSession } from '@/types/insurance'
+import { DEFAULT_CURRENCY } from '@/lib/insurerFormat'
+import type { InsurancePortalMe, InsuranceSession } from '@/types/insurance'
 
 /**
  * Sessão do **portal da seguradora** (`InsuranceAccount`, ADR-021): paralela e independente do
@@ -9,8 +10,18 @@ import type { InsuranceSession } from '@/types/insurance'
 interface InsuranceAuthContextValue {
   status: 'loading' | 'ready'
   session: InsuranceSession | null
+  /** `GET /insurance-portal/me`; `null` enquanto carrega ou se falhar (a UI segue com os valores por omissão). */
+  me: InsurancePortalMe | null
+  /** Moeda da seguradora (BR-SEG-19); kwanza até o `/me` chegar. */
+  currency: string
+  /** `false` só quando o `/me` diz que o módulo operacional está desativado: esconde os separadores (o servidor decide). */
+  moduleEnabled: boolean
   /** Só o Admin da seguradora gere os Agentes (BR-INS-06). */
   isAdmin: boolean
+  /** Módulo operacional (§8.2b): Admin e Gestor de beneficiários escrevem em beneficiários, apólices, importações e ligações. */
+  isOps: boolean
+  /** Pedidos de reembolso (§8.2): Admin e Agente; o Gestor de beneficiários não os vê. */
+  canSeeClaims: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -20,6 +31,8 @@ const InsuranceAuthContext = createContext<InsuranceAuthContextValue | null>(nul
 export function InsuranceAuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<InsuranceAuthContextValue['status']>('loading')
   const [session, setSession] = useState<InsuranceSession | null>(null)
+  const [me, setMe] = useState<InsurancePortalMe | null>(null)
+  const insurerId = session?.insurerId
 
   useEffect(() => {
     let active = true
@@ -36,6 +49,21 @@ export function InsuranceAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (!insurerId) {
+      setMe(null)
+      return
+    }
+    let active = true
+    insurancePortalService.getMe().then(
+      (next) => active && setMe(next),
+      () => active && setMe(null),
+    )
+    return () => {
+      active = false
+    }
+  }, [insurerId])
+
   const login = useCallback(async (email: string, password: string) => {
     setSession(await insurancePortalService.login(email, password))
     setStatus('ready')
@@ -47,8 +75,22 @@ export function InsuranceAuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<InsuranceAuthContextValue>(
-    () => ({ status, session, isAdmin: session?.role === 'INSURANCE_ADMIN', login, logout }),
-    [status, session, login, logout],
+    () => {
+      const role = session?.role
+      return {
+        status,
+        session,
+        me,
+        currency: me?.currency ?? DEFAULT_CURRENCY,
+        moduleEnabled: me?.operationalModuleEnabled ?? true,
+        isAdmin: role === 'INSURANCE_ADMIN',
+        isOps: role === 'INSURANCE_ADMIN' || role === 'BENEFICIARY_MANAGER',
+        canSeeClaims: role === 'INSURANCE_ADMIN' || role === 'INSURANCE_AGENT',
+        login,
+        logout,
+      }
+    },
+    [status, session, me, login, logout],
   )
 
   return <InsuranceAuthContext.Provider value={value}>{children}</InsuranceAuthContext.Provider>

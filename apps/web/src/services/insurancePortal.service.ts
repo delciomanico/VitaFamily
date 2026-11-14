@@ -9,10 +9,12 @@ import {
 } from '@/lib/insuranceApiClient'
 import { insuranceSessionStore } from '@/lib/storage'
 import type {
+  AgentRole,
   ClaimDecision,
   ClaimStatus,
   InsuranceAccount,
   InsuranceClaimView,
+  InsurancePortalMe,
   InsuranceSession,
 } from '@/types/insurance'
 
@@ -45,9 +47,10 @@ const apiImpl = {
     }
   },
 
+  getMe: () => insuranceApiFetch<InsurancePortalMe>('/me'),
   listAgents: () => insuranceApiFetch<InsuranceAccount[]>('/agents'),
-  createAgent: (email: string) =>
-    insuranceApiFetch<InsuranceAccount>('/agents', { method: 'POST', body: { email: email.trim().toLowerCase() } }),
+  createAgent: (email: string, role: AgentRole = 'INSURANCE_AGENT') =>
+    insuranceApiFetch<InsuranceAccount>('/agents', { method: 'POST', body: { email: email.trim().toLowerCase(), role } }),
   removeAgent: (accountId: string) => insuranceApiFetch<void>(`/agents/${accountId}`, { method: 'DELETE' }),
 
   listClaims: (status?: ClaimStatus) =>
@@ -89,8 +92,9 @@ const mockImpl = {
     return Promise.resolve()
   },
 
+  getMe: () => mock.getInsurancePortalMe(mockAccountId()),
   listAgents: () => mock.listInsuranceAgents(mockAccountId()),
-  createAgent: (email: string) => mock.createInsuranceAgent(mockAccountId(), email),
+  createAgent: (email: string, role: AgentRole = 'INSURANCE_AGENT') => mock.createInsuranceAgent(mockAccountId(), email, role),
   removeAgent: (accountId: string) => mock.removeInsuranceAgent(mockAccountId(), accountId),
 
   listClaims: (status?: ClaimStatus) => mock.listInsuranceClaims(mockAccountId(), status),

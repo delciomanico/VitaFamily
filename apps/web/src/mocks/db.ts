@@ -16,6 +16,7 @@ import { seedProfessionals, seedScheduleRules, seedServices } from './data/clini
 import { allergies, conditions } from './data/health'
 import { seedDocuments, seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
 import { insuranceAccounts, insurers } from './data/insurers'
+import { seedInsurerOps } from './data/insurerOps'
 import { users } from './data/users'
 import type { InsurancePolicy, ReimbursementClaim } from '@/types/insurance'
 import type { Recommendation } from '@/types/recommendation'
@@ -118,6 +119,8 @@ function seed(now: Date = new Date()) {
     reimbursementClaims: [] as Array<
       ReimbursementClaim & { familyId: string; memberId: string; insurerId: string; receiptIds?: string[] }
     >,
+    /** Módulo operacional de seguradoras, Fase A (ADR-025). */
+    insurerOps: seedInsurerOps(),
     /** Recibos das clínicas (M14 R, BR-CLN-31..35). */
     clinicReceipts: [] as MockClinicReceipt[],
     /** Contador sequencial por clínica (BR-CLN-32): último número atribuído. */

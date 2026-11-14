@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 
 interface ModalProps {
@@ -19,7 +19,9 @@ export function Modal({ open, onClose, title, description, children, footer }: M
   const titleId = useId()
   const descriptionId = useId()
 
-  useEffect(() => {
+  // Layout effect: o <dialog> abre antes de qualquer leitura do DOM; com useEffect havia uma janela em que o texto
+  // já existia mas o diálogo ainda estava fechado (inacessível), o que tornava os testes de fluxo intermitentes.
+  useLayoutEffect(() => {
     const dialog = ref.current
     if (!dialog) return
     if (open && !dialog.open) dialog.showModal()

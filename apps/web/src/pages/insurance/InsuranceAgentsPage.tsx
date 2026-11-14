@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, FormError, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useInsuranceAuth } from '@/contexts/InsuranceAuthContext'
@@ -13,7 +14,7 @@ import { useAsync } from '@/hooks/useAsync'
 import { errorMessage } from '@/lib/errors'
 import { formatCount } from '@/lib/format'
 import { insurancePortalService } from '@/services/insurancePortal.service'
-import { insuranceRole, type InsuranceAccount } from '@/types/insurance'
+import { insuranceRole, type AgentRole, type InsuranceAccount } from '@/types/insurance'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -25,6 +26,7 @@ interface InviteFormProps {
 /** Criar uma conta de Agente da própria seguradora (`POST /insurance-portal/agents`, BR-INS-06). */
 function InviteForm({ onClose, onCreated }: InviteFormProps) {
   const [email, setEmail] = useState('')
+  const [role, setRole] = useState<AgentRole>('INSURANCE_AGENT')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -32,7 +34,7 @@ function InviteForm({ onClose, onCreated }: InviteFormProps) {
     if (!EMAIL_PATTERN.test(email.trim())) return setError('Introduza um e-mail válido.')
     setSaving(true)
     try {
-      onCreated(await insurancePortalService.createAgent(email))
+      onCreated(await insurancePortalService.createAgent(email, role))
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -44,8 +46,8 @@ function InviteForm({ onClose, onCreated }: InviteFormProps) {
     <Modal
       open
       onClose={onClose}
-      title="Nova conta de Agente"
-      description="A conta é criada como Agente da seguradora e a palavra-passe inicial é enviada para este e-mail."
+      title="Nova conta"
+      description="A palavra-passe inicial é enviada para este e-mail."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -68,8 +70,19 @@ function InviteForm({ onClose, onCreated }: InviteFormProps) {
             setError(null)
           }}
         />
+        <Select
+          label="Papel"
+          value={role}
+          onChange={(event) => setRole(event.target.value as AgentRole)}
+          options={[
+            { value: 'INSURANCE_AGENT', label: insuranceRole.INSURANCE_AGENT },
+            { value: 'BENEFICIARY_MANAGER', label: insuranceRole.BENEFICIARY_MANAGER },
+          ]}
+        />
         <p className="text-sm text-muted">
-          Um Agente pode ver e decidir pedidos de reembolso desta seguradora, mas não cria nem remove contas.
+          {role === 'INSURANCE_AGENT'
+            ? 'O Agente vê e decide pedidos de reembolso desta seguradora, mas não cria nem remove contas.'
+            : 'O Gestor de beneficiários trata de empresas, beneficiários, apólices, importações e ligações de cartão (só com o módulo operacional ativo); não vê pedidos de reembolso.'}
         </p>
         <FormError message={error} />
       </div>
@@ -112,7 +125,7 @@ export function InsuranceAgentsPage() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Contas da seguradora</h1>
         <Button size="sm" onClick={() => setInviting(true)} icon={<UserPlus className="size-4" aria-hidden />}>
-          Novo Agente
+          Nova conta
         </Button>
       </div>
 
@@ -122,7 +135,7 @@ export function InsuranceAgentsPage() {
           {session?.email ?? 'Conta em sessão'} · {session ? insuranceRole[session.role] : ''}
         </span>
         <span className="text-sm text-muted">
-          A conta de Admin da seguradora é criada e reposta pela equipa Vita Family; os Agentes são geridos aqui.
+          A conta de Admin da seguradora é criada e reposta pela equipa Vita Family; as restantes contas são geridas aqui.
         </span>
       </Card>
 
@@ -130,7 +143,7 @@ export function InsuranceAgentsPage() {
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold text-muted">{formatCount(agents.length, 'Agente', 'Agentes')}</h2>
+          <h2 className="text-sm font-semibold text-muted">{formatCount(agents.length, 'conta', 'contas')}</h2>
           {agents.length > 0 ? (
             <Card className="divide-y divide-border py-1">
               {agents.map((account) => (
@@ -158,8 +171,8 @@ export function InsuranceAgentsPage() {
           ) : (
             <EmptyState
               icon={Users}
-              title="Sem Agentes nesta seguradora."
-              description="Crie contas de Agente para a equipa decidir pedidos de reembolso."
+              title="Sem outras contas nesta seguradora."
+              description="Crie contas de Agente ou de Gestor de beneficiários para a equipa."
             />
           )}
         </section>

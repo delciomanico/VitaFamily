@@ -92,3 +92,13 @@ describe('portal da seguradora', () => {
     expect(await code(portal.removeInsuranceAgent(ADMIN, ADMIN))).toBe('NOT_FOUND')
   })
 })
+
+describe('GET /insurance-portal/me', () => {
+  it('devolve seguradora, moeda, módulo e papel; funciona com o módulo desativado', async () => {
+    expect(await portal.getInsurancePortalMe('iac_aurora_manager')).toEqual({
+      insurerId: 'ins_aurora', name: 'Seguradora Aurora', currency: 'AOA', operationalModuleEnabled: true, role: 'BENEFICIARY_MANAGER',
+    })
+    db.insurerOps.modules.ins_aurora!.enabled = false
+    expect(await portal.getInsurancePortalMe('iac_aurora_agent')).toMatchObject({ operationalModuleEnabled: false, role: 'INSURANCE_AGENT' })
+  })
+})

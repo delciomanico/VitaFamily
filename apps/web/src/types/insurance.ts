@@ -15,7 +15,26 @@ export interface InsurerInput {
 }
 export type InsurerPatch = Partial<InsurerInput>
 
-export type InsuranceRole = 'INSURANCE_ADMIN' | 'INSURANCE_AGENT'
+export type InsuranceRole =
+  | 'INSURANCE_ADMIN'
+  | 'INSURANCE_AGENT'
+  | 'BENEFICIARY_MANAGER'
+  | 'AUTHORIZATION_ANALYST'
+  | 'CLAIMS_MANAGER'
+  | 'FINANCE_MANAGER'
+
+/** `GET /insurance-portal/me`: contexto da conta (funciona também com o módulo operacional desativado). */
+export interface InsurancePortalMe {
+  insurerId: string
+  name: string
+  /** ISO 4217 (BR-SEG-19). */
+  currency: string
+  operationalModuleEnabled: boolean
+  role: InsuranceRole
+}
+
+/** Papéis criáveis pelo Admin na Fase A (`POST /insurance-portal/agents`). */
+export type AgentRole = 'INSURANCE_AGENT' | 'BENEFICIARY_MANAGER'
 
 /** `InsuranceAccount` (openapi.yaml): conta do portal da seguradora (espaço de identidade próprio, ADR-021). */
 export interface InsuranceAccount {
@@ -124,4 +143,8 @@ export type ClaimDecision = 'APPROVE' | 'REJECT'
 export const insuranceRole: Record<InsuranceRole, string> = {
   INSURANCE_ADMIN: 'Admin da seguradora',
   INSURANCE_AGENT: 'Agente da seguradora',
+  BENEFICIARY_MANAGER: 'Gestor de beneficiários',
+  AUTHORIZATION_ANALYST: 'Analista de autorizações',
+  CLAIMS_MANAGER: 'Gestor de despesas',
+  FINANCE_MANAGER: 'Gestor financeiro',
 }

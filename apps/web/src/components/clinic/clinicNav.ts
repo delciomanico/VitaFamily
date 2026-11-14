@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Receipt,
   Settings,
+  ShieldCheck,
   FlaskConical,
   Inbox,
   LayoutDashboard,
@@ -50,7 +51,14 @@ export const clinicNavGroups: ClinicNavGroup[] = [
       { to: paths.clinicServices, label: 'Serviços', icon: ClipboardList, end: false, hiddenForDoctor: true },
     ],
   },
-  { title: 'Pacientes', items: [{ to: paths.clinicPatients, label: 'Pacientes', icon: UserRound, end: false }] },
+  {
+    title: 'Pacientes',
+    items: [
+      { to: paths.clinicPatients, label: 'Pacientes', icon: UserRound, end: false },
+      // Fase A de seguradoras (UC-SEG-05, Q6): só Admin e Gestor.
+      { to: paths.clinicInsurers, label: 'Seguradoras', icon: ShieldCheck, end: false, hiddenForDoctor: true },
+    ],
+  },
   { title: 'Exames', items: [{ to: paths.clinicExams, label: 'Exames', icon: FlaskConical, end: false }] },
   {
     title: 'Gestão',
