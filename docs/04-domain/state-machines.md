@@ -1,6 +1,6 @@
 # Vita Family — Estados e transições (Fase 10)
 
-> Estado: **v0.8 — `ExamOrder` (M15 U, ADR-028); v0.7 — `ConsultationReport` (`DRAFT → FINAL`, M15 S, ADR-027); v0.6 — `ClinicReceipt` (`ISSUED → VOIDED`, M14 R, ADR-026); v0.5 — módulo operacional de seguradoras: `Beneficiary`, `Policy`, `Plan`, `BeneficiaryLinkRequest`, `AuthorizationRequest`, `ExpenseClaim`, `Provider` (ADR-025); v0.4 — `Examination` com marcação direta (nasce `SCHEDULED`), sem `REQUESTED`/`REJECTED` (ADR-023 revisto 2026-11-04); v0.3 introduzira-os; v0.2 acrescentou `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
+> Estado: **v0.9 — secção PROPOSTA "fluxo de processo" (Autorização S4, Despesa/Reembolso S5, alinhamento de Marcação; 2026-11-14, não aprovada, não altera as máquinas em vigor); v0.8 — `ExamOrder` (M15 U, ADR-028); v0.7 — `ConsultationReport` (`DRAFT → FINAL`, M15 S, ADR-027); v0.6 — `ClinicReceipt` (`ISSUED → VOIDED`, M14 R, ADR-026); v0.5 — módulo operacional de seguradoras: `Beneficiary`, `Policy`, `Plan`, `BeneficiaryLinkRequest`, `AuthorizationRequest`, `ExpenseClaim`, `Provider` (ADR-025); v0.4 — `Examination` com marcação direta (nasce `SCHEDULED`), sem `REQUESTED`/`REJECTED` (ADR-023 revisto 2026-11-04); v0.3 introduzira-os; v0.2 acrescentou `ReimbursementClaim` (ADR-021).** Decisões ST1–ST6 adotadas com a recomendação do assistente (delegação do proprietário).
 > Notação: `A → B [quem / condição]`. Transições não listadas são **proibidas** e devolvem `INVALID_STATE_TRANSITION` (409).
 
 ## User
@@ -167,7 +167,7 @@ ACTIVE → SUSPENDED     [idem, com motivo]
 SUSPENDED → ACTIVE     [idem]
 ACTIVE|SUSPENDED|PENDING → CANCELLED   [idem, com motivo; final]
 ```
-`CANCELLED` é final. Só `ACTIVE` é elegível (BR-SEG-01).
+`CANCELLED` é final e **bloqueia a confirmação** de ligação do paciente: `confirmLinkRequest` sobre um beneficiário `CANCELLED` ⇒ `409 CONFLICT` (BR-SEG-37). Só `ACTIVE` é elegível (BR-SEG-01).
 
 ### Policy (apólice da seguradora)
 ```text
@@ -224,6 +224,76 @@ Duplicados são detetados à submissão e ficam `IN_REVIEW` com flag, nunca reje
 ACTIVE ⇄ SUSPENDED      [INSURANCE_ADMIN, com motivo]
 ```
 `SUSPENDED`: a clínica deixa de validar/submeter (`NOT_FOUND`); registos existentes mantêm-se.
+
+## Propostas — fluxo de processo (PROPOSTO 2026-11-14; `00-product/process-flows.md`)
+> **PROPOSTO, não aprovado.** Decisões do proprietário de 2026-11-14 incorporadas abaixo (urgência 48 h com revisão manual; SLA 48 h com escalada ao gestor e sem aprovação tácita; entidade `Process`). Não altera as máquinas acima, que continuam em vigor. Estados do fluxo aprovado em conversa pelo proprietário; o mapeamento para os estados existentes está abaixo e as divergências em `process-flows.md` §11. Dependem de ADR-029/030/031 e dos marcos B/C (`plan.md` §4).
+
+### Marcação — alinhamento (sem nova máquina)
+Fluxo proposto: `marcada → confirmada → atendida | cancelada | falta`.
+| Proposto | Existente (em vigor) |
+|---|---|
+| marcada | `Appointment`/`ClinicVisit` `SCHEDULED` com `confirmationStatus=PENDING` |
+| confirmada | **atributo** `confirmationStatus=CONFIRMED` (não é estado; BR-CLN-25/26) |
+| atendida | `COMPLETED` |
+| cancelada | `CANCELLED` (inclui "Não posso", `DECLINED`) |
+| falta | `NO_SHOW` |
+Notas: `REQUESTED/REJECTED` existem para clínica parceira (D17) e não constam do fluxo proposto (listado como divergência D10). "Confirmada" mantém-se atributo independente.
+
+### Autorização (S4) — proposta
+Estados propostos: `pedida → em análise → aprovada | aprovada em parte | recusada | falta informação → usada → expirada`.
+```text
+pedida → em análise            [sistema, ao submeter; ou → aprovada se auto-aprovação, BR-SEG-03]
+pedida → aprovada              [sistema, auto-aprovação (serviço coberto, beneficiário elegível, dentro do teto, sem carência; DECIDIDO Q-A1); reversível, BR-SEG-16; o resto vai para analista]
+em análise → aprovada          [analista; define authorizedAmount/validUntil; reserva saldo]
+em análise → aprovada em parte [analista; valor/serviços < pedido, motivo]                      ← NOVO
+em análise → recusada          [analista, motivo; final; recurso = novo pedido ligado]
+em análise → falta informação  [analista, motivo]
+falta informação → em análise  [prestador responde]
+falta informação → cancelada   [sistema, sem resposta em 7 dias (caduca); novo pedido pode reabrir]   ← NOVO (DECIDIDO 2026-11-14, Q-S1b)
+aprovada | aprovada em parte → usada       [sistema, ao aprovar a despesa ligada; reserva → used]
+aprovada | aprovada em parte → expirada    [sistema, após validUntil; liberta reserva]
+aprovada | aprovada em parte → cancelada   [analista ou prestador, motivo; liberta reserva]  (mantém o existente)
+(urgência) sem autorização prévia → pedida [prestador, a posteriori, até 48 h após a admissão (DECIDIDO 2026-11-14, Q-U1); marcada urgência]   ← NOVO (conflita com UC-SEG-10; alteração proposta em process-flows.md §11a)
+(urgência) prazo de 48 h falhado → em análise [sistema; flag URGENT_NOTIFY_OVERDUE; revisão manual pela seguradora; NUNCA recusa automática]   ← NOVO
+pedida | em análise > 48 h → (mantém estado) [sistema; escala para o SUPERVISOR (SLA_BREACH) e avisa o prestador; NUNCA aprova por silêncio; prazo 48 h por omissão, configurável por seguradora/serviço]   ← NOVO (DECIDIDO 2026-11-14, Q-S1/Q-S1b; papel SUPERVISOR proposto em authorization.md §8.2c)
+```
+Mapeamento com a máquina existente (`AuthorizationRequest`, ADR-025):
+| Proposto | Existente |
+|---|---|
+| pedida | `SUBMITTED` |
+| em análise | `IN_REVIEW` |
+| aprovada | `APPROVED` ou `AUTO_APPROVED` (a aprovação decide se se mantém o estado distinto ou vira flag) |
+| aprovada em parte | **novo** (hoje `APPROVED` com `authorizedAmount` inferior) |
+| recusada | `REJECTED` |
+| falta informação | `INFO_REQUESTED` |
+| usada / expirada | `USED` / `EXPIRED` |
+| (não referida no fluxo) | `CANCELLED` — **mantido** |
+Finais: `recusada`, `usada`, `expirada`, `cancelada`. Recurso de uma `recusada` (BR-AUT-08, candidata) cria novo pedido ligado; não reabre o estado; **vários recursos, sem limite fixo (DECIDIDO Q-S2)**, salvaguardas propostas em `process-flows.md` §11a.
+Falta (no-show, Q-S3 DECIDIDO): `Appointment` `NO_SHOW` não altera a autorização (continua válida até `validUntil`); a falta fica registada; reagendar no prazo reutiliza a autorização.
+A caducidade de `falta informação` (7 dias) usa `CANCELLED` com motivo `INFO_TIMEOUT` (proposta; a confirmar com a aprovação).
+
+### Despesa / reembolso (S5) — proposta
+Estados propostos: `submetida → validada → aprovada → paga | contestada`.
+```text
+submetida → validada        [sistema, se cumpre as regras do plano e sem flags (auto), ou analista]
+submetida → em análise      [sistema, por duplicado/valor > autorizado/urgência por regularizar; mantém o existente]
+validada → aprovada         [seguradora; reserva → used; atendimento DIRECT_BILLED]
+aprovada → paga             [seguradora regista (ao prestador ou, no reembolso, à família); o prestador confirma a receção; o Vita só regista (DECIDIDO 2026-11-14, Q-F1)]
+validada | aprovada → contestada [prestador ou família, com motivo; uma vez; reentra em análise]    ← NOVO
+(recusada/devolvida)         [mantém `REJECTED` e `RETURNED` existentes; `contestada` aplica-se à decisão negativa]
+```
+Mapeamento com a máquina existente (`ExpenseClaim`):
+| Proposto | Existente |
+|---|---|
+| submetida | `SUBMITTED` |
+| validada | **novo** (resultado da validação automática/`IN_REVIEW` concluída sem exceções) |
+| aprovada | `APPROVED` |
+| paga | `PENDING_PAYMENT → PAID` (fase 2 hoje) |
+| contestada | **novo** (hoje `REJECTED`/`RETURNED`) |
+Reembolso fora da rede: hoje `ReimbursementClaim` (`SUBMITTED → APPROVED|REJECTED → PAID`, `PAID` pelo titular, BR-INS-05). **Q-F1 DECIDIDA:** quem regista `PAID` é a seguradora; alteração a BR-INS-05 **proposta, pendente** (`process-flows.md` §11a). Continua por decidir se se unifica com `ExpenseClaim` (`process-flows.md` D4).
+
+### Process (agregador) — proposta (Q-P1 DECIDIDO 2026-11-14; modelo PROPOSTO em `process-flows.md` §13)
+Sem máquina própria: o `family_status` (`AGENDADO → EM_VALIDACAO → A_ATENDER → ATENDIDO → EM_PAGAMENTO → CONCLUIDO | CANCELADO`) é **derivado** dos estados de `Appointment`, `AuthorizationRequest`, `Encounter`, `ExpenseClaim`/`ReimbursementClaim`. Mapeamento exato a escrever após aprovação; as máquinas acima não mudam por causa dele.
 
 ## Alert / Notification
 ```text
