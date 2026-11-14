@@ -47,6 +47,8 @@ Disponibilidade-alvo 99,5 %/mês permite janelas curtas de manutenção; deploys
 
 Proxy reverso termina TLS (certificados automáticos), HSTS, redirecionamento HTTP→HTTPS, limite de corpo (≤ 11 MB no caminho de upload; 1 MB nos restantes). Postgres, Redis, storage e ClamAV em rede interna sem portas públicas.
 
+> **Nota (2026-11-12) — cadeia de proxies e `TRUST_PROXY`:** a cadeia é Traefik → nginx do `web` → `api`; em produção definir `TRUST_PROXY=2` (3 com CDN). **Passo de verificação na VPS após o deploy:** `curl -s https://vitafamily.cassfrei.com/api/v1/health -H 'X-Forwarded-For: 9.9.9.9'` e confirmar (nos logs/auditoria de pedido) que `req.ip` **nunca** é `9.9.9.9`; se aparecer o IP do gateway Docker em vez do IP do cliente, o nº de saltos está errado ou o nginx não reencaminha `X-Forwarded-For` — tratar à parte, sem subir o valor às cegas.
+
 ## 5. Backups e restauro (N10)
 Scripts na VPS (cron, fora dos contentores): `deploy/scripts/backup-postgres.sh` (dump diário
 `pg_dump --format=custom`, encriptado com `openssl`/`BACKUP_ENCRYPTION_PASSPHRASE`, retenção

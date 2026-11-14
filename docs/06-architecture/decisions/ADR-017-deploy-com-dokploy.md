@@ -21,3 +21,7 @@ inclui proxy (Traefik), certificados Let's Encrypt, domínios e atribuição de 
 - Limites de corpo (≤ 11 MB no upload, `deployment.md` §4) serão aplicados na API e/ou num *middleware* do Traefik quando a API existir.
 - Postgres, MinIO e ClamAV continuam em rede interna, sem domínio nem portas públicas.
 - O frontend publicado usa ainda **dados mock** em memória no navegador (sem backend) até à integração com a API.
+
+
+## Nota (2026-11-12) — cadeia de proxies e `TRUST_PROXY`
+A API confia nos proxies via `TRUST_PROXY` (`environment.md`). Com Traefik → nginx do `web` → `api` o valor de produção é `2` (3 com CDN). Verificação na VPS: ver `deployment.md` §4 (pedido com `X-Forwarded-For: 9.9.9.9`; `req.ip` nunca pode ser 9.9.9.9).

@@ -20,3 +20,7 @@ Traefik). Isso expõe o backend diretamente à internet, com uma segunda superf�
 - O nginx do `web` passa a ser responsável por limites de corpo e timeouts do proxy para `/api/` (além dos cabeçalhos de segurança que já enviava); ADR-017 §Consequências sobre limites de corpo mantém-se, agora também aplicado aqui.
 - Se o contentor `api` cair, o nginx devolve 502 em `/api/` — sem impacto nos ficheiros estáticos da PWA.
 - `docs/06-architecture/infrastructure.md` (linha do `proxy`) e `docs/06-architecture/decisions/ADR-017-deploy-com-dokploy.md` (linha "Domínio") são atualizados para referir este ADR.
+
+
+## Nota (2026-11-12) — cadeia de proxies e `TRUST_PROXY`
+A API confia nos proxies via `TRUST_PROXY` (`environment.md`). Com Traefik → nginx do `web` → `api` o valor de produção é `2` (3 com CDN). Verificação na VPS: ver `deployment.md` §4 (pedido com `X-Forwarded-For: 9.9.9.9`; `req.ip` nunca pode ser 9.9.9.9).

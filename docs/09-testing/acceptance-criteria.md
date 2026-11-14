@@ -125,6 +125,21 @@
 - **AC-INS-01 (BR-INS-09/10)** *Given* uma apólice com `insurerId` de seguradora `ACTIVE`, *When* T submete reembolso, *Then* `SUBMITTED`; *Given* apólice sem `insurerId`, *Then* `VALIDATION_ERROR`; *Given* seguradora `SUSPENDED`, *Then* `CONFLICT`, e as suas contas não autenticam.
 - **AC-INS-02 (BR-INS-03/05, ADR-021)** *Given* um pedido `SUBMITTED` da própria seguradora, *When* a conta rejeita sem motivo, *Then* `VALIDATION_ERROR`; com motivo, `REJECTED`; decidir de novo ⇒ `CONFLICT`; pedido de outra seguradora ⇒ `NOT_FOUND`; a vista só inclui os documentos listados no pedido.
 
+## Seguradoras — Fase A (ADR-025, `11-implementation/insurer-phase-a.md` §1)
+Ligados às métricas do piloto: (M1) chamadas «tenho cobertura?», (M2) tempo/% de verificação eletrónica, (M3) inelegíveis detetados antes do ato, (M4) 100 % das validações com registo.
+- **AC-SEG-01 (BR-SEG-18, M2)** *Given* um cartão `ACTIVE` com apólice vigente, *When* a clínica ligada valida por QR ou nº de cartão, *Then* a resposta chega em ≤ 2 s (p95) com nome, estado, plano, validade, coberturas e limites, e nada de histórico clínico nem de outras seguradoras.
+- **AC-SEG-02 (BR-SEG-15/18, M4)** *Given* N validações (incl. `eligible:false` e 429), *Then* existem exatamente N registos `ELIGIBILITY_CHECK` (ou `DENIED/RATE_LIMITED`, no máximo 1 por chave e janela) sem nº de cartão, QR, documento nem nome em `metadata` nem em logs.
+- **AC-SEG-03 (BR-SEG-18, M3)** *Given* beneficiário `PENDING`/`SUSPENDED`/`CANCELLED`, apólice não `ACTIVE` ou fora de `validFrom..validTo`, *Then* `eligible:false` sem revelar o motivo além do estado; cartão inexistente e de outra seguradora dão a mesma resposta.
+- **AC-SEG-04 (BR-SEG-18)** *Given* 31 validações em 10 min pela mesma conta de clínica (ou 61 pelo mesmo IP), *Then* a 31.ª/61.ª devolve `429` + `Retry-After` e não consome quota.
+- **AC-SEG-05 (BR-SEG-17)** *Given* um ficheiro de 5.000 linhas (CSV e XLSX), *Then* a pré-visualização não grava; o `commit` é atómico, beneficiários nascem `PENDING`; 5.001 linhas ou > 10 MB ⇒ `VALIDATION_ERROR`; um lote `PREVIEW` com > 24 h perde as `rows` e fica `CANCELLED` (`INSURER_IMPORT_CANCEL`, `SYSTEM`, `EXPIRED`).
+- **AC-SEG-06 (BR-SEG-14, M3)** *Given* contas de duas seguradoras, *Then* nenhuma lista, lê ou altera dados da outra (`NOT_FOUND`), em 100 % da matriz `TC-AZ-SEG`.
+- **AC-SEG-07 (BR-SEG-20/32/35, M1)** *Given* um código de reclamação emitido pela seguradora, *When* o titular/tutor o usa, *Then* surge um pedido `PENDING`, o código fica consumido (2.ª tentativa ⇒ o mesmo `NOT_FOUND`), um 2.º pedido do mesmo membro na seguradora ⇒ `CONFLICT`, e a confirmação pela seguradora cria a ligação; confirmar beneficiário `CANCELLED` ⇒ `CONFLICT`.
+- **AC-SEG-08 (BR-SEG-34/38)** *Given* um QR válido, *When* o paciente desliga o cartão **ou** o membro/família é eliminado, *Then* o `cardVersion` sobe e o mesmo QR passa a `eligible:false`; o beneficiário não é apagado.
+- **AC-SEG-09 (D-A2, BR-SEG-36, M1)** *Given* o cartão no app, *Then* mostra plano, validade, serviços e limites **sem** `used`/`reserved`/saldo; `OTHER`/não-membro ⇒ `404`, nunca `403`.
+- **AC-SEG-10 (BR-SEG-37)** *Given* módulo desativado ou seguradora suspensa, *Then* listar pedidos e desligar continuam a funcionar (só `insurerName` exposto) e reclamar/cartões/QR/cobertura ⇒ `NOT_FOUND`.
+- **AC-SEG-11 (BR-SEG-28)** *Given* apólices `ACTIVE` com `validTo` passado, *When* corre `insurer.expire-policies` (00:20 UTC) duas vezes, *Then* passam a `EXPIRED` uma só vez (idempotente) e a elegibilidade passa a `false`.
+- **AC-SEG-12 (NFR-PRV-07)** *Given* fluxos de seguradora com dados canário (nome, documento, nº de cartão, código, QR) e um erro de BD forçado, *Then* nenhum aparece em logs (campos `detail`, `where`, `parameters`, `values`… redigidos).
+
 ## Auditoria, exportação e RGPD
 - **AC-AUD-01 (FR-AUD-01)** *Given* ação sensível, *Then* existe registo com utilizador, ação, recurso, hora, IP, user-agent e resultado; **sem** dados de saúde.
 - **AC-AUD-02 (D15)** *Given* um User eliminado, *Then* os seus registos de auditoria têm `actorUserId`, IP e user-agent a nulo.

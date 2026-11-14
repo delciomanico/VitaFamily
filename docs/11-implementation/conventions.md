@@ -50,7 +50,7 @@ Comandos na raiz do repo: `pnpm gen | test | lint | build | migrate | up | down`
 4. Repositórios **exigem `familyId`**; não existe consulta "por id" sem família.
 5. Erros: devolver tipos de erro de domínio próprios (`NotFoundError`, `LastAdminError`…); traduzidos para `Problem` numa única função em `platform`.
 6. Comentários só para o **porquê** (regras de negócio: citar `BR-xxx`/`FR-xxx`). Nomes em inglês; mensagens ao utilizador em pt-PT.
-7. Sem dados de saúde em logs, erros ou notificações (logger com redação de campos marcados — `pino` `redact`).
+7. Sem dados de saúde em logs, erros ou notificações (logger com redação de campos marcados — `pino` `redact`). O serializador `err` do logger (`platform/logger`) redige ainda `detail`, `where`, `parameters`, `params`, `values`, `hint`, `internalQuery` e `query` dos erros do driver de BD (podem conter valores de linhas).
 8. SQL: sempre parametrizado (Kysely/`pg`, nunca concatenar strings). Migrações pequenas; constraints do `schema.md` implementadas **todas**.
 9. TypeScript em modo `strict`; `domain` e `application` não importam bibliotecas de I/O (Express, Kysely, pg-boss, minio, nodemailer…) — só `infrastructure`/`interface` o fazem.
 
