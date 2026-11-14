@@ -269,6 +269,9 @@ Aplica-se **só** a seguradoras com `operational_module_enabled` (BR-INS-08, eme
 
 Notas: (a) o `INSURANCE_ADMIN` tem **R** (não ✓) nas autorizações e despesas: administra, não decide (separação de funções); (b) "parcial" no dashboard = só os indicadores do seu domínio (`dashboard.md`/spec §9), sem dados nominais de saúde; (c) uma conta tem exatamente um papel; (d) `INSURANCE_ADMIN` continua único e ativo por seguradora (BR-INS-06).
 
+### 8.2c Papel `SUPERVISOR` — PROPOSTA pendente de aprovação (Q-S1b, 2026-11-14; nada alterado em §8.2b nem no schema)
+Novo papel do módulo operacional (ADR-025) para a escalada de SLA e decisões finais: **separação de funções — quem analisa (`AUTHORIZATION_ANALYST`) ≠ quem supervisiona (`SUPERVISOR`)**. Proposta: **R** em tudo o que o analista e o gestor de despesas veem; **✓** em pedidos de autorização apenas para (a) receber `SLA_BREACH`/`AUTH_ESCALATED`, (b) reatribuir, (c) decisão final de recursos (`process-flows.md` §11a), e **não decide em pedidos que ele próprio analisou**; **✓** na configuração do prazo de decisão por seguradora/serviço dentro do mínimo/máximo definidos pelo Vita; sem acesso a contas/papéis (`INSURANCE_ADMIN`) nem a `ReimbursementClaim`. Impactos a tratar após aprovação: enum de papéis, criação de contas (BR-INS-06), matriz §8.2b, openapi. Alternativas rejeitadas: usar `INSURANCE_ADMIN` ou `CLAIMS_MANAGER` como gestor.
+
 ### 8.3 Hierarquia de contas (ADR-021, mirror de §6.3) — quem administra quem
 | Ação | Quem |
 |---|---|
