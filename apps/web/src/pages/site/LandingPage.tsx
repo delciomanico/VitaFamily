@@ -68,7 +68,7 @@ export function LandingPage() {
             </div>
           </div>
 
-          <ul className="mt-14 grid animate-rise gap-3 [animation-delay:200ms] md:grid-cols-3">
+          <ul className="mt-14 grid animate-rise bg-surface text-foreground shadow-overlay [animation-delay:200ms] md:grid-cols-3 md:divide-x md:divide-border max-md:divide-y max-md:divide-border">
             {[
               [Users, 'Famílias', 'Organize a saúde de todos', '#familias'],
               [Stethoscope, 'Clínicas', 'Agenda e pacientes ligados', paths.clinics],
@@ -79,14 +79,16 @@ export function LandingPage() {
                 <li key={title as string}>
                   <a
                     href={href as string}
-                    className="group flex items-center gap-4 rounded-2xl border border-white/25 bg-white/10 p-5 backdrop-blur-md transition-colors hover:bg-white/20"
+                    className="group flex items-center gap-5 p-8 transition-colors hover:bg-primary-soft lg:p-10"
                   >
-                    <I className="size-8 shrink-0" aria-hidden />
-                    <span className="flex-1">
-                      <span className="block text-lg font-semibold">{title as string}</span>
-                      <span className="block text-base text-white/90">{text as string}</span>
+                    <span className="flex size-14 shrink-0 items-center justify-center bg-primary-soft text-primary transition-colors group-hover:bg-surface">
+                      <I className="size-7" aria-hidden />
                     </span>
-                    <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" aria-hidden />
+                    <span className="flex-1">
+                      <span className="block text-xl font-semibold">{title as string}</span>
+                      <span className="block text-base text-muted">{text as string}</span>
+                    </span>
+                    <ArrowRight className="size-6 text-primary transition-transform group-hover:translate-x-1" aria-hidden />
                   </a>
                 </li>
               )
