@@ -68,6 +68,10 @@ const ALL: Row[] = [
   [["PATCH"], ["/clinic-portal/patients/:patientId"], "yes", "yes", "no"],
   [["POST"], ["/clinic-portal/patient-lookup", "/clinic-portal/walk-in-appointments"], "yes", "yes", "no"],
   [["GET"], ["/clinic-portal/search"], "yes", "yes", "no"],
+  // ADR-025 (Fase A/S3, authorization.md §8.4): verificação de cobertura de seguradoras ligadas. Q6: Admin e Gestor; o Médico
+  // ⇒ FORBIDDEN (decisão do proprietário, 2026-11-11). A ligação clínica↔seguradora (404) é aplicada por `insurer-ops`.
+  [["GET"], ["/clinic-portal/insurers", "/clinic-portal/insurers/:insurerId/services"], "yes", "yes", "no"],
+  [["POST"], ["/clinic-portal/insurers/:insurerId/eligibility"], "yes", "yes", "no"],
 ];
 
 export const CLINIC_PORTAL_ACCESS: readonly PortalRouteRule[] = ALL.flatMap(([methods, paths, admin, manager, doctor]) =>

@@ -3,7 +3,14 @@
 // genéricos de `platform/errors`; só a classe/mensagem é própria, mirror de `clinics`).
 import { DomainError, type DomainErrorOptions } from "../../../platform/errors/index.js";
 
-export type InsuranceAccountRole = "INSURANCE_ADMIN" | "INSURANCE_AGENT";
+/** ADR-025 (authorization.md §8.2b): na Fase A só `INSURANCE_ADMIN`/`BENEFICIARY_MANAGER` têm rotas do módulo operacional. */
+export type InsuranceAccountRole =
+  | "INSURANCE_ADMIN"
+  | "INSURANCE_AGENT"
+  | "BENEFICIARY_MANAGER"
+  | "AUTHORIZATION_ANALYST"
+  | "CLAIMS_MANAGER"
+  | "FINANCE_MANAGER";
 export type InsuranceAccountStatus = "ACTIVE" | "SUSPENDED";
 
 export interface InsuranceAccount {

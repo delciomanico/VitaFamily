@@ -44,6 +44,8 @@ export interface NewInsurerRecord {
   id: string;
   name: string;
   taxId: string;
+  currency: string;
+  operationalModuleEnabled: boolean;
   createdBy?: string;
   createdAt: Date;
 }
@@ -51,6 +53,17 @@ export interface NewInsurerRecord {
 export interface InsurerChanges {
   name?: string;
   taxId?: string;
+  currency?: string;
+  operationalModuleEnabled?: boolean;
+}
+
+/**
+ * ADR-025/BR-SEG-19 (modules.md §2 nota 23d): `insurance` pergunta ao módulo operacional se a seguradora já tem dados
+ * (beneficiários/apólices) antes de mudar a moeda. Definida aqui, implementada por `insurer-ops` e ligada em `main/api.ts`
+ * (`insurance` nunca importa `insurer-ops`).
+ */
+export interface InsurerOperationalDataPort<Trx> {
+  hasData(trx: Trx, insurerId: string): Promise<boolean>;
 }
 
 /** `insurer_accounts` (schema.md §3b) — propriedade exclusiva deste módulo. */
@@ -90,7 +103,7 @@ export interface InsuranceAccountRepository<Trx> {
   /** `adminCreateOrResetInsurerRootAccount`: idempotente, nunca cria uma segunda conta. */
   resetCredentials(trx: Trx, id: string, changes: InsuranceAccountCredentialsReset, now: Date): Promise<InsuranceAccount>;
   updateStatus(trx: Trx, id: string, status: InsuranceAccountStatus, now: Date): Promise<InsuranceAccount>;
-  listByInsurer(trx: Trx, insurerId: string, role?: InsuranceAccountRole): Promise<InsuranceAccount[]>;
+  listByInsurer(trx: Trx, insurerId: string, roles?: InsuranceAccountRole[]): Promise<InsuranceAccount[]>;
   delete(trx: Trx, id: string): Promise<void>;
 }
 
@@ -149,6 +162,8 @@ export interface InsuranceDeps<Trx> {
   insuranceAccessTtlSeconds: number;
   insuranceRefreshTtlMs: number;
   accountStateCache: InsuranceTtlCache<CachedInsuranceAccountState>;
+  /** BR-SEG-19: moeda só muda sem dados operacionais. */
+  operationalData: InsurerOperationalDataPort<Trx>;
 }
 
 // ---- Fase 4b: apólices e pedidos de reembolso (titular) ----

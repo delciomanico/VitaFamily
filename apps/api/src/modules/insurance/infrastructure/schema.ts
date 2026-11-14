@@ -7,6 +7,9 @@ export interface InsurerAccountsTable {
   name: string;
   tax_id: string;
   status: "ACTIVE" | "SUSPENDED";
+  /** `char(3)` (0033). */
+  currency: ColumnType<string, string | undefined, string>;
+  operational_module_enabled: ColumnType<boolean, boolean | undefined, boolean>;
   created_by: string | null;
   created_at: ColumnType<Date, Date | undefined, never>;
   updated_at: ColumnType<Date, Date | undefined, Date>;
@@ -17,7 +20,7 @@ export interface InsuranceAccountsTable {
   insurer_id: string;
   email: string;
   password_hash: string;
-  role: "INSURANCE_ADMIN" | "INSURANCE_AGENT";
+  role: "INSURANCE_ADMIN" | "INSURANCE_AGENT" | "BENEFICIARY_MANAGER" | "AUTHORIZATION_ANALYST" | "CLAIMS_MANAGER" | "FINANCE_MANAGER";
   status: "ACTIVE" | "SUSPENDED";
   created_by_platform_admin: string | null;
   suspended_at: ColumnType<Date | null, Date | null | undefined, Date | null>;

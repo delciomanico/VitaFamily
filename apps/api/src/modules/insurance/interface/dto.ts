@@ -5,7 +5,7 @@ import type { InsuranceAccount, Insurer, ReimbursementClaim } from "../applicati
 import type { InsurancePolicyView } from "../application/support-holder.js";
 
 export function toInsurerResponse(insurer: Insurer) {
-  return { id: insurer.id, name: insurer.name, taxId: insurer.taxId, status: insurer.status };
+  return { id: insurer.id, name: insurer.name, taxId: insurer.taxId, status: insurer.status, currency: insurer.currency, operationalModuleEnabled: insurer.operationalModuleEnabled };
 }
 
 /** `components.schemas.InsuranceAccount`: nunca inclui `passwordHash`. */

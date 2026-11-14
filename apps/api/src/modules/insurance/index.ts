@@ -43,7 +43,7 @@ import { createInsuranceLoginUseCase } from "./application/insurance-login.js";
 import { createInsuranceLogoutUseCase } from "./application/insurance-logout.js";
 import { createInsuranceRefreshUseCase } from "./application/insurance-refresh.js";
 import { createCreateInsuranceAgentUseCase, createListInsuranceAgentsUseCase, createRemoveInsuranceAgentUseCase } from "./application/manage-insurance-agents.js";
-import type { CachedInsuranceAccountState, ClinicReceiptLookupPort, InsuranceDeps, InsuranceHolderDeps, InsuranceMailer, InsurancePortalClaimsDeps } from "./application/ports.js";
+import type { CachedInsuranceAccountState, ClinicReceiptLookupPort, InsuranceDeps, InsuranceHolderDeps, InsuranceMailer, InsurancePortalClaimsDeps, InsurerOperationalDataPort } from "./application/ports.js";
 import { createResolveInsuranceActorStateUseCase } from "./application/resolve-insurance-actor-state.js";
 import type { InsuranceSigningKey } from "./domain/insurance-jwt.js";
 import { InsuranceInMemoryRateLimiter } from "./domain/insurance-rate-limiter.js";
@@ -66,6 +66,31 @@ export { parseInsuranceSigningKeys, type InsuranceSigningKey } from "./domain/in
 export type { InsuranceMailer, InsuranceSentEmail } from "./application/ports.js";
 export type { InsurancePolicy } from "./domain/insurance-policy.js";
 export type { ClaimStatus, ReimbursementClaim } from "./domain/reimbursement-claim.js";
+export type { InsurerOperationalDataPort } from "./application/ports.js";
+
+/** Estado mínimo da seguradora que `insurer-ops` precisa (ADR-025, modules.md §2 nota 23d): módulo ligado, moeda e estado. */
+export interface InsurerSettings {
+  /** Nome da seguradora (lista `GET /clinic-portal/insurers`). */
+  name: string;
+  operationalModuleEnabled: boolean;
+  currency: string;
+  status: "ACTIVE" | "SUSPENDED";
+}
+
+export interface InsurerSettingsReader {
+  get: (trx: Kysely<Database>, insurerId: string) => Promise<InsurerSettings | null>;
+}
+
+/** Leitor autónomo (sem o resto do módulo): permite ligar `insurer-ops` antes de `createInsuranceModule` em `main/api.ts`. */
+export function createInsurerSettingsReader(): InsurerSettingsReader {
+  const repo = new KyselyInsurersRepository();
+  return {
+    get: async (trx, insurerId) => {
+      const insurer = await repo.findById(trx, insurerId);
+      return insurer ? { name: insurer.name, operationalModuleEnabled: insurer.operationalModuleEnabled, currency: insurer.currency, status: insurer.status } : null;
+    },
+  };
+}
 
 /** Cache do estado da conta do portal por pedido (authorization.md §8.1, ≤60 s). */
 const INSURANCE_ACCOUNT_STATE_CACHE_TTL_MS = 60_000;
@@ -85,6 +110,8 @@ export interface InsuranceModuleDeps {
   cookieDomain: string;
   /** M14 R (BR-CLN-36): `ClinicReceiptLookup` — implementada por `clinic-receipts/interface`, ligada em `main/api.ts`. */
   receipts: ClinicReceiptLookupPort<Kysely<Database>>;
+  /** ADR-025/BR-SEG-19: `insurer-ops` diz se a seguradora já tem beneficiários/apólices (moeda imutável depois). */
+  operationalData: InsurerOperationalDataPort<Kysely<Database>>;
 }
 
 export interface InsuranceModule {
@@ -104,6 +131,7 @@ export interface InsuranceModule {
 
 export function createInsuranceModule(deps: InsuranceModuleDeps): InsuranceModule {
   const insuranceDeps: InsuranceDeps<Kysely<Database>> = {
+    operationalData: deps.operationalData,
     insurersRepo: new KyselyInsurersRepository(),
     insuranceAccountRepo: new KyselyInsuranceAccountRepository(),
     insuranceSessionRepo: new KyselyInsuranceSessionRepository(),

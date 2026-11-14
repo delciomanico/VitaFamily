@@ -89,6 +89,33 @@ export class KyselyClinicsRepository implements ClinicsRepository<Kysely<Databas
     return rows.map(toClinic);
   }
 
+  /**
+   * ADR-025 (S3, `insurer-ops`): catálogo mínimo de clínicas PARTNER e ACTIVE para a seguradora escolher a que liga. Só `id` e
+   * nome de apresentação (`display_name` ?? `name`) — nunca contactos, morada, contas nem dados de saúde (BR-SEG-14, ADR-005).
+   */
+  async listPartnerDirectory(
+    trx: Kysely<Database>,
+    query: { q?: string; limit: number; after?: { name: string; id: string } },
+  ): Promise<{ id: string; name: string }[]> {
+    const display = sql<string>`coalesce(display_name, name)`;
+    let select = trx.selectFrom("clinics").select(["id", display.as("name")]).where("type", "=", "PARTNER").where("status", "=", "ACTIVE");
+    if (query.q) select = select.where(sql<boolean>`coalesce(display_name, name) ilike ${`%${query.q.replace(/[\\%_]/g, "\\$&")}%`}`);
+    if (query.after) select = select.where(sql<boolean>`(coalesce(display_name, name), id) > (${query.after.name}, ${query.after.id}::uuid)`);
+    const rows = await select.orderBy(display).orderBy("id").limit(query.limit + 1).execute();
+    return rows.map((r) => ({ id: r.id, name: r.name }));
+  }
+
+  async findPartnerDirectoryEntry(trx: Kysely<Database>, clinicId: string): Promise<{ id: string; name: string } | null> {
+    const row = await trx
+      .selectFrom("clinics")
+      .select(["id", sql<string>`coalesce(display_name, name)`.as("name")])
+      .where("id", "=", clinicId)
+      .where("type", "=", "PARTNER")
+      .where("status", "=", "ACTIVE")
+      .executeTakeFirst();
+    return row ? { id: row.id, name: row.name } : null;
+  }
+
   async countPrivateByFamily(trx: Kysely<Database>, familyId: string): Promise<number> {
     const row = await trx
       .selectFrom("clinics")

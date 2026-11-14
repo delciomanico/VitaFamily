@@ -56,6 +56,9 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   // mesmo módulo mas a identidade do portal nunca importa auth/families/clinics (`insurance/application`
   // só usa `access`/`documents` por portas no lado do titular).
   insurance: ["access", "documents", "audit"],
+  // ADR-025 (modules.md §2 nota 23, S1): `insurer-ops` só importa `audit`; o estado da seguradora (módulo ligado/moeda) e a
+  // porta `InsurerOperationalData` ligam-se em `main/api.ts` (nenhuma aresta com `insurance`; não importa módulos de saúde).
+  "insurer-ops": ["audit"],
   examinations: ["access", "clinics", "documents", "audit"],
   // ADR-023 (modules.md §2): lê a origem (consulta/exame) pelas raízes de `appointments`/`examinations`.
   recommendations: ["access", "appointments", "examinations", "audit"],

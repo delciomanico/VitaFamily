@@ -155,7 +155,7 @@ describe("integração: apólices e pedidos de reembolso (Fase 4b)", () => {
   it("CHECKs de reimbursement_claims: amount > 0; REJECTED exige nota; SUBMITTED sem nota é válido", async () => {
     const policyId = await partnerPolicy();
     const insert = (amount: number, status: string, note: string | null) =>
-      pool.query("INSERT INTO reimbursement_claims (policy_id, insurer_id, amount, status, decision_note) VALUES ($1,$2,$3,$4,$5)", [policyId, ids.insA, amount, status, note]);
+      pool.query("INSERT INTO reimbursement_claims (policy_id, insurer_id, amount, currency, status, decision_note) VALUES ($1,$2,$3,'EUR',$4,$5)", [policyId, ids.insA, amount, status, note]);
     await expect(insert(0, "SUBMITTED", null)).rejects.toMatchObject({ code: "23514" });
     await expect(insert(5, "REJECTED", null)).rejects.toMatchObject({ code: "23514" });
     await insert(5, "SUBMITTED", null);

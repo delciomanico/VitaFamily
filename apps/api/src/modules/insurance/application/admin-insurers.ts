@@ -1,12 +1,12 @@
 // openapi `adminListInsurers`/`adminCreateInsurer`/`adminUpdateInsurer`/`adminSetInsurerStatus`/
 // `adminCreateOrResetInsurerRootAccount` (BR-ADM-05/06, BR-INS-06/10, ADR-021/ADR-023): só
 // PLATFORM_ADMIN, nunca dados de saúde. Sem eliminação (schema.md §8). Mirror de `admin-clinics.ts`.
-import { ForbiddenError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { InsuranceAccount } from "../domain/insurance-account.js";
 import { generateInitialInsurancePassword, hashInsurancePassword } from "../domain/insurance-crypto.js";
-import { assertValidInsurerName, assertValidTaxId, type Insurer, type InsurerStatus } from "../domain/insurer.js";
+import { assertValidCurrency, assertValidInsurerName, assertValidTaxId, DEFAULT_INSURER_CURRENCY, type Insurer, type InsurerStatus } from "../domain/insurer.js";
 import type { ActorIdentity, InsuranceDeps, InsurerChanges, RequestContext } from "./ports.js";
 import { trySendInsuranceMail } from "./send-insurance-mail.js";
 
@@ -38,6 +38,10 @@ export function createAdminListInsurersUseCase<Trx>(deps: InsuranceDeps<Trx>) {
 export interface AdminCreateInsurerInput {
   name: string;
   taxId: string;
+  /** ISO 4217; por omissão `AOA` (BR-SEG-19). */
+  currency?: string | null;
+  /** Por omissão `false` (ADR-025). */
+  operationalModuleEnabled?: boolean | null;
 }
 
 export function createAdminCreateInsurerUseCase<Trx>(deps: InsuranceDeps<Trx>) {
@@ -45,13 +49,15 @@ export function createAdminCreateInsurerUseCase<Trx>(deps: InsuranceDeps<Trx>) {
     requirePlatformAdmin(actor);
     const name = assertValidInsurerName(input.name);
     const taxId = assertValidTaxId(input.taxId);
+    const currency = assertValidCurrency(input.currency ?? DEFAULT_INSURER_CURRENCY);
+    const operationalModuleEnabled = input.operationalModuleEnabled ?? false;
 
     return deps.withTransaction(async (trx) => {
       if (await deps.insurersRepo.findByTaxId(trx, taxId)) {
         throw duplicateTaxId();
       }
       const now = deps.clock.now();
-      const insurer = await deps.insurersRepo.insert(trx, { id: newId(), name, taxId, createdBy: actor.userId, createdAt: now });
+      const insurer = await deps.insurersRepo.insert(trx, { id: newId(), name, taxId, currency, operationalModuleEnabled, createdBy: actor.userId, createdAt: now });
       await deps.audit.record(trx, {
         occurredAt: now,
         actorType: "PLATFORM_ADMIN",
@@ -71,6 +77,8 @@ export function createAdminCreateInsurerUseCase<Trx>(deps: InsuranceDeps<Trx>) {
 export interface AdminUpdateInsurerInput {
   name?: string | null;
   taxId?: string | null;
+  currency?: string | null;
+  operationalModuleEnabled?: boolean | null;
 }
 
 export function createAdminUpdateInsurerUseCase<Trx>(deps: InsuranceDeps<Trx>) {
@@ -79,9 +87,17 @@ export function createAdminUpdateInsurerUseCase<Trx>(deps: InsuranceDeps<Trx>) {
     const changes: InsurerChanges = {};
     if (input.name !== undefined && input.name !== null) changes.name = assertValidInsurerName(input.name);
     if (input.taxId !== undefined && input.taxId !== null) changes.taxId = assertValidTaxId(input.taxId);
+    if (input.currency !== undefined && input.currency !== null) changes.currency = assertValidCurrency(input.currency);
+    if (input.operationalModuleEnabled !== undefined && input.operationalModuleEnabled !== null) changes.operationalModuleEnabled = input.operationalModuleEnabled;
 
     return deps.withTransaction(async (trx) => {
       const current = await requireInsurer(deps, trx, insurerId);
+      const currencyChanged = changes.currency !== undefined && changes.currency !== current.currency;
+      // BR-SEG-19: sem conversão; mudar a moeda com beneficiários/apólices criados deixaria valores na moeda errada.
+      if (currencyChanged && (await deps.operationalData.hasData(trx, insurerId))) {
+        throw new ConflictError({ detail: "A moeda não pode mudar: a seguradora já tem beneficiários ou apólices." });
+      }
+      const moduleChanged = changes.operationalModuleEnabled !== undefined && changes.operationalModuleEnabled !== current.operationalModuleEnabled;
       if (changes.taxId !== undefined && changes.taxId !== current.taxId) {
         const other = await deps.insurersRepo.findByTaxId(trx, changes.taxId);
         if (other && other.id !== insurerId) {
@@ -89,17 +105,24 @@ export function createAdminUpdateInsurerUseCase<Trx>(deps: InsuranceDeps<Trx>) {
         }
       }
       const updated = await deps.insurersRepo.update(trx, insurerId, changes);
-      await deps.audit.record(trx, {
-        occurredAt: deps.clock.now(),
-        actorType: "PLATFORM_ADMIN",
+      const now = deps.clock.now();
+      const base = {
+        occurredAt: now,
+        actorType: "PLATFORM_ADMIN" as const,
         actorUserId: actor.userId,
-        action: "ADMIN_INSURER_UPDATE",
         resourceType: "Insurer",
         resourceId: insurerId,
-        result: "SUCCESS",
+        result: "SUCCESS" as const,
         requestId: context.requestId,
         ...auditContextFields(context),
-      });
+      };
+      await deps.audit.record(trx, { ...base, action: "ADMIN_INSURER_UPDATE" });
+      if (currencyChanged) {
+        await deps.audit.record(trx, { ...base, action: "ADMIN_INSURER_CURRENCY_UPDATE", metadata: { insurerId, currency: updated.currency } });
+      }
+      if (moduleChanged) {
+        await deps.audit.record(trx, { ...base, action: updated.operationalModuleEnabled ? "ADMIN_INSURER_MODULE_ENABLE" : "ADMIN_INSURER_MODULE_DISABLE", metadata: { insurerId } });
+      }
       return updated;
     });
   };

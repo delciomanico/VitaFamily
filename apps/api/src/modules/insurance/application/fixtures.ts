@@ -62,6 +62,8 @@ export class FakeInsurersRepository implements InsurersRepository<FakeTrx> {
       name: record.name,
       taxId: record.taxId,
       status: "ACTIVE",
+      currency: record.currency,
+      operationalModuleEnabled: record.operationalModuleEnabled,
       createdAt: record.createdAt,
       ...(record.createdBy !== undefined ? { createdBy: record.createdBy } : {}),
     };
@@ -90,8 +92,8 @@ export class FakeInsurersRepository implements InsurersRepository<FakeTrx> {
     this.byId.set(id, updated);
     return Promise.resolve(updated);
   }
-  seed(insurer: Insurer): void {
-    this.byId.set(insurer.id, insurer);
+  seed(insurer: Omit<Insurer, "currency" | "operationalModuleEnabled"> & Partial<Pick<Insurer, "currency" | "operationalModuleEnabled">>): void {
+    this.byId.set(insurer.id, { currency: "AOA", operationalModuleEnabled: false, ...insurer });
   }
   /** Atalho de teste: muda o estado sem passar pelo caso de uso (nem sessões nem cache). */
   setStatus(id: string, status: InsurerStatus): void {
@@ -146,8 +148,8 @@ export class FakeInsuranceAccountRepository implements InsuranceAccountRepositor
     this.byId.set(id, updated);
     return Promise.resolve(updated);
   }
-  async listByInsurer(_trx: FakeTrx, insurerId: string, role?: InsuranceAccount["role"]): Promise<InsuranceAccount[]> {
-    return Promise.resolve([...this.byId.values()].filter((a) => a.insurerId === insurerId && (!role || a.role === role)));
+  async listByInsurer(_trx: FakeTrx, insurerId: string, roles?: InsuranceAccount["role"][]): Promise<InsuranceAccount[]> {
+    return Promise.resolve([...this.byId.values()].filter((a) => a.insurerId === insurerId && (!roles || roles.includes(a.role))));
   }
   async delete(_trx: FakeTrx, id: string): Promise<void> {
     this.byId.delete(id);
@@ -469,7 +471,16 @@ export function createInsuranceHolderFixtures(clock: Clock): InsuranceHolderFixt
   return { deps, portalDeps, policiesRepo, claimsRepo, insurersRepo, policy, membership, documents, receipts, audit };
 }
 
+/** `InsurerOperationalDataPort` em memória: `hasData` configurável. */
+export class FakeOperationalData {
+  readonly withData = new Set<string>();
+  async hasData(_trx: FakeTrx, insurerId: string): Promise<boolean> {
+    return Promise.resolve(this.withData.has(insurerId));
+  }
+}
+
 export interface InsuranceFixtures {
+  operationalData: FakeOperationalData;
   deps: InsuranceDeps<FakeTrx>;
   insurersRepo: FakeInsurersRepository;
   audit: FakeAuditPort;
@@ -486,7 +497,9 @@ export function createInsuranceFixtures(clock: Clock): InsuranceFixtures {
   const insuranceSessionRepo = new FakeInsuranceSessionRepository(insuranceAccountRepo);
   const insuranceMailer = new FakeInsuranceMailer();
   const insuranceLogger = new FakeInsuranceLogger();
+  const operationalData = new FakeOperationalData();
   const deps: InsuranceDeps<FakeTrx> = {
+    operationalData,
     insurersRepo,
     insuranceAccountRepo,
     insuranceSessionRepo,
@@ -502,5 +515,5 @@ export function createInsuranceFixtures(clock: Clock): InsuranceFixtures {
     insuranceRefreshTtlMs: 30 * 24 * 60 * 60 * 1000,
     accountStateCache: new InsuranceTtlCache<CachedInsuranceAccountState>(clock, 60_000),
   };
-  return { deps, insurersRepo, audit, insuranceAccountRepo, insuranceSessionRepo, insuranceMailer, insuranceLogger };
+  return { operationalData, deps, insurersRepo, audit, insuranceAccountRepo, insuranceSessionRepo, insuranceMailer, insuranceLogger };
 }

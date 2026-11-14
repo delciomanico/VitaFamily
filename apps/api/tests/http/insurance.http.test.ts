@@ -147,8 +147,8 @@ describe("/admin/insurers*", () => {
     const res = await request(h.app).get(`${API}/admin/insurers`).set("Authorization", h.admin);
     expect(res.status).toBe(200);
     expect(res.body).toEqual([
-      { id: INS_A, name: "Seg A", taxId: `nif-${INS_A}`, status: "ACTIVE" },
-      { id: INS_B, name: "Seg B", taxId: `nif-${INS_B}`, status: "ACTIVE" },
+      { id: INS_A, name: "Seg A", taxId: `nif-${INS_A}`, status: "ACTIVE", currency: "AOA", operationalModuleEnabled: false },
+      { id: INS_B, name: "Seg B", taxId: `nif-${INS_B}`, status: "ACTIVE", currency: "AOA", operationalModuleEnabled: false },
     ]);
   });
 

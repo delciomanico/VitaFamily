@@ -30,12 +30,22 @@ interface InsurerRow {
   name: string;
   tax_id: string;
   status: InsurerStatus;
+  currency: string;
+  operational_module_enabled: boolean;
   created_by: string | null;
   created_at: Date;
 }
 
 function toInsurer(row: InsurerRow): Insurer {
-  const insurer: Insurer = { id: row.id, name: row.name, taxId: row.tax_id, status: row.status, createdAt: row.created_at };
+  const insurer: Insurer = {
+    id: row.id,
+    name: row.name,
+    taxId: row.tax_id,
+    status: row.status,
+    currency: row.currency,
+    operationalModuleEnabled: row.operational_module_enabled,
+    createdAt: row.created_at,
+  };
   if (row.created_by !== null) insurer.createdBy = row.created_by;
   return insurer;
 }
@@ -49,6 +59,8 @@ export class KyselyInsurersRepository implements InsurersRepository<Kysely<Datab
         name: record.name,
         tax_id: record.taxId,
         status: "ACTIVE",
+        currency: record.currency,
+        operational_module_enabled: record.operationalModuleEnabled,
         created_by: record.createdBy ?? null,
         created_at: record.createdAt,
       })
@@ -84,6 +96,8 @@ export class KyselyInsurersRepository implements InsurersRepository<Kysely<Datab
         updated_at: sql`now()`,
         ...(changes.name !== undefined ? { name: changes.name } : {}),
         ...(changes.taxId !== undefined ? { tax_id: changes.taxId } : {}),
+        ...(changes.currency !== undefined ? { currency: changes.currency } : {}),
+        ...(changes.operationalModuleEnabled !== undefined ? { operational_module_enabled: changes.operationalModuleEnabled } : {}),
       })
       .where("id", "=", insurerId)
       .returningAll()
@@ -189,10 +203,10 @@ export class KyselyInsuranceAccountRepository implements InsuranceAccountReposit
     return accountToDomain(row);
   }
 
-  async listByInsurer(trx: Kysely<Database>, insurerId: string, role?: InsuranceAccountRole): Promise<InsuranceAccount[]> {
+  async listByInsurer(trx: Kysely<Database>, insurerId: string, roles?: InsuranceAccountRole[]): Promise<InsuranceAccount[]> {
     let query = trx.selectFrom("insurance_accounts").selectAll().where("insurer_id", "=", insurerId);
-    if (role) {
-      query = query.where("role", "=", role);
+    if (roles) {
+      query = query.where("role", "in", roles);
     }
     const rows = await query.orderBy("created_at", "asc").execute();
     return rows.map(accountToDomain);
