@@ -10,7 +10,8 @@ import { Input, PasswordInput } from '@/components/ui/Input'
 import { FormError } from '@/components/ui/states'
 import { errorMessage } from '@/lib/errors'
 import { paths } from '@/routes/paths'
-import { Logo } from './Logo'
+import { LoginBackground } from '@/pages/public/LoginBackground'
+import { Logo, LogoMark } from './Logo'
 
 const schema = z.object({
   email: z.email('Introduza um e-mail válido.'),
@@ -37,8 +38,9 @@ interface PortalLoginScreenProps {
 }
 
 /**
- * Login dos portais: um único contentor retangular centrado, com o formulário à esquerda e a
- * fotografia em carrossel à direita (fundo escuro no backoffice); em ecrãs pequenos, só o formulário. O redirecionamento depois de entrar é feito pelo guard
+ * Login dos portais. Desktop: um único contentor retangular centrado, com o formulário à esquerda e a
+ * fotografia em carrossel à direita (fundo escuro no backoffice). Telemóvel: igual ao login da app,
+ * com fotografias desfocadas, logótipo no topo e folha branca com o formulário. O redirecionamento depois de entrar é feito pelo guard
  * de cada portal.
  */
 export function PortalLoginScreen({
@@ -70,11 +72,38 @@ export function PortalLoginScreen({
   }
 
   return (
-    <div className="grid min-h-dvh place-items-center bg-background p-4 lg:p-10">
-      {/* Um único contentor retangular com o formulário e a imagem. */}
-      <div className="grid w-full max-w-5xl animate-rise overflow-hidden rounded-md border border-border bg-surface shadow-overlay lg:min-h-[38rem] lg:grid-cols-2">
-        <div className="flex flex-col px-6 pt-6 pb-8 md:px-12 md:pt-8 md:pb-12">
-          <header className="flex items-center justify-between">
+    <div className="relative flex min-h-dvh flex-col lg:grid lg:place-items-center lg:bg-background lg:p-10">
+      {/* Telemóvel: fundo de fotografias e logótipo no topo, como no login da app. */}
+      <div className="lg:hidden">
+        {images ? (
+          <LoginBackground />
+        ) : (
+          <div aria-hidden className="absolute inset-0 overflow-hidden bg-foreground">
+            <div className="absolute -top-32 -left-24 size-[28rem] animate-drift rounded-full bg-primary/60 blur-3xl" />
+            <div className="absolute -right-24 -bottom-24 size-[24rem] animate-drift rounded-full bg-accent/40 blur-3xl [animation-delay:-8s]" />
+          </div>
+        )}
+        <Link
+          to={paths.enter}
+          aria-label="Escolher portal"
+          className="absolute top-[max(0.5rem,env(safe-area-inset-top))] left-2.5 z-10 flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15"
+        >
+          <ArrowLeft className="size-5" aria-hidden />
+        </Link>
+      </div>
+      <div className="relative flex min-h-32 flex-1 flex-col items-center justify-center gap-3 px-6 pt-safe text-white lg:hidden">
+        <LogoMark tone="inverse" className="size-14 drop-shadow-lg" />
+        <p className="text-[1.625rem] font-bold tracking-tight drop-shadow">Vita Family</p>
+        <span className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold backdrop-blur">
+          <BadgeIcon className="size-4" aria-hidden />
+          {badge}
+        </span>
+      </div>
+
+      {/* Telemóvel: folha branca encostada ao fundo. Desktop: um único contentor retangular centrado. */}
+      <div className="relative rounded-t-3xl bg-surface shadow-overlay lg:grid lg:w-full lg:max-w-5xl lg:animate-rise lg:grid-cols-2 lg:overflow-hidden lg:rounded-md lg:border lg:border-border lg:shadow-overlay lg:min-h-[38rem]">
+        <div className="flex flex-col px-5 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] lg:px-12 lg:pt-8 lg:pb-12">
+          <header className="hidden items-center justify-between lg:flex">
             <Link to={paths.splash} aria-label="Vita Family, página inicial">
               <Logo />
             </Link>
@@ -87,15 +116,17 @@ export function PortalLoginScreen({
             </Link>
           </header>
 
-          <main className="flex flex-1 flex-col justify-center py-10">
-            <span className="flex size-12 items-center justify-center rounded-md bg-primary-soft text-primary">
+          <main className="flex flex-col lg:flex-1 lg:justify-center lg:py-10">
+            <span className="hidden size-12 items-center justify-center rounded-md bg-primary-soft text-primary lg:flex">
               <BadgeIcon className="size-7" aria-hidden />
             </span>
-            <p className="mt-5 text-sm font-semibold tracking-wide text-primary uppercase">{badge}</p>
-            <h1 className="mt-2 text-3xl leading-[1.15] font-bold tracking-tight text-balance md:text-4xl">{title}</h1>
+            <p className="mt-5 hidden text-sm font-semibold tracking-wide text-primary uppercase lg:block">{badge}</p>
+            <h1 className="text-[1.625rem] leading-tight font-bold tracking-tight text-balance lg:mt-2 lg:text-4xl lg:leading-[1.15]">
+              {title}
+            </h1>
 
             {notice ?? (
-              <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-8 flex flex-col gap-5">
+              <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-5 flex flex-col gap-4 lg:mt-8 lg:gap-5">
                 <Input
                   label={emailLabel}
                   type="email"
@@ -112,7 +143,7 @@ export function PortalLoginScreen({
                   {...register('password')}
                 />
                 <FormError message={formError} />
-                <Button type="submit" size="lg" fullWidth loading={isSubmitting} className="h-14 rounded-md! text-base">
+                <Button type="submit" size="lg" fullWidth loading={isSubmitting} className="lg:h-14 lg:rounded-md! lg:text-base">
                   {submitLabel}
                 </Button>
                 {footerLink && (
@@ -128,7 +159,7 @@ export function PortalLoginScreen({
           </main>
         </div>
 
-        {/* Imagem encostada ao contentor, sem texto por cima (fundo escuro no backoffice). */}
+        {/* Desktop: imagem encostada ao contentor, sem texto por cima (fundo escuro no backoffice). */}
         <aside aria-hidden className="relative isolate hidden overflow-hidden bg-foreground lg:block">
           {images ? (
             <HeroMedia images={images.map((src) => ({ src }))} />

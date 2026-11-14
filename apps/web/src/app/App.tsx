@@ -1,4 +1,5 @@
 import { RouterProvider } from 'react-router-dom'
+import { BootSplash } from '@/components/ui/BootSplash'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { ToastProvider } from '@/components/ui/Toast'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -12,6 +13,7 @@ export function App() {
     <ToastProvider>
       <AuthProvider>
         <RouterProvider router={router} />
+        <BootSplash />
       </AuthProvider>
     </ToastProvider>
     </ErrorBoundary>

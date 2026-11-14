@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { LoaderCircle } from 'lucide-react'
-import { LogoMark } from '@/components/layout/Logo'
+import { BrandLoader } from '@/components/ui/BrandLoader'
 import { useAuth } from '@/contexts/AuthContext'
 import { preferences } from '@/lib/storage'
 import { paths } from '@/routes/paths'
 
-/** Tempo mínimo do splash, para não piscar quando a sessão restaura logo. */
-const SPLASH_MIN_MS = 1200
+/** Duração da animação da marca (a última letra termina por volta dos 2 s). */
+const SPLASH_MIN_MS = 2100
 
 function useMinimumDelay(ms: number) {
   const [done, setDone] = useState(false)
@@ -18,6 +17,7 @@ function useMinimumDelay(ms: number) {
   return done
 }
 
+/** Splash da app instalada: a mesma animação de carregamento da marca usada no site. */
 export function SplashPage() {
   const { status, user, family } = useAuth()
   const delayDone = useMinimumDelay(SPLASH_MIN_MS)
@@ -28,15 +28,8 @@ export function SplashPage() {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center bg-brand pt-safe pb-[max(3rem,env(safe-area-inset-bottom))] text-white">
-      <div className="flex flex-1 flex-col items-center justify-center gap-5">
-        <LogoMark tone="inverse" className="size-24 drop-shadow-lg" />
-        <p className="text-[1.75rem] font-bold tracking-tight">Vita Family</p>
-      </div>
-      <div role="status">
-        <LoaderCircle className="size-9 animate-spin" strokeWidth={2.5} aria-hidden />
-        <span className="sr-only">A iniciar…</span>
-      </div>
+    <div className="fixed inset-0 z-50">
+      <BrandLoader label="A iniciar…" />
     </div>
   )
 }

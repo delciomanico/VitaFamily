@@ -1,5 +1,6 @@
+import { BrandLoader } from './BrandLoader'
 import type { ReactNode } from 'react'
-import { CircleAlert, LoaderCircle, type LucideIcon } from 'lucide-react'
+import { CircleAlert, type LucideIcon } from 'lucide-react'
 import { Button } from './Button'
 
 interface EmptyStateProps {
@@ -42,14 +43,9 @@ export function LoadingState({ rows = 3, label = 'A carregar…' }: LoadingState
   )
 }
 
-/** Carregamento de ecrã inteiro (ex.: enquanto a sessão é restaurada). */
+/** Carregamento de ecrã inteiro (ex.: enquanto a sessão é restaurada): a animação da marca. */
 export function FullScreenLoader({ label = 'A carregar…' }: { label?: string }) {
-  return (
-    <div role="status" className="flex min-h-dvh items-center justify-center">
-      <LoaderCircle className="size-8 animate-spin text-primary" aria-hidden />
-      <span className="sr-only">{label}</span>
-    </div>
-  )
+  return <BrandLoader label={label} />
 }
 
 /** Mensagem de erro de um formulário (ex.: credenciais inválidas). */
