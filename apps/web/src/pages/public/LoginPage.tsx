@@ -51,8 +51,8 @@ export function LoginPage() {
       <LoginBackground />
 
       <Link
-        to={paths.enter}
-        aria-label="Voltar à escolha de portal"
+        to={paths.onboarding}
+        aria-label="Voltar"
         className="absolute top-[max(0.5rem,env(safe-area-inset-top))] left-2.5 z-10 flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15"
       >
         <ArrowLeft className="size-5" aria-hidden />
@@ -94,7 +94,6 @@ export function LoginPage() {
             Entrar
           </Button>
           <AuthSwitch text="Ainda não tem conta?" to={paths.register} label="Criar conta" />
-          <AuthSwitch text="É uma clínica ou seguradora?" to={paths.enter} label="Escolher portal" />
         </form>
       </div>
     </div>

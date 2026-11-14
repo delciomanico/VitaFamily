@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,6 +9,7 @@ import { HeroMedia } from '@/components/ui/HeroMedia'
 import { Input, PasswordInput } from '@/components/ui/Input'
 import { FormError } from '@/components/ui/states'
 import { errorMessage } from '@/lib/errors'
+import { cn } from '@/lib/cn'
 import { paths } from '@/routes/paths'
 import { Logo } from './Logo'
 
@@ -22,34 +23,36 @@ interface PortalLoginScreenProps {
   /** Etiqueta do portal («Portal da clínica»). */
   badge: string
   badgeIcon: LucideIcon
-  /** Título do formulário (h1). */
+  /** Título do cartão (h1). */
   title: string
-  /** Frase grande sobre a fotografia. */
-  tagline: string
-  images: string[]
-  emailLabel: string
-  emailPlaceholder: string
-  passwordPlaceholder: string
-  requestAccessTo: string
+  /** Fotografias do fundo; sem elas, fundo escuro (backoffice). */
+  images?: string[]
+  emailLabel?: string
+  emailPlaceholder?: string
+  submitLabel?: string
+  /** Ligação única por baixo do formulário (ex.: «Solicitar acesso»). */
+  footerLink?: { prefix?: string; label: string; to: string }
   login: (email: string, password: string) => Promise<void>
+  /** Substitui o formulário (ex.: aviso de conta sem acesso). */
+  notice?: ReactNode
 }
 
 /**
- * Ecrã de login dos portais (clínica e seguradora), com o desenho do site público: fotografia em
- * carrossel e frase à esquerda (só em ecrãs largos) e formulário à direita. O redirecionamento
- * depois de entrar é feito pelo guard de cada portal.
+ * Login dos portais: cartão branco ao centro sobre fotografia em carrossel (ou fundo escuro, no
+ * backoffice). Uma só coluna, só o essencial. O redirecionamento depois de entrar é feito pelo guard
+ * de cada portal.
  */
 export function PortalLoginScreen({
   badge,
   badgeIcon: BadgeIcon,
   title,
-  tagline,
   images,
-  emailLabel,
-  emailPlaceholder,
-  passwordPlaceholder,
-  requestAccessTo,
+  emailLabel = 'E-mail',
+  emailPlaceholder = 'nome@exemplo.com',
+  submitLabel = 'Entrar',
+  footerLink,
   login,
+  notice,
 }: PortalLoginScreenProps) {
   const [formError, setFormError] = useState<string | null>(null)
   const {
@@ -68,70 +71,71 @@ export function PortalLoginScreen({
   }
 
   return (
-    <div className="grid min-h-dvh bg-surface lg:grid-cols-[1.1fr_1fr]">
-      <aside className="relative isolate hidden overflow-hidden text-white lg:flex">
-        <HeroMedia images={images.map((src) => ({ src }))} />
-        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/40 to-black/25" />
-        <div className="relative flex w-full animate-rise flex-col justify-between p-12 xl:p-16">
-          <Link to={paths.splash} aria-label="Vita Family, página inicial" className="self-start rounded-full bg-surface px-4 py-2 text-foreground">
-            <Logo />
-          </Link>
-          <p className="max-w-xl text-5xl leading-[1.1] font-bold tracking-tight text-balance xl:text-6xl">{tagline}</p>
+    <div className="relative isolate flex min-h-dvh flex-col overflow-hidden text-foreground">
+      {images ? (
+        <>
+          <HeroMedia images={images.map((src) => ({ src }))} />
+          <div aria-hidden className="absolute inset-0 -z-10 bg-black/50" />
+        </>
+      ) : (
+        <div aria-hidden className="absolute inset-0 -z-10 bg-foreground">
+          <div className="absolute -top-32 -left-24 size-[32rem] animate-drift rounded-full bg-primary/50 blur-3xl" />
+          <div className="absolute -right-32 -bottom-32 size-[30rem] animate-drift rounded-full bg-accent/30 blur-3xl [animation-delay:-8s]" />
         </div>
-      </aside>
+      )}
 
-      <main className="relative flex flex-col overflow-hidden">
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-32 -right-24 size-[28rem] animate-drift rounded-full bg-primary-soft blur-3xl" />
-        </div>
-        <div className="relative flex items-center justify-between px-6 pt-6 pt-safe lg:px-12">
-          <Link to={paths.enter} className="inline-flex h-11 items-center gap-2 rounded-full px-3 text-base font-medium text-muted hover:bg-surface-muted hover:text-foreground">
-            <ArrowLeft className="size-5" aria-hidden />
-            Escolher portal
-          </Link>
-          <Link to={paths.splash} aria-label="Vita Family, página inicial" className="lg:hidden">
-            <Logo />
-          </Link>
-        </div>
+      <header className="flex items-center justify-between px-5 pt-[max(1.25rem,env(safe-area-inset-top))] lg:px-10">
+        <Link to={paths.splash} aria-label="Vita Family, página inicial" className="rounded-full bg-surface px-4 py-2">
+          <Logo />
+        </Link>
+        <Link
+          to={paths.enter}
+          className="inline-flex h-11 items-center gap-2 rounded-full px-4 text-base font-medium text-white hover:bg-white/15"
+        >
+          <ArrowLeft className="size-5" aria-hidden />
+          Escolher portal
+        </Link>
+      </header>
 
-        <div className="relative mx-auto flex w-full max-w-lg flex-1 animate-rise flex-col justify-center gap-8 px-6 py-12 lg:px-0">
-          <div className="flex flex-col gap-5">
-            <span className="flex w-fit items-center gap-2 rounded-full bg-primary-soft px-4 py-2 text-base font-semibold text-primary">
-              <BadgeIcon className="size-5" aria-hidden />
-              {badge}
-            </span>
-            <h1 className="text-4xl leading-[1.1] font-bold tracking-tight text-balance md:text-5xl">{title}</h1>
-          </div>
+      <main className="flex flex-1 items-center justify-center px-5 py-10">
+        <div className="w-full max-w-md animate-rise rounded-[2rem] bg-surface p-8 shadow-overlay md:p-10">
+          <span className="flex size-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+            <BadgeIcon className="size-7" aria-hidden />
+          </span>
+          <p className="mt-6 text-base font-semibold tracking-wide text-primary uppercase">{badge}</p>
+          <h1 className="mt-2 text-3xl leading-tight font-bold tracking-tight text-balance md:text-4xl">{title}</h1>
 
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
-            <Input
-              label={emailLabel}
-              type="email"
-              icon={Mail}
-              placeholder={emailPlaceholder}
-              autoComplete="email"
-              error={errors.email?.message}
-              {...register('email')}
-            />
-            <PasswordInput
-              label="Palavra-passe"
-              placeholder={passwordPlaceholder}
-              autoComplete="current-password"
-              error={errors.password?.message}
-              {...register('password')}
-            />
-            <FormError message={formError} />
-            <Button type="submit" size="lg" fullWidth loading={isSubmitting} className="h-14 text-base">
-              Entrar
-            </Button>
-          </form>
-
-          <p className="text-base text-muted">
-            Sem acesso?{' '}
-            <Link to={requestAccessTo} className="font-semibold text-primary hover:underline">
-              Solicitar acesso
-            </Link>
-          </p>
+          {notice ?? (
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-8 flex flex-col gap-5">
+              <Input
+                label={emailLabel}
+                type="email"
+                icon={Mail}
+                placeholder={emailPlaceholder}
+                autoComplete="email"
+                error={errors.email?.message}
+                {...register('email')}
+              />
+              <PasswordInput
+                label="Palavra-passe"
+                autoComplete="current-password"
+                error={errors.password?.message}
+                {...register('password')}
+              />
+              <FormError message={formError} />
+              <Button type="submit" size="lg" fullWidth loading={isSubmitting} className="h-14 text-base">
+                {submitLabel}
+              </Button>
+              {footerLink && (
+                <p className={cn('text-center text-base text-muted')}>
+                  {footerLink.prefix}{' '}
+                  <Link to={footerLink.to} className="font-semibold text-primary hover:underline">
+                    {footerLink.label}
+                  </Link>
+                </p>
+              )}
+            </form>
+          )}
         </div>
       </main>
     </div>

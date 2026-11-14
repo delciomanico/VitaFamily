@@ -47,13 +47,14 @@ function page<M extends Record<N, ComponentType>, N extends keyof M & string>(lo
 
 export const routes: RouteObject[] = [
   { path: paths.splash, element: <RootPage /> },
+  // Entrada do backoffice: ecrã próprio, sem o cabeçalho do site.
+  { path: paths.backofficeLogin, ...page(() => import('@/pages/site/BackofficeLoginPage'), 'BackofficeLoginPage') },
   {
     // Site público: páginas informativas e entrada nos portais (F0.2).
     element: <PublicSiteLayout />,
     children: [
       { path: paths.enter, ...page(() => import('@/pages/site/EnterPage'), 'EnterPage') },
       { path: paths.requestAccessPattern, ...page(() => import('@/pages/site/RequestAccessPage'), 'RequestAccessPage') },
-      { path: paths.backofficeLogin, ...page(() => import('@/pages/site/BackofficeLoginPage'), 'BackofficeLoginPage') },
       { path: paths.partners, ...page(() => import('@/pages/site/PartnersPage'), 'PartnersPage') },
       { path: paths.clinics, ...page(() => import('@/pages/site/ProfessionalPages'), 'ClinicsPage') },
       { path: paths.insurers, ...page(() => import('@/pages/site/ProfessionalPages'), 'InsurersPage') },
