@@ -53,6 +53,7 @@ export const routes: RouteObject[] = [
     children: [
       { path: paths.enter, ...page(() => import('@/pages/site/EnterPage'), 'EnterPage') },
       { path: paths.requestAccessPattern, ...page(() => import('@/pages/site/RequestAccessPage'), 'RequestAccessPage') },
+      { path: paths.backofficeLogin, ...page(() => import('@/pages/site/BackofficeLoginPage'), 'BackofficeLoginPage') },
       { path: paths.partners, ...page(() => import('@/pages/site/PartnersPage'), 'PartnersPage') },
       { path: paths.clinics, ...page(() => import('@/pages/site/ProfessionalPages'), 'ClinicsPage') },
       { path: paths.insurers, ...page(() => import('@/pages/site/ProfessionalPages'), 'InsurersPage') },

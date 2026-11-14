@@ -35,8 +35,9 @@ describe('site público (F0.2)', () => {
     renderAt('/entrar')
     const main = within(await screen.findByRole('main'))
     expect(await main.findByRole('link', { name: /entrar como família/i })).toHaveAttribute('href', '/login')
-    expect(main.getByRole('link', { name: /portal da clínica/i })).toHaveAttribute('href', '/clinic/login')
-    expect(main.getByRole('link', { name: /portal da seguradora/i })).toHaveAttribute('href', '/insurance/login')
+    expect(main.getByRole('link', { name: /entrar como clínica/i })).toHaveAttribute('href', '/clinic/login')
+    expect(main.getByRole('link', { name: /entrar como seguradora/i })).toHaveAttribute('href', '/insurance/login')
+    expect(main.getByRole('link', { name: /entrar como backoffice/i })).toHaveAttribute('href', '/backoffice')
   })
 
   it('quem tem sessão continua a ver o site, com «Abrir a app»', async () => {
@@ -93,6 +94,19 @@ describe('site público (F0.2)', () => {
     expect(await screen.findByText('2 parceiros encontrados')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar parceiros' }), { target: { value: 'xyz' } })
     expect(await screen.findByText('Nenhum parceiro corresponde à pesquisa')).toBeInTheDocument()
+  })
+
+  it('o backoffice leva o administrador à sua área e recusa as outras contas', async () => {
+    const router = renderAt('/backoffice')
+    fireEvent.change(await screen.findByLabelText('E-mail'), { target: { value: 'admin@vitafamily.app' } })
+    fireEvent.change(screen.getByLabelText('Palavra-passe'), { target: { value: 'password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar no backoffice' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/admin'))
+    cleanup()
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+    const family = renderAt('/backoffice')
+    expect(await screen.findByText('Esta conta não tem acesso ao backoffice.')).toBeInTheDocument()
+    expect(family.state.location.pathname).toBe('/backoffice')
   })
 
   it('FAQ, termos, privacidade e contacto estão acessíveis sem sessão', async () => {

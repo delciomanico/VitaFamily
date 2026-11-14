@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /app/
 Disallow: /admin/
+Disallow: /backoffice
 Disallow: /clinic/
 Disallow: /insurance/
 Disallow: /setup/

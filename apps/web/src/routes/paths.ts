@@ -11,6 +11,7 @@ export const paths = {
 
   /** Site público (F0.2): entrada, pedidos de acesso e páginas institucionais. */
   enter: '/entrar',
+  backofficeLogin: '/backoffice',
   requestAccess: (kind: 'clinica' | 'seguradora') => `/solicitar-acesso/${kind}`,
   requestAccessPattern: '/solicitar-acesso/:kind',
   partners: '/parceiros',
