@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Building2, Clock, Mail, MapPin, Phone, Search, ShieldCheck, Stethoscope } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
@@ -36,74 +36,106 @@ function matches(partner: PublicPartner, query: string): boolean {
   return query.split(/\s+/).every((word) => haystack.includes(word))
 }
 
-function PartnerCard({ partner }: { partner: PublicPartner }) {
+/** Célula com rótulo próprio no telemóvel, onde a linha da tabela vira um bloco. */
+function Cell({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+  return (
+    <td
+      className={cn(
+        'block px-5 py-2 align-top md:table-cell md:px-6 md:py-5',
+        'before:mb-1 before:block before:text-xs before:font-semibold before:tracking-wide before:text-muted before:uppercase before:content-[attr(data-label)] md:before:hidden',
+        className,
+      )}
+      data-label={label}
+    >
+      {children}
+    </td>
+  )
+}
+
+function PartnerRow({ partner }: { partner: PublicPartner }) {
   const isClinic = partner.kind === 'CLINIC'
   const Icon = isClinic ? Stethoscope : ShieldCheck
   const specialties = partner.specialties ?? []
+  const insurers = partner.insurers ?? []
   return (
-    <li className="flex flex-col gap-5 rounded-3xl border border-border bg-surface p-7 shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-overlay">
-      <div className="flex items-start gap-4">
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary">
-          <Icon className="size-7" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-xl font-bold">{partner.name}</h3>
-          <Badge tone="primary" className="mt-1">
-            {isClinic ? 'Clínica parceira' : 'Seguradora parceira'}
-          </Badge>
+    <tr className="block border-b border-border py-3 transition-colors last:border-b-0 hover:bg-primary-soft/40 md:table-row md:py-0">
+      <th scope="row" className="block px-5 py-2 text-left align-top font-normal md:table-cell md:px-6 md:py-5">
+        <div className="flex items-start gap-4">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
+            <Icon className="size-6" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-lg font-bold">{partner.name}</p>
+            <Badge tone="primary" className="mt-1">
+              {isClinic ? 'Clínica' : 'Seguradora'}
+            </Badge>
+            {partner.description && <p className="mt-2 max-w-sm text-base text-muted">{partner.description}</p>}
+          </div>
         </div>
-      </div>
-
-      {partner.description && <p className="text-base text-muted">{partner.description}</p>}
-
-      <ul className="flex flex-col gap-2 text-base">
-        {(partner.address || partner.city) && (
-          <li className="flex gap-3">
-            <MapPin className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
-            <span>{partner.address ?? partner.city}</span>
-          </li>
+      </th>
+      <Cell label="Localização">
+        <div className="flex flex-col gap-2 text-base">
+          {partner.city && <p className="font-semibold">{partner.city}</p>}
+          {partner.address && (
+            <p className="flex gap-2">
+              <MapPin className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+              <span>{partner.address}</span>
+            </p>
+          )}
+          {partner.openingHours && (
+            <p className="flex gap-2 text-muted">
+              <Clock className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+              <span>{partner.openingHours}</span>
+            </p>
+          )}
+          {!partner.city && !partner.address && !partner.openingHours && <span className="text-muted">—</span>}
+        </div>
+      </Cell>
+      <Cell label="Contactos">
+        <div className="flex flex-col gap-2 text-base">
+          {partner.phone && (
+            <p className="flex gap-2">
+              <Phone className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+              <a href={`tel:${partner.phone.replace(/\s/g, '')}`} className="font-medium whitespace-nowrap text-primary hover:underline">
+                {partner.phone}
+              </a>
+            </p>
+          )}
+          {partner.email && (
+            <p className="flex gap-2">
+              <Mail className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+              <a href={`mailto:${partner.email}`} className="min-w-0 font-medium break-words text-primary hover:underline">
+                {partner.email}
+              </a>
+            </p>
+          )}
+          {!partner.phone && !partner.email && <span className="text-muted">—</span>}
+        </div>
+      </Cell>
+      <Cell label={isClinic ? 'Especialidades e seguros' : 'Rede'}>
+        {specialties.length > 0 || insurers.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {specialties.length > 0 && (
+              <ul aria-label="Especialidades" className="flex flex-wrap gap-2">
+                {specialties.map((specialty) => (
+                  <li key={specialty} className="rounded-full bg-surface-muted px-3 py-1 text-sm font-medium">
+                    {specialty}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {insurers.length > 0 && (
+              <p className="text-sm text-muted">
+                <span className="font-semibold text-foreground">Seguros ligados: </span>
+                {insurers.join(', ')}
+              </p>
+            )}
+          </div>
+        ) : (
+          <span className="text-muted">—</span>
         )}
-        {partner.openingHours && (
-          <li className="flex gap-3">
-            <Clock className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
-            <span>{partner.openingHours}</span>
-          </li>
-        )}
-        {partner.phone && (
-          <li className="flex gap-3">
-            <Phone className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
-            <a href={`tel:${partner.phone.replace(/\s/g, '')}`} className="font-medium text-primary hover:underline">
-              {partner.phone}
-            </a>
-          </li>
-        )}
-        {partner.email && (
-          <li className="flex gap-3">
-            <Mail className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
-            <a href={`mailto:${partner.email}`} className="min-w-0 font-medium break-words text-primary hover:underline">
-              {partner.email}
-            </a>
-          </li>
-        )}
-      </ul>
-
-      {specialties.length > 0 && (
-        <ul aria-label="Especialidades" className="flex flex-wrap gap-2">
-          {specialties.map((specialty) => (
-            <li key={specialty} className="rounded-full bg-surface-muted px-3 py-1 text-sm font-medium">
-              {specialty}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {partner.insurers && partner.insurers.length > 0 && (
-        <p className="text-sm text-muted">
-          <span className="font-semibold text-foreground">Seguros ligados: </span>
-          {partner.insurers.join(', ')}
-        </p>
-      )}
-    </li>
+      </Cell>
+    </tr>
   )
 }
 
@@ -241,11 +273,32 @@ export function PartnersPage() {
                   description="Experimente outro nome, cidade ou especialidade."
                 />
               ) : (
-                <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {results.map((partner) => (
-                    <PartnerCard key={partner.id} partner={partner} />
-                  ))}
-                </ul>
+                <div className="overflow-hidden rounded-3xl border border-border bg-surface shadow-card">
+                  <table className="block w-full border-collapse text-left md:table">
+                    <caption className="sr-only">Parceiros do Vita Family</caption>
+                    <thead className="hidden bg-surface-muted md:table-header-group">
+                      <tr>
+                        <th scope="col" className="px-6 py-4 text-sm font-semibold tracking-wide text-muted uppercase">
+                          Parceiro
+                        </th>
+                        <th scope="col" className="px-6 py-4 text-sm font-semibold tracking-wide text-muted uppercase">
+                          Localização
+                        </th>
+                        <th scope="col" className="px-6 py-4 text-sm font-semibold tracking-wide text-muted uppercase">
+                          Contactos
+                        </th>
+                        <th scope="col" className="px-6 py-4 text-sm font-semibold tracking-wide text-muted uppercase">
+                          Especialidades e seguros
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="block md:table-row-group">
+                      {results.map((partner) => (
+                        <PartnerRow key={partner.id} partner={partner} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </>
           )}
