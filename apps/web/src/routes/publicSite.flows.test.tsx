@@ -39,10 +39,22 @@ describe('site público (F0.2)', () => {
     expect(main.getByRole('link', { name: /portal da seguradora/i })).toHaveAttribute('href', '/insurance/login')
   })
 
-  it('quem tem sessão em / segue para a app', async () => {
+  it('quem tem sessão continua a ver o site, com «Abrir a app»', async () => {
     window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
     const router = renderAt('/')
-    await waitFor(() => expect(router.state.location.pathname).toBe('/app'))
+    expect(await screen.findByRole('heading', { level: 1, name: /saúde de toda a família/i })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
+    expect(screen.getByRole('link', { name: 'Abrir a app' })).toHaveAttribute('href', '/app')
+  })
+
+  it('as páginas públicas não expulsam quem tem sessão', async () => {
+    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
+    for (const path of ['/faq', '/contacto', '/entrar', '/termos', '/privacidade']) {
+      const router = renderAt(path)
+      await screen.findByRole('main')
+      expect(router.state.location.pathname).toBe(path)
+      cleanup()
+    }
   })
 
   it('o pedido de acesso valida os campos e compõe o e-mail', async () => {

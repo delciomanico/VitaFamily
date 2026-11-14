@@ -1,8 +1,6 @@
-import { Navigate } from 'react-router-dom'
 import { SiteFrame } from '@/components/layout/PublicSiteLayout'
 import { FullScreenLoader } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
-import { paths } from '@/routes/paths'
 import { SplashPage } from '@/pages/public/SplashPage'
 import { LandingPage } from './LandingPage'
 
@@ -14,17 +12,13 @@ export function isInstalledApp(): boolean {
 }
 
 /**
- * Raiz `/`. No browser é o site público (landing); quem já tem sessão segue direto para a app
- * (ou configuração da família, ou administração). Instalada, usa o splash de sempre.
+ * Raiz `/`. No browser é sempre o site público: quem já tem sessão vê a mesma landing, com um
+ * botão «Abrir a app» no cabeçalho em vez de ser enviado para dentro da app. Instalada, usa o splash.
  */
 export function RootPage() {
-  const { status, user, family } = useAuth()
+  const { status } = useAuth()
   if (isInstalledApp()) return <SplashPage />
   if (status === 'loading') return <FullScreenLoader />
-  if (user) {
-    if (user.platformRole === 'PLATFORM_ADMIN') return <Navigate to={paths.admin} replace />
-    return <Navigate to={family ? paths.home : paths.setupFamily} replace />
-  }
   return (
     <SiteFrame>
       <LandingPage />

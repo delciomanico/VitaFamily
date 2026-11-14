@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Building2, ShieldCheck, Users } from 'lucide-react'
+import { useAppEntry } from '@/hooks/useAppEntry'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { paths } from '@/routes/paths'
 
@@ -43,6 +44,7 @@ const cards: PortalCard[] = [
 /** Hub de entrada: o utilizador escolhe o seu perfil e segue para o login certo. */
 export function EnterPage() {
   usePageTitle('Entrar')
+  const appEntry = useAppEntry()
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 lg:px-8 lg:py-16">
       <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">Como pretende entrar?</h1>
@@ -50,7 +52,13 @@ export function EnterPage() {
         Escolha o seu perfil. Cada portal tem contas próprias, por isso a sessão de um não dá acesso ao outro.
       </p>
       <ul className="mt-8 grid gap-4 md:grid-cols-3">
-        {cards.map(({ title, text, icon: Icon, login, loginLabel, extra }) => (
+        {cards.map(({ title, text, icon: Icon, login: loginTo, loginLabel: loginText, extra: extraLink }) => {
+          // Com sessão de família já aberta, o cartão leva direto à app.
+          const signedIn = title === 'Famílias' && appEntry
+          const login = signedIn ? appEntry : loginTo
+          const loginLabel = signedIn ? 'Abrir a minha área' : loginText
+          const extra = signedIn ? null : extraLink
+          return (
           <li key={title} className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-card">
             <span className="flex size-12 items-center justify-center rounded-2xl bg-primary-soft text-primary">
               <Icon className="size-6" aria-hidden />
@@ -66,11 +74,14 @@ export function EnterPage() {
               {loginLabel}
               <ArrowRight className="size-4" aria-hidden />
             </Link>
-            <Link to={extra.to} className="text-center text-sm font-semibold text-primary hover:underline">
-              {extra.label}
-            </Link>
+            {extra && (
+              <Link to={extra.to} className="text-center text-sm font-semibold text-primary hover:underline">
+                {extra.label}
+              </Link>
+            )}
           </li>
-        ))}
+          )
+        })}
       </ul>
     </div>
   )

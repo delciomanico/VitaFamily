@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
 import { ButtonLink } from '@/components/ui/Button'
+import { useAppEntry } from '@/hooks/useAppEntry'
 import { cn } from '@/lib/cn'
 import { site } from '@/lib/site'
 import { paths } from '@/routes/paths'
@@ -18,6 +19,7 @@ const links = [
 /** Cabeçalho, conteúdo e rodapé do site público. */
 export function SiteFrame({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
+  const appEntry = useAppEntry()
   const linkClass = 'rounded-full px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-foreground'
 
   return (
@@ -51,9 +53,15 @@ export function SiteFrame({ children }: { children: ReactNode }) {
             )}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <ButtonLink to={paths.enter} size="sm">
-              Entrar
-            </ButtonLink>
+            {appEntry ? (
+              <ButtonLink to={appEntry} size="sm">
+                Abrir a app
+              </ButtonLink>
+            ) : (
+              <ButtonLink to={paths.enter} size="sm">
+                Entrar
+              </ButtonLink>
+            )}
             <button
               type="button"
               onClick={() => setOpen((value) => !value)}
