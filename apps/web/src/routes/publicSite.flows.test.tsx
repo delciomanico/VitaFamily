@@ -80,9 +80,14 @@ describe('site público (F0.2)', () => {
 
   it('a pesquisa pública de parceiros filtra por texto (sem acentos) e por tipo', async () => {
     renderAt('/parceiros')
-    expect(await screen.findByText('6 parceiros encontrados')).toBeInTheDocument()
+    expect(await screen.findByText('9 parceiros encontrados')).toBeInTheDocument()
+    expect(screen.getByText('A mostrar 1–5 de 9')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Página seguinte' }))
+    expect(await screen.findByText('A mostrar 6–9 de 9')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page')
     fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar parceiros' }), { target: { value: 'pediatria' } })
-    expect(await screen.findByText('2 parceiros encontrados')).toBeInTheDocument()
+    expect(await screen.findByText('3 parceiros encontrados')).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Paginação' })).not.toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar parceiros' }), { target: { value: 'seguradora' } })
     fireEvent.click(screen.getByRole('button', { name: 'Seguradoras' }))
     expect(await screen.findByText('2 parceiros encontrados')).toBeInTheDocument()

@@ -4,6 +4,7 @@ import { Building2, Clock, Mail, MapPin, Phone, Search, ShieldCheck, Stethoscope
 import { Badge } from '@/components/ui/Badge'
 import { ButtonLink, Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { Pagination } from '@/components/ui/Pagination'
 import { Select } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useAsync } from '@/hooks/useAsync'
@@ -14,6 +15,9 @@ import { partnersService } from '@/services/partners.service'
 import type { PartnerKind, PublicPartner } from '@/types/partner'
 
 type KindFilter = 'ALL' | PartnerKind
+
+/** Itens por página (o primeiro é o padrão). */
+const PAGE_SIZES = [5, 10, 20]
 
 const kindFilters: { value: KindFilter; label: string }[] = [
   { value: 'ALL', label: 'Todos' },
@@ -150,11 +154,15 @@ export function PartnersPage() {
   const kind = (['CLINIC', 'INSURER'].includes(params.get('tipo') ?? '') ? params.get('tipo') : 'ALL') as KindFilter
   const city = params.get('cidade') ?? ''
   const specialty = params.get('especialidade') ?? ''
+  const pageSize = PAGE_SIZES.includes(Number(params.get('por'))) ? Number(params.get('por')) : PAGE_SIZES[0]!
+  const requestedPage = Math.max(1, Number.parseInt(params.get('pagina') ?? '1', 10) || 1)
 
   const { state, reload } = useAsync(() => partnersService.listPartners(), [])
 
   function update(next: Record<string, string>) {
     const merged = new URLSearchParams(params)
+    // Qualquer alteração de pesquisa ou filtro volta à primeira página; só «pagina» a mantém.
+    if (!('pagina' in next)) merged.delete('pagina')
     for (const [key, value] of Object.entries(next)) {
       if (value && value !== 'ALL') merged.set(key, value)
       else merged.delete(key)
@@ -181,6 +189,9 @@ export function PartnersPage() {
   }, [partners, q, kind, city, specialty])
 
   const hasFilters = Boolean(q || kind !== 'ALL' || city || specialty)
+  const pages = Math.max(1, Math.ceil(results.length / pageSize))
+  const page = Math.min(requestedPage, pages)
+  const visible = results.slice((page - 1) * pageSize, page * pageSize)
 
   return (
     <>
@@ -273,6 +284,7 @@ export function PartnersPage() {
                   description="Experimente outro nome, cidade ou especialidade."
                 />
               ) : (
+                <>
                 <div className="overflow-hidden rounded-3xl border border-border bg-surface shadow-card">
                   <table className="block w-full border-collapse text-left md:table">
                     <caption className="sr-only">Parceiros do Vita Family</caption>
@@ -293,12 +305,22 @@ export function PartnersPage() {
                       </tr>
                     </thead>
                     <tbody className="block md:table-row-group">
-                      {results.map((partner) => (
+                      {visible.map((partner) => (
                         <PartnerRow key={partner.id} partner={partner} />
                       ))}
                     </tbody>
                   </table>
                 </div>
+                <Pagination
+                  className="mt-6"
+                  page={page}
+                  pageSize={pageSize}
+                  total={results.length}
+                  pageSizeOptions={PAGE_SIZES}
+                  onPageSizeChange={(size) => update({ por: size === PAGE_SIZES[0] ? '' : String(size) })}
+                  onPageChange={(next) => update({ pagina: next > 1 ? String(next) : '' })}
+                />
+                </>
               )}
             </>
           )}
