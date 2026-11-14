@@ -1,6 +1,9 @@
 // Elegibilidade e resposta mínima à clínica (UC-SEG-05, BR-SEG-01/02/04/18/23). Regras puras.
-// Elegível ⇔ beneficiário ACTIVE e apólice ACTIVE e hoje dentro de validFrom..validTo (BR-SEG-01). Sem saldo «usado» (D-A2).
-import { fail, isIsoDate, requireText } from "./validation.js";
+// A decisão de elegibilidade/cobertura vive só em `coverage.ts` (BR-SEG-41); aqui ficam o pedido, a resposta mínima e mapeadores.
+import { evaluateCoverage, type CoverageBeneficiary, type CoverageDecision, type CoveragePlan } from "./coverage.js";
+import { fail, requireText } from "./validation.js";
+
+export { addDays } from "./validation.js";
 
 /** BR-SEG-18/§7 do recorte: verificação de cobertura, não garantia de pagamento (até existir S4). */
 export const ELIGIBILITY_NOTICE = "Verificação de cobertura; não constitui garantia de pagamento.";
@@ -22,25 +25,8 @@ export function parseEligibilityRequest(input: { cardNumber?: unknown; qrToken?:
   return { by: { kind: "DOCUMENT", type: requireText(doc.type, "idDocument.type", 40).toUpperCase(), number: requireText(doc.number, "idDocument.number", 60) }, serviceCode };
 }
 
-/** Soma `days` dias a uma data `AAAA-MM-DD` (UTC; sem fusos). */
-export function addDays(isoDate: string, days: number): string {
-  if (!isIsoDate(isoDate)) throw new Error("data inválida");
-  const [y, m, d] = isoDate.split("-").map(Number) as [number, number, number];
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
-
-export interface PolicyWindow {
-  status: string;
-  validFrom: string;
-  validTo: string;
-}
-
-/** BR-SEG-01. As datas são de calendário (`AAAA-MM-DD`), comparáveis como texto. */
-export function isEligible(beneficiaryStatus: string, policy: PolicyWindow | null, today: string): boolean {
-  return beneficiaryStatus === "ACTIVE" && policy !== null && policy.status === "ACTIVE" && policy.validFrom <= today && today <= policy.validTo;
-}
-
 export interface CoverageRowForEligibility {
+  serviceId: string;
   serviceCode: string;
   serviceName: string;
   copayPct: number;
@@ -60,19 +46,27 @@ export interface CoverageLimits {
   requiresAuthorization: boolean;
 }
 
-/** BR-SEG-04: dentro de `waitingDays` desde `validFrom` o serviço não está coberto (`coveredNow=false`). */
-export function toCoverageLimits(row: CoverageRowForEligibility, validFrom: string, today: string): CoverageLimits {
-  const waitingEndsOn = row.waitingDays > 0 ? addDays(validFrom, row.waitingDays) : null;
+/** Mapeador `CoverageDecision → CoverageLimits` (sem regras; a decisão é de `coverage.ts`, BR-SEG-41). */
+export function toCoverageLimits(row: CoverageRowForEligibility, decision: CoverageDecision): CoverageLimits {
   return {
     serviceCode: row.serviceCode,
     serviceName: row.serviceName,
-    coveredNow: waitingEndsOn === null || today >= waitingEndsOn,
-    copayPct: row.copayPct,
-    limitPerYear: row.limitPerYear,
-    waitingDays: row.waitingDays,
-    waitingEndsOn,
-    requiresAuthorization: row.requiresAuthorization,
+    // Contrato atual (ADR-033 §3): `coveredNow` = «fora de carência»; endurecer fica para decisão futura do proprietário.
+    coveredNow: decision.reason !== "WAITING_PERIOD",
+    copayPct: decision.copayPct,
+    limitPerYear: decision.limitPerYearMinor === null ? null : decision.limitPerYearMinor / 100,
+    waitingDays: decision.waitingDays,
+    waitingEndsOn: decision.waitingEndsOn,
+    requiresAuthorization: decision.requiresAuthorization,
   };
+}
+
+/** Limites de cada cobertura do plano para um beneficiário numa data: uma chamada a `evaluateCoverage` por linha. */
+export function coverageLimitsFor(rows: CoverageRowForEligibility[], beneficiary: CoverageBeneficiary, date: string): CoverageLimits[] {
+  const plan: CoveragePlan = {
+    coverages: rows.map((r) => ({ serviceId: r.serviceId, type: r.limitPerYear === null ? "INCLUDED" : "LIMITED", copayPct: r.copayPct, limitPerYearMinor: r.limitPerYear === null ? null : Math.round(r.limitPerYear * 100), waitingDays: r.waitingDays, requiresAuthorization: r.requiresAuthorization })),
+  };
+  return rows.map((row) => toCoverageLimits(row, evaluateCoverage(plan, beneficiary, { id: row.serviceId, status: "ACTIVE" }, date)));
 }
 
 export interface EligibleResult {

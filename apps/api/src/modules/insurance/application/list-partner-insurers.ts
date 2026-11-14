@@ -6,6 +6,8 @@ import type { ActorIdentity, InsuranceHolderDeps } from "./ports.js";
 export interface PartnerInsurerView {
   id: string;
   name: string;
+  /** BR-SEG-42: moeda da seguradora (única moeda dos pedidos de reembolso). */
+  currency: string;
 }
 
 export function createListPartnerInsurersUseCase<Trx>(deps: InsuranceHolderDeps<Trx>) {
@@ -15,7 +17,7 @@ export function createListPartnerInsurersUseCase<Trx>(deps: InsuranceHolderDeps<
       if (!(await deps.membership.getMembershipFacts(trx, familyId, actor.userId))) {
         throw new NotFoundError({ detail: "Família não encontrada." });
       }
-      return (await deps.insurersRepo.listActive(trx)).map((insurer) => ({ id: insurer.id, name: insurer.name }));
+      return (await deps.insurersRepo.listActive(trx)).map((insurer) => ({ id: insurer.id, name: insurer.name, currency: insurer.currency }));
     });
   };
 }

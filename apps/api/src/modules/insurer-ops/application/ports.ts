@@ -12,7 +12,9 @@ import type { CoverageRowForEligibility } from "../domain/eligibility.js";
 import type { InsurerPlan, ParsedCoverage, PlanCoverage } from "../domain/plan.js";
 import type { PlanStatus, Policy, PolicyPatch, PolicyStatus } from "../domain/policy.js";
 import type { InsurerProvider, ProviderStatus } from "../domain/provider.js";
+import type { PolicySettingDefinition, StoredPolicySetting } from "../domain/policy-setting.js";
 import type { InsurerService, ServicePatch, ServiceStatus } from "../domain/service.js";
+import type { CatalogTypes, ServiceKind, ServiceKindInput, ServiceKindPatch } from "../domain/service-kind.js";
 import type { InMemoryRateLimiter } from "../domain/rate-limiter.js";
 
 export interface AuditPort<Trx> {
@@ -146,6 +148,37 @@ export interface ServicesRepository<Trx> {
   update(trx: Trx, insurerId: string, id: string, patch: ServicePatch, now: Date): Promise<InsurerService>;
   /** Quantos dos ids pertencem à seguradora (validação das coberturas). */
   countByIds(trx: Trx, insurerId: string, ids: string[]): Promise<number>;
+  /** BR-SEG-39 (`classify`): todos os serviços da seguradora com categoria e tipo atual (a normalização é do domínio). */
+  listForClassification(trx: Trx, insurerId: string): Promise<{ id: string; category: string | null; serviceKindId: string | null }[]>;
+  setServiceKind(trx: Trx, insurerId: string, ids: string[], serviceKindId: string, now: Date): Promise<void>;
+}
+
+/** `insurer_service_kinds` (BR-SEG-39). */
+export interface ServiceKindsRepository<Trx> {
+  count(trx: Trx, insurerId: string): Promise<number>;
+  /** Os tipos por omissão (um por `expense_types` ativo); idempotente. */
+  seedDefaults(trx: Trx, insurerId: string): Promise<void>;
+  list(trx: Trx, insurerId: string, filter: { status?: ServiceStatus }): Promise<ServiceKind[]>;
+  findById(trx: Trx, insurerId: string, id: string, lock?: boolean): Promise<ServiceKind | null>;
+  /** `code` duplicado na seguradora ⇒ `ConflictError`. */
+  insert(trx: Trx, record: ServiceKindInput & { id: string; insurerId: string; createdAt: Date }): Promise<ServiceKind>;
+  update(trx: Trx, insurerId: string, id: string, patch: ServiceKindPatch, now: Date): Promise<ServiceKind>;
+  countActiveServices(trx: Trx, insurerId: string, id: string): Promise<number>;
+}
+
+/** Catálogos globais do Vita (`guide_types`, `expense_types`): só leitura; um tipo novo é uma linha de dados. */
+export interface CatalogTypesRepository<Trx> {
+  list(trx: Trx): Promise<CatalogTypes>;
+}
+
+/** `policy_setting_definitions` (globais) + `insurer_policy_settings` (BR-SEG-40). */
+export interface PolicySettingsRepository<Trx> {
+  definitions(trx: Trx): Promise<PolicySettingDefinition[]>;
+  list(trx: Trx, insurerId: string): Promise<StoredPolicySetting[]>;
+  /** Upsert; devolve o valor gravado antes (ou `null`). `serviceId` já validado como da seguradora. */
+  upsert(trx: Trx, record: { insurerId: string; key: string; serviceId: string | null; value: number; accountId: string; now: Date }): Promise<{ previous: number | null }>;
+  /** Apaga a definição; devolve o valor apagado (ou `null` se não existia). */
+  remove(trx: Trx, insurerId: string, key: string, serviceId: string | null): Promise<number | null>;
 }
 
 export interface PlansRepository<Trx> {
@@ -261,6 +294,9 @@ export interface OpsDeps<Trx> {
   policies: PoliciesRepository<Trx>;
   imports: ImportsRepository<Trx>;
   services: ServicesRepository<Trx>;
+  serviceKinds: ServiceKindsRepository<Trx>;
+  catalogTypes: CatalogTypesRepository<Trx>;
+  policySettings: PolicySettingsRepository<Trx>;
   plans: PlansRepository<Trx>;
   providers: ProvidersRepository<Trx>;
   eligibility: EligibilityRepository<Trx>;

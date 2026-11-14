@@ -9,7 +9,9 @@ import type { EligibilityResult } from "../domain/eligibility.js";
 import type { InsurerPlan, PlanCoverage } from "../domain/plan.js";
 import type { Policy } from "../domain/policy.js";
 import type { InsurerProvider } from "../domain/provider.js";
+import type { PolicySettingView } from "../domain/policy-setting.js";
 import type { InsurerService } from "../domain/service.js";
+import type { CatalogTypes, ServiceKind } from "../domain/service-kind.js";
 import type { ClinicInsurer } from "../application/clinic-portal.js";
 import type { PartnerClinic } from "../application/providers.js";
 import type { CardClaimView, CardCoverageView, CardQrView, CardView } from "../application/patient-insurance.js";
@@ -76,7 +78,7 @@ export const toImportResponse = (b: ImportBatch) => ({
 
 export const toPageResponse = <T, R>(page: Page<T>, map: (item: T) => R) => ({ items: page.items.map(map), nextCursor: page.nextCursor });
 
-export const toServiceResponse = (s: InsurerService) => ({ id: s.id, code: s.code, name: s.name, category: s.category, status: s.status });
+export const toServiceResponse = (s: InsurerService) => ({ id: s.id, code: s.code, name: s.name, category: s.category, status: s.status, serviceKindId: s.serviceKindId, guideType: s.guideType, expenseType: s.expenseType });
 
 export const toPlanResponse = (p: InsurerPlan) => ({ id: p.id, name: p.name, version: p.version, status: p.status, coverageCount: p.coverageCount, createdAt: p.createdAt.toISOString() });
 
@@ -98,8 +100,8 @@ export const toPartnerClinicResponse = (c: PartnerClinic) => ({ id: c.id, name: 
 
 export const toClinicInsurerResponse = (i: ClinicInsurer) => ({ id: i.id, name: i.name, currency: i.currency });
 
-/** BR-SEG-22: só código, nome e categoria à clínica. */
-export const toClinicServiceResponse = (s: InsurerService) => ({ code: s.code, name: s.name, category: s.category });
+/** BR-SEG-22/39: código, nome, categoria e tipo de guia/despesa deduzidos do serviço (nunca `serviceKindId` nem política). */
+export const toClinicServiceResponse = (s: InsurerService) => ({ code: s.code, name: s.name, category: s.category, guideType: s.guideType, expenseType: s.expenseType });
 
 /** BR-SEG-18: com `eligible=false` só `eligible` e `notice`. */
 export const toEligibilityResponse = (r: EligibilityResult) =>
@@ -181,4 +183,21 @@ export const toCardCoverageResponse = (c: CardCoverageView) => ({
     waitingEndsOn: x.waitingEndsOn,
     requiresAuthorization: x.requiresAuthorization,
   })),
+});
+
+// ---- Catálogo e política (marco B fatia 2, ADR-033) ----
+export const toServiceKindResponse = (k: ServiceKind) => ({ id: k.id, code: k.code, name: k.name, guideType: k.guideType, expenseType: k.expenseType, status: k.status, servicesCount: k.servicesCount });
+
+export const toCatalogTypesResponse = (c: CatalogTypes) => ({ guideTypes: c.guideTypes.map((g) => ({ code: g.code })), expenseTypes: c.expenseTypes.map((e) => ({ code: e.code, legacyCode: e.legacyCode })) });
+
+export const toPolicySettingResponse = (v: PolicySettingView) => ({
+  key: v.key,
+  unit: v.unit,
+  min: v.min,
+  max: v.max,
+  defaultValue: v.defaultValue,
+  value: v.value,
+  source: v.source,
+  allowsServiceScope: v.allowsServiceScope,
+  serviceOverrides: v.serviceOverrides.map((o) => ({ serviceId: o.serviceId, serviceCode: o.serviceCode, serviceName: o.serviceName, value: o.value })),
 });

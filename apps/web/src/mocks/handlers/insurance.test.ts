@@ -70,7 +70,7 @@ describe('seguro do titular', () => {
       'VALIDATION_ERROR',
     )
     const claim = await ins.submitReimbursementClaim(FAMILY, MONARCA, MARIA, partner.id, { amount: 25.5, documentIds: [id] })
-    expect(claim).toMatchObject({ status: 'SUBMITTED', currency: 'EUR', amount: 25.5 })
+    expect(claim).toMatchObject({ status: 'SUBMITTED', currency: 'AOA', amount: 25.5 })
     expect(claim).not.toHaveProperty('insurerId')
 
     db.insurers[0]!.status = 'SUSPENDED'

@@ -4,6 +4,7 @@ import type { Page } from "../../../platform/page/index.js";
 import type { OpsActor } from "../domain/access.js";
 import { parseServiceInput, parseServicePatch, parseServiceStatusFilter, type InsurerService } from "../domain/service.js";
 import type { OpsDeps, RequestContext } from "./ports.js";
+import { assertAssignable } from "../domain/service-kind.js";
 import { auditEvent, authorize, notFound, toPage, toPageQuery, type PageInput } from "./support.js";
 
 export function createListServicesUseCase<Trx>(deps: OpsDeps<Trx>) {
@@ -32,11 +33,13 @@ export function createCreateServiceUseCase<Trx>(deps: OpsDeps<Trx>) {
 }
 
 export function createUpdateServiceUseCase<Trx>(deps: OpsDeps<Trx>) {
-  return async function updateService(actor: OpsActor, serviceId: string, input: { name?: unknown; category?: unknown; status?: unknown }, context: RequestContext): Promise<InsurerService> {
+  return async function updateService(actor: OpsActor, serviceId: string, input: { name?: unknown; category?: unknown; status?: unknown; serviceKindId?: unknown }, context: RequestContext): Promise<InsurerService> {
     const patch = parseServicePatch(input);
     return deps.withTransaction(async (trx) => {
       await authorize(deps, trx, actor, "admin");
       if (!(await deps.services.findById(trx, actor.insurerId, serviceId))) throw notFound();
+      // BR-SEG-39: o tipo tem de ser da própria seguradora e ACTIVE (outra seguradora/inativo ⇒ VALIDATION_ERROR); `null` remove.
+      if (typeof patch.serviceKindId === "string") assertAssignable(await deps.serviceKinds.findById(trx, actor.insurerId, patch.serviceKindId), "serviceKindId");
       const service = await deps.services.update(trx, actor.insurerId, serviceId, patch, deps.clock.now());
       await deps.audit.record(
         trx,

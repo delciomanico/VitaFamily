@@ -13,7 +13,9 @@ import type { LinkRequest } from "../domain/link-request.js";
 import type { InsurerPlan, PlanCoverage } from "../domain/plan.js";
 import type { Policy } from "../domain/policy.js";
 import type { InsurerProvider } from "../domain/provider.js";
+import type { PolicySettingView } from "../domain/policy-setting.js";
 import type { InsurerService } from "../domain/service.js";
+import type { CatalogTypes, ServiceKind } from "../domain/service-kind.js";
 import type { PortalMe } from "../application/portal-me.js";
 import type { PartnerClinic } from "../application/providers.js";
 import type { PageInput } from "../application/support.js";
@@ -31,6 +33,9 @@ import {
   toPolicyResponse,
   toProviderResponse,
   toServiceResponse,
+  toCatalogTypesResponse,
+  toPolicySettingResponse,
+  toServiceKindResponse,
 } from "./dto.js";
 
 type Body = Record<string, unknown>;
@@ -62,6 +67,14 @@ export interface InsurerOpsController {
   listServices: (actor: OpsActor, query: Query & { q?: string | undefined }) => Promise<Page<InsurerService>>;
   createService: (actor: OpsActor, input: Body, ctx: RequestContext) => Promise<InsurerService>;
   updateService: (actor: OpsActor, serviceId: string, input: Body, ctx: RequestContext) => Promise<InsurerService>;
+  listCatalogTypes: (actor: OpsActor) => Promise<CatalogTypes>;
+  listServiceKinds: (actor: OpsActor, query: { status?: string | undefined }) => Promise<ServiceKind[]>;
+  createServiceKind: (actor: OpsActor, input: Body, ctx: RequestContext) => Promise<ServiceKind>;
+  updateServiceKind: (actor: OpsActor, kindId: string, input: Body, ctx: RequestContext) => Promise<ServiceKind>;
+  classifyServices: (actor: OpsActor, input: Body, ctx: RequestContext) => Promise<{ updated: number }>;
+  listPolicySettings: (actor: OpsActor) => Promise<PolicySettingView[]>;
+  setPolicySetting: (actor: OpsActor, key: string, input: Body, ctx: RequestContext) => Promise<PolicySettingView>;
+  resetPolicySetting: (actor: OpsActor, key: string, query: { serviceId?: string | undefined }, ctx: RequestContext) => Promise<void>;
   listPlans: (actor: OpsActor, query: Query & { name?: string | undefined }) => Promise<Page<InsurerPlan>>;
   createPlan: (actor: OpsActor, input: Body, ctx: RequestContext) => Promise<InsurerPlan>;
   getPlan: (actor: OpsActor, planId: string) => Promise<InsurerPlan>;
@@ -189,8 +202,36 @@ export function createInsurerOpsRouter(c: InsurerOpsController): Router {
   router.post(`${base}/services`, asyncHandler(async (req, res) => {
     res.status(201).json(toServiceResponse(await c.createService(requireActor(), body(req), buildRequestContext(req))));
   }));
+  // `/services/classify` antes de `/services/:serviceId` (contrato; ADR-033).
+  router.post(`${base}/services/classify`, asyncHandler(async (req, res) => {
+    res.json(await c.classifyServices(requireActor(), body(req), buildRequestContext(req)));
+  }));
   router.patch(`${base}/services/:serviceId`, asyncHandler(async (req, res) => {
     res.json(toServiceResponse(await c.updateService(requireActor(), requireParam(req, "serviceId"), body(req), buildRequestContext(req))));
+  }));
+
+  router.get(`${base}/catalog-types`, asyncHandler(async (_req, res) => {
+    res.json(toCatalogTypesResponse(await c.listCatalogTypes(requireActor())));
+  }));
+  router.get(`${base}/service-kinds`, asyncHandler(async (req, res) => {
+    res.json((await c.listServiceKinds(requireActor(), { status: str(req.query.status) })).map(toServiceKindResponse));
+  }));
+  router.post(`${base}/service-kinds`, asyncHandler(async (req, res) => {
+    res.status(201).json(toServiceKindResponse(await c.createServiceKind(requireActor(), body(req), buildRequestContext(req))));
+  }));
+  router.patch(`${base}/service-kinds/:kindId`, asyncHandler(async (req, res) => {
+    res.json(toServiceKindResponse(await c.updateServiceKind(requireActor(), requireParam(req, "kindId"), body(req), buildRequestContext(req))));
+  }));
+
+  router.get(`${base}/policy-settings`, asyncHandler(async (_req, res) => {
+    res.json((await c.listPolicySettings(requireActor())).map(toPolicySettingResponse));
+  }));
+  router.put(`${base}/policy-settings/:key`, asyncHandler(async (req, res) => {
+    res.json(toPolicySettingResponse(await c.setPolicySetting(requireActor(), requireParam(req, "key"), body(req), buildRequestContext(req))));
+  }));
+  router.delete(`${base}/policy-settings/:key`, asyncHandler(async (req, res) => {
+    await c.resetPolicySetting(requireActor(), requireParam(req, "key"), { serviceId: str(req.query.serviceId) }, buildRequestContext(req));
+    res.status(204).end();
   }));
 
   router.get(`${base}/plans`, asyncHandler(async (req, res) => {

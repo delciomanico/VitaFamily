@@ -49,12 +49,17 @@ function validatePolicy(input: InsurancePolicyInput) {
   }
 }
 
+/** Moeda da seguradora (BR-SEG-42): a do módulo operacional simulado; `AOA` por omissão (BR-SEG-19). */
+function insurerCurrency(insurerId: string): string {
+  return db.insurerOps.modules[insurerId]?.currency ?? 'AOA'
+}
+
 /** `GET /families/{f}/insurers`: só seguradoras `ACTIVE` (BR-INS-09). */
 export function listPartnerInsurers(): Promise<PartnerInsurer[]> {
   return respond(() =>
     db.insurers
       .filter((i) => i.status === 'ACTIVE')
-      .map(({ id, name }) => ({ id, name }))
+      .map(({ id, name }) => ({ id, name, currency: insurerCurrency(id) }))
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-PT')),
   )
 }
@@ -167,7 +172,8 @@ export function submitReimbursementClaim(
     ) {
       throw new AppError('VALIDATION_ERROR')
     }
-    const currency = input.currency ?? 'EUR'
+    // BR-SEG-42: a moeda é a da seguradora, nunca escolhida pelo cliente.
+    const currency = insurerCurrency(insurer.id)
     for (const receiptId of receiptIds) {
       // Só os recibos visíveis ao membro (BR-CLN-35); outro → NOT_FOUND.
       const receipt = db.clinicReceipts.find(

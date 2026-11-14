@@ -43,7 +43,6 @@ export const MIN_CLAIM_DOCUMENTS = 1;
 export const MAX_CLAIM_DOCUMENTS = 10;
 export const MAX_DECISION_NOTE_LENGTH = 1000;
 const CURRENCY_RE = /^[A-Z]{3}$/;
-const DEFAULT_CURRENCY = "EUR";
 
 export interface ClaimInputFields {
   amount: unknown;
@@ -52,8 +51,11 @@ export interface ClaimInputFields {
   receiptIds?: unknown;
 }
 
-/** BR-INS-03/04: valor > 0 (até 2 casas decimais), moeda ISO-4217 (default EUR), 1–10 documentos distintos. */
-export function parseClaimInput(input: ClaimInputFields): { amount: number; currency: string; documentIds: string[]; receiptIds: string[] } {
+/**
+ * BR-INS-03/04: valor > 0 (até 2 casas decimais), 1–10 documentos distintos. `currency` é deprecado (BR-SEG-42):
+ * devolve-se só o que veio (formato ISO 4217) para `resolveClaimCurrency` o comparar com a moeda da seguradora.
+ */
+export function parseClaimInput(input: ClaimInputFields): { amount: number; requestedCurrency?: string; documentIds: string[]; receiptIds: string[] } {
   const errors: FieldError[] = [];
   let amount = 0;
   if (typeof input.amount !== "number" || !Number.isFinite(input.amount) || input.amount <= 0) {
@@ -63,12 +65,12 @@ export function parseClaimInput(input: ClaimInputFields): { amount: number; curr
   } else {
     amount = input.amount;
   }
-  let currency = DEFAULT_CURRENCY;
+  let requestedCurrency: string | undefined;
   if (input.currency !== undefined && input.currency !== null) {
     if (typeof input.currency !== "string" || !CURRENCY_RE.test(input.currency)) {
-      errors.push({ field: "currency", message: "código ISO 4217 (ex.: EUR)" });
+      errors.push({ field: "currency", message: "código ISO 4217 (ex.: AOA)" });
     } else {
-      currency = input.currency;
+      requestedCurrency = input.currency;
     }
   }
   const parseIds = (raw: unknown, field: string, max: number): string[] => {
@@ -92,7 +94,15 @@ export function parseClaimInput(input: ClaimInputFields): { amount: number; curr
   if (errors.length > 0) {
     throw new ValidationError(errors, { detail: "Dados inválidos." });
   }
-  return { amount, currency, documentIds, receiptIds };
+  return { amount, ...(requestedCurrency !== undefined ? { requestedCurrency } : {}), documentIds, receiptIds };
+}
+
+/** BR-SEG-42: a moeda do pedido é a da seguradora; `currency` deprecado é ignorado se igual e `VALIDATION_ERROR` se diferente. */
+export function resolveClaimCurrency(insurerCurrency: string, requested?: string): string {
+  if (requested !== undefined && requested !== insurerCurrency) {
+    throw new ValidationError([{ field: "currency", message: `tem de ser a moeda da seguradora (${insurerCurrency})` }], { detail: "Moeda diferente da da seguradora." });
+  }
+  return insurerCurrency;
 }
 
 /** BR-INS-05: `REJECTED` exige motivo; `APPROVED` aceita nota opcional. Só a partir de `SUBMITTED` (senão `CONFLICT`). */

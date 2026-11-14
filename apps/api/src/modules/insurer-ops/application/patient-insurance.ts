@@ -9,7 +9,8 @@ import { auditContextFields, type AuditEvent } from "../../audit/index.js";
 import { hashClaimCode } from "../domain/beneficiary.js";
 import { CARD_QR_TTL_SECONDS, signCardQrToken } from "../domain/card-qr.js";
 import { parseClaimRequest } from "../domain/card-claim.js";
-import { toCoverageLimits, type CoverageLimits } from "../domain/eligibility.js";
+import { evaluateEligibility } from "../domain/coverage.js";
+import { coverageLimitsFor, type CoverageLimits } from "../domain/eligibility.js";
 import type { LinkRequestStatus } from "../domain/link-request.js";
 import { CLAIM_RATE_LIMITS, QR_RATE_LIMIT } from "../domain/rate-limiter.js";
 import type { OpsDeps, PatientActor, RequestContext } from "./ports.js";
@@ -246,7 +247,7 @@ export function createGetCardCoverageUseCase<Trx>(deps: OpsDeps<Trx>) {
       if (!link || !insurer || !candidate) throw notFound();
 
       const { policy } = candidate;
-      const rows = policy && candidate.status === "ACTIVE" ? await deps.eligibility.coverages(trx, link.insurerId, policy.planId, null) : [];
+      const rows = policy && evaluateEligibility({ status: candidate.status, policy }, day).eligible ? await deps.eligibility.coverages(trx, link.insurerId, policy.planId, null) : [];
       if (access.relation !== "SELF") {
         await deps.audit.record(trx, patientAudit(deps, actor, familyId, memberId, context, { action: "COVERAGE_VIEW", resourceType: "InsurerBeneficiary", resourceId: beneficiaryId, metadata: { insurerId: link.insurerId } }));
       }
@@ -259,7 +260,7 @@ export function createGetCardCoverageUseCase<Trx>(deps: OpsDeps<Trx>) {
         policyNumber: policy?.number ?? null,
         validFrom: policy?.validFrom ?? null,
         validTo: policy?.validTo ?? null,
-        coverages: policy ? rows.map((row) => toCoverageLimits(row, policy.validFrom, day)) : [],
+        coverages: policy ? coverageLimitsFor(rows, { status: candidate.status, policy }, day) : [],
       };
     });
   };

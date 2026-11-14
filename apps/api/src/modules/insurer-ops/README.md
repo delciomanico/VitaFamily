@@ -30,7 +30,8 @@ POST /clinic-portal/insurers/{insurerId}/eligibility
   → interface/clinic-router.ts          (ator `ClinicActorInfo` do token; a matriz papel×rota em `clinics` já recusou o Médico)
     → application/clinic-portal.ts      (papel; ligação `insurer_providers` ATIVA + módulo ativo + seguradora ativa, senão NOT_FOUND;
                                          rate limit em memória por conta e por IP; auditoria ELIGIBILITY_CHECK)
-      → domain/eligibility.ts           (BR-SEG-01: beneficiário ACTIVE ∧ apólice ACTIVE ∧ hoje em validFrom..validTo; carência BR-SEG-04)
+      → domain/coverage.ts              (evaluateEligibility/evaluateCoverage: ÚNICA decisão de cobertura, BR-SEG-41; pura)
+      → domain/eligibility.ts           (pedido, resposta mínima e mapeador CoverageDecision → CoverageLimits; sem regras)
       → domain/card-qr.ts               (verifica o token do QR: HMAC, validade, `cardVersion`)
       → infrastructure/clinic-repo.ts   (candidato + coberturas não EXCLUDED de serviços ACTIVE; sem saldo «usado»)
 ```
@@ -51,3 +52,12 @@ POST …/card-claims   → interface/patient-router.ts → application/patient-i
 - Desligar: `CONFIRMED → REVOKED`, desfaz a ligação do beneficiário (mantém-no) e sobe `card_version` (os QR já emitidos deixam de valer); auditoria `INSURER_LINK_REVOKE`.
 - QR: `signCardQrToken` (120 s), rate limit 20/10 min por cartão, auditoria `CARD_QR_ISSUE` (sem o token). Cobertura: só limites (D-A2), `COVERAGE_VIEW` quando lida por tutor. Cartão: dados da seguradora (nunca de saúde).
 - Sem alerta ao paciente quando a seguradora decide: `AlertType` não prevê ligação de cartão (contrato).
+
+## Marco B, fatia 2 (ADR-033): cobertura única, catálogo `service_kind` e política em dados
+- **`domain/coverage.ts`** é a **única** decisão de cobertura (BR-SEG-41): `evaluateEligibility(beneficiary, date)` e `evaluateCoverage(plan, beneficiary, service, date, options?)` → `CoverageDecision` (razões ordenadas, comparticipação half-up, saldo). Pura (sem relógio, I/O nem texto de UI). A clínica e o cartão do paciente chamam-na por `eligibility.ts#coverageLimitsFor` (`coveredNow = reason !== WAITING_PERIOD`; a razão nunca sai, BR-SEG-18). **Proibido copiar a lógica** (comparar `waitingDays`/`validFrom`/`validTo`/estado de beneficiário ou apólice noutro ficheiro): `tests/coverage-source.test.ts` falha. Consumidores futuros (pré-cálculo, auto-aprovação, despesa) importam daqui.
+- **Catálogo `service_kind`** (`domain/service-kind.ts`, `infrastructure/catalog-repo.ts`, 1 ficheiro = 1 ação em `application/`): `/insurance-portal/{catalog-types,service-kinds,services/classify}`; `guideType`/`expenseType` são códigos de tabelas globais (`guide_types`, `expense_types`): tipo novo = linha de dados (nenhum `switch` sobre os literais, `tests/coverage-source.test.ts`). Semeadura dos 9 tipos por seguradora: migração `0037` (existentes) e `ensure-service-kinds.ts` (novas, 1.ª utilização). `/services/classify` regista-se **antes** de `/services/{serviceId}`.
+- **Política** (`domain/policy-setting.ts`): `resolvePolicySetting` (serviço > seguradora > omissão do Vita) e limites validados no domínio; leituras por qualquer papel do módulo, escrita só `INSURANCE_ADMIN`; auditada. Os consumidores (fatias 3, 4, 6) leem **sempre** por `resolvePolicySetting`: proibido repetir 48/72/15/7.
+- Moeda: `insurance` define a moeda (`insurer_accounts.currency`, BR-SEG-42); este módulo só a lê por `InsurerSettingsPort`. Sem literal de moeda por omissão (`tests/currency-source.test.ts`).
+
+### Fronteira `insurance` vs `insurer-ops` (marco B §7.7)
+`insurance` = o que o **titular/família** faz com a seguradora (apólice própria, `ReimbursementClaim` a pedido da família, identidade e contas do portal, a moeda da seguradora). `insurer-ops` = a **operação** da seguradora (beneficiários, planos, serviços, cobertura, clínicas, política, e nas fatias seguintes autorizações e despesas). Nenhum importa o outro: ligam-se em `main/api.ts` por portas (`InsurerSettingsPort`, `InsurerOperationalDataPort`). Qualquer decisão de cobertura vive aqui (`coverage.ts`); qualquer decisão de moeda vive em `insurance`.

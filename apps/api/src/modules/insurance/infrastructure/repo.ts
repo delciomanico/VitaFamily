@@ -51,6 +51,10 @@ function toInsurer(row: InsurerRow): Insurer {
 }
 
 export class KyselyInsurersRepository implements InsurersRepository<Kysely<Database>> {
+  async hasReimbursementClaims(trx: Kysely<Database>, insurerId: string): Promise<boolean> {
+    return (await trx.selectFrom("reimbursement_claims").select("id").where("insurer_id", "=", insurerId).limit(1).executeTakeFirst()) !== undefined;
+  }
+
   async insert(trx: Kysely<Database>, record: NewInsurerRecord): Promise<Insurer> {
     const row = await trx
       .insertInto("insurer_accounts")

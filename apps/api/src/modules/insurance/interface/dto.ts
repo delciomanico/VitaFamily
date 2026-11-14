@@ -42,9 +42,9 @@ export function toReimbursementClaimResponse(claim: ReimbursementClaim) {
   };
 }
 
-/** `components.schemas.PartnerInsurer`: só id e nome (BR-INS-09). */
+/** `components.schemas.PartnerInsurer`: id, nome e moeda (BR-INS-09, BR-SEG-42). */
 export function toPartnerInsurerResponse(insurer: PartnerInsurerView) {
-  return { id: insurer.id, name: insurer.name };
+  return { id: insurer.id, name: insurer.name, currency: insurer.currency };
 }
 
 /** `components.schemas.InsuranceClaimView`. */

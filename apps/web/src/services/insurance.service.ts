@@ -57,7 +57,6 @@ const apiImpl = {
       method: 'POST',
       body: {
         amount: input.amount,
-        currency: input.currency ?? 'EUR',
         documentIds: input.documentIds,
         receiptIds: input.receiptIds ?? [],
       },

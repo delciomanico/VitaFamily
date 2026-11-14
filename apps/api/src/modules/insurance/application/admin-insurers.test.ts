@@ -61,6 +61,16 @@ describe("seguradoras (admin)", () => {
     expect(fx.audit.events.at(-1)?.action).toBe("ADMIN_INSURER_UPDATE");
   });
 
+  it("TC-MOE-05 BR-SEG-19: mudar a moeda com reembolsos gravados (sem beneficiários/apólices) ⇒ CONFLICT", async () => {
+    const { fx, create } = setup();
+    const a = await create(ADMIN, { name: "A", taxId: "111" }, CTX);
+    const update = createAdminUpdateInsurerUseCase(fx.deps);
+    fx.insurersRepo.withClaims.add(a.id);
+    await expect(update(ADMIN, a.id, { currency: "USD" }, CTX)).rejects.toMatchObject({ code: "CONFLICT" });
+    fx.insurersRepo.withClaims.delete(a.id);
+    expect(await update(ADMIN, a.id, { currency: "USD" }, CTX)).toMatchObject({ currency: "USD" });
+  });
+
   it("update/status/root-account de seguradora inexistente -> NOT_FOUND", async () => {
     const { fx } = setup();
     await expect(createAdminUpdateInsurerUseCase(fx.deps)(ADMIN, "nope", { name: "x" }, CTX)).rejects.toMatchObject({ code: "NOT_FOUND" });

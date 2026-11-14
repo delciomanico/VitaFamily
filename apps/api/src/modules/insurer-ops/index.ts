@@ -50,9 +50,17 @@ import {
 } from "./application/patient-insurance.js";
 import type { InsurerSettingsPort, OpsDeps, PartnerClinicDirectory, PatientAccessPort } from "./application/ports.js";
 import { createCreateProviderUseCase, createListPartnerClinicsUseCase, createListProvidersUseCase, createSetProviderStatusUseCase } from "./application/providers.js";
+import { createClassifyServicesUseCase } from "./application/classify-services.js";
+import { createCreateServiceKindUseCase } from "./application/create-service-kind.js";
+import { createListCatalogTypesUseCase } from "./application/list-catalog-types.js";
+import { createListPolicySettingsUseCase } from "./application/list-policy-settings.js";
+import { createListServiceKindsUseCase } from "./application/list-service-kinds.js";
+import { createResetPolicySettingUseCase } from "./application/reset-policy-setting.js";
+import { createSetPolicySettingUseCase } from "./application/set-policy-setting.js";
+import { createUpdateServiceKindUseCase } from "./application/update-service-kind.js";
 import { createCreateServiceUseCase, createListServicesUseCase, createUpdateServiceUseCase } from "./application/services.js";
 import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
-import { KyselyPlansRepository, KyselyServicesRepository } from "./infrastructure/catalog-repo.js";
+import { KyselyCatalogTypesRepository, KyselyPlansRepository, KyselyPolicySettingsRepository, KyselyServiceKindsRepository, KyselyServicesRepository } from "./infrastructure/catalog-repo.js";
 import { KyselyEligibilityRepository, KyselyProvidersRepository } from "./infrastructure/clinic-repo.js";
 import { registerExpirePoliciesWorker, registerPurgeImportPreviewsWorker } from "./infrastructure/jobs.js";
 import { KyselyPatientInsuranceRepository } from "./infrastructure/patient-repo.js";
@@ -99,6 +107,9 @@ function createOpsDeps(deps: InsurerOpsModuleDeps): OpsDeps<Kysely<Database>> {
     policies: new KyselyPoliciesRepository(),
     imports: new KyselyImportsRepository(),
     services: new KyselyServicesRepository(),
+    serviceKinds: new KyselyServiceKindsRepository(),
+    catalogTypes: new KyselyCatalogTypesRepository(),
+    policySettings: new KyselyPolicySettingsRepository(),
     plans: new KyselyPlansRepository(),
     providers: new KyselyProvidersRepository(),
     eligibility: new KyselyEligibilityRepository(),
@@ -141,6 +152,14 @@ export function createInsurerOpsModule(deps: InsurerOpsModuleDeps): InsurerOpsMo
     listServices: createListServicesUseCase(ops),
     createService: createCreateServiceUseCase(ops),
     updateService: createUpdateServiceUseCase(ops),
+    listCatalogTypes: createListCatalogTypesUseCase(ops),
+    listServiceKinds: createListServiceKindsUseCase(ops),
+    createServiceKind: createCreateServiceKindUseCase(ops),
+    updateServiceKind: createUpdateServiceKindUseCase(ops),
+    classifyServices: createClassifyServicesUseCase(ops),
+    listPolicySettings: createListPolicySettingsUseCase(ops),
+    setPolicySetting: createSetPolicySettingUseCase(ops),
+    resetPolicySetting: createResetPolicySettingUseCase(ops),
     listPlans: createListPlansUseCase(ops),
     createPlan: createCreatePlanUseCase(ops),
     getPlan: createGetPlanUseCase(ops),

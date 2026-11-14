@@ -49,6 +49,8 @@ export interface InsuranceAccount {
 export interface PartnerInsurer {
   id: string
   name: string
+  /** ISO 4217 da seguradora: a única moeda dos pedidos de reembolso (BR-SEG-42). */
+  currency: string
 }
 
 /** `InsurancePolicy` (openapi.yaml): cartão/apólice de um membro (BR-INS-01/02). */
@@ -99,7 +101,7 @@ export interface ClaimReceiptRef {
 
 export interface ClaimInput {
   amount: number
-  currency?: string
+  // Sem `currency`: a moeda do pedido é sempre a da seguradora, copiada no servidor (BR-SEG-42).
   documentIds: string[]
   /** M14 R: `documentIds` + `receiptIds` entre 1 e 10 no total. */
   receiptIds?: string[]

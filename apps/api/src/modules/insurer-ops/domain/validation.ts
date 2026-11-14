@@ -45,3 +45,10 @@ export function requireUuid(value: unknown, field: string): string {
   if (typeof value !== "string" || !UUID.test(value)) fail(field, "identificador inválido");
   return value;
 }
+
+/** Soma `days` dias a uma data `AAAA-MM-DD` (UTC; sem fusos). */
+export function addDays(isoDate: string, days: number): string {
+  if (!isIsoDate(isoDate)) throw new Error("data inválida");
+  const [y, m, d] = isoDate.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}

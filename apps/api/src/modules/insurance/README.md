@@ -27,3 +27,7 @@ POST /insurance-portal/agents
 - Auditoria: `INSURANCE_POLICY_CREATE|UPDATE|DELETE`, `CLAIM_SUBMIT`, `CLAIM_PAID` (USER) e `CLAIM_DECIDE` (`INSURANCE_ACCOUNT`); leitura por tutor ⇒ `HEALTH_VIEW`.
 
 Fluxo típico: `POST .../insurance-policies/{id}/reimbursement-claims` → `interface/insurance-router.ts` → `application/reimbursement-claims.ts` (autoriza, bloqueia a apólice, valida seguradora ACTIVE e documentos) → `infrastructure/repo.ts` → `audit.record(CLAIM_SUBMIT)`.
+
+## Moeda e fronteira com `insurer-ops` (marco B fatia 2, ADR-033, BR-SEG-42)
+- **Fonte única da moeda:** `insurer_accounts.currency` (por omissão `AOA`). `createReimbursementClaim` copia-a no servidor (`resolveClaimCurrency`); **não existe moeda por omissão `EUR`** nem constante de moeda de pedido. `ReimbursementClaimInput.currency` está deprecado: ignorado se igual, `VALIDATION_ERROR` (`field=currency`) se diferente; recibos anexados têm de estar na moeda da seguradora. `GET /families/{f}/insurers` devolve `currency`. Mudar a moeda de uma seguradora com reembolsos gravados ⇒ `CONFLICT` (`InsurersRepository.hasReimbursementClaims`, além de `operationalData.hasData`, BR-SEG-19). `tests/currency-source.test.ts` falha se reaparecer outra fonte.
+- **Fronteira:** este módulo trata do que o titular/família faz (apólice, reembolso) e da identidade/moeda da seguradora; a operação da seguradora (cobertura, serviços, política, autorizações) é de `insurer-ops` (ver o README dele). Ligam-se só por portas em `main/api.ts`.

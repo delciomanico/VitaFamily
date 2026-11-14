@@ -11,7 +11,7 @@ bin/
 dist/
 *.test
 *.out
-coverage.*
+/coverage.*
 coverage/
 
 # Gerado a partir de docs/05-api/openapi.yaml (pnpm gen) — nunca editar à mão.

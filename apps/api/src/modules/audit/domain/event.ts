@@ -226,6 +226,12 @@ export type AuditAction =
   // documento nem nome pesquisados; `DENIED` com `metadata.reason=RATE_LIMITED`.
   | "INSURER_SERVICE_CREATE"
   | "INSURER_SERVICE_UPDATE"
+  // Marco B fatia 2 (ADR-033, BR-SEG-39/40): `metadata` só com `insurerId`, ids, `key`, valores e contagens; nunca a categoria.
+  | "INSURER_SERVICE_KIND_CREATE"
+  | "INSURER_SERVICE_KIND_UPDATE"
+  | "INSURER_SERVICE_CLASSIFY"
+  | "INSURER_POLICY_SETTING_UPDATE"
+  | "INSURER_POLICY_SETTING_RESET"
   | "INSURER_PLAN_CREATE"
   | "INSURER_PLAN_STATUS"
   | "INSURER_PLAN_NEW_VERSION"

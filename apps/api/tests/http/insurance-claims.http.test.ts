@@ -155,7 +155,7 @@ describe("GET /families/{id}/insurers", () => {
     h.holder.insurersRepo.setStatus(INS_B, "SUSPENDED");
     const res = await request(h.app).get(`${API}/families/${FAMILY}/insurers`).set("Authorization", h.userToken);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([{ id: INS_A, name: "Seg A" }]);
+    expect(res.body).toEqual([{ id: INS_A, name: "Seg A", currency: "AOA" }]);
     expect((await request(h.app).get(`${API}/families/${FAMILY}/insurers`)).status).toBe(401);
     expect((await request(h.app).get(`${API}/families/f0000000-0000-4000-8000-000000000009/insurers`).set("Authorization", h.userToken)).status).toBe(404);
     expect((await request(h.app).get(`${API}/families/${FAMILY}/insurers`).set("Authorization", await h.insToken(AGT_A))).status).toBe(401);
@@ -229,7 +229,7 @@ describe("pedidos de reembolso: titular -> seguradora -> titular (estados SUBMIT
     const policyId = await createPolicy(h, { insurerId: INS_A });
     const res = await request(h.app).post(claimsUrl(policyId)).set("Authorization", h.userToken).send({ amount: 42.5, documentIds: [DOC1, DOC2] });
     expect(res.status).toBe(201);
-    expect(res.body).toEqual({ id: (res.body as { id: string }).id, policyId, amount: 42.5, currency: "EUR", status: "SUBMITTED", decisionNote: null, documentIds: [DOC1, DOC2], receipts: [], createdAt: NOW.toISOString() });
+    expect(res.body).toEqual({ id: (res.body as { id: string }).id, policyId, amount: 42.5, currency: "AOA", status: "SUBMITTED", decisionNote: null, documentIds: [DOC1, DOC2], receipts: [], createdAt: NOW.toISOString() });
     const id = (res.body as { id: string }).id;
     expect((await request(h.app).get(claimsUrl(policyId)).set("Authorization", h.userToken)).body).toHaveLength(1);
     expect((await request(h.app).get(`${claimsUrl(policyId)}/${id}`).set("Authorization", h.userToken)).body).toMatchObject({ id, status: "SUBMITTED" });
@@ -269,7 +269,7 @@ describe("pedidos de reembolso: titular -> seguradora -> titular (estados SUBMIT
 
     const list = await request(h.app).get(`${API}/insurance-portal/claims`).set("Authorization", agentA);
     expect(list.status).toBe(200);
-    expect(list.body).toEqual([{ id: claimId, status: "SUBMITTED", amount: 42.5, currency: "EUR", policyHolderName: "Ana", policyNumber: "P-1", decisionNote: null, documentIds: [DOC1], receipts: [] }]);
+    expect(list.body).toEqual([{ id: claimId, status: "SUBMITTED", amount: 42.5, currency: "AOA", policyHolderName: "Ana", policyNumber: "P-1", decisionNote: null, documentIds: [DOC1], receipts: [] }]);
     expect(JSON.stringify(list.body)).not.toMatch(new RegExp(`${FAMILY}|${MEMBER}|policyId|insurerId`));
     expect((await request(h.app).get(`${API}/insurance-portal/claims`).set("Authorization", agentB)).body).toEqual([]);
     expect((await request(h.app).get(`${API}/insurance-portal/claims/${claimId}`).set("Authorization", agentB)).status).toBe(404);

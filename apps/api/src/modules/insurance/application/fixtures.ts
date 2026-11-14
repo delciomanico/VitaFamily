@@ -55,6 +55,12 @@ export class FakeAuditPort implements AuditPort<FakeTrx> {
 
 export class FakeInsurersRepository implements InsurersRepository<FakeTrx> {
   readonly byId = new Map<string, Insurer>();
+  /** Seguradoras com reembolsos gravados (BR-SEG-19). */
+  readonly withClaims = new Set<string>();
+
+  async hasReimbursementClaims(_trx: FakeTrx, insurerId: string): Promise<boolean> {
+    return Promise.resolve(this.withClaims.has(insurerId));
+  }
 
   async insert(_trx: FakeTrx, record: NewInsurerRecord): Promise<Insurer> {
     const insurer: Insurer = {

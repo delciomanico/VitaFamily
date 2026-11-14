@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertCanMarkPaid, decide, isActiveClaimStatus, parseClaimInput } from "./reimbursement-claim.js";
+import { assertCanMarkPaid, decide, isActiveClaimStatus, parseClaimInput, resolveClaimCurrency } from "./reimbursement-claim.js";
 
 /** Código do erro de domínio lançado (ou `undefined` se não lançou). */
 function codeOf(fn: () => unknown): string | undefined {
@@ -12,8 +12,14 @@ function codeOf(fn: () => unknown): string | undefined {
 }
 
 describe("parseClaimInput (BR-INS-03/04)", () => {
-  it("aceita valor positivo, moeda por omissão EUR e 1–10 documentos distintos", () => {
-    expect(parseClaimInput({ amount: 12.5, documentIds: ["a"] })).toEqual({ amount: 12.5, currency: "EUR", documentIds: ["a"], receiptIds: [] });
+  it("aceita valor positivo e 1–10 documentos distintos; sem moeda por omissão (BR-SEG-42)", () => {
+    expect(parseClaimInput({ amount: 12.5, documentIds: ["a"] })).toEqual({ amount: 12.5, documentIds: ["a"], receiptIds: [] });
+  });
+
+  it("BR-SEG-42 resolveClaimCurrency: ausente ou igual ⇒ moeda da seguradora; diferente ⇒ VALIDATION_ERROR (currency)", () => {
+    expect(resolveClaimCurrency("AOA")).toBe("AOA");
+    expect(resolveClaimCurrency("USD", "USD")).toBe("USD");
+    expect(codeOf(() => resolveClaimCurrency("AOA", "EUR"))).toBe("VALIDATION_ERROR");
   });
 
   it.each([

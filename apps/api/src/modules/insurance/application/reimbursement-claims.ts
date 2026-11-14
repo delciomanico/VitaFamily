@@ -3,7 +3,7 @@
 import { ConflictError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
-import { assertCanMarkPaid, parseClaimInput, type ClaimInputFields, type ReimbursementClaim } from "../domain/reimbursement-claim.js";
+import { assertCanMarkPaid, parseClaimInput, resolveClaimCurrency, type ClaimInputFields, type ReimbursementClaim } from "../domain/reimbursement-claim.js";
 import type { ActorIdentity, InsuranceHolderDeps, RequestContext } from "./ports.js";
 import { auditViewIfNotSelf, authorizeInsurance, loadPolicy } from "./support-holder.js";
 
@@ -63,6 +63,8 @@ export function createCreateReimbursementClaimUseCase<Trx>(deps: InsuranceHolder
       if (insurer?.status !== "ACTIVE") {
         throw new ConflictError({ detail: "A seguradora está suspensa; não aceita novos pedidos." });
       }
+      // BR-SEG-42: a moeda é a da seguradora (fonte única), nunca a do cliente.
+      const currency = resolveClaimCurrency(insurer.currency, parsed.requestedCurrency);
       // BR-INS-04: só documentos JÁ carregados do próprio membro, verificados (CLEAN) e visíveis ao paciente.
       const attachable = await deps.documents.listAttachable(trx, familyId, memberId, parsed.documentIds);
       if (attachable.length !== parsed.documentIds.length) {
@@ -78,7 +80,7 @@ export function createCreateReimbursementClaimUseCase<Trx>(deps: InsuranceHolder
         if (visible.some((r) => r.status !== "ISSUED")) {
           throw new ConflictError({ detail: "Só se anexam recibos emitidos (não anulados)." });
         }
-        if (visible.some((r) => r.currency !== parsed.currency)) {
+        if (visible.some((r) => r.currency !== currency)) {
           throw new ValidationError([{ field: "receiptIds", message: "a moeda do recibo difere da do pedido" }], { detail: "Moeda do recibo diferente da do pedido." });
         }
         if ((await deps.claimsRepo.activeClaimIdsByReceipts(trx, parsed.receiptIds)).size > 0) {
@@ -92,7 +94,7 @@ export function createCreateReimbursementClaimUseCase<Trx>(deps: InsuranceHolder
         policyId,
         insurerId: policy.insurerId,
         amount: parsed.amount,
-        currency: parsed.currency,
+        currency,
         documentIds: parsed.documentIds,
         receiptIds: parsed.receiptIds,
         submittedBy: actor.userId,

@@ -76,6 +76,8 @@ export interface InsurersRepository<Trx> {
   listActive(trx: Trx): Promise<Insurer[]>;
   update(trx: Trx, insurerId: string, changes: InsurerChanges): Promise<Insurer>;
   updateStatus(trx: Trx, insurerId: string, status: InsurerStatus): Promise<Insurer>;
+  /** BR-SEG-19 (emenda ADR-033): a seguradora já tem pedidos de reembolso gravados (moeda imutável). */
+  hasReimbursementClaims(trx: Trx, insurerId: string): Promise<boolean>;
 }
 
 export interface NewInsuranceAccountRecord {

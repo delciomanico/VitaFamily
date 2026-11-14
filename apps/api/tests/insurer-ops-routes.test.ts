@@ -40,7 +40,7 @@ const sorted = (set: Set<string>): string[] => [...set].sort();
 
 describe("insurer-ops: rotas ↔ openapi", () => {
   it("portal da seguradora: as rotas do router são exatamente as operações do contrato desses recursos", () => {
-    const own = /^\/insurance-portal\/(me|companies|beneficiaries|imports|link-requests|policies|plans|services|partner-clinics|providers)(\/|$)/;
+    const own = /^\/insurance-portal\/(me|companies|beneficiaries|imports|link-requests|policies|plans|services|partner-clinics|providers|catalog-types|service-kinds|policy-settings)(\/|$)/;
     const contract = contractOperations(own);
     expect(contract.size).toBeGreaterThan(30);
     expect(sorted(routerOperations(createInsurerOpsRouter(stub())))).toEqual(sorted(contract));

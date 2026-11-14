@@ -297,13 +297,15 @@ describe('anexar recibos a um pedido de reembolso (BR-CLN-36)', () => {
 
   it('o recibo vale como comprovativo (sem documentos), mesma moeda, e a seguradora vê só o resumo', async () => {
     const { r, policy } = await setup()
-    // Moeda diferente (EUR por omissão) ⇒ VALIDATION_ERROR, sem conversão.
+    // Recibo em moeda diferente da da seguradora (AOA) ⇒ VALIDATION_ERROR, sem conversão (BR-SEG-42).
+    const original = db.clinicReceipts.find((x) => x.id === r.id)!
+    original.currency = 'USD'
     expect(
       await code(insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, { amount: 15000, documentIds: [], receiptIds: [r.id] })),
     ).toBe('VALIDATION_ERROR')
+    original.currency = 'AOA'
     const claim = await insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, {
       amount: 15000,
-      currency: 'AOA',
       documentIds: [],
       receiptIds: [r.id],
     })

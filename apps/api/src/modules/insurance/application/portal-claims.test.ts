@@ -16,8 +16,8 @@ function setup() {
   const fx = createInsuranceHolderFixtures(new FixedClock(NOW));
   fx.policiesRepo.seed({ id: "p1", familyId: "f1", memberId: "m1", insurerId: INS_A, insurerName: "A", policyNumber: "P-1", holderName: "Ana", createdAt: NOW });
   fx.policiesRepo.seed({ id: "p2", familyId: "f2", memberId: "m2", insurerId: INS_B, insurerName: "B", policyNumber: "P-2", holderName: "Bruno", createdAt: NOW });
-  fx.claimsRepo.seed({ id: "c1", policyId: "p1", insurerId: INS_A, amount: 10, currency: "EUR", status: "SUBMITTED", documentIds: ["d1", "d2"], createdAt: NOW });
-  fx.claimsRepo.seed({ id: "c2", policyId: "p2", insurerId: INS_B, amount: 20, currency: "EUR", status: "SUBMITTED", documentIds: ["d3"], createdAt: NOW });
+  fx.claimsRepo.seed({ id: "c1", policyId: "p1", insurerId: INS_A, amount: 10, currency: "AOA", status: "SUBMITTED", documentIds: ["d1", "d2"], createdAt: NOW });
+  fx.claimsRepo.seed({ id: "c2", policyId: "p2", insurerId: INS_B, amount: 20, currency: "AOA", status: "SUBMITTED", documentIds: ["d3"], createdAt: NOW });
   return fx;
 }
 
@@ -27,7 +27,7 @@ describe("portal da seguradora: leitura (minimização, BR-INS-04)", () => {
     const list = createListInsuranceClaimsUseCase(fx.portalDeps);
 
     const a = await list(AGENT_A, {});
-    expect(a).toEqual([{ id: "c1", status: "SUBMITTED", amount: 10, currency: "EUR", policyHolderName: "Ana", policyNumber: "P-1", decisionNote: null, documentIds: ["d1", "d2"], receipts: [] }]);
+    expect(a).toEqual([{ id: "c1", status: "SUBMITTED", amount: 10, currency: "AOA", policyHolderName: "Ana", policyNumber: "P-1", decisionNote: null, documentIds: ["d1", "d2"], receipts: [] }]);
     expect((await list(AGENT_B, {})).map((c) => c.id)).toEqual(["c2"]);
     expect(Object.keys(a[0] ?? {}).sort()).toEqual(["amount", "currency", "decisionNote", "documentIds", "id", "policyHolderName", "policyNumber", "receipts", "status"]);
   });

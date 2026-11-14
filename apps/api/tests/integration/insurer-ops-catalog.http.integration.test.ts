@@ -713,7 +713,7 @@ describe("integração HTTP: módulo operacional de seguradoras, S2 mínimo e S3
       expect(res.status).toBe(200);
       const items = body<{ items: Record<string, unknown>[] }>(res).items;
       expect(items.map((i) => i.code).sort()).toEqual(["ANAL", "CONS", "M1", "RX"]); // FISIO inativo; M1 vem da matriz de papéis
-      for (const item of items) expect(Object.keys(item).sort()).toEqual(["category", "code", "name"]);
+      for (const item of items) expect(Object.keys(item).sort()).toEqual(["category", "code", "expenseType", "guideType", "name"]);
       expect(res.text).not.toMatch(/"id"|insurerId|status/);
       expect((await clinic("get", `/insurers/${id.insA}/services?q=raio`, tok.manager)).body).toMatchObject({ items: [{ code: "RX" }], nextCursor: null });
       const p1 = await clinic("get", `/insurers/${id.insA}/services?limit=2`, tok.admin);

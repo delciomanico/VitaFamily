@@ -135,7 +135,7 @@ describe("integração: apólices e pedidos de reembolso (Fase 4b)", () => {
     await pool.query("UPDATE insurer_accounts SET status='SUSPENDED' WHERE id=$1", [ids.insB]);
     await expect(update(actor, ids.family, ids.member, id, { insurerId: ids.insB }, ctx)).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     await expect(get(actor, ids.family, ids.otherMember, id, ctx)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(await createListPartnerInsurersUseCase(holderDeps())(actor, ids.family)).toEqual([{ id: ids.insA, name: "Seguradora A" }]);
+    expect(await createListPartnerInsurersUseCase(holderDeps())(actor, ids.family)).toEqual([{ id: ids.insA, name: "Seguradora A", currency: "AOA" }]);
     await pool.query("UPDATE insurer_accounts SET status='ACTIVE' WHERE id=$1", [ids.insB]);
   });
 
@@ -155,7 +155,7 @@ describe("integração: apólices e pedidos de reembolso (Fase 4b)", () => {
   it("CHECKs de reimbursement_claims: amount > 0; REJECTED exige nota; SUBMITTED sem nota é válido", async () => {
     const policyId = await partnerPolicy();
     const insert = (amount: number, status: string, note: string | null) =>
-      pool.query("INSERT INTO reimbursement_claims (policy_id, insurer_id, amount, currency, status, decision_note) VALUES ($1,$2,$3,'EUR',$4,$5)", [policyId, ids.insA, amount, status, note]);
+      pool.query("INSERT INTO reimbursement_claims (policy_id, insurer_id, amount, currency, status, decision_note) VALUES ($1,$2,$3,'AOA',$4,$5)", [policyId, ids.insA, amount, status, note]);
     await expect(insert(0, "SUBMITTED", null)).rejects.toMatchObject({ code: "23514" });
     await expect(insert(5, "REJECTED", null)).rejects.toMatchObject({ code: "23514" });
     await insert(5, "SUBMITTED", null);
@@ -176,10 +176,10 @@ describe("integração: apólices e pedidos de reembolso (Fase 4b)", () => {
     expect((await pool.query<{ n: number }>("SELECT count(*)::int AS n FROM reimbursement_claims WHERE policy_id=$1", [policyId])).rows[0]?.n).toBe(0);
 
     const claim = await create(actor, ids.family, ids.member, policyId, { amount: 42.5, documentIds: [clean] }, ctx);
-    expect(claim).toMatchObject({ status: "SUBMITTED", amount: 42.5, currency: "EUR", insurerId: ids.insA, documentIds: [clean] });
+    expect(claim).toMatchObject({ status: "SUBMITTED", amount: 42.5, currency: "AOA", insurerId: ids.insA, documentIds: [clean] });
 
     const listA = await createListInsuranceClaimsUseCase(portalDeps())(agentA, {});
-    expect(listA.find((c) => c.id === claim.id)).toEqual({ id: claim.id, status: "SUBMITTED", amount: 42.5, currency: "EUR", policyHolderName: "Ana", policyNumber: "P-9", decisionNote: null, documentIds: [clean], receipts: [] });
+    expect(listA.find((c) => c.id === claim.id)).toEqual({ id: claim.id, status: "SUBMITTED", amount: 42.5, currency: "AOA", policyHolderName: "Ana", policyNumber: "P-9", decisionNote: null, documentIds: [clean], receipts: [] });
     expect((await createListInsuranceClaimsUseCase(portalDeps())(agentB, {})).map((c) => c.id)).not.toContain(claim.id);
     await expect(createGetInsuranceClaimUseCase(portalDeps())(agentB, claim.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(createDecideInsuranceClaimUseCase(portalDeps())(agentB, claim.id, { decision: "APPROVE" }, ctx)).rejects.toMatchObject({ code: "NOT_FOUND" });

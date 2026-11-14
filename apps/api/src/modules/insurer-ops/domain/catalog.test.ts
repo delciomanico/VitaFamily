@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
 import { assertClinicRole, assertOpsRole, type ClinicOpsRole, type OpsRole } from "./access.js";
 import { CARD_QR_TTL_SECONDS, signCardQrToken, verifyCardQrToken } from "./card-qr.js";
-import { addDays, isEligible, parseEligibilityRequest, toCoverageLimits } from "./eligibility.js";
+import { evaluateEligibility } from "./coverage.js";
+import { addDays, coverageLimitsFor, parseEligibilityRequest } from "./eligibility.js";
 import { assertCanCreateVersion, assertCoveragesEditable, assertPlanTransition, coverageTypeOf, parseCoverageItems } from "./plan.js";
 import { InMemoryRateLimiter } from "./rate-limiter.js";
 import { parseServiceInput, parseServicePatch } from "./service.js";
@@ -114,15 +115,16 @@ describe("elegibilidade (BR-SEG-01/04/18)", () => {
     ["CANCELLED", policy, "2026-11-11", false],
     ["ACTIVE", null, "2026-11-11", false],
   ])("beneficiário %s, apólice %j, hoje %s ⇒ %s", (status, p, today, expected) => {
-    expect(isEligible(status, p, today)).toBe(expected);
+    expect(evaluateEligibility({ status, policy: p }, today).eligible).toBe(expected);
   });
 
   it("carência conta a partir de validFrom (BR-SEG-04)", () => {
-    const row = { serviceCode: "C", serviceName: "Consulta", copayPct: 80, limitPerYear: 1000, waitingDays: 30, requiresAuthorization: true };
+    const row = { serviceId: "s1", serviceCode: "C", serviceName: "Consulta", copayPct: 80, limitPerYear: 1000, waitingDays: 30, requiresAuthorization: true };
+    const limits = (r: typeof row, today: string) => coverageLimitsFor([r], { status: "ACTIVE", policy: { status: "ACTIVE", validFrom: "2026-01-01", validTo: "2026-12-31" } }, today)[0];
     expect(addDays("2026-01-01", 30)).toBe("2026-01-31");
-    expect(toCoverageLimits(row, "2026-01-01", "2026-01-30")).toMatchObject({ coveredNow: false, waitingEndsOn: "2026-01-31" });
-    expect(toCoverageLimits(row, "2026-01-01", "2026-01-31")).toMatchObject({ coveredNow: true, waitingEndsOn: "2026-01-31" });
-    expect(toCoverageLimits({ ...row, waitingDays: 0 }, "2026-01-01", "2026-01-01")).toMatchObject({ coveredNow: true, waitingEndsOn: null });
+    expect(limits(row, "2026-01-30")).toMatchObject({ coveredNow: false, waitingEndsOn: "2026-01-31" });
+    expect(limits(row, "2026-01-31")).toMatchObject({ coveredNow: true, waitingEndsOn: "2026-01-31" });
+    expect(limits({ ...row, waitingDays: 0 }, "2026-01-01")).toMatchObject({ coveredNow: true, waitingEndsOn: null });
   });
 
   it("exatamente um identificador (senão VALIDATION_ERROR)", () => {

@@ -154,11 +154,14 @@ function PolicyForm({
 function ClaimForm({
   scope,
   policy,
+  currency,
   onClose,
   onSaved,
 }: {
   scope: Scope
   policy: InsurancePolicy
+  /** Moeda da seguradora (`PartnerInsurer.currency`, BR-SEG-42). */
+  currency: string
   onClose: () => void
   onSaved: () => void
 }) {
@@ -176,8 +179,7 @@ function ClaimForm({
   const [saving, setSaving] = useState(false)
 
   const attachable = docs.state.status === 'success' ? docs.state.data.filter((d) => d.scanStatus !== 'INFECTED') : []
-  // Só recibos emitidos e ainda sem pedido ativo; a moeda é a do primeiro escolhido (sem conversão).
-  const currency = selectedReceipts[0]?.currency ?? 'EUR'
+  // Só recibos emitidos, sem pedido ativo e na moeda da seguradora (sem conversão, BR-SEG-42).
   const attachableReceipts =
     receipts.state.status === 'success'
       ? receipts.state.data.items.filter((r) => r.status === 'ISSUED' && r.attachedToClaimIds.length === 0)
@@ -204,7 +206,6 @@ function ClaimForm({
     try {
       await insuranceService.submitClaim(scope.familyId, scope.userId, scope.memberId, policy.id, {
         amount: value,
-        currency: selectedReceipts.length > 0 ? currency : undefined,
         documentIds: selected,
         receiptIds: selectedReceipts.map((r) => r.id),
       })
@@ -237,7 +238,7 @@ function ClaimForm({
     >
       <div className="flex flex-col gap-4">
         <Input
-          label={`Valor (${currency === 'EUR' ? '€' : currency})`}
+          label={`Valor (${currency})`}
           inputMode="decimal"
           value={amount}
           onChange={(event) => {
@@ -289,7 +290,7 @@ function ClaimForm({
                 key={receipt.id}
                 label={`${receiptNumber(receipt.number)} · ${receipt.clinicName} · ${formatMinor(receipt.totalMinor, receipt.currency)}`}
                 checked={selectedReceipts.some((r) => r.id === receipt.id)}
-                disabled={selectedReceipts.length > 0 && !selectedReceipts.some((r) => r.id === receipt.id) && receipt.currency !== currency}
+                disabled={receipt.currency !== currency}
                 onChange={(event) => toggleReceipt(receipt, event.target.checked)}
               />
             ))}
@@ -409,12 +410,15 @@ function Claims({ scope, policy, reloadKey }: { scope: Scope; policy: InsuranceP
 function PolicyCard({
   scope,
   policy,
+  currency,
   onEdit,
   onDelete,
   onChanged,
 }: {
   scope: Scope
   policy: InsurancePolicy
+  /** Moeda da seguradora parceira da apólice (BR-SEG-42); `null` se a apólice não é de parceira. */
+  currency: string | null
   onEdit: () => void
   onDelete: () => void
   onChanged: () => void
@@ -521,10 +525,11 @@ function PolicyCard({
         </section>
       )}
 
-      {claiming && (
+      {claiming && currency !== null && (
         <ClaimForm
           scope={scope}
           policy={policy}
+          currency={currency}
           onClose={() => setClaiming(false)}
           onSaved={() => {
             setClaiming(false)
@@ -609,6 +614,7 @@ export function MemberInsurancePage() {
                 key={policy.id}
                 scope={scope}
                 policy={policy}
+                currency={state.data.insurers.find((i) => i.id === policy.insurerId)?.currency ?? null}
                 onEdit={() => setEditing(policy)}
                 onDelete={() => setDeleting(policy)}
                 onChanged={reload}

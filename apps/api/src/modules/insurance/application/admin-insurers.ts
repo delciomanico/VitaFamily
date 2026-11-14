@@ -94,8 +94,8 @@ export function createAdminUpdateInsurerUseCase<Trx>(deps: InsuranceDeps<Trx>) {
       const current = await requireInsurer(deps, trx, insurerId);
       const currencyChanged = changes.currency !== undefined && changes.currency !== current.currency;
       // BR-SEG-19: sem conversão; mudar a moeda com beneficiários/apólices criados deixaria valores na moeda errada.
-      if (currencyChanged && (await deps.operationalData.hasData(trx, insurerId))) {
-        throw new ConflictError({ detail: "A moeda não pode mudar: a seguradora já tem beneficiários ou apólices." });
+      if (currencyChanged && ((await deps.operationalData.hasData(trx, insurerId)) || (await deps.insurersRepo.hasReimbursementClaims(trx, insurerId)))) {
+        throw new ConflictError({ detail: "A moeda não pode mudar: a seguradora já tem beneficiários, apólices ou pedidos de reembolso." });
       }
       const moduleChanged = changes.operationalModuleEnabled !== undefined && changes.operationalModuleEnabled !== current.operationalModuleEnabled;
       if (changes.taxId !== undefined && changes.taxId !== current.taxId) {

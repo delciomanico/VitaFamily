@@ -1,0 +1,877 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-29 · apólice ainda não iniciada 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-29 · apólice caducada 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": false,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": "Plano Ouro",
+  "policyNumber": "AP-1",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-01-29",
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-29 · apólice suspensa 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-29 · beneficiário suspenso 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": "Plano Ouro",
+  "policyNumber": "AP-1",
+  "status": "SUSPENDED",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-12-31",
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-29 · elegível 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": false,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": "Plano Ouro",
+  "policyNumber": "AP-1",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-12-31",
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-29 · sem apólice 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-29 · último dia da apólice 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": false,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": "Plano Ouro",
+  "policyNumber": "AP-1",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-01-30",
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-30 · apólice ainda não iniciada 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-30 · apólice caducada 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-30 · apólice suspensa 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-30 · beneficiário suspenso 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": "Plano Ouro",
+  "policyNumber": "AP-1",
+  "status": "SUSPENDED",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-12-31",
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-30 · elegível 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": true,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": "Plano Ouro",
+  "policyNumber": "AP-1",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-12-31",
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-30 · sem apólice 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-30 · último dia da apólice 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": true,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": "Plano Ouro",
+  "policyNumber": "AP-1",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-01-30",
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-31 · apólice ainda não iniciada 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-31 · apólice caducada 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-31 · apólice suspensa 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-31 · beneficiário suspenso 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": "Plano Ouro",
+  "policyNumber": "AP-1",
+  "status": "SUSPENDED",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-12-31",
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-31 · elegível 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": true,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": true,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": "Plano Ouro",
+  "policyNumber": "AP-1",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-12-31",
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-31 · sem apólice 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: cobertura do cartão do paciente (JSON idêntico) > 2026-01-31 · último dia da apólice 1`] = `
+{
+  "beneficiaryId": "b1",
+  "coverages": [],
+  "currency": "AOA",
+  "insurerId": "11111111-1111-4111-8111-111111111111",
+  "planName": null,
+  "policyNumber": null,
+  "status": "ACTIVE",
+  "validFrom": null,
+  "validTo": null,
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-29 · apólice ainda não iniciada 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-29 · apólice caducada 1`] = `
+{
+  "beneficiaryName": "Ana",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": false,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "eligible": true,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+  "planName": "Plano Ouro",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-01-29",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-29 · apólice suspensa 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-29 · beneficiário suspenso 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-29 · elegível 1`] = `
+{
+  "beneficiaryName": "Ana",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": false,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "eligible": true,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+  "planName": "Plano Ouro",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-12-31",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-29 · inexistente 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-29 · sem apólice 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-29 · último dia da apólice 1`] = `
+{
+  "beneficiaryName": "Ana",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": false,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "eligible": true,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+  "planName": "Plano Ouro",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-01-30",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-30 · apólice ainda não iniciada 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-30 · apólice caducada 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-30 · apólice suspensa 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-30 · beneficiário suspenso 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-30 · elegível 1`] = `
+{
+  "beneficiaryName": "Ana",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": true,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "eligible": true,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+  "planName": "Plano Ouro",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-12-31",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-30 · inexistente 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-30 · sem apólice 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-30 · último dia da apólice 1`] = `
+{
+  "beneficiaryName": "Ana",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": false,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": true,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "eligible": true,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+  "planName": "Plano Ouro",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-01-30",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-31 · apólice ainda não iniciada 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-31 · apólice caducada 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-31 · apólice suspensa 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-31 · beneficiário suspenso 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-31 · elegível 1`] = `
+{
+  "beneficiaryName": "Ana",
+  "coverages": [
+    {
+      "copayPct": 80,
+      "coveredNow": true,
+      "limitPerYear": 1234.56,
+      "requiresAuthorization": true,
+      "serviceCode": "CONS",
+      "serviceName": "Consulta",
+      "waitingDays": 30,
+      "waitingEndsOn": "2026-01-31",
+    },
+    {
+      "copayPct": 100,
+      "coveredNow": true,
+      "limitPerYear": null,
+      "requiresAuthorization": false,
+      "serviceCode": "LAB",
+      "serviceName": "Análises",
+      "waitingDays": 0,
+      "waitingEndsOn": null,
+    },
+    {
+      "copayPct": 50.5,
+      "coveredNow": true,
+      "limitPerYear": 0,
+      "requiresAuthorization": false,
+      "serviceCode": "RX",
+      "serviceName": "Raio-X",
+      "waitingDays": 29,
+      "waitingEndsOn": "2026-01-30",
+    },
+  ],
+  "currency": "AOA",
+  "eligible": true,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+  "planName": "Plano Ouro",
+  "status": "ACTIVE",
+  "validFrom": "2026-01-01",
+  "validTo": "2026-12-31",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-31 · inexistente 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-31 · sem apólice 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;
+
+exports[`TC-COV-12: elegibilidade da clínica (JSON idêntico) > 2026-01-31 · último dia da apólice 1`] = `
+{
+  "eligible": false,
+  "notice": "Verificação de cobertura; não constitui garantia de pagamento.",
+}
+`;

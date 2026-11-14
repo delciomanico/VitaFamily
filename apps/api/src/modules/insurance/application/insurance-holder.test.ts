@@ -108,13 +108,13 @@ describe("apólices (BR-INS-01/02/09)", () => {
   it("DELETE: apaga a foto (outbox via documents) e a apólice; CONFLICT com pedido SUBMITTED/APPROVED; permite com REJECTED/PAID", async () => {
     const fx = setup();
     const view = await partnerPolicy(fx);
-    fx.claimsRepo.seed({ id: "c1", policyId: view.id, insurerId: INSURER, amount: 5, currency: "EUR", status: "APPROVED", documentIds: ["d1"], createdAt: NOW });
+    fx.claimsRepo.seed({ id: "c1", policyId: view.id, insurerId: INSURER, amount: 5, currency: "AOA", status: "APPROVED", documentIds: ["d1"], createdAt: NOW });
     const remove = createDeleteInsurancePolicyUseCase(fx.deps);
 
     await expect(remove(ACTOR, F, M, view.id, CTX)).rejects.toMatchObject({ code: "CONFLICT" });
     expect(fx.policiesRepo.byId.has(view.id)).toBe(true);
 
-    fx.claimsRepo.seed({ id: "c1", policyId: view.id, insurerId: INSURER, amount: 5, currency: "EUR", status: "PAID", documentIds: ["d1"], createdAt: NOW });
+    fx.claimsRepo.seed({ id: "c1", policyId: view.id, insurerId: INSURER, amount: 5, currency: "AOA", status: "PAID", documentIds: ["d1"], createdAt: NOW });
     await remove(ACTOR, F, M, view.id, CTX);
     expect(fx.policiesRepo.byId.has(view.id)).toBe(false);
     expect(fx.documents.deleted).toEqual([{ resourceType: "INSURANCE_POLICY", resourceId: view.id }]);
@@ -128,8 +128,22 @@ describe("pedidos de reembolso (BR-INS-03/04/05/10, AC-INS-01)", () => {
     const view = await partnerPolicy(fx);
     const claim = await createCreateReimbursementClaimUseCase(fx.deps)(ACTOR, F, M, view.id, { amount: 42.5, documentIds: ["d1"] }, CTX);
 
-    expect(claim).toMatchObject({ policyId: view.id, insurerId: INSURER, amount: 42.5, currency: "EUR", status: "SUBMITTED", documentIds: ["d1"] });
+    expect(claim).toMatchObject({ policyId: view.id, insurerId: INSURER, amount: 42.5, currency: "AOA", status: "SUBMITTED", documentIds: ["d1"] });
     expect(fx.audit.events.at(-1)).toMatchObject({ action: "CLAIM_SUBMIT", metadata: { documentCount: 1 } });
+  });
+
+  it("TC-MOE-01/02: sem currency ⇒ moeda da seguradora (AOA/USD); igual aceite; diferente ⇒ VALIDATION_ERROR(currency)", async () => {
+    const fx = setup();
+    const USD = "33333333-3333-4333-8333-333333333333";
+    fx.insurersRepo.seed({ id: USD, name: "Seguradora USD", taxId: "502", status: "ACTIVE", currency: "USD", createdAt: NOW });
+    const create = createCreateReimbursementClaimUseCase(fx.deps);
+    const polA = await partnerPolicy(fx);
+    const polU = await createCreateInsurancePolicyUseCase(fx.deps)(ACTOR, F, M, { ...POLICY_INPUT, insurerId: USD }, CTX);
+
+    expect((await create(ACTOR, F, M, polA.id, { amount: 1, documentIds: ["d1"] }, CTX)).currency).toBe("AOA");
+    expect((await create(ACTOR, F, M, polU.id, { amount: 1, documentIds: ["d1"] }, CTX)).currency).toBe("USD");
+    expect((await create(ACTOR, F, M, polA.id, { amount: 1, currency: "AOA", documentIds: ["d1"] }, CTX)).currency).toBe("AOA");
+    await expect(create(ACTOR, F, M, polA.id, { amount: 1, currency: "EUR", documentIds: ["d1"] }, CTX)).rejects.toMatchObject({ code: "VALIDATION_ERROR", fields: [{ field: "currency" }] });
   });
 
   it("apólice sem insurerId ⇒ VALIDATION_ERROR", async () => {
@@ -179,10 +193,10 @@ describe("pedidos de reembolso (BR-INS-03/04/05/10, AC-INS-01)", () => {
     const view = await partnerPolicy(fx);
     const pay = createMarkReimbursementClaimPaidUseCase(fx.deps);
     for (const [id, status] of [["c-sub", "SUBMITTED"], ["c-rej", "REJECTED"], ["c-paid", "PAID"]] as const) {
-      fx.claimsRepo.seed({ id, policyId: view.id, insurerId: INSURER, amount: 1, currency: "EUR", status, ...(status === "REJECTED" ? { decisionNote: "n" } : {}), documentIds: ["d1"], createdAt: NOW });
+      fx.claimsRepo.seed({ id, policyId: view.id, insurerId: INSURER, amount: 1, currency: "AOA", status, ...(status === "REJECTED" ? { decisionNote: "n" } : {}), documentIds: ["d1"], createdAt: NOW });
       await expect(pay(ACTOR, F, M, view.id, id, CTX)).rejects.toMatchObject({ code: "CONFLICT" });
     }
-    fx.claimsRepo.seed({ id: "c-ok", policyId: view.id, insurerId: INSURER, amount: 1, currency: "EUR", status: "APPROVED", documentIds: ["d1"], createdAt: NOW });
+    fx.claimsRepo.seed({ id: "c-ok", policyId: view.id, insurerId: INSURER, amount: 1, currency: "AOA", status: "APPROVED", documentIds: ["d1"], createdAt: NOW });
     expect((await pay(ACTOR, F, M, view.id, "c-ok", CTX)).status).toBe("PAID");
     expect(fx.audit.events.at(-1)?.action).toBe("CLAIM_PAID");
     await expect(pay(ACTOR, F, M, view.id, "ghost", CTX)).rejects.toMatchObject({ code: "NOT_FOUND" });
@@ -197,7 +211,7 @@ describe("GET /families/{id}/insurers (BR-INS-09)", () => {
     const list = createListPartnerInsurersUseCase(fx.deps);
 
     const result = await list(ACTOR, F);
-    expect(result).toEqual([{ id: INSURER, name: "Seguradora A" }]);
+    expect(result).toEqual([{ id: INSURER, name: "Seguradora A", currency: "AOA" }]);
     await expect(list({ userId: "u2", platformAdmin: false }, F)).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

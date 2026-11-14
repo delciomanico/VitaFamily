@@ -6,12 +6,12 @@ import type { Page } from "../../../platform/page/index.js";
 import { auditContextFields, type AuditEvent } from "../../audit/index.js";
 import { assertClinicRole, type ClinicOpsActor } from "../domain/access.js";
 import { verifyCardQrToken } from "../domain/card-qr.js";
+import { evaluateEligibility } from "../domain/coverage.js";
 import {
   ELIGIBILITY_NOTICE,
-  isEligible,
   NOT_ELIGIBLE_RESULT,
   parseEligibilityRequest,
-  toCoverageLimits,
+  coverageLimitsFor,
   type EligibilityResult,
 } from "../domain/eligibility.js";
 import { ELIGIBILITY_RATE_LIMITS } from "../domain/rate-limiter.js";
@@ -120,7 +120,7 @@ export function createCheckEligibilityUseCase<Trx>(deps: OpsDeps<Trx>) {
       const candidate = await deps.eligibility.find(trx, insurerId, lookup ?? { kind: "ID", beneficiaryId: NIL_UUID }, today);
       const revoked = candidate !== null && qrCardVersion !== null && candidate.cardVersion !== qrCardVersion;
       let result: EligibilityResult = NOT_ELIGIBLE_RESULT;
-      if (candidate && !revoked && isEligible(candidate.status, candidate.policy, today) && candidate.policy) {
+      if (candidate && !revoked && candidate.policy && evaluateEligibility({ status: candidate.status, policy: candidate.policy }, today).eligible) {
         const { policy } = candidate;
         const rows = await deps.eligibility.coverages(trx, insurerId, policy.planId, request.serviceCode);
         result = {
@@ -132,7 +132,7 @@ export function createCheckEligibilityUseCase<Trx>(deps: OpsDeps<Trx>) {
           validFrom: policy.validFrom,
           validTo: policy.validTo,
           currency,
-          coverages: rows.map((row) => toCoverageLimits(row, policy.validFrom, today)),
+          coverages: coverageLimitsFor(rows, { status: candidate.status, policy }, today),
         };
       }
 

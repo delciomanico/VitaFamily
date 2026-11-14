@@ -93,6 +93,51 @@ export interface InsurerServicesTable extends Timestamps {
   name: string;
   category: ColumnType<string | null, string | null | undefined, string | null>;
   status: ColumnType<"ACTIVE" | "INACTIVE", "ACTIVE" | "INACTIVE" | undefined, "ACTIVE" | "INACTIVE">;
+  /** Fatia 2 (`0037`): nulo = por classificar. */
+  service_kind_id: ColumnType<string | null, string | null | undefined, string | null>;
+}
+
+export interface GuideTypesTable {
+  code: string;
+  sort_order: number;
+  active: ColumnType<boolean, boolean | undefined, boolean>;
+}
+
+export interface ExpenseTypesTable {
+  code: string;
+  legacy_code: string;
+  default_guide_type: string;
+  default_name: string;
+  sort_order: number;
+  active: ColumnType<boolean, boolean | undefined, boolean>;
+}
+
+export interface PolicySettingDefinitionsTable {
+  key: string;
+  unit: "HOURS" | "DAYS";
+  min_value: number;
+  max_value: number;
+  default_value: number;
+  allows_service_scope: ColumnType<boolean, boolean | undefined, boolean>;
+}
+
+export interface InsurerServiceKindsTable extends Timestamps {
+  id: Generated<string>;
+  insurer_id: string;
+  code: string;
+  name: ColumnType<string, string, string>;
+  guide_type: ColumnType<string, string, string>;
+  expense_type: ColumnType<string, string, string>;
+  status: ColumnType<"ACTIVE" | "INACTIVE", "ACTIVE" | "INACTIVE" | undefined, "ACTIVE" | "INACTIVE">;
+}
+
+export interface InsurerPolicySettingsTable extends Timestamps {
+  id: Generated<string>;
+  insurer_id: string;
+  setting_key: string;
+  service_id: string | null;
+  value: ColumnType<number, number, number>;
+  updated_by_insurance_account_id: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 type NullableMoney = ColumnType<string | null, number | string | null | undefined, number | string | null>;
@@ -130,6 +175,11 @@ declare module "../../../platform/db/index.js" {
     insurer_policies: InsurerPoliciesTable;
     insurer_import_batches: InsurerImportBatchesTable;
     insurer_services: InsurerServicesTable;
+    guide_types: GuideTypesTable;
+    expense_types: ExpenseTypesTable;
+    policy_setting_definitions: PolicySettingDefinitionsTable;
+    insurer_service_kinds: InsurerServiceKindsTable;
+    insurer_policy_settings: InsurerPolicySettingsTable;
     insurer_plan_coverages: InsurerPlanCoveragesTable;
     insurer_providers: InsurerProvidersTable;
   }
