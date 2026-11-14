@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core'
 import { SiteFrame } from '@/components/layout/PublicSiteLayout'
 import { FullScreenLoader } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
@@ -7,7 +8,8 @@ import { LandingPage } from './LandingPage'
 /** Aplicação instalada (PWA em ecrã inteiro ou Capacitor): mantém o splash e o onboarding. */
 export function isInstalledApp(): boolean {
   if (typeof window === 'undefined') return false
-  if ('Capacitor' in window) return true
+  // `window.Capacitor` existe também no browser: só a plataforma nativa conta.
+  if (Capacitor.isNativePlatform()) return true
   return Boolean(window.matchMedia?.('(display-mode: standalone)').matches)
 }
 
