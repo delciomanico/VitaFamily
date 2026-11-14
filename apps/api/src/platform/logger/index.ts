@@ -49,6 +49,27 @@ function defaultRedactPaths(): string[] {
   return paths;
 }
 
+/**
+ * Campos de erros do driver `pg` (`DatabaseError`) que contêm valores das linhas/parâmetros (ex.: `Key (email)=(x) already
+ * exists`, contexto PL/pgSQL, parâmetros da query): podem trazer dados pessoais ou de saúde, logo nunca vão para os logs.
+ */
+const DRIVER_SENSITIVE_ERROR_FIELDS = ["detail", "where", "parameters", "params", "values", "hint", "internalQuery", "query"] as const;
+
+function scrubError(serialized: Record<string, unknown>, depth = 0): Record<string, unknown> {
+  for (const field of DRIVER_SENSITIVE_ERROR_FIELDS) {
+    if (field in serialized) serialized[field] = REDACTED;
+  }
+  const cause = serialized.cause;
+  if (depth < 5 && typeof cause === "object" && cause !== null) serialized.cause = scrubError({ ...(cause as Record<string, unknown>) }, depth + 1);
+  return serialized;
+}
+
+/** Serializador `err`: o do pino com os campos sensíveis do driver de BD redigidos (também em `cause`). */
+export function serializeError(err: unknown): unknown {
+  const serialized: unknown = pino.stdSerializers.err(err as Error);
+  return typeof serialized === "object" && serialized !== null ? scrubError({ ...(serialized as Record<string, unknown>) }) : serialized;
+}
+
 export interface CreateLoggerOptions {
   level?: string;
   /** Caminhos adicionais (sintaxe de `pino.redact`) para redigir, além da lista por defeito. */
@@ -61,6 +82,7 @@ export interface CreateLoggerOptions {
 export function createLogger(options: CreateLoggerOptions = {}): Logger {
   const opts = {
     level: options.level ?? "info",
+    serializers: { err: serializeError },
     redact: {
       paths: [...defaultRedactPaths(), ...(options.redactPaths ?? [])],
       censor: REDACTED,

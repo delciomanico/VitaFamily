@@ -1,3 +1,4 @@
+import { Writable } from "node:stream";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import request from "supertest";
@@ -154,5 +155,83 @@ describe("createApp", () => {
       .send({ outcomeNote: "Consulta concluída.", prescription: null });
     expect(response.status).toBe(401);
     expect(problemBody(response).code).toBe("UNAUTHENTICATED");
+  });
+});
+
+describe("trust proxy (TRUST_PROXY)", () => {
+  // O peer TCP do supertest é 127.0.0.1/::ffff:127.0.0.1 (o último proxy, p.ex. nginx do web).
+  async function ipSeen(trustProxy: number | string[] | undefined, xff?: string): Promise<string> {
+    const app = createApp({
+      openApiSpecPath: OPENAPI_SPEC_PATH,
+      logger: silentLogger,
+      ...(trustProxy === undefined ? {} : { trustProxy }),
+      registerHealthRoutes: (router) => {
+        router.get("/health", (req, res) => res.json({ ip: req.ip }));
+      },
+    });
+    const req = request(app).get("/health");
+    if (xff) void req.set("X-Forwarded-For", xff);
+    return ((await req).body as { ip: string }).ip;
+  }
+
+  it("1 salto (default): XFF 'cliente' -> cliente; XFF forjado pelo cliente não prevalece sobre o que o proxy acrescentou", async () => {
+    expect(await ipSeen(undefined, "203.0.113.7")).toBe("203.0.113.7");
+    // cliente forjou 9.9.9.9; o proxy acrescentou o IP real à direita
+    expect(await ipSeen(1, "9.9.9.9, 203.0.113.7")).toBe("203.0.113.7");
+  });
+
+  it("2 saltos (Traefik -> nginx -> api): usa o cliente; forjado fica à esquerda e é ignorado", async () => {
+    expect(await ipSeen(2, "203.0.113.7, 10.0.0.2")).toBe("203.0.113.7");
+    expect(await ipSeen(2, "9.9.9.9, 203.0.113.7, 10.0.0.2")).toBe("203.0.113.7");
+  });
+
+  it("3 saltos (CDN + Traefik + nginx): usa o cliente; forjado ignorado", async () => {
+    expect(await ipSeen(3, "203.0.113.7, 172.70.0.1, 10.0.0.2")).toBe("203.0.113.7");
+    expect(await ipSeen(3, "9.9.9.9, 203.0.113.7, 172.70.0.1, 10.0.0.2")).toBe("203.0.113.7");
+  });
+
+  it("saltos a menos dão o IP de um proxy (balde global): é o risco que TRUST_PROXY=2 evita", async () => {
+    expect(await ipSeen(1, "203.0.113.7, 10.0.0.2")).toBe("10.0.0.2");
+  });
+
+  it("lista de CIDR: só confia nos proxies listados", async () => {
+    expect(await ipSeen(["loopback", "10.0.0.0/8"], "9.9.9.9, 203.0.113.7, 10.0.0.2")).toBe("203.0.113.7");
+    expect(await ipSeen(["10.0.0.0/8"], "203.0.113.7")).toMatch(/127\.0\.0\.1/);
+  });
+});
+
+describe("error-middleware: erros do driver pg nos logs", () => {
+  it("500 com erro pg: o log não contém detail/where/parameters (canário) e a resposta é neutra", async () => {
+    const chunks: string[] = [];
+    const destination = new Writable({
+      write(chunk: Buffer, _enc, cb) {
+        chunks.push(chunk.toString("utf8"));
+        cb();
+      },
+    });
+    const pgErr = Object.assign(new Error("duplicate key value violates unique constraint"), {
+      code: "23505",
+      detail: "Key (email)=(CANARIO@exemplo.pt) already exists.",
+      where: "CANARIO-WHERE",
+      parameters: ["CANARIO-PARAM"],
+    });
+    const app = createApp({
+      openApiSpecPath: OPENAPI_SPEC_PATH,
+      logger: createLogger({ destination }),
+      registerHealthRoutes: (router) => {
+        router.get("/health", () => {
+          throw pgErr;
+        });
+      },
+      registerRoutes: () => undefined,
+    });
+    const response = await request(app).get("/health");
+    expect(response.status).toBe(500);
+    const logs = chunks.join("");
+    expect(logs).toContain("unhandled_error");
+    for (const canary of ["CANARIO@exemplo.pt", "CANARIO-WHERE", "CANARIO-PARAM"]) {
+      expect(logs).not.toContain(canary);
+      expect(JSON.stringify(response.body)).not.toContain(canary);
+    }
   });
 });

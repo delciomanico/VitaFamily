@@ -46,17 +46,27 @@ export interface CreateAppOptions {
    * para não obrigar os testes de `http.test.ts` a configurá-las.
    */
   metrics?: { middleware: RequestHandler; handler: RequestHandler };
+  /**
+   * Valida também as respostas contra o contrato (500 se divergirem). Desligado em produção (custo por pedido); os testes de
+   * conformidade OpenAPI (TC-SEG-10) ligam-no.
+   */
+  validateResponses?: boolean;
+  /**
+   * Proxies confiáveis para `req.ip` (Express `trust proxy`): nº de saltos ou lista de IP/CIDR.
+   * Por defeito 1 (config `TRUST_PROXY`).
+   */
+  trustProxy?: number | string[];
 }
 
 /** Monta a app Express completa (composition root chama isto uma vez). */
 export function createApp(options: CreateAppOptions): Express {
   const app = express();
   app.disable("x-powered-by");
-  // Único hop confiável entre o cliente e esta app: o nginx do contentor "web" (ADR-019), que
-  // já define X-Forwarded-For. Sem isto, `req.ip` seria sempre o IP do "web", e os limites de
-  // taxa por IP (register, forgot-password, resend-verification) ficariam partilhados por todos
-  // os utilizadores em vez de isolados por cliente real.
-  app.set("trust proxy", 1);
+  // `req.ip` só deve ser o cliente real; o nº de saltos confiáveis depende da topologia de
+  // produção (Traefik -> nginx do web -> api = 2; ver deploy/.env.production.example). Com saltos
+  // a menos, `req.ip` seria o IP de um proxy e os limites por IP virariam um balde global; com
+  // saltos a mais, o cliente poderia forjar X-Forwarded-For.
+  app.set("trust proxy", options.trustProxy ?? 1);
 
   app.use(requestIdMiddleware);
   if (options.metrics) {
@@ -77,7 +87,7 @@ export function createApp(options: CreateAppOptions): Express {
     OpenApiValidator.middleware({
       apiSpec: options.openApiSpecPath,
       validateRequests: true,
-      validateResponses: false,
+      validateResponses: options.validateResponses ?? false,
       validateSecurity: {
         handlers: options.securityHandlers ?? { bearerAuth: denyAllSecurityHandler },
       },

@@ -35,7 +35,8 @@ import { createAdminModule } from "../modules/admin/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsModule } from "../modules/alerts/index.js";
-import { createInsuranceModule, parseInsuranceSigningKeys } from "../modules/insurance/index.js";
+import { createInsurerSettingsReader, createInsuranceModule, parseInsuranceSigningKeys } from "../modules/insurance/index.js";
+import { createInsurerOpsModule } from "../modules/insurer-ops/index.js";
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
@@ -211,7 +212,25 @@ export function main(): void {
   });
   // M11 (ADR-021, Fase 4a): seguradoras + identidade do portal da seguradora (terceiro ator),
   // separada de `User`/`ClinicAccount`; reutiliza o mesmo SMTP, com porta e parser de chaves próprios.
+  // ADR-025 (S1, modules.md §2 nota 23): `insurer-ops` e `insurance` não se importam; ligam-se por portas aqui.
+  const insurerOps = createInsurerOpsModule({
+    db,
+    audit,
+    clock,
+    insurers: createInsurerSettingsReader(),
+    claimCodeSecret: config.CLINIC_LINK_CODE_SECRET,
+    // S3 (nota 23b): lista de clínicas parceiras de `clinics`, por porta (insurer-ops não importa clinics).
+    partnerClinics: clinics.partnerClinicDirectory,
+    // S6 (nota 23a): rotas do paciente autorizadas por `access.policy` (MANAGE_INSURANCE) através de uma porta.
+    patientAccess: {
+      authorize: async (trx, { actor, familyId, memberId }) => {
+        const ctx = await access.policy.can(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, action: "MANAGE_INSURANCE", subjectMemberId: memberId });
+        return { relation: ctx.relation ?? "OTHER" };
+      },
+    },
+  });
   const insurance = createInsuranceModule({
+    operationalData: insurerOps.operationalData,
     db,
     audit,
     access,
@@ -611,6 +630,7 @@ export function main(): void {
   const app = createApp({
     openApiSpecPath: OPENAPI_SPEC_PATH,
     logger,
+    trustProxy: config.TRUST_PROXY,
     securityHandlers: { ...auth.securityHandlers, ...clinics.clinicSecurityHandlers, ...insurance.insuranceSecurityHandlers },
     actorContextMiddleware,
     metrics: { middleware: metrics.httpMiddleware, handler: metrics.handler },
@@ -630,6 +650,7 @@ export function main(): void {
       router.use(insurance.router);
       router.use(insurance.adminRouter);
       router.use(insurance.insurancePortalRouter);
+      router.use(insurerOps.router);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);

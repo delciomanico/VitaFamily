@@ -11,12 +11,32 @@ const booleanEnv = (defaultValue: boolean) =>
     .default(String(defaultValue))
     .transform((value) => value === "true");
 
+/**
+ * `TRUST_PROXY`: nº de saltos de proxy confiáveis (inteiro >= 0) ou lista de IP/CIDR separada por
+ * vírgulas (formato do `trust proxy` do Express). Default "1" (comportamento histórico).
+ */
+const IP_OR_CIDR = /^[0-9a-fA-F:.]+(\/\d{1,3})?$/;
+const trustProxyEnv = z
+  .string()
+  .default("1")
+  .transform((raw, ctx): number | string[] => {
+    const value = raw.trim();
+    if (/^\d+$/.test(value)) return Number(value);
+    const parts = value.split(",").map((part) => part.trim());
+    if (value === "" || !parts.every((part) => IP_OR_CIDR.test(part))) {
+      ctx.addIssue({ code: "custom", message: "TRUST_PROXY deve ser um inteiro de saltos ou lista de IP/CIDR separada por vírgulas" });
+      return z.NEVER;
+    }
+    return parts;
+  });
+
 const envSchema = z.object({
   // Aplicação
   NODE_ENV: z.enum(["local", "test", "staging", "production"]).default("local"),
   PORT: z.coerce.number().int().positive().default(8080),
   APP_BASE_URL: z.string().url().default("http://localhost:8080"),
   PWA_ORIGIN: z.string().default(""),
+  TRUST_PROXY: trustProxyEnv,
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   TERMS_VERSION: z.string().min(1, "TERMS_VERSION é obrigatória (B6)"),
 

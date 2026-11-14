@@ -21,6 +21,7 @@ import { createAlertsWorkerModule } from "../modules/alerts/index.js";
 import { createLifecycleWorkerModule } from "../modules/lifecycle/index.js";
 import { createClinicsWorkerModule } from "../modules/clinics/index.js";
 import { createClinicPatientsWorkerModule } from "../modules/clinic-patients/index.js";
+import { createInsurerOpsWorkerModule } from "../modules/insurer-ops/index.js";
 
 export function main(): void {
   const config = loadConfig();
@@ -125,6 +126,9 @@ export function main(): void {
   // M14 P (BR-CLN-20): limpeza diária dos códigos de ligação expirados/usados.
   const clinicPatientsWorker = createClinicPatientsWorkerModule({ db, audit, clock, boss });
 
+  // ADR-025 (S1): jobs diários da seguradora (`insurer.expire-policies`, `insurer.purge-import-previews`).
+  const insurerOpsWorker = createInsurerOpsWorkerModule({ db, audit, clock, boss });
+
   boss
     .start()
     .then(async () => {
@@ -135,6 +139,7 @@ export function main(): void {
       await lifecycleWorker.registerWorkers();
       await clinicsWorker.registerWorkers();
       await clinicPatientsWorker.registerWorkers();
+      await insurerOpsWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

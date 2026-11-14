@@ -67,7 +67,7 @@ export function getClinicActor(): ClinicActorInfo | undefined {
 export interface InsuranceActorInfo {
   insuranceAccountId: string;
   insurerId: string;
-  role: "INSURANCE_ADMIN" | "INSURANCE_AGENT";
+  role: "INSURANCE_ADMIN" | "INSURANCE_AGENT" | "BENEFICIARY_MANAGER" | "AUTHORIZATION_ANALYST" | "CLAIMS_MANAGER" | "FINANCE_MANAGER";
   sessionId: string;
 }
 

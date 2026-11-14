@@ -187,6 +187,10 @@ export type AuditAction =
   | "ADMIN_INSURER_UPDATE"
   | "ADMIN_INSURER_STATUS"
   | "ADMIN_INSURER_ROOT_ACCOUNT"
+  // ADR-025 (audit.md §3): moeda e módulo operacional da seguradora (só Platform Admin).
+  | "ADMIN_INSURER_CURRENCY_UPDATE"
+  | "ADMIN_INSURER_MODULE_ENABLE"
+  | "ADMIN_INSURER_MODULE_DISABLE"
   | "INSURANCE_ACCOUNT_LOGIN"
   | "INSURANCE_ACCOUNT_LOGIN_FAILED"
   | "INSURANCE_ACCOUNT_LOGOUT"
@@ -199,7 +203,41 @@ export type AuditAction =
   | "INSURANCE_POLICY_DELETE"
   | "CLAIM_SUBMIT"
   | "CLAIM_DECIDE"
-  | "CLAIM_PAID";
+  | "CLAIM_PAID"
+  // Módulo operacional de seguradoras, Fase A/S1 (ADR-025, BR-SEG-15, audit.md §3): `metadata.insurerId` sempre; NUNCA nomes,
+  // documentos de identificação, nº de cartão, códigos nem e-mails — só ids internos, estados (enum) e contagens.
+  | "INSURER_ACCOUNT_CREATE"
+  | "INSURER_ACCOUNT_REMOVE"
+  | "INSURER_COMPANY_CREATE"
+  | "INSURER_COMPANY_UPDATE"
+  | "INSURER_BENEFICIARY_CREATE"
+  | "INSURER_BENEFICIARY_UPDATE"
+  | "INSURER_BENEFICIARY_STATUS"
+  | "INSURER_IMPORT_PREVIEW"
+  | "INSURER_IMPORT_COMMIT"
+  | "INSURER_IMPORT_CANCEL"
+  | "INSURER_LINK_REQUEST"
+  | "INSURER_LINK_DECIDE"
+  | "INSURER_POLICY_CREATE"
+  | "INSURER_POLICY_UPDATE"
+  | "INSURER_POLICY_STATUS"
+  // S2 mínimo/S3 parcial (ADR-025, audit.md §3): `metadata` só com `insurerId`, ids internos, enums e contagens. `ELIGIBILITY_CHECK`
+  // (`actor_type=CLINIC_ACCOUNT`) regista `result` (ELIGIBLE|NOT_ELIGIBLE) e `serviceCode` só se for da lista — NUNCA cartão, QR,
+  // documento nem nome pesquisados; `DENIED` com `metadata.reason=RATE_LIMITED`.
+  | "INSURER_SERVICE_CREATE"
+  | "INSURER_SERVICE_UPDATE"
+  | "INSURER_PLAN_CREATE"
+  | "INSURER_PLAN_STATUS"
+  | "INSURER_PLAN_NEW_VERSION"
+  | "INSURER_COVERAGE_UPDATE"
+  | "INSURER_PROVIDER_CREATE"
+  | "INSURER_PROVIDER_STATUS"
+  | "ELIGIBILITY_CHECK"
+  // S6 parcial (app do paciente, audit.md §3): ator `USER` com `familyId`/`subjectMemberId`; `metadata` só `insurerId` (+`step`/`reason`);
+  // NUNCA o código de reclamação, o nº de apólice, o nº de cartão nem o token do QR.
+  | "INSURER_LINK_REVOKE"
+  | "CARD_QR_ISSUE"
+  | "COVERAGE_VIEW";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT";
 

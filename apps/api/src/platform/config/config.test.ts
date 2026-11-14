@@ -77,4 +77,13 @@ describe("loadConfig", () => {
     expect(config.S3_USE_SSL).toBe(true);
     expect(config.METRICS_ENABLED).toBe(true);
   });
+
+  describe("TRUST_PROXY", () => {
+    it("default 1; inteiro; lista de CIDR; inválido falha", () => {
+      expect(loadConfig(validEnv()).TRUST_PROXY).toBe(1);
+      expect(loadConfig(validEnv({ TRUST_PROXY: "2" })).TRUST_PROXY).toBe(2);
+      expect(loadConfig(validEnv({ TRUST_PROXY: "10.0.0.0/8, 172.16.0.0/12" })).TRUST_PROXY).toEqual(["10.0.0.0/8", "172.16.0.0/12"]);
+      expect(() => loadConfig(validEnv({ TRUST_PROXY: "true" }))).toThrowError(/TRUST_PROXY/);
+    });
+  });
 });

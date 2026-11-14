@@ -78,4 +78,25 @@ describe("Secret", () => {
     const secret = new Secret("valor-real");
     expect(secret.reveal()).toBe("valor-real");
   });
+
+  it("redige detail/where/parameters (e equivalentes) de erros do driver pg, também em cause; mantém message/code/constraint", () => {
+    const { stream, lines } = captureLines();
+    const logger = createLogger({ destination: stream });
+    const pgErr = Object.assign(new Error('duplicate key value violates unique constraint "users_email_key"'), {
+      code: "23505",
+      constraint: "users_email_key",
+      detail: "Key (email)=(CANARIO@exemplo.pt) already exists.",
+      where: "SQL statement com CANARIO-WHERE",
+      parameters: ["CANARIO-PARAM"],
+      hint: "CANARIO-HINT",
+    });
+    const wrapper = new Error("wrapper", { cause: pgErr });
+    logger.error({ err: pgErr }, "db_error");
+    logger.error({ err: wrapper }, "db_error_wrapped");
+    const raw = JSON.stringify(lines());
+    for (const canary of ["CANARIO@exemplo.pt", "CANARIO-WHERE", "CANARIO-PARAM", "CANARIO-HINT"]) expect(raw).not.toContain(canary);
+    const [first] = lines();
+    expect(first?.err).toMatchObject({ code: "23505", constraint: "users_email_key", detail: "[REDACTED]", where: "[REDACTED]", parameters: "[REDACTED]" });
+    expect(JSON.stringify(first?.err)).toContain("users_email_key");
+  });
 });
