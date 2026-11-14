@@ -93,9 +93,20 @@ export function RegisterPage() {
             error={errors.confirmPassword?.message}
             {...register('confirmPassword')}
           />
-          {/* TODO(fase 12): ligar às páginas de Termos e Política de privacidade. */}
           <Checkbox
-            label="Li e aceito os Termos de utilização e a Política de privacidade."
+            label={
+              <>
+                Li e aceito os{' '}
+                <a href={paths.termsPublic} target="_blank" rel="noreferrer" className="font-semibold text-primary underline">
+                  Termos de utilização
+                </a>{' '}
+                e a{' '}
+                <a href={paths.privacyPublic} target="_blank" rel="noreferrer" className="font-semibold text-primary underline">
+                  Política de privacidade
+                </a>
+                .
+              </>
+            }
             error={errors.acceptTerms?.message}
             {...register('acceptTerms')}
           />

@@ -5,6 +5,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { ClinicPortalRoot, ClinicShell } from '@/components/layout/ClinicShell'
 import { InsurancePortalRoot, InsuranceShell } from '@/components/layout/InsuranceShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
+import { PublicSiteLayout } from '@/components/layout/PublicSiteLayout'
 import { HomePage } from '@/pages/home/HomePage'
 import { ForgotPasswordPage } from '@/pages/public/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/pages/public/ResetPasswordPage'
@@ -12,7 +13,7 @@ import { InviteAcceptPage } from '@/pages/public/InviteAcceptPage'
 import { LoginPage } from '@/pages/public/LoginPage'
 import { OnboardingPage } from '@/pages/public/OnboardingPage'
 import { RegisterPage } from '@/pages/public/RegisterPage'
-import { SplashPage } from '@/pages/public/SplashPage'
+import { RootPage } from '@/pages/site/RootPage'
 import { VerifyPage } from '@/pages/public/VerifyPage'
 import { SetupFamilyPage } from '@/pages/setup/SetupFamilyPage'
 import { SetupHealthPage } from '@/pages/setup/SetupHealthPage'
@@ -45,10 +46,22 @@ function page<M extends Record<N, ComponentType>, N extends keyof M & string>(lo
 }
 
 export const routes: RouteObject[] = [
+  { path: paths.splash, element: <RootPage /> },
+  {
+    // Site público: páginas informativas e entrada nos portais (F0.2).
+    element: <PublicSiteLayout />,
+    children: [
+      { path: paths.enter, ...page(() => import('@/pages/site/EnterPage'), 'EnterPage') },
+      { path: paths.requestAccessPattern, ...page(() => import('@/pages/site/RequestAccessPage'), 'RequestAccessPage') },
+      { path: paths.contact, ...page(() => import('@/pages/site/ContactPage'), 'ContactPage') },
+      { path: paths.faq, ...page(() => import('@/pages/site/FaqPage'), 'FaqPage') },
+      { path: paths.termsPublic, ...page(() => import('@/pages/site/LegalPages'), 'TermsPublicPage') },
+      { path: paths.privacyPublic, ...page(() => import('@/pages/site/LegalPages'), 'PrivacyPublicPage') },
+    ],
+  },
   {
     element: <PublicLayout />,
     children: [
-      { path: paths.splash, element: <SplashPage /> },
       { path: paths.onboarding, element: <OnboardingPage /> },
       { path: paths.inviteAccept, element: <InviteAcceptPage /> },
       {

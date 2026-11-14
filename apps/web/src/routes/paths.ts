@@ -9,6 +9,15 @@ export const paths = {
   verify: '/verify',
   inviteAccept: '/invite/accept',
 
+  /** Site público (F0.2): entrada, pedidos de acesso e páginas institucionais. */
+  enter: '/entrar',
+  requestAccess: (kind: 'clinica' | 'seguradora') => `/solicitar-acesso/${kind}`,
+  requestAccessPattern: '/solicitar-acesso/:kind',
+  contact: '/contacto',
+  faq: '/faq',
+  termsPublic: '/termos',
+  privacyPublic: '/privacidade',
+
   setupFamily: '/setup/family',
   setupHealth: '/setup/health',
   setupMembers: '/setup/members',

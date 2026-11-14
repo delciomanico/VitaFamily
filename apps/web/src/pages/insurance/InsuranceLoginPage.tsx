@@ -87,6 +87,16 @@ export function InsuranceLoginPage() {
               Entrar na Vita Family
             </Link>
           </p>
+          <p className="text-center text-sm text-muted">
+            Ainda não tem acesso?{' '}
+            <Link to={paths.requestAccess('seguradora')} className="font-semibold text-primary hover:underline">
+              Solicitar acesso
+            </Link>
+            {' · '}
+            <Link to={paths.enter} className="font-semibold text-primary hover:underline">
+              Outro portal
+            </Link>
+          </p>
         </form>
       </div>
     </div>

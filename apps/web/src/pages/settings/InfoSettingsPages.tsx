@@ -1,21 +1,33 @@
-import { CircleHelp, FileText } from 'lucide-react'
-import { EmptyState } from '@/components/ui/states'
-import { TERMS_VERSION } from '@/services/auth.service'
+import { CircleHelp } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Card } from '@/components/ui/Card'
+import { PrivacyContent, TermsContent } from '@/pages/site/legal'
+import { site } from '@/lib/site'
+import { paths } from '@/routes/paths'
 import { SettingsSubPage } from './SettingsPage'
 
 /*
- * Ajuda, Termos e Política de privacidade: os textos ainda não existem em docs/ (BR-ACC-03 só fixa a versão).
- * Não se inventa conteúdo; as páginas ficam prontas para o receber.
+ * Ajuda, Termos e Política de privacidade. Os textos legais são resumos informativos até à revisão
+ * jurídica (docs/08-security/privacy.md): reutilizam o conteúdo das páginas públicas.
  */
 
 export function HelpPage() {
   return (
     <SettingsSubPage title="Ajuda">
-      <EmptyState
-        icon={CircleHelp}
-        title="Em breve"
-        description="A ajuda e o contacto de suporte estão em preparação."
-      />
+      <Card className="flex flex-col gap-3">
+        <CircleHelp className="size-6 text-primary" aria-hidden />
+        <p>
+          Consulte as{' '}
+          <Link to={paths.faq} className="font-semibold text-primary hover:underline">
+            perguntas frequentes
+          </Link>{' '}
+          ou escreva-nos para{' '}
+          <a href={`mailto:${site.contactEmail}`} className="font-semibold text-primary hover:underline">
+            {site.contactEmail}
+          </a>
+          . Nunca envie palavras-passe nem dados de saúde por e-mail.
+        </p>
+      </Card>
     </SettingsSubPage>
   )
 }
@@ -23,11 +35,7 @@ export function HelpPage() {
 export function TermsPage() {
   return (
     <SettingsSubPage title="Termos">
-      <EmptyState
-        icon={FileText}
-        title={`Versão ${TERMS_VERSION}`}
-        description="O texto dos termos de utilização está em preparação."
-      />
+      <TermsContent />
     </SettingsSubPage>
   )
 }
@@ -35,11 +43,7 @@ export function TermsPage() {
 export function PrivacyPolicyPage() {
   return (
     <SettingsSubPage title="Política de privacidade">
-      <EmptyState
-        icon={FileText}
-        title={`Versão ${TERMS_VERSION}`}
-        description="O texto da política de privacidade está em preparação."
-      />
+      <PrivacyContent />
     </SettingsSubPage>
   )
 }
