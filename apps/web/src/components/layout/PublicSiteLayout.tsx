@@ -20,7 +20,7 @@ const links = [
 export function SiteFrame({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const appEntry = useAppEntry()
-  const linkClass = 'rounded-full px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-foreground'
+  const linkClass = 'rounded-full px-4 py-2 text-base font-medium text-muted transition-colors hover:text-foreground'
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
@@ -31,7 +31,7 @@ export function SiteFrame({ children }: { children: ReactNode }) {
         Saltar para o conteúdo
       </a>
       <header className="sticky top-0 z-30 border-b border-border bg-surface/95 pt-safe backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 lg:px-8">
+        <div className="mx-auto flex h-20 max-w-7xl items-center gap-4 px-5 lg:px-10">
           <Link to={paths.splash} aria-label="Vita Family, página inicial">
             <Logo />
           </Link>
@@ -54,11 +54,11 @@ export function SiteFrame({ children }: { children: ReactNode }) {
           </nav>
           <div className="ml-auto flex items-center gap-2">
             {appEntry ? (
-              <ButtonLink to={appEntry} size="sm">
+              <ButtonLink to={appEntry}>
                 Abrir a app
               </ButtonLink>
             ) : (
-              <ButtonLink to={paths.enter} size="sm">
+              <ButtonLink to={paths.enter}>
                 Entrar
               </ButtonLink>
             )}
@@ -96,14 +96,14 @@ export function SiteFrame({ children }: { children: ReactNode }) {
       </main>
 
       <footer className="border-t border-border bg-surface">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:grid-cols-3 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 pb-[max(4rem,env(safe-area-inset-bottom))] sm:grid-cols-3 lg:px-10">
           <div className="flex flex-col gap-3">
             <Logo />
-            <p className="max-w-xs text-sm text-muted">
+            <p className="max-w-xs text-base text-muted">
               A saúde da família num só lugar, ligada às clínicas e seguradoras que a acompanham.
             </p>
           </div>
-          <nav aria-label="Entrar" className="flex flex-col gap-2 text-sm">
+          <nav aria-label="Entrar" className="flex flex-col gap-3 text-base">
             <p className="font-semibold">Aceder</p>
             <Link to={paths.login} className="text-muted hover:text-foreground">
               Famílias
@@ -115,7 +115,7 @@ export function SiteFrame({ children }: { children: ReactNode }) {
               Portal da seguradora
             </Link>
           </nav>
-          <nav aria-label="Institucional" className="flex flex-col gap-2 text-sm">
+          <nav aria-label="Institucional" className="flex flex-col gap-3 text-base">
             <p className="font-semibold">Informação</p>
             <Link to={paths.faq} className="text-muted hover:text-foreground">
               Perguntas frequentes

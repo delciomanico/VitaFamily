@@ -7,8 +7,8 @@ import { paths } from '@/routes/paths'
 export function ContactPage() {
   usePageTitle('Contacto')
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12 lg:py-16">
-      <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">Contacto</h1>
+    <div className="mx-auto max-w-2xl px-4 py-16 lg:py-24">
+      <h1 className="text-4xl leading-tight font-bold tracking-tight md:text-5xl">Contacto</h1>
       <p className="mt-2 text-muted">Dúvidas, apoio ou interesse em ligar a sua clínica ou seguradora? Fale connosco.</p>
       <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
         <div className="flex items-center gap-3">

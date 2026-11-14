@@ -37,8 +37,8 @@ const faqs: { q: string; a: string }[] = [
 export function FaqPage() {
   usePageTitle('Perguntas frequentes')
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 lg:py-16">
-      <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">Perguntas frequentes</h1>
+    <div className="mx-auto max-w-3xl px-4 py-16 lg:py-24">
+      <h1 className="text-4xl leading-tight font-bold tracking-tight md:text-5xl">Perguntas frequentes</h1>
       <div className="mt-8 flex flex-col gap-3">
         {faqs.map(({ q, a }) => (
           <details key={q} className="group rounded-2xl border border-border bg-surface p-4 shadow-card">

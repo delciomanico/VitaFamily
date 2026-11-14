@@ -46,12 +46,12 @@ export function EnterPage() {
   usePageTitle('Entrar')
   const appEntry = useAppEntry()
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12 lg:px-8 lg:py-16">
-      <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">Como pretende entrar?</h1>
-      <p className="mt-2 max-w-xl text-muted">
+    <div className="mx-auto max-w-5xl px-4 py-16 lg:px-8 lg:py-24">
+      <h1 className="text-4xl leading-tight font-bold tracking-tight md:text-5xl">Como pretende entrar?</h1>
+      <p className="mt-4 max-w-xl text-lg text-muted">
         Escolha o seu perfil. Cada portal tem contas próprias, por isso a sessão de um não dá acesso ao outro.
       </p>
-      <ul className="mt-8 grid gap-4 md:grid-cols-3">
+      <ul className="mt-12 grid gap-6 md:grid-cols-3">
         {cards.map(({ title, text, icon: Icon, login: loginTo, loginLabel: loginText, extra: extraLink }) => {
           // Com sessão de família já aberta, o cartão leva direto à app.
           const signedIn = title === 'Famílias' && appEntry
@@ -59,17 +59,17 @@ export function EnterPage() {
           const loginLabel = signedIn ? 'Abrir a minha área' : loginText
           const extra = signedIn ? null : extraLink
           return (
-          <li key={title} className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 shadow-card">
-            <span className="flex size-12 items-center justify-center rounded-2xl bg-primary-soft text-primary">
+          <li key={title} className="flex flex-col gap-5 rounded-3xl border border-border bg-surface p-7 shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-overlay">
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-primary-soft text-primary">
               <Icon className="size-6" aria-hidden />
             </span>
             <div className="flex-1">
-              <h2 className="text-lg font-bold">{title}</h2>
-              <p className="mt-1 text-sm text-muted">{text}</p>
+              <h2 className="text-2xl font-bold">{title}</h2>
+              <p className="mt-2 text-base text-muted">{text}</p>
             </div>
             <Link
               to={login}
-              className="flex h-11 items-center justify-between rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground shadow-button hover:bg-primary-hover"
+              className="flex h-12 items-center justify-between rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground shadow-button hover:bg-primary-hover"
             >
               {loginLabel}
               <ArrowRight className="size-4" aria-hidden />

@@ -70,8 +70,8 @@ export function RequestAccessPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-12 lg:py-16">
-      <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight">{config.title}</h1>
+    <div className="mx-auto max-w-xl px-4 py-16 lg:py-24">
+      <h1 className="text-4xl leading-tight font-bold tracking-tight md:text-5xl">{config.title}</h1>
       <p className="mt-2 text-muted">{config.lead}</p>
 
       {sent ? (
