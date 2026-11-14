@@ -37,8 +37,8 @@ interface PortalLoginScreenProps {
 }
 
 /**
- * Login dos portais: formulário simples à esquerda e fotografia em carrossel numa moldura
- * arredondada à direita (fundo escuro no backoffice); em ecrãs pequenos, só o formulário. O redirecionamento depois de entrar é feito pelo guard
+ * Login dos portais: um único contentor retangular centrado, com o formulário à esquerda e a
+ * fotografia em carrossel à direita (fundo escuro no backoffice); em ecrãs pequenos, só o formulário. O redirecionamento depois de entrar é feito pelo guard
  * de cada portal.
  */
 export function PortalLoginScreen({
@@ -70,67 +70,66 @@ export function PortalLoginScreen({
   }
 
   return (
-    <div className="grid min-h-dvh bg-surface lg:grid-cols-2">
-      <div className="flex flex-col bg-background px-6 pt-[max(1.25rem,env(safe-area-inset-top))] pb-8 lg:px-14">
-        <header className="flex items-center justify-between">
-          <Link to={paths.splash} aria-label="Vita Family, página inicial">
-            <Logo />
-          </Link>
-          <Link
-            to={paths.enter}
-            className="-mr-3 inline-flex h-11 items-center gap-2 rounded-full px-3 text-base font-medium text-muted hover:bg-surface-muted hover:text-foreground"
-          >
-            <ArrowLeft className="size-5" aria-hidden />
-            Escolher portal
-          </Link>
-        </header>
+    <div className="grid min-h-dvh place-items-center bg-background p-4 lg:p-10">
+      {/* Um único contentor retangular com o formulário e a imagem. */}
+      <div className="grid w-full max-w-5xl animate-rise overflow-hidden rounded-md border border-border bg-surface shadow-overlay lg:min-h-[38rem] lg:grid-cols-2">
+        <div className="flex flex-col px-6 pt-6 pb-8 md:px-12 md:pt-8 md:pb-12">
+          <header className="flex items-center justify-between">
+            <Link to={paths.splash} aria-label="Vita Family, página inicial">
+              <Logo />
+            </Link>
+            <Link
+              to={paths.enter}
+              className="-mr-3 inline-flex h-11 items-center gap-2 rounded-full px-3 text-base font-medium text-muted hover:bg-surface-muted hover:text-foreground"
+            >
+              <ArrowLeft className="size-5" aria-hidden />
+              Escolher portal
+            </Link>
+          </header>
 
-        <main className="flex flex-1 items-center justify-center py-10">
-          <div className="w-full max-w-md animate-rise rounded-md border border-border bg-surface p-8 shadow-card md:p-10">
-          <span className="flex size-12 items-center justify-center rounded-md bg-primary-soft text-primary">
-            <BadgeIcon className="size-7" aria-hidden />
-          </span>
-          <p className="mt-5 text-sm font-semibold tracking-wide text-primary uppercase">{badge}</p>
-          <h1 className="mt-2 text-3xl leading-[1.15] font-bold tracking-tight text-balance md:text-4xl">{title}</h1>
+          <main className="flex flex-1 flex-col justify-center py-10">
+            <span className="flex size-12 items-center justify-center rounded-md bg-primary-soft text-primary">
+              <BadgeIcon className="size-7" aria-hidden />
+            </span>
+            <p className="mt-5 text-sm font-semibold tracking-wide text-primary uppercase">{badge}</p>
+            <h1 className="mt-2 text-3xl leading-[1.15] font-bold tracking-tight text-balance md:text-4xl">{title}</h1>
 
-          {notice ?? (
-            <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-8 flex flex-col gap-5">
-              <Input
-                label={emailLabel}
-                type="email"
-                icon={Mail}
-                placeholder={emailPlaceholder}
-                autoComplete="email"
-                error={errors.email?.message}
-                {...register('email')}
-              />
-              <PasswordInput
-                label="Palavra-passe"
-                autoComplete="current-password"
-                error={errors.password?.message}
-                {...register('password')}
-              />
-              <FormError message={formError} />
-              <Button type="submit" size="lg" fullWidth loading={isSubmitting} className="h-14 rounded-md! text-base">
-                {submitLabel}
-              </Button>
-              {footerLink && (
-                <p className="text-center text-base text-muted">
-                  {footerLink.prefix}{' '}
-                  <Link to={footerLink.to} className="font-semibold text-primary hover:underline">
-                    {footerLink.label}
-                  </Link>
-                </p>
-              )}
-            </form>
-          )}
-          </div>
-        </main>
-      </div>
+            {notice ?? (
+              <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-8 flex flex-col gap-5">
+                <Input
+                  label={emailLabel}
+                  type="email"
+                  icon={Mail}
+                  placeholder={emailPlaceholder}
+                  autoComplete="email"
+                  error={errors.email?.message}
+                  {...register('email')}
+                />
+                <PasswordInput
+                  label="Palavra-passe"
+                  autoComplete="current-password"
+                  error={errors.password?.message}
+                  {...register('password')}
+                />
+                <FormError message={formError} />
+                <Button type="submit" size="lg" fullWidth loading={isSubmitting} className="h-14 rounded-md! text-base">
+                  {submitLabel}
+                </Button>
+                {footerLink && (
+                  <p className="text-center text-base text-muted">
+                    {footerLink.prefix}{' '}
+                    <Link to={footerLink.to} className="font-semibold text-primary hover:underline">
+                      {footerLink.label}
+                    </Link>
+                  </p>
+                )}
+              </form>
+            )}
+          </main>
+        </div>
 
-      {/* Imagem à direita, em moldura arredondada; sem texto por cima. */}
-      <aside aria-hidden className="hidden p-4 lg:block">
-        <div className="relative isolate h-full overflow-hidden rounded-[2rem] bg-foreground">
+        {/* Imagem encostada ao contentor, sem texto por cima (fundo escuro no backoffice). */}
+        <aside aria-hidden className="relative isolate hidden overflow-hidden bg-foreground lg:block">
           {images ? (
             <HeroMedia images={images.map((src) => ({ src }))} />
           ) : (
@@ -140,8 +139,8 @@ export function PortalLoginScreen({
               <LockKeyhole className="absolute top-1/2 left-1/2 size-24 -translate-x-1/2 -translate-y-1/2 text-white/30" strokeWidth={1.25} />
             </div>
           )}
-        </div>
-      </aside>
+        </aside>
+      </div>
     </div>
   )
 }
