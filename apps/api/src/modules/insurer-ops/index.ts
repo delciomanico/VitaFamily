@@ -48,7 +48,16 @@ import {
   createListCardsUseCase,
   createRevokeCardClaimUseCase,
 } from "./application/patient-insurance.js";
-import type { InsurerSettingsPort, OpsDeps, PartnerClinicDirectory, PatientAccessPort } from "./application/ports.js";
+import type { AttachmentFiles, InsurerSettingsPort, OpsDeps, PartnerClinicDirectory, PatientAccessPort, ProcessLinker } from "./application/ports.js";
+import { createAddAuthorizationAttachmentUseCase } from "./application/add-authorization-attachment.js";
+import { createAppealAuthorizationUseCase } from "./application/appeal-authorization.js";
+import { createCancelAuthorizationUseCase } from "./application/cancel-authorization.js";
+import { createCreateAuthorizationUseCase } from "./application/create-authorization.js";
+import { createExpireInfoRequestsJobUseCase } from "./application/expire-info-requests.js";
+import { createGetCoverageFactsUseCase } from "./application/get-coverage-facts.js";
+import { createGetAuthorizationUseCase, createListAuthorizationsUseCase } from "./application/list-authorizations.js";
+import { createRemoveAuthorizationAttachmentUseCase } from "./application/remove-authorization-attachment.js";
+import { createRespondAuthorizationUseCase } from "./application/respond-authorization.js";
 import { createCreateProviderUseCase, createListPartnerClinicsUseCase, createListProvidersUseCase, createSetProviderStatusUseCase } from "./application/providers.js";
 import { createClassifyServicesUseCase } from "./application/classify-services.js";
 import { createCreateServiceKindUseCase } from "./application/create-service-kind.js";
@@ -62,7 +71,8 @@ import { createCreateServiceUseCase, createListServicesUseCase, createUpdateServ
 import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
 import { KyselyCatalogTypesRepository, KyselyPlansRepository, KyselyPolicySettingsRepository, KyselyServiceKindsRepository, KyselyServicesRepository } from "./infrastructure/catalog-repo.js";
 import { KyselyEligibilityRepository, KyselyProvidersRepository } from "./infrastructure/clinic-repo.js";
-import { registerExpirePoliciesWorker, registerPurgeImportPreviewsWorker } from "./infrastructure/jobs.js";
+import { KyselyAuthorizationsRepository } from "./infrastructure/authorizations-repo.js";
+import { registerExpireInfoRequestsWorker, registerExpirePoliciesWorker, registerPurgeImportPreviewsWorker } from "./infrastructure/jobs.js";
 import { KyselyPatientInsuranceRepository } from "./infrastructure/patient-repo.js";
 import {
   KyselyBeneficiariesRepository,
@@ -71,11 +81,13 @@ import {
   KyselyLinkRequestsRepository,
   KyselyPoliciesRepository,
 } from "./infrastructure/repo.js";
+import { createClinicAuthorizationsRouter, type InsurerClinicAuthorizationsController } from "./interface/clinic-authorizations-router.js";
 import { createInsurerClinicRouter, type InsurerClinicController } from "./interface/clinic-router.js";
 import { createInsurerPatientRouter, type InsurerPatientController } from "./interface/patient-router.js";
 import { createInsurerOpsRouter, type InsurerOpsController } from "./interface/portal-router.js";
 
 export type { OpsActor, OpsRole } from "./domain/access.js";
+export type { AttachmentFiles, ProcessLinker } from "./application/ports.js";
 
 export interface InsurerOpsModuleDeps {
   db: Kysely<Database>;
@@ -89,6 +101,10 @@ export interface InsurerOpsModuleDeps {
   partnerClinics: PartnerClinicDirectory<Kysely<Database>>;
   /** `AccessPolicy.can(MANAGE_INSURANCE)` (§8.5) — porta ligada em `main/api.ts` sobre `access.policy` (modules.md §2 nota 23a). */
   patientAccess: PatientAccessPort<Kysely<Database>>;
+  /** `ProcessLinker` (ADR-034): implementada por `processes`, ligada em `main/api.ts` (`insurer-ops` e `processes` não se importam). */
+  processes: ProcessLinker<Kysely<Database>>;
+  /** Ficheiros dos anexos (Storage + antivírus + outbox `file_deletions`), ligada em `main/api.ts` (nota 31d). */
+  files: AttachmentFiles<Kysely<Database>>;
 }
 
 export interface InsurerOpsModule {
@@ -96,6 +112,8 @@ export interface InsurerOpsModule {
   router: Router;
   /** `InsurerOperationalDataPort` de `insurance` (BR-SEG-19): a seguradora já tem beneficiários/apólices? */
   operationalData: { hasData: (trx: Kysely<Database>, insurerId: string) => Promise<boolean> };
+  /** Implementa `ProcessFacts.getCoverageFacts` de `processes` (ADR-034): ligada em `main/api.ts`. */
+  getCoverageFacts: ReturnType<typeof createGetCoverageFactsUseCase<Kysely<Database>>>;
 }
 
 function createOpsDeps(deps: InsurerOpsModuleDeps): OpsDeps<Kysely<Database>> {
@@ -113,6 +131,9 @@ function createOpsDeps(deps: InsurerOpsModuleDeps): OpsDeps<Kysely<Database>> {
     plans: new KyselyPlansRepository(),
     providers: new KyselyProvidersRepository(),
     eligibility: new KyselyEligibilityRepository(),
+    authorizations: new KyselyAuthorizationsRepository(),
+    processes: deps.processes,
+    files: deps.files,
     partnerClinics: deps.partnerClinics,
     patients: new KyselyPatientInsuranceRepository(),
     patientAccess: deps.patientAccess,
@@ -177,6 +198,16 @@ export function createInsurerOpsModule(deps: InsurerOpsModuleDeps): InsurerOpsMo
     checkEligibility: createCheckEligibilityUseCase(ops),
     listClinicInsurerServices: createListClinicInsurerServicesUseCase(ops),
   };
+  const authorizationsController: InsurerClinicAuthorizationsController = {
+    createAuthorization: createCreateAuthorizationUseCase(ops),
+    listAuthorizations: createListAuthorizationsUseCase(ops),
+    getAuthorization: createGetAuthorizationUseCase(ops),
+    respondAuthorization: createRespondAuthorizationUseCase(ops),
+    cancelAuthorization: createCancelAuthorizationUseCase(ops),
+    appealAuthorization: createAppealAuthorizationUseCase(ops),
+    addAuthorizationAttachment: createAddAuthorizationAttachmentUseCase(ops),
+    removeAuthorizationAttachment: createRemoveAuthorizationAttachmentUseCase(ops),
+  };
   const patientController: InsurerPatientController = {
     listCardClaims: createListCardClaimsUseCase(ops),
     claimCard: createClaimCardUseCase(ops),
@@ -189,8 +220,10 @@ export function createInsurerOpsModule(deps: InsurerOpsModuleDeps): InsurerOpsMo
   router.use(createInsurerOpsRouter(controller));
   router.use(createInsurerPatientRouter(patientController));
   router.use(createInsurerClinicRouter(clinicController));
+  router.use(createClinicAuthorizationsRouter(authorizationsController));
   return {
     router,
+    getCoverageFacts: createGetCoverageFactsUseCase(ops),
     operationalData: {
       hasData: async (trx, insurerId) => (await ops.beneficiaries.hasAny(trx, insurerId)) || (await ops.policies.hasAny(trx, insurerId)),
     },
@@ -205,12 +238,14 @@ export interface InsurerOpsWorkerModuleDeps {
 }
 
 export interface InsurerOpsWorkerModule {
-  /** Jobs diários `insurer.expire-policies` e `insurer.purge-import-previews` — só o processo "worker" chama isto. */
+  /** Jobs diários `insurer.expire-policies`, `insurer.purge-import-previews` e `insurer.expire-info-requests` — só o processo "worker" chama isto. */
   registerWorkers: () => Promise<void>;
   /** A expiração em si (idempotente), exposta para testes e execução manual. */
   expirePolicies: ReturnType<typeof createExpirePoliciesJobUseCase<Kysely<Database>>>;
   /** Expurgo (idempotente) dos lotes de importação em PREVIEW com mais de 24 h — job `insurer.purge-import-previews`. */
   purgeImportPreviews: ReturnType<typeof createPurgeImportPreviewsJobUseCase<Kysely<Database>>>;
+  /** Caducidade (idempotente) dos pedidos de informação sem resposta — job `insurer.expire-info-requests` (00:50 UTC, BR-AUT-14). */
+  expireInfoRequests: ReturnType<typeof createExpireInfoRequestsJobUseCase<Kysely<Database>>>;
 }
 
 /** Composition root do processo "worker": só BD, auditoria e relógio. */
@@ -227,12 +262,20 @@ export function createInsurerOpsWorkerModule(deps: InsurerOpsWorkerModuleDeps): 
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
   });
+  const expireInfoRequests = createExpireInfoRequestsJobUseCase<Kysely<Database>>({
+    authorizations: new KyselyAuthorizationsRepository(),
+    audit: deps.audit,
+    withTransaction: (fn) => withTransaction(deps.db, fn),
+    clock: deps.clock,
+  });
   return {
     expirePolicies,
     purgeImportPreviews,
+    expireInfoRequests,
     registerWorkers: async () => {
       await registerExpirePoliciesWorker(deps.boss, expirePolicies);
       await registerPurgeImportPreviewsWorker(deps.boss, purgeImportPreviews);
+      await registerExpireInfoRequestsWorker(deps.boss, expireInfoRequests);
     },
   };
 }

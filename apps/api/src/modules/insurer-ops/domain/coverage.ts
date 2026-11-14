@@ -132,3 +132,32 @@ export function evaluateCoverage(plan: CoveragePlan, beneficiary: CoverageBenefi
   }
   return decision;
 }
+
+/** Semáforo de elegibilidade para a clínica (BR-SEG-43): GREEN = coberto sem autorização; YELLOW = pedir autorização; RED = não coberto. */
+export type EligibilityLight = "GREEN" | "YELLOW" | "RED";
+
+/**
+ * Mapeia SÓ a saída de `evaluateCoverage` (nunca recalcula cobertura, TC-COV-13). Carência e limite esgotado são AMARELO:
+ * a decisão humana pode sobrepor-se (BR-SEG-04, UC-SEG-07); a cor não distingue as três causas, e a razão nunca sai (BR-SEG-18).
+ */
+export function toEligibilityLight(decision: Pick<CoverageDecision, "reason" | "requiresAuthorization">): EligibilityLight {
+  switch (decision.reason) {
+    case "COVERED":
+      return decision.requiresAuthorization ? "YELLOW" : "GREEN";
+    case "WAITING_PERIOD":
+    case "LIMIT_EXHAUSTED":
+      return "YELLOW";
+    case "BENEFICIARY_NOT_ACTIVE":
+    case "POLICY_NOT_ACTIVE":
+    case "OUTSIDE_POLICY_PERIOD":
+    case "SERVICE_INACTIVE":
+    case "NOT_IN_PLAN":
+    case "EXCLUDED":
+      return "RED";
+  }
+}
+
+/** Copagamento do prestador (Q-C1): % que o paciente paga no balcão = 100 − % da seguradora; `null` se VERMELHO. */
+export function patientSharePctFor(light: EligibilityLight, insurerPct: number): number | null {
+  return light === "RED" ? null : Math.round((100 - insurerPct) * 100) / 100;
+}

@@ -9,7 +9,7 @@ export function toProcessResponse(view: ProcessView) {
     memberId: view.memberId,
     kind: view.kind,
     familyStatus: view.familyStatus,
-    nextStep: { code: view.nextStep.code, actor: view.nextStep.actor },
+    nextStep: { code: view.nextStep.code, actor: view.nextStep.actor, ...(view.nextStep.dueAt ? { dueAt: view.nextStep.dueAt.toISOString() } : {}) },
     origin: { type: view.origin.type, id: view.origin.id },
     scheduledAt: view.scheduledAt,
     openedAt: view.openedAt,

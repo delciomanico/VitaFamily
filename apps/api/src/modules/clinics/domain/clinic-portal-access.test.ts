@@ -10,6 +10,7 @@ import { createAppointmentsClinicPortalRouter } from "../../appointments/interfa
 import { createClinicPatientsPortalRouter } from "../../clinic-patients/interface/portal-router.js";
 import { createClinicReceiptsPortalRouter } from "../../clinic-receipts/interface/portal-router.js";
 import { createClinicReportsPortalRouter } from "../../clinic-reports/interface/portal-router.js";
+import { createClinicAuthorizationsRouter } from "../../insurer-ops/interface/clinic-authorizations-router.js";
 import { createInsurerClinicRouter } from "../../insurer-ops/interface/clinic-router.js";
 import { createExaminationsClinicPortalRouter } from "../../examinations/interface/clinic-portal-router.js";
 import { createProcessesClinicPortalRouter } from "../../processes/interface/clinic-portal-router.js";
@@ -56,6 +57,7 @@ const ROUTERS = [
   createClinicReportsPortalRouter(stub),
   createClinicAuditRouter(stub),
   createInsurerClinicRouter(stub),
+  createClinicAuthorizationsRouter(stub),
 ];
 
 describe("matriz papel × rota do portal da clínica (TC-AZ-CLN-V5)", () => {
@@ -101,6 +103,15 @@ describe("matriz papel × rota do portal da clínica (TC-AZ-CLN-V5)", () => {
     ["PUT", "/clinic-portal/exam-agenda/abc/results-draft", "yes", "yes", "own"],
     ["DELETE", "/clinic-portal/exam-agenda/abc/results-draft", "yes", "yes", "own"],
     ["GET", "/clinic-portal/exam-agenda/abc/report/pdf", "yes", "yes", "own"],
+    // TC-AZ-AUT-01 (authorization.md §6.2b/§8.4): as 8 rotas de pedidos de autorização — Admin e Gestor; o Médico ⇒ FORBIDDEN.
+    ["POST", "/clinic-portal/authorizations", "yes", "yes", "no"],
+    ["GET", "/clinic-portal/authorizations", "yes", "yes", "no"],
+    ["GET", "/clinic-portal/authorizations/abc", "yes", "yes", "no"],
+    ["POST", "/clinic-portal/authorizations/abc/respond", "yes", "yes", "no"],
+    ["POST", "/clinic-portal/authorizations/abc/cancel", "yes", "yes", "no"],
+    ["POST", "/clinic-portal/authorizations/abc/appeals", "yes", "yes", "no"],
+    ["POST", "/clinic-portal/authorizations/abc/attachments", "yes", "yes", "no"],
+    ["DELETE", "/clinic-portal/authorizations/abc/attachments/def", "yes", "yes", "no"],
   ];
   it.each(expected)("%s %s => Admin %s · Gestor %s · Médico %s", (method, path, admin, manager, doctor) => {
     const rule = findPortalRule(method, `/api/v1${path}`);

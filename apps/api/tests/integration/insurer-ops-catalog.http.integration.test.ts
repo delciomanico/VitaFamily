@@ -725,14 +725,14 @@ describe("integração HTTP: módulo operacional de seguradoras, S2 mínimo e S3
       expect(res.text).not.toContain("Consulta B");
     });
 
-    it("auditoria ELIGIBILITY_CHECK (BR-SEG-15/18): uma entrada por validação, actor CLINIC_ACCOUNT, `metadata` só com insurerId/result/serviceCode; nenhum canário em auditoria nem em logs", async () => {
+    it("auditoria ELIGIBILITY_CHECK (BR-SEG-15/18): uma entrada por validação, actor CLINIC_ACCOUNT, `metadata` só com insurerId/result/serviceCode/light (fatia 3, audit.md); nenhum canário em auditoria nem em logs", async () => {
       const rows = await col("SELECT actor_type::text AS actor_type, actor_clinic_account_id, actor_clinic_id, resource_type, resource_id, result::text AS result, metadata FROM audit_logs WHERE action='ELIGIBILITY_CHECK'");
       expect(rows.length).toBeGreaterThan(20);
       for (const r of rows) {
         expect(r.actor_type).toBe("CLINIC_ACCOUNT");
         expect(r.actor_clinic_id).toBe(id.clinicAlfa);
         expect(r.resource_type).toBe("Insurer");
-        expect(Object.keys(r.metadata as object).every((k) => ["insurerId", "result", "serviceCode", "reason"].includes(k))).toBe(true);
+        expect(Object.keys(r.metadata as object).every((k) => ["insurerId", "result", "serviceCode", "reason", "light"].includes(k))).toBe(true);
         expect((r.metadata as { insurerId: string }).insurerId).toBe(id.insA);
       }
       const results = new Set(rows.map((r) => (r.metadata as { result?: string }).result));

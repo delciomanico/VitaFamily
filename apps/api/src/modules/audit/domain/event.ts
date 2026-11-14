@@ -248,7 +248,16 @@ export type AuditAction =
   // `familyStatus`, `nextStep`, fase do ato, nome da clínica nem datas.
   | "PROCESS_OPEN"
   | "PROCESS_DISCARD"
-  | "PROCESS_VIEW";
+  | "PROCESS_VIEW"
+  // Pedido de autorização pelo prestador (marco B fatia 3, ADR-034, audit.md §3): `resourceType=AuthorizationRequest`;
+  // `metadata` só com `insurerId`, ids, enums e contagens — NUNCA justificação, mensagens, valores, nome/nº do beneficiário,
+  // código de autorização, identificação pesquisada nem o nome dos ficheiros.
+  | "AUTHORIZATION_SUBMIT"
+  | "AUTHORIZATION_INFO_RESPOND"
+  | "AUTHORIZATION_CANCEL"
+  | "AUTHORIZATION_ATTACHMENT_ADD"
+  | "AUTHORIZATION_ATTACHMENT_REMOVE"
+  | "AUTHORIZATION_INFO_TIMEOUT";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT";
 

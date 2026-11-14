@@ -610,3 +610,23 @@ describe('auditoria da clínica sem PII (BR-CLN-40)', () => {
     expect(page.items.some((e) => e.action === 'CLINIC_ACCOUNT_LOGIN' && e.actorAccountId === null)).toBe(true)
   })
 })
+
+describe('«Concluir ato»: complete com receipt (BR-CLN-57)', () => {
+  it('Admin/Gestor: conclui a consulta e emite o recibo na mesma operação', async () => {
+    const a = completed({ status: 'SCHEDULED' })
+    const booking = await portal.completeClinicAppointment(MANAGER, a.id, { outcomeNote: 'ok', receipt: { paymentMethod: 'CARD' } }, NOW)
+    expect(booking).toMatchObject({ status: 'COMPLETED' })
+    expect(db.clinicReceipts.filter((r) => r.bookingId === a.id)).toHaveLength(1)
+    expect(booking.receiptId).toBeDefined()
+  })
+
+  it('Médico com receipt ⇒ FORBIDDEN sem efeito; recibo que falha (serviço sem preço) ⇒ consulta continua SCHEDULED', async () => {
+    const a = completed({ status: 'SCHEDULED' })
+    expect(await code(portal.completeClinicAppointment(DOCTOR, a.id, { outcomeNote: 'ok', receipt: { paymentMethod: 'CASH' } }, NOW))).toBe('FORBIDDEN')
+    expect(db.appointments.find((x) => x.id === a.id)?.status).toBe('SCHEDULED')
+    const noPrice = completed({ status: 'SCHEDULED', slotId: undefined })
+    expect(await code(portal.completeClinicAppointment(MANAGER, noPrice.id, { receipt: { paymentMethod: 'CASH' } }, NOW))).toBe('VALIDATION_ERROR')
+    expect(db.appointments.find((x) => x.id === noPrice.id)?.status).toBe('SCHEDULED')
+    expect(db.clinicReceipts).toHaveLength(0)
+  })
+})

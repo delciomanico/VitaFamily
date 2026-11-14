@@ -46,6 +46,8 @@ describe("BR-SEG-41 uma só função de cobertura (TC-COV-13)", () => {
     const literals = /["'`](CONSULTATION|SERVICES|ADMISSION|INPATIENT|CHILDBIRTH|DIAGNOSTICS|TREATMENT|DENTAL|PROSTHETICS|MEDICATION|DAILY_ALLOWANCE|AUTHORIZATION_DECISION_HOURS|APPEAL_REQUEST_DAYS|APPEAL_RESPONSE_HOURS|INFO_REQUEST_EXPIRY_DAYS|URGENT_NOTICE_HOURS)["'`]/;
     const offenders: string[] = [];
     for (const file of await files(MODULE)) {
+      // Fatia 3: `domain/policy-setting.ts` é o ÚNICO sítio que nomeia as chaves (`POLICY_KEYS`); os valores nunca (TC-AUT-18).
+      if (file.endsWith(join("domain", "policy-setting.ts"))) continue;
       const text = (await readFile(file, "utf8")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
       if (literals.test(text)) offenders.push(file);
     }

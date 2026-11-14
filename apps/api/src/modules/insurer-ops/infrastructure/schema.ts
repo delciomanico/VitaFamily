@@ -166,6 +166,65 @@ export interface InsurerProvidersTable extends Timestamps {
   status: ColumnType<"ACTIVE" | "SUSPENDED", "ACTIVE" | "SUSPENDED" | undefined, "ACTIVE" | "SUSPENDED">;
 }
 
+type NullableTime = ColumnType<Date | null, Date | null | undefined, Date | null>;
+type Money = ColumnType<string, number | string, number | string>;
+type AuthorizationStatusDb = "SUBMITTED" | "IN_REVIEW" | "INFO_REQUESTED" | "APPROVED" | "REJECTED" | "CANCELLED";
+
+/** Fatia 3 (`0039`, schema.md §3c): nenhuma coluna clínica (C2, TC-AUT-17). `created_at`/`updated_at` definidos pela aplicação. */
+export interface InsurerAuthorizationsTable {
+  id: string;
+  insurer_id: string;
+  beneficiary_id: string;
+  provider_id: string;
+  service_id: string;
+  guide_type: string;
+  process_id: ColumnType<string | null, string | null | undefined, string | null>;
+  parent_request_id: ColumnType<string | null, string | null | undefined, string | null>;
+  status: ColumnType<AuthorizationStatusDb, AuthorizationStatusDb | undefined, AuthorizationStatusDb>;
+  closed_reason: ColumnType<"INFO_TIMEOUT" | "CLINIC_CANCELLED" | null, "INFO_TIMEOUT" | "CLINIC_CANCELLED" | null | undefined, "INFO_TIMEOUT" | "CLINIC_CANCELLED" | null>;
+  justification: string;
+  requested_amount: Money;
+  authorized_amount: ColumnType<string | null, number | string | null | undefined, number | string | null>;
+  expected_on: ColumnType<string, string, string>;
+  code: ColumnType<string | null, string | null | undefined, string | null>;
+  valid_until: NullableTime;
+  decision_note: ColumnType<string | null, string | null | undefined, string | null>;
+  decided_by_insurance_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  decided_at: NullableTime;
+  decision_due_at: ColumnType<Date, Date, Date>;
+  info_expires_at: NullableTime;
+  submitted_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  created_at: ColumnType<Date, Date, never>;
+  updated_at: ColumnType<Date, Date, Date>;
+}
+
+export interface InsurerAuthorizationEventsTable {
+  id: Generated<string>;
+  insurer_id: string;
+  authorization_id: string;
+  from_status: AuthorizationStatusDb | null;
+  to_status: AuthorizationStatusDb;
+  actor_type: "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT" | "SYSTEM";
+  actor_account_id: string | null;
+  channel: "PORTAL" | "PHONE" | "WHATSAPP" | "PHOTO" | "API";
+  note: string | null;
+  occurred_at: Date;
+}
+
+export interface InsurerAttachmentsTable {
+  id: string;
+  insurer_id: string;
+  authorization_id: string;
+  kind: "QUOTE" | "INSURER_FORM" | "ID_COPY" | "OTHER_ADMIN";
+  storage_key: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: ColumnType<string, number, never>;
+  checksum_sha256: string;
+  uploaded_by_clinic_account_id: string | null;
+  created_at: ColumnType<Date, Date, never>;
+}
+
 declare module "../../../platform/db/index.js" {
   interface Database {
     insurer_companies: InsurerCompaniesTable;
@@ -182,5 +241,8 @@ declare module "../../../platform/db/index.js" {
     insurer_policy_settings: InsurerPolicySettingsTable;
     insurer_plan_coverages: InsurerPlanCoveragesTable;
     insurer_providers: InsurerProvidersTable;
+    insurer_authorizations: InsurerAuthorizationsTable;
+    insurer_authorization_events: InsurerAuthorizationEventsTable;
+    insurer_attachments: InsurerAttachmentsTable;
   }
 }

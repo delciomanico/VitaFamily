@@ -141,14 +141,15 @@ describe("listProcesses (UC-PRC-03, AC-PRC-03)", () => {
     fx.policy.deniedCategories.add("EXAMS");
     expect((await list()).items.map((i) => i.id)).toEqual(["a"]);
     fx.policy.deniedCategories.add("APPOINTMENTS");
+    fx.policy.deniedActions.add("MANAGE_INSURANCE");
     fx.facts.requests.length = 0;
     expect(await list()).toEqual({ items: [], nextCursor: null });
     expect(fx.facts.requests).toHaveLength(0);
   });
 
-  it("TC-AZ-PRC-06 a política é chamada uma vez por categoria (READ) e o Platform Admin recebe 404", async () => {
+  it("TC-AZ-PRC-06 / TC-AZ-AUT-05 a política é chamada uma vez por categoria (READ) e uma vez por MANAGE_INSURANCE (origem AUTHORIZATION) e o Platform Admin recebe 404", async () => {
     await list();
-    expect(fx.policy.calls.map((c) => [c.action, c.category, c.subjectMemberId])).toEqual([["READ", "APPOINTMENTS", MEMBER], ["READ", "EXAMS", MEMBER]]);
+    expect(fx.policy.calls.map((c) => [c.action, c.category, c.subjectMemberId])).toEqual([["READ", "APPOINTMENTS", MEMBER], ["READ", "EXAMS", MEMBER], ["MANAGE_INSURANCE", undefined, MEMBER]]);
     await expect(list({}, { userId: "admin", platformAdmin: true })).rejects.toBeInstanceOf(NotFoundError);
   });
 

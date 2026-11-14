@@ -24,3 +24,15 @@ export function formatPercent(value: number): string {
 export function formatDays(days: number): string {
   return `${days} ${days === 1 ? 'dia' : 'dias'}`
 }
+
+/**
+ * Valor escrito à mão em pt-PT: «15000,50», «1.500,50», «1 500», «1500.5». `null` se não for um valor positivo com até 2 casas.
+ */
+export function parseAmount(text: string): number | null {
+  let t = text.trim().replace(/\s/g, '')
+  if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.')
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '')
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return null
+  const value = Number(t)
+  return value > 0 ? value : null
+}

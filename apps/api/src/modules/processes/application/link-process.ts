@@ -3,6 +3,7 @@
 // implementa (ligada em `main/api.ts`).
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
+import { kindOfOrigin } from "../domain/process.js";
 import type { DiscardProcessInput, OpenProcessInput, ProcessActor, ProcessesDeps } from "./ports.js";
 
 function actorFields(by: ProcessActor) {
@@ -22,7 +23,7 @@ export function createOpenProcessUseCase<Trx>(deps: ProcessesDeps<Trx>) {
       id: newId(),
       familyId: input.familyId,
       memberId: input.memberId,
-      kind: "ROUTINE",
+      kind: kindOfOrigin(input.originType),
       originType: input.originType,
       originId: input.originId,
       openedAt: now,
@@ -64,5 +65,13 @@ export function createDiscardProcessUseCase<Trx>(deps: ProcessesDeps<Trx>) {
       result: "SUCCESS",
       metadata: { originType: input.originType },
     });
+  };
+}
+
+/** `ProcessLinker.findForClinic` (fatia 3, BR-AUT-01): só leitura; valida o `processId` de um pedido (da clínica do token). */
+export function createFindProcessForClinicUseCase<Trx>(deps: ProcessesDeps<Trx>) {
+  return async function findProcessForClinic(trx: Trx, input: { clinicId: string; processId: string }): Promise<{ processId: string; familyId: string; memberId: string } | null> {
+    const process = await deps.repo.findOfClinic(trx, input.clinicId, input.processId);
+    return process ? { processId: process.id, familyId: process.familyId, memberId: process.memberId } : null;
   };
 }

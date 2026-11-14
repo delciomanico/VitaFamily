@@ -408,6 +408,18 @@ export interface ConsultationReportsPort<Trx> {
   appointmentExamOrderCounts(trx: Trx, appointmentIds: string[]): Promise<Map<string, number>>;
 }
 
+/**
+ * «Concluir ato» (marco B fatia 3, BR-CLN-57, modules.md §3 nota 31e): `receipt` em `PUT …/complete`. Definida aqui, implementada por
+ * `clinic-receipts` e ligada em `main/api.ts` (`appointments` nunca importa `clinic-receipts`; sem aresta nova).
+ */
+export interface CompletionReceiptIssuer<Trx> {
+  /**
+   * Emite o recibo (BR-CLN-31..35) na transação do chamador, DEPOIS de a marcação ficar `COMPLETED`. Só Admin/Gestor (Médico ⇒
+   * `FORBIDDEN`, e a transação do chamador reverte); `receipt` é validado por quem implementa; segundo recibo ⇒ `CONFLICT`.
+   */
+  issue(trx: Trx, actor: ClinicPortalActor, kind: "APPOINTMENT" | "VISIT", bookingId: string, receipt: unknown, context: RequestContext): Promise<void>;
+}
+
 /** Quem abriu/apagou o ato, para a auditoria `PROCESS_*` (feita por `processes`; audit.md §3). */
 export interface ProcessActor {
   actorType: "USER" | "CLINIC_ACCOUNT";
@@ -459,6 +471,8 @@ export interface AppointmentsDeps<Trx> {
   receipts: ReceiptIdsPort<Trx>;
   /** M15 S (BR-CLN-42/45): relatório da consulta (implementada por `clinic-reports`). */
   consultationReports: ConsultationReportsPort<Trx>;
+  /** «Concluir ato» (BR-CLN-57): recibo na mesma transação da conclusão (implementada por `clinic-receipts`). */
+  completionReceipts: CompletionReceiptIssuer<Trx>;
   /** Marco B fatia 1 (BR-PRC-01): abre/apaga o `Process` do ato (implementada por `processes`). */
   processes: ProcessLinkerPort<Trx>;
   /** BR-CLN-10: rate limit dos endpoints walk-in (por conta, por IP, falhas 404). */

@@ -7,8 +7,8 @@ export interface ProcessesTable {
   id: string;
   family_id: string;
   member_id: string;
-  kind: "ROUTINE";
-  origin_type: "APPOINTMENT" | "EXAMINATION";
+  kind: "ROUTINE" | "AUTHORIZED";
+  origin_type: "APPOINTMENT" | "EXAMINATION" | "AUTHORIZATION";
   origin_id: string;
   clinic_id: ColumnType<string | null, string | null | undefined, string | null>;
   opened_at: Date;

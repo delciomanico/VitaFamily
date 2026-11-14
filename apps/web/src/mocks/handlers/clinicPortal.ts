@@ -28,6 +28,7 @@ import { linkMember, patientOfMember } from '../clinicPatients'
 import { overlappingSlot, timeOffAt } from '../clinicSchedule'
 import { deriveDayState, waitingMinutesOf } from '@/lib/clinicDay'
 import { issuedReceiptOf } from '../clinicReceipts'
+import { issueReceiptNow } from './clinicReceipts'
 import { examReportLines, reportStatusOf, validateExamResults } from '../clinicReports'
 import {
   isDoctor,
@@ -525,6 +526,8 @@ export function completeClinicAppointment(
     const { clinicId } = account
     // `report` (M15 S, BR-CLN-44): Admin/Gestor ⇒ FORBIDDEN antes de qualquer efeito.
     if ((input.report || input.examOrders) && account.role !== 'CLINIC_DOCTOR') throw new AppError('FORBIDDEN')
+    // `receipt` (BR-CLN-57): só Admin/Gestor; o Médico ⇒ FORBIDDEN sem efeito.
+    if (input.receipt && account.role === 'CLINIC_DOCTOR') throw new AppError('FORBIDDEN')
     const visit = findVisit(clinicId, appointmentId)
     if (visit && !ownsVisit(account, visit)) throw new AppError('NOT_FOUND')
     if (visit) {
@@ -576,6 +579,15 @@ export function completeClinicAppointment(
     }
 
     appointment.status = 'COMPLETED'
+    if (input.receipt) {
+      // Tudo ou nada: se o recibo falhar, a consulta volta a SCHEDULED e nada é gravado (BR-CLN-57).
+      try {
+        issueReceiptNow(clinicAccountId, { bookingKind: 'APPOINTMENT', bookingId: appointmentId, paymentMethod: input.receipt.paymentMethod }, now)
+      } catch (error) {
+        appointment.status = 'SCHEDULED'
+        throw error
+      }
+    }
     const outcomeNote = input.outcomeNote?.trim()
     if (outcomeNote) {
       db.appointmentOutcomes.push({ appointmentId, outcomeNote, recordedAt: now.toISOString() })

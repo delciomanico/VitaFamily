@@ -22,6 +22,9 @@ export type ErrorCode =
   | 'MEMBER_BLOCKED'
   | 'FILE_TOO_LARGE'
   | 'FILE_TYPE_NOT_ALLOWED'
+  | 'INVALID_STATE_TRANSITION'
+  | 'DOCUMENT_LIMIT_EXCEEDED'
+  | 'SERVICE_UNAVAILABLE'
   | 'UNKNOWN'
 
 export class AppError extends Error {
@@ -61,6 +64,9 @@ const messages: Record<ErrorCode, string> = {
   MEMBER_BLOCKED: 'O perfil deste membro está bloqueado.',
   FILE_TOO_LARGE: 'O ficheiro é demasiado grande.',
   FILE_TYPE_NOT_ALLOWED: 'Tipo de ficheiro não permitido. Use CSV ou XLSX.',
+  INVALID_STATE_TRANSITION: 'O pedido já mudou de estado. Atualize a página.',
+  DOCUMENT_LIMIT_EXCEEDED: 'Já tem 5 anexos neste pedido. Remova um para juntar outro.',
+  SERVICE_UNAVAILABLE: 'Não foi possível verificar o ficheiro agora. Tente mais tarde.',
   UNKNOWN: 'Algo correu mal. Tente novamente.',
 }
 
@@ -71,4 +77,10 @@ export function errorMessage(error: unknown): string {
 
 export function isAppError(error: unknown, code: ErrorCode): boolean {
   return error instanceof AppError && error.code === code
+}
+
+/** Anexos da clínica (PDF, JPG ou PNG até 10 MB): ficheiro demasiado grande ou tipo não aceite têm a mesma frase. */
+export const ATTACHMENT_FILE_HELP = 'Use PDF, JPG ou PNG, até 10 MB.'
+export function attachmentErrorMessage(error: unknown): string {
+  return isAppError(error, 'FILE_TYPE_NOT_ALLOWED') || isAppError(error, 'FILE_TOO_LARGE') ? ATTACHMENT_FILE_HELP : errorMessage(error)
 }

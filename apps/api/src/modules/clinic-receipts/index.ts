@@ -17,7 +17,7 @@ import {
   createReceiptRefsUseCase,
 } from "./application/claim-lookup.js";
 import { createGetFamilyReceiptUseCase, createListFamilyReceiptsUseCase } from "./application/family-receipts.js";
-import { createIssueReceiptUseCase } from "./application/issue-receipt.js";
+import { createIssueReceiptUseCase, createIssueReceiptWithCompleteUseCase } from "./application/issue-receipt.js";
 import { createGetReceiptUseCase, createListReceiptsUseCase } from "./application/list-receipts.js";
 import type {
   AttachedClaimsPort,
@@ -60,6 +60,8 @@ export interface ClinicReceiptsModule {
   clinicPortalRouter: Router;
   /** API pública para `appointments`/`examinations`/`clinic-patients` (decorar `receiptId`, nunca para o Médico). */
   findIssuedReceiptIds: ReturnType<typeof createFindIssuedReceiptIdsUseCase<Kysely<Database>>>;
+  /** Porta `CompletionReceiptIssuer` de `appointments` («Concluir ato», BR-CLN-57): emite o recibo na transação da conclusão. */
+  issueWithComplete: ReturnType<typeof createIssueReceiptWithCompleteUseCase<Kysely<Database>>>;
   /** Porta `ClinicReceiptLookup` de `insurance` (BR-CLN-36), ligada em `main/api.ts`. */
   claimLookup: ReturnType<typeof createClinicReceiptLookup<Kysely<Database>>>;
 }
@@ -92,6 +94,7 @@ export function createClinicReceiptsModule(deps: ClinicReceiptsModuleDeps): Clin
       getFamilyClinicReceipt: createGetFamilyReceiptUseCase(receiptsDeps),
     }),
     findIssuedReceiptIds: createFindIssuedReceiptIdsUseCase(receiptsDeps),
+    issueWithComplete: createIssueReceiptWithCompleteUseCase(receiptsDeps),
     claimLookup: createClinicReceiptLookup({
       lockVisibleReceipts: createLockVisibleReceiptsUseCase(receiptsDeps),
       receiptRefs: createReceiptRefsUseCase(receiptsDeps),

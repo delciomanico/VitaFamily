@@ -75,6 +75,12 @@ const ALL: Row[] = [
   // ⇒ FORBIDDEN (decisão do proprietário, 2026-11-11). A ligação clínica↔seguradora (404) é aplicada por `insurer-ops`.
   [["GET"], ["/clinic-portal/insurers", "/clinic-portal/insurers/:insurerId/services"], "yes", "yes", "no"],
   [["POST"], ["/clinic-portal/insurers/:insurerId/eligibility"], "yes", "yes", "no"],
+  // Marco B fatia 3 (ADR-034, authorization.md §6.2b/§8.4): pedidos de autorização do prestador — Admin e Gestor; o Médico ⇒ FORBIDDEN.
+  // O isolamento por clínica (404) e a ligação à seguradora nas escritas (404) são aplicados por `insurer-ops`.
+  [["GET", "POST"], ["/clinic-portal/authorizations"], "yes", "yes", "no"],
+  [["GET"], ["/clinic-portal/authorizations/:authorizationId"], "yes", "yes", "no"],
+  [["POST"], ["/clinic-portal/authorizations/:authorizationId/respond", "/clinic-portal/authorizations/:authorizationId/cancel", "/clinic-portal/authorizations/:authorizationId/appeals", "/clinic-portal/authorizations/:authorizationId/attachments"], "yes", "yes", "no"],
+  [["DELETE"], ["/clinic-portal/authorizations/:authorizationId/attachments/:attachmentId"], "yes", "yes", "no"],
 ];
 
 export const CLINIC_PORTAL_ACCESS: readonly PortalRouteRule[] = ALL.flatMap(([methods, paths, admin, manager, doctor]) =>

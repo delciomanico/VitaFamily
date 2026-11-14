@@ -222,6 +222,8 @@ function completeBody(input: ClinicCompleteInput) {
   const prescription = input.prescription
   return {
     outcomeNote: input.outcomeNote?.trim() || null,
+    // «Concluir ato» (BR-CLN-57): recibo na mesma transação (só Admin/Gestor; o servidor decide).
+    ...(input.receipt ? { receipt: { paymentMethod: input.receipt.paymentMethod } } : {}),
     // M15 S: grava e finaliza o relatório na mesma transação (só o Médico; o servidor decide).
     ...(input.report ? { report: reportBody(input.report) } : {}),
     // M15 U: pedidos de exame na mesma transação (só o Médico; o servidor decide).

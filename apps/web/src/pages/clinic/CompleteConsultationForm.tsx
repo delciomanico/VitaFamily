@@ -34,7 +34,9 @@ import { formatTime } from '@/lib/format'
 import { clinicDayService } from '@/services/clinicDay.service'
 import { clinicPortalService } from '@/services/clinicPortal.service'
 import { clinicReportService } from '@/services/clinicReport.service'
+import { paymentMethodLabel } from '@/lib/receipt'
 import type { ClinicBooking, ClinicPrescriptionMedicationInput } from '@/types/clinic'
+import type { ReceiptPaymentMethod } from '@/types/clinicReceipt'
 
 /** Duração máxima aceite no formulário; acima disso, usar “uso contínuo”. */
 const MAX_DURATION_DAYS = 365
@@ -115,7 +117,8 @@ function TimesField({
 interface CompleteConsultationFormProps {
   booking: ClinicBooking
   onClose: () => void
-  onCompleted: () => void
+  /** `receiptIssued`: o recibo já saiu na mesma operação («Concluir ato»); a página não volta a perguntar. */
+  onCompleted: (info: { receiptIssued: boolean }) => void
 }
 
 /**
@@ -141,6 +144,9 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
   /** Índice do atalho de "Voltar em…" (BR-CLN-30); vazio = sem retorno. */
   const [followUp, setFollowUp] = useState('')
   const [outcomeNote, setOutcomeNote] = useState('')
+  /** «Concluir ato» (BR-CLN-57): recibo na mesma operação; só Admin/Gestor. */
+  const [withReceipt, setWithReceipt] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<ReceiptPaymentMethod>('CASH')
   const [withPrescription, setWithPrescription] = useState(false)
   const [doctorName, setDoctorName] = useState(booking.professionalName ?? '')
   const [prescriptionNotes, setPrescriptionNotes] = useState('')
@@ -211,8 +217,8 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
   }
 
   async function submit() {
-    if (!outcomeNote.trim() && !withPrescription && !withReport && !withOrders) {
-      return setError('Escreva o resultado da consulta ou emita uma receita.')
+    if (!outcomeNote.trim() && !withPrescription && !withReport && !withOrders && !withReceipt) {
+      return setError('Escreva o resultado da consulta, emita uma receita ou o recibo.')
     }
     if (withOrders) {
       const invalid = examOrderRowsError(orderRows)
@@ -231,6 +237,7 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
         // Com texto no relatório, concluir também o finaliza (mesma operação no servidor, BR-CLN-42).
         ...(withReport ? { report: toReportInput(report, shareable) } : {}),
         ...(withOrders ? { examOrders: toExamOrderItems(orderRows) } : {}),
+        ...(withReceipt && !isDoctor ? { receipt: { paymentMethod } } : {}),
         ...(prescriptionMedications
           ? {
               prescription: {
@@ -251,7 +258,7 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
           toast.show('Consulta concluída, mas não foi possível registar o retorno.', 'error')
         }
       }
-      onCompleted()
+      onCompleted({ receiptIssued: withReceipt && !isDoctor })
     } catch (err) {
       setError(errorMessage(err))
     } finally {
@@ -273,7 +280,7 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
             Voltar
           </Button>
           <Button onClick={() => void submit()} loading={saving}>
-            {withReport ? 'Concluir e finalizar' : 'Concluir consulta'}
+            {withReport ? 'Concluir e finalizar' : withReceipt && !isDoctor ? 'Concluir e emitir recibo' : 'Concluir consulta'}
           </Button>
         </>
       }
@@ -296,6 +303,21 @@ export function CompleteConsultationForm({ booking, onClose, onCompleted }: Comp
           options={FOLLOW_UP_PRESETS.map((preset, index) => ({ value: String(index), label: preset.label }))}
           onChange={(event) => setFollowUp(event.target.value)}
         />
+
+        {/* «Concluir ato» (BR-CLN-57): recibo na mesma operação; o Médico não emite recibos (BR-CLN-39). */}
+        {!isDoctor && (
+          <>
+            <Switch label="Emitir recibo" description="O recibo sai ao concluir, com o serviço do horário." checked={withReceipt} onChange={setWithReceipt} />
+            {withReceipt && (
+              <Select
+                label="Forma de pagamento"
+                value={paymentMethod}
+                options={(Object.keys(paymentMethodLabel) as ReceiptPaymentMethod[]).map((m) => ({ value: m, label: paymentMethodLabel[m] }))}
+                onChange={(event) => setPaymentMethod(event.target.value as ReceiptPaymentMethod)}
+              />
+            )}
+          </>
+        )}
 
         {/* Visita presencial manual: sem receita (BR-CLN-18, a receita exige consulta Vita). */}
         {booking.source !== 'MANUAL' && (

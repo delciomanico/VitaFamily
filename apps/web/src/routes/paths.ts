@@ -85,6 +85,8 @@ export const paths = {
   clinicServices: '/clinic/services',
   /** Fase A de seguradoras: validação de beneficiário na clínica (UC-SEG-05). */
   clinicInsurers: '/clinic/insurers',
+  /** Marco B fatia 3: pedidos de autorização do prestador (ADR-034). */
+  clinicAuthorizations: '/clinic/authorizations',
   clinicPatients: '/clinic/patients',
   clinicPatient: (id: string) => `/clinic/patients/${id}`,
   clinicExams: '/clinic/exams',

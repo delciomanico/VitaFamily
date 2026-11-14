@@ -16,6 +16,10 @@ import type { PolicySettingDefinition, StoredPolicySetting } from "../domain/pol
 import type { InsurerService, ServicePatch, ServiceStatus } from "../domain/service.js";
 import type { CatalogTypes, ServiceKind, ServiceKindInput, ServiceKindPatch } from "../domain/service-kind.js";
 import type { InMemoryRateLimiter } from "../domain/rate-limiter.js";
+import type { Authorization, AuthorizationAttachment, AuthorizationEvent, AuthorizationListStatus, AuthorizationRow, ClosedReason, AttachmentKind } from "../domain/authorization.js";
+import type { AuthorizationStatus } from "../domain/authorization-machine.js";
+import type { CoverageFact } from "../domain/coverage-phase.js";
+import type { CoverageLine } from "../domain/coverage.js";
 
 export interface AuditPort<Trx> {
   record(trx: Trx, event: AuditEvent): Promise<void>;
@@ -285,6 +289,121 @@ export interface PatientAccessPort<Trx> {
   authorize(trx: Trx, input: { actor: PatientActor; familyId: string; memberId: string }): Promise<{ relation: string }>;
 }
 
+/** Pedido a gravar (já validado; estado inicial `IN_REVIEW` com os dois eventos, BR-AUT-02/06). */
+export interface NewAuthorizationRecord extends Omit<Authorization, "createdAt" | "updatedAt" | "closedReason" | "authorizedAmount" | "code" | "validUntil" | "decisionNote" | "decidedAt" | "infoExpiresAt"> {
+  submittedByClinicAccountId: string;
+  now: Date;
+}
+
+export interface AuthorizationStatusChange {
+  status: AuthorizationStatus;
+  closedReason: ClosedReason | null;
+  decisionDueAt?: Date;
+  /** `null` limpa o limite (fora de `INFO_REQUESTED`, CHECK da BD). */
+  infoExpiresAt: Date | null;
+  now: Date;
+}
+
+export interface NewAuthorizationEvent {
+  insurerId: string;
+  authorizationId: string;
+  from: AuthorizationStatus | null;
+  to: AuthorizationStatus;
+  actorType: AuthorizationEvent["actorType"];
+  actorAccountId: string | null;
+  /** Só `PORTAL` nesta fatia (marco B §7.5). */
+  channel: "PORTAL";
+  note: string | null;
+  at: Date;
+}
+
+export interface NewAttachmentRecord {
+  id: string;
+  insurerId: string;
+  authorizationId: string;
+  kind: AttachmentKind;
+  storageKey: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksumSha256: string;
+  uploadedByClinicAccountId: string;
+  createdAt: Date;
+}
+
+export interface AuthorizationListFilter {
+  insurerId?: string;
+  status?: AuthorizationListStatus;
+  processId?: string;
+}
+
+/**
+ * `insurer_authorizations` + eventos + anexos (schema.md §3c). As leituras da clínica filtram por `insurer_providers.clinic_id`
+ * (o pedido é da clínica do token; outro caso ⇒ `null` ⇒ `NOT_FOUND`).
+ */
+export interface AuthorizationsRepository<Trx> {
+  /** Beneficiário ligado a um membro (BR-SEG-20): quem o tem; `null` se não ligado. */
+  linkOfBeneficiary(trx: Trx, insurerId: string, beneficiaryId: string): Promise<{ familyId: string; memberId: string } | null>;
+  /** Ligação ATIVA da clínica à seguradora: id do `Provider` (o prestador do pedido). */
+  activeProviderId(trx: Trx, clinicId: string, insurerId: string): Promise<string | null>;
+  /** Serviço da seguradora por código (qualquer estado) com o tipo de guia do `service_kind`; `null` se não existe. */
+  findServiceByCode(trx: Trx, insurerId: string, code: string): Promise<{ id: string; status: "ACTIVE" | "INACTIVE"; guideType: string | null } | null>;
+  /** Linhas do plano (incl. `EXCLUDED`) para `evaluateCoverage`. */
+  planCoverageLines(trx: Trx, insurerId: string, planId: string): Promise<CoverageLine[]>;
+  /** Tipos de guia ativos (dados, `guide_types`). */
+  activeGuideTypes(trx: Trx): Promise<string[]>;
+  /** Duplicado em curso (UNIQUE parcial) ou recurso já vivo ⇒ `ConflictError`. */
+  insert(trx: Trx, record: NewAuthorizationRecord): Promise<void>;
+  insertEvent(trx: Trx, event: NewAuthorizationEvent): Promise<void>;
+  /** Pedido da clínica (por prestador), com `FOR UPDATE` se `lock`. */
+  findForClinic(trx: Trx, clinicId: string, id: string, lock?: boolean): Promise<AuthorizationRow | null>;
+  /** Mais recentes primeiro; até `limit + 1` linhas. */
+  listForClinic(trx: Trx, clinicId: string, filter: AuthorizationListFilter, page: PageQuery): Promise<AuthorizationRow[]>;
+  updateStatus(trx: Trx, insurerId: string, id: string, change: AuthorizationStatusChange): Promise<void>;
+  events(trx: Trx, authorizationIds: string[]): Promise<Map<string, AuthorizationEvent[]>>;
+  attachments(trx: Trx, authorizationIds: string[]): Promise<Map<string, AuthorizationAttachment[]>>;
+  countAttachments(trx: Trx, insurerId: string, authorizationId: string): Promise<number>;
+  insertAttachment(trx: Trx, record: NewAttachmentRecord): Promise<AuthorizationAttachment>;
+  findAttachment(trx: Trx, insurerId: string, authorizationId: string, attachmentId: string): Promise<(AuthorizationAttachment & { storageKey: string }) | null>;
+  deleteAttachment(trx: Trx, insurerId: string, attachmentId: string): Promise<void>;
+  /** Job: `INFO_REQUESTED` com `info_expires_at <= now`, com bloqueio (`FOR UPDATE SKIP LOCKED`). */
+  lockExpiredInfoRequests(trx: Trx, now: Date, limit: number): Promise<{ id: string; insurerId: string }[]>;
+  /** `ProcessFacts.getCoverageFacts`: factos por processo, em lote (projeção pura de `coverage-phase.ts`). */
+  coverageFacts(trx: Trx, processIds: string[]): Promise<{ processId: string; fact: CoverageFact }[]>;
+}
+
+/** Quem abre o processo (audit.md §3): a conta de clínica que submete o pedido. */
+export interface ProcessOpener {
+  actorType: "CLINIC_ACCOUNT";
+  actorClinicAccountId: string;
+  requestId: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+/**
+ * `ProcessLinker` (ADR-034, modules.md nota 31): definida AQUI, implementada por `processes` e ligada em `main/api.ts`;
+ * `insurer-ops` e `processes` não se importam. Corre na transação do pedido (se falha, não há pedido).
+ */
+export interface ProcessLinker<Trx> {
+  /** Idempotente por `(originType, originId)`; `originId` = id do 1.º pedido da cadeia. */
+  open(trx: Trx, input: { familyId: string; memberId: string; originType: "AUTHORIZATION"; originId: string; clinicId: string; by: ProcessOpener }): Promise<{ processId: string }>;
+  /** Só leitura: o processo é da clínica? (valida o `processId` do pedido). */
+  findForClinic(trx: Trx, input: { clinicId: string; processId: string }): Promise<{ processId: string; familyId: string; memberId: string } | null>;
+}
+
+/**
+ * Ficheiros dos anexos (BR-AUT-13; modules.md nota 31d): `Storage` + antivírus + outbox `file_deletions`, ligados em `main/api.ts`.
+ * `insurer-ops` não usa `documents`.
+ */
+export interface AttachmentFiles<Trx> {
+  /** Antivírus síncrono ANTES de gravar; indisponível ⇒ lança (⇒ 503). */
+  scan(buffer: Buffer): Promise<"CLEAN" | "INFECTED">;
+  put(key: string, buffer: Buffer, mimeType: string): Promise<void>;
+  /** Apaga o ficheiro pelo outbox (`file_deletions`), na transação do chamador. */
+  scheduleDelete(trx: Trx, key: string): Promise<void>;
+}
+
 /** Dependências comuns a todos os casos de uso do portal. */
 export interface OpsDeps<Trx> {
   insurers: InsurerSettingsPort<Trx>;
@@ -300,6 +419,9 @@ export interface OpsDeps<Trx> {
   plans: PlansRepository<Trx>;
   providers: ProvidersRepository<Trx>;
   eligibility: EligibilityRepository<Trx>;
+  authorizations: AuthorizationsRepository<Trx>;
+  processes: ProcessLinker<Trx>;
+  files: AttachmentFiles<Trx>;
   partnerClinics: PartnerClinicDirectory<Trx>;
   patients: PatientInsuranceRepository<Trx>;
   patientAccess: PatientAccessPort<Trx>;

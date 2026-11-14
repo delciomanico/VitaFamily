@@ -9,6 +9,7 @@ import type { PrescriptionStatus } from '@/types/prescription'
 import { RELATIONSHIPS, type FamilyRole, type Relationship } from '@/types/family'
 import { BLOOD_TYPES, SEXES, type BloodType, type Sex } from '@/types/health'
 import type { SharingCategory } from '@/types/sharing'
+import type { AuthorizationAttachmentKind, AuthorizationStatus, EligibilityLight } from '@/types/insurerOps'
 import { withFallback } from '@/lib/safe'
 
 /** Textos em pt-PT para valores do domínio. */
@@ -183,3 +184,63 @@ export const bloodTypeOptions: SelectOption[] = BLOOD_TYPES.map((value) => ({
   value,
   label: bloodTypeLabel(value),
 }))
+
+// --- Pedido de autorização do prestador (ADR-034): vocabulário da clínica (glossary.md: guia, autorização, processo, estado) ---
+
+const authorizationStatusBase: Record<AuthorizationStatus, StatusLabel> = {
+  SUBMITTED: { label: 'Enviado', tone: 'primary' },
+  IN_REVIEW: { label: 'Em análise', tone: 'primary' },
+  INFO_REQUESTED: { label: 'Falta informação', tone: 'warning' },
+  APPROVED: { label: 'Aprovado', tone: 'success' },
+  REJECTED: { label: 'Recusado', tone: 'danger' },
+  CANCELLED: { label: 'Cancelado', tone: 'neutral' },
+}
+export const authorizationStatus: Record<AuthorizationStatus, StatusLabel> = withFallback(authorizationStatusBase, () => ({ label: 'Outro', tone: 'neutral' }))
+
+/** Semáforo (BR-SEG-43): sem razões; só diz o que fazer a seguir. */
+export const eligibilityLightLabels: Record<EligibilityLight, { label: string; hint: string; tone: Tone }> = withFallback(
+  {
+    GREEN: { label: 'Coberto', hint: 'Não precisa de autorização. Pode atender.', tone: 'success' as Tone },
+    YELLOW: { label: 'Precisa de autorização', hint: 'Peça a autorização à seguradora antes do serviço.', tone: 'warning' as Tone },
+    RED: { label: 'Não coberto', hint: 'Este serviço não está coberto para este beneficiário.', tone: 'danger' as Tone },
+  },
+  () => ({ label: 'Sem informação', hint: '', tone: 'neutral' as Tone }),
+)
+
+/** Tipos de guia (dados no servidor; tipos novos caem no próprio código). */
+export const guideTypeLabels: Record<string, string> = withFallback(
+  { CONSULTATION: 'Consulta', SERVICES: 'Serviços e exames', ADMISSION: 'Internamento' } as Record<string, string>,
+  (key) => key,
+)
+
+export const attachmentKindLabels: Record<AuthorizationAttachmentKind, string> = withFallback(
+  { QUOTE: 'Orçamento', INSURER_FORM: 'Impresso da seguradora', ID_COPY: 'Cópia do cartão ou BI', OTHER_ADMIN: 'Outro documento administrativo' },
+  (key) => key,
+)
+
+/**
+ * «O que falta e de quem» (`Process.nextStep`, BR-PRC-03) na linguagem da FAMÍLIA: nunca «autorização/seguradora» técnico.
+ * Códigos desconhecidos caem numa frase neutra.
+ */
+export function nextStepSentence(step: { code: string; actor: string; dueAt?: string | null }, formatDay: (iso: string) => string): string {
+  switch (step.code) {
+    case 'AWAIT_INSURER_DECISION':
+      return step.dueAt ? `A seguradora está a analisar; resposta até ${formatDay(step.dueAt)}.` : 'A seguradora está a analisar.'
+    case 'AWAIT_CLINIC_INFORMATION':
+      return 'A clínica vai enviar um documento que falta.'
+    case 'COVERAGE_NOT_APPROVED':
+      return 'A clínica está a tratar disto consigo.'
+    case 'AWAIT_CLINIC_RESPONSE':
+      return 'A clínica ainda tem de responder.'
+    case 'ATTEND':
+      return 'Está tudo pronto para o atendimento.'
+    case 'BEING_ATTENDED':
+      return 'Está a ser atendido.'
+    case 'RESCHEDULE':
+      return 'Pode voltar a marcar.'
+    case 'NOTHING_PENDING':
+      return 'Não falta nada.'
+    default:
+      return 'Estamos a tratar do assunto.'
+  }
+}

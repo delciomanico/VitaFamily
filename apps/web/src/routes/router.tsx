@@ -381,6 +381,10 @@ export const routes: RouteObject[] = [
                     path: 'insurers',
                     ...page(() => import('@/pages/clinic/insurers/ClinicInsurersPage'), 'ClinicInsurersPage'),
                   },
+                  {
+                    path: 'authorizations',
+                    ...page(() => import('@/pages/clinic/authorizations/ClinicAuthorizationsPage'), 'ClinicAuthorizationsPage'),
+                  },
                   { path: 'reports', ...page(() => import('@/pages/clinic/ClinicReportsPage'), 'ClinicReportsPage') },
                   { path: 'slots', ...page(() => import('@/pages/clinic/ClinicSlotsPage'), 'ClinicSlotsPage') },
                   {

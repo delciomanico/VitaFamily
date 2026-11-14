@@ -1,6 +1,6 @@
 // Elegibilidade e resposta mínima à clínica (UC-SEG-05, BR-SEG-01/02/04/18/23). Regras puras.
 // A decisão de elegibilidade/cobertura vive só em `coverage.ts` (BR-SEG-41); aqui ficam o pedido, a resposta mínima e mapeadores.
-import { evaluateCoverage, type CoverageBeneficiary, type CoverageDecision, type CoveragePlan } from "./coverage.js";
+import { evaluateCoverage, patientSharePctFor, toEligibilityLight, type CoverageBeneficiary, type CoverageDecision, type CoveragePlan, type EligibilityLight } from "./coverage.js";
 import { fail, requireText } from "./validation.js";
 
 export { addDays } from "./validation.js";
@@ -61,12 +61,28 @@ export function toCoverageLimits(row: CoverageRowForEligibility, decision: Cover
   };
 }
 
-/** Limites de cada cobertura do plano para um beneficiário numa data: uma chamada a `evaluateCoverage` por linha. */
-export function coverageLimitsFor(rows: CoverageRowForEligibility[], beneficiary: CoverageBeneficiary, date: string): CoverageLimits[] {
-  const plan: CoveragePlan = {
+function planOf(rows: CoverageRowForEligibility[]): CoveragePlan {
+  return {
     coverages: rows.map((r) => ({ serviceId: r.serviceId, type: r.limitPerYear === null ? "INCLUDED" : "LIMITED", copayPct: r.copayPct, limitPerYearMinor: r.limitPerYear === null ? null : Math.round(r.limitPerYear * 100), waitingDays: r.waitingDays, requiresAuthorization: r.requiresAuthorization })),
   };
+}
+
+/** Limites de cada cobertura do plano para um beneficiário numa data: uma chamada a `evaluateCoverage` por linha. */
+export function coverageLimitsFor(rows: CoverageRowForEligibility[], beneficiary: CoverageBeneficiary, date: string): CoverageLimits[] {
+  const plan = planOf(rows);
   return rows.map((row) => toCoverageLimits(row, evaluateCoverage(plan, beneficiary, { id: row.serviceId, status: "ACTIVE" }, date)));
+}
+
+/**
+ * Semáforo e copagamento do serviço pedido (BR-SEG-43): `rows` é a (única) cobertura do `serviceCode` ativo; sem linha
+ * (excluído ou fora do plano) ⇒ VERMELHO. Só mapeia a decisão de `evaluateCoverage`; a razão nunca sai (BR-SEG-18).
+ */
+export function trafficLightFor(rows: CoverageRowForEligibility[], beneficiary: CoverageBeneficiary, date: string): { light: EligibilityLight; patientSharePct: number | null } {
+  const [row] = rows;
+  if (row === undefined) return { light: "RED", patientSharePct: null };
+  const decision = evaluateCoverage(planOf(rows), beneficiary, { id: row.serviceId, status: "ACTIVE" }, date);
+  const light = toEligibilityLight(decision);
+  return { light, patientSharePct: patientSharePctFor(light, decision.copayPct) };
 }
 
 export interface EligibleResult {
@@ -79,6 +95,9 @@ export interface EligibleResult {
   validTo: string;
   currency: string;
   coverages: CoverageLimits[];
+  /** Marco B fatia 3 (BR-SEG-43): só com `serviceCode` ativo. */
+  light?: EligibilityLight;
+  patientSharePct?: number | null;
 }
 
 /** Resposta única para inexistente, inelegível ou QR inválido/expirado/revogado/de outra seguradora (BR-SEG-18). */

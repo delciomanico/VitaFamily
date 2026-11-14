@@ -1,6 +1,8 @@
 // Mapeamento de entidades (application) -> forma da API (components.schemas do openapi.yaml). Nunca expõe ids de família/
 // membro do paciente, hash do código nem dados de saúde (BR-SEG-14/20, ADR-005).
 import type { Page } from "../../../platform/page/index.js";
+import type { AuthorizationAttachment } from "../domain/authorization.js";
+import type { AuthorizationView } from "../application/authorization-support.js";
 import type { Beneficiary } from "../domain/beneficiary.js";
 import type { Company } from "../domain/company.js";
 import { previewOf, type ImportBatch } from "../domain/import-batch.js";
@@ -125,6 +127,7 @@ export const toEligibilityResponse = (r: EligibilityResult) =>
           waitingEndsOn: c.waitingEndsOn,
           requiresAuthorization: c.requiresAuthorization,
         })),
+        ...(r.light !== undefined ? { light: r.light, patientSharePct: r.patientSharePct ?? null } : {}),
       }
     : { eligible: false, notice: r.notice };
 
@@ -201,3 +204,53 @@ export const toPolicySettingResponse = (v: PolicySettingView) => ({
   allowsServiceScope: v.allowsServiceScope,
   serviceOverrides: v.serviceOverrides.map((o) => ({ serviceId: o.serviceId, serviceCode: o.serviceCode, serviceName: o.serviceName, value: o.value })),
 });
+
+// Marco B fatia 3 — pedido de autorização (`AuthorizationRequest*` do contrato). Nunca saldo, razão, notas internas, analista, ids de
+// família/membro nem nº de cartão (BR-AUT-11): a vista da `application` já não os tem.
+export const toAuthorizationAttachmentResponse = (a: AuthorizationAttachment) => ({
+  id: a.id,
+  kind: a.kind,
+  originalName: a.originalName,
+  mimeType: a.mimeType,
+  sizeBytes: a.sizeBytes,
+  createdAt: a.createdAt.toISOString(),
+});
+
+const iso = (date: Date | null): string | null => (date === null ? null : date.toISOString());
+
+export const toAuthorizationResponse = (v: AuthorizationView) => ({
+  id: v.id,
+  insurerId: v.insurerId,
+  insurerName: v.insurerName,
+  beneficiaryName: v.beneficiaryName,
+  serviceCode: v.serviceCode,
+  serviceName: v.serviceName,
+  guideType: v.guideType,
+  currency: v.currency,
+  requestedAmount: v.requestedAmount,
+  authorizedAmount: v.authorizedAmount,
+  partial: v.partial,
+  expectedOn: v.expectedOn,
+  justification: v.justification,
+  status: v.status,
+  closedReason: v.closedReason,
+  decisionNote: v.decisionNote,
+  code: v.code,
+  validUntil: iso(v.validUntil),
+  decisionDueAt: iso(v.decisionDueAt),
+  infoExpiresAt: iso(v.infoExpiresAt),
+  appealOpenUntil: iso(v.appealOpenUntil),
+  processId: v.processId,
+  parentRequestId: v.parentRequestId,
+  allowedActions: v.allowedActions,
+  attachments: v.attachments.map(toAuthorizationAttachmentResponse),
+  createdAt: v.createdAt.toISOString(),
+  updatedAt: v.updatedAt.toISOString(),
+});
+
+export const toAuthorizationDetailResponse = (v: AuthorizationView) => ({
+  ...toAuthorizationResponse(v),
+  timeline: (v.timeline ?? []).map((e) => ({ status: e.status, occurredAt: e.occurredAt.toISOString(), by: e.by, note: e.note })),
+});
+
+export const toAuthorizationPageResponse = (page: Page<AuthorizationView>) => ({ items: page.items.map(toAuthorizationResponse), nextCursor: page.nextCursor });

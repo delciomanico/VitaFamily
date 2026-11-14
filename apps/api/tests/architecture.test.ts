@@ -50,6 +50,38 @@ describe("arquitetura do código real (src/)", () => {
     expect(processPorts).not.toMatch(/export interface ProcessLinkerPort</);
   });
 
+  it("TC-AUT-19 (modules.md nota 31): insurer-ops e processes não se importam; portas onde o contrato manda; ficheiros puros só importam domain/", async () => {
+    const files = await collectImports(SRC_ROOT);
+    const cross = files.filter(
+      (f) =>
+        (f.file.startsWith("modules/insurer-ops/") && f.relativeImports.some((t) => t.startsWith("modules/processes/"))) ||
+        (f.file.startsWith("modules/processes/") && f.relativeImports.some((t) => t.startsWith("modules/insurer-ops/"))),
+    );
+    expect(cross.map((f) => f.file)).toEqual([]);
+    expect(MODULE_DEPENDENCIES["insurer-ops"]).toEqual(["audit"]);
+    expect(MODULE_DEPENDENCIES.processes).toEqual(["access", "audit"]);
+    const read = (m: string, f: string) => readFile(join(SRC_ROOT, "modules", m, "application", f), "utf8");
+    expect(await read("insurer-ops", "ports.ts")).toMatch(/export interface ProcessLinker</);
+    expect(await read("insurer-ops", "ports.ts")).toMatch(/export interface AttachmentFiles</);
+    expect(await read("processes", "ports.ts")).toMatch(/getCoverageFacts\(/);
+    expect(await read("processes", "ports.ts")).not.toMatch(/export interface ProcessLinker</);
+    expect(await read("appointments", "ports.ts")).toMatch(/export interface CompletionReceiptIssuer</);
+    for (const name of ["authorization-machine", "deadline", "coverage-phase"]) {
+      const file = files.find((f) => f.file === `modules/insurer-ops/domain/${name}`);
+      expect(file, name).toBeDefined();
+      expect(file?.bareImports, name).toEqual([]);
+      for (const target of file?.relativeImports ?? []) expect(target.startsWith("modules/insurer-ops/domain/"), `${name} -> ${target}`).toBe(true);
+    }
+  });
+
+  it("TC-AUT-18: sem literais de prazo (48, 72, 15, 7) nos ficheiros do pedido de autorização", async () => {
+    const targets = ["domain/authorization.ts", "domain/authorization-machine.ts", "domain/deadline.ts", "domain/coverage-phase.ts", "application/authorization-support.ts", "application/create-authorization.ts", "application/appeal-authorization.ts", "application/respond-authorization.ts", "application/submit-authorization.ts", "application/expire-info-requests.ts"];
+    for (const target of targets) {
+      const text = (await readFile(join(SRC_ROOT, "modules", "insurer-ops", target), "utf8")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""');
+      expect(text, target).not.toMatch(/\b(48|72|15|7)\b/);
+    }
+  });
+
   it("platform nunca importa de main ou de modules/*", async () => {
     const files = await collectImports(SRC_ROOT);
     const platformFiles = files.filter((f) => f.file.startsWith("platform/"));

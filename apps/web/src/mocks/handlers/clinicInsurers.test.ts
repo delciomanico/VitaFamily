@@ -82,7 +82,7 @@ describe('validação de beneficiário na clínica', () => {
   it('lista de serviços: só ativos e só código, nome e categoria; pesquisa e paginação', async () => {
     const page = await clinic.listClinicInsurerServices(MANAGER, INSURER)
     expect(page.items.map((s) => s.code)).toEqual(['CONS-GER', 'IMG-RX', 'LAB-HEM'])
-    expect(Object.keys(page.items[0]!).sort()).toEqual(['category', 'code', 'name'])
+    expect(Object.keys(page.items[0]!).sort()).toEqual(['category', 'code', 'guideType', 'name'])
     expect((await clinic.listClinicInsurerServices(MANAGER, INSURER, { q: 'hemo' })).items.length).toBe(1)
     expect((await clinic.listClinicInsurerServices(MANAGER, INSURER, { limit: 2 })).nextCursor).toBe('2')
   })

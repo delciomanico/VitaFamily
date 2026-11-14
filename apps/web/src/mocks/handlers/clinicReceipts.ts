@@ -129,7 +129,12 @@ function toPortalReceipt({ clinicId: _c, link, ...receipt }: MockClinicReceipt):
  * `ISSUED` por marcação; número sequencial por clínica sem buracos (validação antes de numerar).
  */
 export function issueClinicReceipt(clinicAccountId: string, input: ClinicReceiptInput, now: Date = new Date()) {
-  return respond((): ClinicReceipt => {
+  return respond((): ClinicReceipt => issueReceiptNow(clinicAccountId, input, now))
+}
+
+/** Emissão síncrona: também usada por «Concluir ato» (`complete` com `receipt`, BR-CLN-57), na mesma operação. */
+export function issueReceiptNow(clinicAccountId: string, input: ClinicReceiptInput, now: Date): ClinicReceipt {
+  {
     const account = requireStaffAccount(clinicAccountId)
     const { clinicId } = account
     if (!KINDS.includes(input.bookingKind) || !METHODS.includes(input.paymentMethod)) throw new AppError('VALIDATION_ERROR')
@@ -176,7 +181,7 @@ export function issueClinicReceipt(clinicAccountId: string, input: ClinicReceipt
     db.clinicReceipts.push(receipt)
     recordClinicAudit(account, 'CLINIC_RECEIPT_ISSUE', 'ClinicReceipt', receipt.id, 'SUCCESS', now)
     return toPortalReceipt(receipt)
-  })
+  }
 }
 
 /** `POST /clinic-portal/receipts/{id}/void` (BR-CLN-33): irreversível; o motivo fica na clínica. */

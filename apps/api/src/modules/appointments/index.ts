@@ -34,7 +34,7 @@ import { createDeleteAppointmentUseCase } from "./application/delete-appointment
 import { createGetAppointmentUseCase } from "./application/get-appointment.js";
 import { createListAppointmentsUseCase } from "./application/list-appointments.js";
 import { createListAvailableSlotsUseCase } from "./application/list-available-slots.js";
-import type { ActFactOfAppointment, AppointmentsDeps, ClinicAppointmentsFilter, ClinicPatientDirectoryPort, ClinicPrescriptionInput, ConsultationReportsPort, PatientDirectoryPort, ProcessLinkerPort, ReceiptIdsPort, ReminderWindows, RequestContext } from "./application/ports.js";
+import type { ActFactOfAppointment, AppointmentsDeps, ClinicAppointmentsFilter, ClinicPatientDirectoryPort, ClinicPrescriptionInput, CompletionReceiptIssuer, ConsultationReportsPort, PatientDirectoryPort, ProcessLinkerPort, ReceiptIdsPort, ReminderWindows, RequestContext } from "./application/ports.js";
 import { createSetAppointmentConfirmationUseCase } from "./application/set-appointment-confirmation.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
@@ -86,6 +86,8 @@ export interface AppointmentsModuleDeps {
   receipts: ReceiptIdsPort<Kysely<Database>>;
   /** M15 S (BR-CLN-42/45): relatório da consulta — ligada no composition root a `clinic-reports` (`appointments` não o importa). */
   consultationReports: ConsultationReportsPort<Kysely<Database>>;
+  /** «Concluir ato» (BR-CLN-57): recibo na transação da conclusão, implementado por `clinic-receipts` (ligado em `main/api.ts`). */
+  completionReceipts: CompletionReceiptIssuer<Kysely<Database>>;
   /** Marco B fatia 1 (BR-PRC-01/07, modules.md §3 nota 29): abre/apaga o `Process` do ato — ligada no composition root a `processes` (`appointments` não o importa). */
   processes: ProcessLinkerPort<Kysely<Database>>;
   clock: Clock;
@@ -199,6 +201,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     clinicPatients: deps.clinicPatients,
     receipts: deps.receipts,
     consultationReports: deps.consultationReports,
+    completionReceipts: deps.completionReceipts,
     processes: deps.processes,
     walkInRateLimiter,
     audit: deps.audit,

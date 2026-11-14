@@ -5,7 +5,7 @@ import { FixedClock } from "../../../platform/clock/index.js";
 import { createReceiptInsurerSummariesUseCase, createLockVisibleReceiptsUseCase } from "./claim-lookup.js";
 import { createGetFamilyReceiptUseCase, createListFamilyReceiptsUseCase } from "./family-receipts.js";
 import { createClinicReceiptsFixtures } from "./fixtures.js";
-import { createIssueReceiptUseCase } from "./issue-receipt.js";
+import { createIssueReceiptUseCase, createIssueReceiptWithCompleteUseCase } from "./issue-receipt.js";
 import { createGetReceiptUseCase, createListReceiptsUseCase } from "./list-receipts.js";
 import type { ClinicPortalActor } from "./ports.js";
 import { createVoidReceiptUseCase } from "./void-receipt.js";
@@ -248,5 +248,19 @@ describe("leitura para pedidos de reembolso (BR-CLN-36)", () => {
     expect(locked.map((r) => r.id)).toEqual([visible.id]);
     const [summary] = await createReceiptInsurerSummariesUseCase(s.deps)(undefined as never, [visible.id]);
     expect(Object.keys(summary ?? {}).sort()).toEqual(["clinicName", "currency", "id", "issuedAt", "lines", "number", "status", "totalMinor"]);
+  });
+});
+
+describe("«Concluir ato»: emitir recibo na transação da conclusão (BR-CLN-57, TC-AUT-21)", () => {
+  it("Admin/Gestor: emite para a marcação que se conclui (o corpo não pode trocar bookingId/bookingKind); 2.º recibo ⇒ CONFLICT; Médico ⇒ FORBIDDEN sem efeito", async () => {
+    const s = setup();
+    const issue = createIssueReceiptWithCompleteUseCase(s.deps);
+    await issue({}, MANAGER, "APPOINTMENT", "apt-1", { paymentMethod: "CASH", bookingId: "apt-2", bookingKind: "EXAM" }, CTX);
+    const issued = await s.list(MANAGER, { from: "2026-11-08", to: "2026-11-08" });
+    expect(JSON.stringify(issued)).toContain("Maria Silva");
+    expect(JSON.stringify(issued)).not.toContain("João Pires");
+    expect(await codeOf(issue({}, MANAGER, "APPOINTMENT", "apt-1", { paymentMethod: "CASH" }, CTX))).toBe("CONFLICT");
+    expect(await codeOf(issue({}, DOCTOR, "APPOINTMENT", "apt-2", { paymentMethod: "CASH" }, CTX))).toBe("FORBIDDEN");
+    expect(await codeOf(issue({}, MANAGER, "APPOINTMENT", "apt-2", { paymentMethod: "BITCOIN" }, CTX))).toBe("VALIDATION_ERROR");
   });
 });

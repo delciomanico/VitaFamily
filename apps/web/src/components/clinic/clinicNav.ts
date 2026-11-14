@@ -6,6 +6,7 @@ import {
   Receipt,
   Settings,
   ShieldCheck,
+  FileCheck2,
   FlaskConical,
   Inbox,
   LayoutDashboard,
@@ -57,6 +58,7 @@ export const clinicNavGroups: ClinicNavGroup[] = [
       { to: paths.clinicPatients, label: 'Pacientes', icon: UserRound, end: false },
       // Fase A de seguradoras (UC-SEG-05, Q6): só Admin e Gestor.
       { to: paths.clinicInsurers, label: 'Seguradoras', icon: ShieldCheck, end: false, hiddenForDoctor: true },
+      { to: paths.clinicAuthorizations, label: 'Autorizações', icon: FileCheck2, end: false, hiddenForDoctor: true },
     ],
   },
   { title: 'Exames', items: [{ to: paths.clinicExams, label: 'Exames', icon: FlaskConical, end: false }] },

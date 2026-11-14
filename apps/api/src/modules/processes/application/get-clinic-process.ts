@@ -3,7 +3,8 @@
 // inexistente ⇒ `NOT_FOUND` igual. Leitura de ato próprio: não auditada.
 import { ForbiddenError, NotFoundError } from "../../../platform/errors/index.js";
 import type { ClinicPortalActor, ProcessesDeps } from "./ports.js";
-import { factOf, indexFacts, refOf, toClinicProcessView, type ClinicProcessView } from "./process-view.js";
+import { loadProcessFacts } from "./load-facts.js";
+import { readableFactsOf, toClinicProcessView, type ClinicProcessView } from "./process-view.js";
 
 export function createGetClinicProcessUseCase<Trx>(deps: ProcessesDeps<Trx>) {
   return async function getClinicProcess(actor: ClinicPortalActor, processId: string): Promise<ClinicProcessView> {
@@ -15,12 +16,12 @@ export function createGetClinicProcessUseCase<Trx>(deps: ProcessesDeps<Trx>) {
       if (!process) {
         throw new NotFoundError({ detail: "Processo não encontrado." });
       }
-      const fact = factOf(indexFacts(await deps.facts.getActFacts(trx, process.familyId, [refOf(process)])), process);
-      if (!fact) {
+      const facts = readableFactsOf(process, await loadProcessFacts(deps, trx, process.familyId, [process]));
+      if (!facts) {
         deps.onInconsistency({ processId: process.id, originType: process.originType });
         throw new NotFoundError({ detail: "Processo não encontrado." });
       }
-      return toClinicProcessView(process, fact);
+      return toClinicProcessView(process, facts);
     });
   };
 }

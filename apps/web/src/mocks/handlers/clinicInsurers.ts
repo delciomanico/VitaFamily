@@ -4,6 +4,7 @@ import type {
   ClinicInsurerService,
   InsurerCoverageLimits,
   InsurerEligibilityRequest,
+  EligibilityLight,
   InsurerEligibilityResult,
   Page,
 } from '@/types/insurerOps'
@@ -21,7 +22,7 @@ export const ELIGIBILITY_LIMIT = 20
 export const ELIGIBILITY_WINDOW_MS = 60_000
 export const RETRY_AFTER_SECONDS = 30
 
-function clinicOf(accountId: string): string {
+export function clinicOf(accountId: string): string {
   const account = db.clinicAccounts.find((a) => a.id === accountId && a.status === 'ACTIVE')
   if (!account) throw new AppError('INVALID_CREDENTIALS')
   if (account.role === 'CLINIC_DOCTOR') throw new AppError('FORBIDDEN') // BR-CLN-39 / Q6
@@ -35,7 +36,7 @@ function linkedInsurerIds(clinicId: string): string[] {
     .filter((insurerId) => db.insurerOps.modules[insurerId]?.enabled)
 }
 
-function requireLinked(accountId: string, insurerId: string) {
+export function requireLinked(accountId: string, insurerId: string) {
   const clinicId = clinicOf(accountId)
   if (!linkedInsurerIds(clinicId).includes(insurerId)) throw new AppError('NOT_FOUND')
   return clinicId
@@ -80,6 +81,13 @@ export function policyCoverages(
         requiresAuthorization: c.requiresAuthorization,
       }
     })
+}
+
+/** Semáforo (BR-SEG-43): sem cobertura ⇒ vermelho; exige autorização ou em carência ⇒ amarelo; senão verde. */
+export function lightOf(coverage: InsurerCoverageLimits | undefined): { light: EligibilityLight; patientSharePct: number | null } {
+  if (!coverage) return { light: 'RED', patientSharePct: null }
+  const light: EligibilityLight = coverage.requiresAuthorization || !coverage.coveredNow ? 'YELLOW' : 'GREEN'
+  return { light, patientSharePct: Math.round((100 - coverage.copayPct) * 100) / 100 }
 }
 
 export function checkEligibility(accountId: string, insurerId: string, request: InsurerEligibilityRequest, now: Date = new Date()) {
@@ -132,6 +140,10 @@ export function checkEligibility(accountId: string, insurerId: string, request: 
       validTo: policy.validTo,
       currency: db.insurerOps.modules[insurerId]?.currency ?? 'AOA',
       coverages,
+      // Só com um serviço ATIVO da lista da seguradora (a resposta sem `serviceCode` é a de antes).
+      ...(request.serviceCode && db.insurerOps.services.some((s) => s.insurerId === insurerId && s.code === request.serviceCode && s.status === 'ACTIVE')
+        ? lightOf(coverages[0])
+        : {}),
     }
   })
 }
@@ -148,7 +160,7 @@ export function listClinicInsurerServices(
       .filter((s) => s.insurerId === insurerId && s.status === 'ACTIVE')
       .filter((s) => !q || s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q))
       .sort((a, b) => a.code.localeCompare(b.code, 'pt-PT'))
-      .map(({ code, name, category }) => ({ code, name, category }))
+      .map(({ code, name, category }) => ({ code, name, category, guideType: category === 'Consultas' ? 'CONSULTATION' : category ? 'SERVICES' : null }))
     const limit = query.limit ?? 25
     const start = query.cursor ? Number(query.cursor) : 0
     return { items: all.slice(start, start + limit), nextCursor: start + limit < all.length ? String(start + limit) : null }

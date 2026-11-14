@@ -47,6 +47,9 @@ export function toErrorCode(code: string): ErrorCode {
     'MEMBER_BLOCKED',
     'FILE_TOO_LARGE',
     'FILE_TYPE_NOT_ALLOWED',
+    'INVALID_STATE_TRANSITION',
+    'DOCUMENT_LIMIT_EXCEEDED',
+    'SERVICE_UNAVAILABLE',
   ]
   return (known as string[]).includes(code) ? (code as ErrorCode) : 'UNKNOWN'
 }

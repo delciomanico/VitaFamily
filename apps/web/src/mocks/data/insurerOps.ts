@@ -8,6 +8,7 @@ import type {
   InsurerPolicy,
   InsurerProvider,
   InsurerService,
+  AuthorizationRequest,
 } from '@/types/insurerOps'
 
 /**
@@ -44,6 +45,8 @@ export interface MockInsurerOps {
   qrIssues: Record<string, number[]>
   /** Instantes (ms) das validações por clínica, para o rate limit simulado (BR-SEG-18). */
   eligibilityChecks: Record<string, number[]>
+  /** Pedidos de autorização do prestador (ADR-034); `clinicId` só existe no mock. */
+  authorizations: Array<AuthorizationRequest & { clinicId: string; beneficiaryId: string; originalDecisionAt?: string }>
 }
 
 const CREATED = '2026-01-10T09:00:00.000Z'
@@ -192,5 +195,6 @@ export function seedInsurerOps(): MockInsurerOps {
     claimAttempts: {},
     qrIssues: {},
     eligibilityChecks: {},
+    authorizations: [],
   }
 }

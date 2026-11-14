@@ -12,15 +12,15 @@ import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import { createGetClinicProcessUseCase } from "./application/get-clinic-process.js";
 import { createGetProcessUseCase } from "./application/get-process.js";
-import { createDiscardProcessUseCase, createOpenProcessUseCase } from "./application/link-process.js";
+import { createDiscardProcessUseCase, createFindProcessForClinicUseCase, createOpenProcessUseCase } from "./application/link-process.js";
 import { createListProcessesUseCase } from "./application/list-processes.js";
 import type { DiscardProcessInput, OpenProcessInput, ProcessFacts, ProcessesDeps } from "./application/ports.js";
 import { KyselyProcessesRepository } from "./infrastructure/repo.js";
 import { createProcessesClinicPortalRouter } from "./interface/clinic-portal-router.js";
 import { createProcessesRouter } from "./interface/router.js";
 
-export type { ActFact, ActPhase, FamilyStatus, NextStep, ProcessOriginType } from "./domain/process.js";
-export type { ActFactEntry, ActFactRef, DiscardProcessInput, OpenProcessInput, ProcessActor, ProcessFacts } from "./application/ports.js";
+export type { ActFact, ActPhase, CoverageFact, CoveragePhase, FamilyStatus, NextStep, ProcessOriginType } from "./domain/process.js";
+export type { ActFactEntry, ActFactRef, CoverageFactEntry, DiscardProcessInput, OpenProcessInput, ProcessActor, ProcessFacts } from "./application/ports.js";
 
 export interface ProcessesModuleDeps {
   db: Kysely<Database>;
@@ -38,6 +38,8 @@ export interface ProcessesModule {
   linker: {
     open: (trx: Kysely<Database>, input: OpenProcessInput) => Promise<{ processId: string }>;
     discard: (trx: Kysely<Database>, input: DiscardProcessInput) => Promise<void>;
+    /** Fatia 3: só leitura, para validar o `processId` de um pedido de autorização (porta de `insurer-ops`). */
+    findForClinic: (trx: Kysely<Database>, input: { clinicId: string; processId: string }) => Promise<{ processId: string; familyId: string; memberId: string } | null>;
   };
   /** `/families/{f}/members/{m}/processes*`. */
   router: Router;
@@ -58,7 +60,7 @@ export function createProcessesModule(deps: ProcessesModuleDeps): ProcessesModul
   };
 
   return {
-    linker: { open: createOpenProcessUseCase(processesDeps), discard: createDiscardProcessUseCase(processesDeps) },
+    linker: { open: createOpenProcessUseCase(processesDeps), discard: createDiscardProcessUseCase(processesDeps), findForClinic: createFindProcessForClinicUseCase(processesDeps) },
     router: createProcessesRouter({ listProcesses: createListProcessesUseCase(processesDeps), getProcess: createGetProcessUseCase(processesDeps) }),
     clinicPortalRouter: createProcessesClinicPortalRouter({ getClinicProcess: createGetClinicProcessUseCase(processesDeps) }),
   };

@@ -27,3 +27,16 @@ export async function registerPurgeImportPreviewsWorker(boss: PgBoss, handler: (
     await handler();
   });
 }
+
+export const EXPIRE_INFO_REQUESTS_QUEUE = "insurer.expire-info-requests";
+
+/** Diário às 00:50 UTC (BR-AUT-14); idempotente (o estado do pedido muda, logo não o apanha duas vezes). */
+const DAILY_EXPIRE_INFO_CRON = "50 0 * * *";
+
+export async function registerExpireInfoRequestsWorker(boss: PgBoss, handler: () => Promise<unknown>): Promise<string> {
+  await boss.createQueue(EXPIRE_INFO_REQUESTS_QUEUE);
+  await boss.schedule(EXPIRE_INFO_REQUESTS_QUEUE, DAILY_EXPIRE_INFO_CRON, {});
+  return boss.work(EXPIRE_INFO_REQUESTS_QUEUE, async () => {
+    await handler();
+  });
+}

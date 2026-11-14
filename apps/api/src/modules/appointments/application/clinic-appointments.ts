@@ -281,6 +281,8 @@ export interface CompleteConsultationInput {
   report?: unknown;
   /** M15 U (BR-CLN-51): presente => cria 1–5 pedidos de exame na mesma transação (só o Médico; validado pelo módulo dono). */
   examOrders?: unknown;
+  /** «Concluir ato» (BR-CLN-57): presente => emite o recibo na mesma transação (só Admin/Gestor; validado pelo módulo dono). */
+  receipt?: unknown;
 }
 
 /** `PUT /clinic-portal/agenda/{appointmentId}/complete` (D18, BR-CLN-06/BR-RX-07): completa a
@@ -304,7 +306,12 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
         if (input.examOrders !== undefined && input.examOrders !== null) {
           await deps.consultationReports.createExamOrdersWithComplete(trx, actor, "VISIT", appointmentId, input.examOrders, context);
         }
-        const decoratedVisit = (await attachExamOrderCounts(deps, trx, actor, [visit as ClinicAppointmentView]))[0] ?? visit;
+        // BR-CLN-57: o recibo emite-se depois de a visita ficar COMPLETED, na mesma transação (falha ⇒ nada gravado).
+        if (input.receipt !== undefined && input.receipt !== null) {
+          await deps.completionReceipts.issue(trx, actor, "VISIT", appointmentId, input.receipt, context);
+        }
+        const withCounts = (await attachExamOrderCounts(deps, trx, actor, [visit as ClinicAppointmentView]))[0] ?? visit;
+        const decoratedVisit = (await attachReceipts(deps, trx, actor, [withCounts as ClinicAppointmentView]))[0] ?? withCounts;
         return visitHasReport ? { ...decoratedVisit, reportStatus: "FINAL" } : decoratedVisit;
       }
       const existing = found;
@@ -350,6 +357,12 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
         await deps.consultationReports.createExamOrdersWithComplete(trx, actor, "APPOINTMENT", appointmentId, examOrders, context);
       }
 
+      // BR-CLN-57 («Concluir ato»): o recibo emite-se depois de COMPLETED, na MESMA transação (Médico ⇒ FORBIDDEN, tudo reverte).
+      const hasReceipt = input.receipt !== undefined && input.receipt !== null;
+      if (hasReceipt) {
+        await deps.completionReceipts.issue(trx, actor, "APPOINTMENT", appointmentId, input.receipt, context);
+      }
+
       await deps.audit.record(trx, {
         occurredAt: now,
         actorType: "CLINIC_ACCOUNT",
@@ -366,7 +379,8 @@ export function createCompleteClinicAppointmentUseCase<Trx>(deps: AppointmentsDe
       });
 
       const baseView = await toView(deps, trx, appointment);
-      const view = (await attachExamOrderCounts(deps, trx, actor, [baseView]))[0] ?? baseView;
+      const countedView = (await attachExamOrderCounts(deps, trx, actor, [baseView]))[0] ?? baseView;
+      const view = (await attachReceipts(deps, trx, actor, [countedView]))[0] ?? countedView;
       return hasReport ? { ...view, reportStatus: "FINAL" } : (await attachReportStatuses(deps, trx, actor, [view]))[0] ?? view;
     });
   };

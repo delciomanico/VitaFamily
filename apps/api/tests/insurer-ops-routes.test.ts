@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Router } from "express";
 import { describe, expect, it } from "vitest";
+import { createClinicAuthorizationsRouter } from "../src/modules/insurer-ops/interface/clinic-authorizations-router.js";
 import { createInsurerClinicRouter } from "../src/modules/insurer-ops/interface/clinic-router.js";
 import { createInsurerPatientRouter } from "../src/modules/insurer-ops/interface/patient-router.js";
 import { createInsurerOpsRouter } from "../src/modules/insurer-ops/interface/portal-router.js";
@@ -52,6 +53,12 @@ describe("insurer-ops: rotas ↔ openapi", () => {
     expect(sorted(routerOperations(createInsurerClinicRouter(stub())))).toEqual(sorted(contract));
   });
 
+  it("portal da clínica: /clinic-portal/authorizations* (8 operações, marco B fatia 3)", () => {
+    const contract = contractOperations(/^\/clinic-portal\/authorizations(\/|$)/);
+    expect(contract.size).toBe(8);
+    expect(sorted(routerOperations(createClinicAuthorizationsRouter(stub())))).toEqual(sorted(contract));
+  });
+
   it("app do paciente: /families/{familyId}/members/{memberId}/insurance/*", () => {
     const contract = contractOperations(/^\/families\/\{familyId\}\/members\/\{memberId\}\/insurance(\/|$)/);
     expect(contract.size).toBe(6);
@@ -63,8 +70,11 @@ describe("insurer-ops: todo caso de uso decide a autorização", () => {
   const dir = join(ROOT, "src/modules/insurer-ops/application");
   // `portal-me`: aberto a qualquer papel e com o módulo desativado por desenho (P-SEG-3); o ator vem do token e só lê a própria seguradora.
   // `ExpirePoliciesJob`, `PurgeImportPreviewsJob`: jobs de sistema, sem ator HTTP.
-  const exempt = new Set(["createGetPortalMeUseCase", "createExpirePoliciesJobUseCase", "createPurgeImportPreviewsJobUseCase"]);
-  const decision = /\b(authorize|authorizePatient|authorizeClinic|assertClinicRole)\(/;
+  // `ExpireInfoRequestsJob` (job de sistema) e `GetCoverageFacts` (porta de leitura de `processes`, sem ator HTTP; o acesso do
+  // utilizador é decidido por `processes` com `AccessPolicy`): sem ator da clínica.
+  const exempt = new Set(["createGetPortalMeUseCase", "createExpirePoliciesJobUseCase", "createPurgeImportPreviewsJobUseCase", "createExpireInfoRequestsJobUseCase", "createGetCoverageFactsUseCase"]);
+  // `loadForWrite` = `assertClinicRole` + pedido da própria clínica + ligação ativa (§6.2b, `authorization-support.ts`).
+  const decision = /\b(authorize|authorizePatient|authorizeClinic|assertClinicRole|loadForWrite)\(/;
 
   it("cada `create*UseCase` chama authorize/authorizePatient/authorizeClinic/assertClinicRole", () => {
     const offenders: string[] = [];

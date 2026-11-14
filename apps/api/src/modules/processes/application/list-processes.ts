@@ -8,7 +8,8 @@ import { auditContextFields } from "../../audit/index.js";
 import { deriveFamilyStatus } from "../domain/derive-family-status.js";
 import { PROCESS_ORIGIN_TYPES, type FamilyStatus, type Process, type ProcessOriginType } from "../domain/process.js";
 import type { ActorIdentity, ProcessesDeps, RequestContext } from "./ports.js";
-import { factOf, indexFacts, refOf, toProcessView, type ProcessView } from "./process-view.js";
+import { loadProcessFacts } from "./load-facts.js";
+import { readableFactsOf, toProcessView, type ProcessView } from "./process-view.js";
 import { isAuditedReader, resolveReadAccess } from "./readable-categories.js";
 
 /** Limite de varrimento por pedido (contrato: "máx. 200 processos por pedido"). */
@@ -68,15 +69,15 @@ export function createListProcessesUseCase<Trx>(deps: ProcessesDeps<Trx>) {
         hasMore = more;
         if (rows.length === 0) break;
 
-        const facts = indexFacts(await deps.facts.getActFacts(trx, familyId, rows.map(refOf)));
+        const loaded = await loadProcessFacts(deps, trx, familyId, rows);
         for (const [index, process] of rows.entries()) {
           last = process;
           remainingScan--;
-          const fact = factOf(facts, process);
-          if (!fact) {
+          const facts = readableFactsOf(process, loaded);
+          if (!facts) {
             deps.onInconsistency({ processId: process.id, originType: process.originType }); // BR-PRC-09: omite
-          } else if (status === undefined || deriveFamilyStatus({ act: fact }).familyStatus === status) {
-            items.push(toProcessView(process, fact));
+          } else if (status === undefined || deriveFamilyStatus(facts).familyStatus === status) {
+            items.push(toProcessView(process, facts));
           }
           if (items.length === limit) {
             hasMore = hasMore || index < rows.length - 1;

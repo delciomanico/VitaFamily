@@ -1,3 +1,4 @@
+import type { ReceiptPaymentMethod } from './clinicReceipt'
 import type { ConsultationReportInput } from './clinicReport'
 import type { ExamOrderItemInput } from './examOrder'
 
@@ -154,6 +155,8 @@ export interface ClinicBooking {
   followUpDueOn?: string
   /** M14 R (BR-CLN-31): recibo `ISSUED` da marcação; nunca devolvido ao Médico (BR-CLN-39). */
   receiptId?: string
+  /** Marco B fatia 1: processo do ato; preenche o pedido de autorização a partir da agenda. */
+  processId?: string | null
   /** M15 S (BR-CLN-41): estado do relatório da consulta; ausente = sem relatório. */
   reportStatus?: 'DRAFT' | 'FINAL'
   /** M15 U (BR-CLN-51): pedidos de exame não cancelados da marcação. */
@@ -207,6 +210,8 @@ export interface ClinicCompleteInput {
   report?: ConsultationReportInput
   /** M15 U (BR-CLN-51): 1-5 pedidos de exame na mesma operação (só o Médico). */
   examOrders?: ExamOrderItemInput[]
+  /** «Concluir ato» (BR-CLN-57): emite o recibo na mesma operação (só Admin/Gestor). */
+  receipt?: { paymentMethod: ReceiptPaymentMethod }
 }
 
 /** Máximo de vagas por horário de exame (BR-APT-11). */

@@ -34,3 +34,6 @@ GET /families/{f}/members/{m}/processes
 
 ## Testes
 `domain/derive-family-status.test.ts` (TC-PRC-01..07) · `application/processes.test.ts` e `read-matrix.matrix.test.ts` (TC-AZ-PRC-01, matriz de §6.8 sobre a `AccessPolicy` real) · `appointments|examinations/domain/act-phase.test.ts` e `application/process-link.test.ts` (TC-PRC-08..13) · `tests/http/processes.http.test.ts` (contrato OpenAPI, tokens, isolamento) · `tests/integration/processes.integration.test.ts` (PostgreSQL real: backfill, constraints, cascatas, rollback, leitura sobre adaptadores reais) · `tests/architecture.test.ts` (TC-PRC-20).
+
+## Fatia 3 (ADR-034): processos abertos por autorização
+`originType=AUTHORIZATION` (`kind=AUTHORIZED`, derivado da origem em `domain/process.ts#kindOfOrigin`) não tem ato: o estado vem só do facto de cobertura (`ProcessFacts.getCoverageFacts`, implementado por `insurer-ops`; `application/load-facts.ts` carrega os dois factos em lote). `deriveFamilyStatus({ act?, coverage? })` continua pura e ganhou a tabela 3 de `state-machines.md`. A leitura da família de processos `AUTHORIZATION` usa `AccessPolicy.can(MANAGE_INSURANCE)` (`readable-categories.ts`); a da clínica devolve `phase` nula. `linker.findForClinic` (só leitura) valida o `processId` de um pedido. `processes` e `insurer-ops` não se importam (`tests/architecture.test.ts`, TC-AUT-19).

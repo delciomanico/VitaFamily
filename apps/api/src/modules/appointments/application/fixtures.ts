@@ -29,6 +29,7 @@ import type {
   ClinicStatusChange,
   ClinicsPort,
   ConfirmationChange,
+  CompletionReceiptIssuer,
   ConsultationReportsPort,
   CursorPage,
   DayFlowChange,
@@ -510,6 +511,7 @@ export interface AppointmentsFixtures {
   clinicPatients: FakeClinicPatientDirectory;
   receipts: FakeReceiptIdsPort;
   consultationReports: FakeConsultationReportsPort;
+  completionReceipts: FakeCompletionReceiptIssuer;
   processes: FakeProcessLinker;
   audit: FakeAuditPort;
 }
@@ -646,6 +648,19 @@ export class FakeReceiptIdsPort implements ReceiptIdsPort<FakeTrx> {
   }
 }
 
+/** Fake de `CompletionReceiptIssuer` («Concluir ato»): regista as emissões; as regras reais testam-se em `clinic-receipts`. */
+export class FakeCompletionReceiptIssuer implements CompletionReceiptIssuer<FakeTrx> {
+  readonly issued: { kind: "APPOINTMENT" | "VISIT"; bookingId: string; receipt: unknown; actor: ClinicPortalActor }[] = [];
+  /** Se definido, a emissão falha com este erro (simula recibo inválido/Médico/duplicado). */
+  failWith?: Error;
+
+  async issue(_trx: FakeTrx, actor: ClinicPortalActor, kind: "APPOINTMENT" | "VISIT", bookingId: string, receipt: unknown): Promise<void> {
+    if (this.failWith) throw this.failWith;
+    this.issued.push({ kind, bookingId, receipt, actor });
+    return Promise.resolve();
+  }
+}
+
 /** Fake de `ConsultationReportsPort` (M15 S): regista as finalizações; as regras reais testam-se em `clinic-reports`. */
 export class FakeConsultationReportsPort implements ConsultationReportsPort<FakeTrx> {
   readonly finalized: { kind: "APPOINTMENT" | "VISIT"; bookingId: string; report: unknown; actor: ClinicPortalActor }[] = [];
@@ -720,6 +735,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
   const clinicPatients = new FakeClinicPatientDirectory(clinics);
   const receipts = new FakeReceiptIdsPort();
   const consultationReports = new FakeConsultationReportsPort();
+  const completionReceipts = new FakeCompletionReceiptIssuer();
   const processes = new FakeProcessLinker();
   const audit = new FakeAuditPort();
   const deps: AppointmentsDeps<FakeTrx> = {
@@ -734,6 +750,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     clinicPatients,
     receipts,
     consultationReports,
+    completionReceipts,
     processes,
     walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
     audit,
@@ -741,5 +758,5 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, clinicPatients, receipts, consultationReports, processes, audit };
+  return { deps, appointmentsRepo, policy, membership, memberNames, clinics, examSlotOccupancy, prescriptions, patients, clinicPatients, receipts, consultationReports, completionReceipts, processes, audit };
 }

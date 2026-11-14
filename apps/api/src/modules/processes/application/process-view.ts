@@ -1,7 +1,7 @@
-// Vistas de resposta (components.schemas.Process / ClinicProcess) e a montagem a partir de processo + facto do ato.
+// Vistas de resposta (components.schemas.Process / ClinicProcess) e a montagem a partir de processo + factos.
 import { deriveFamilyStatus } from "../domain/derive-family-status.js";
-import type { ActFact, ActPhase, FamilyStatus, NextStep, Process, ProcessKind, ProcessOriginType } from "../domain/process.js";
-import type { ActFactEntry, ActFactRef } from "./ports.js";
+import { hasAct, type ActFact, type ActPhase, type CoverageFact, type FamilyStatus, type NextStep, type Process, type ProcessKind, type ProcessOriginType } from "../domain/process.js";
+import type { LoadedFacts } from "./load-facts.js";
 
 /** `Process` do contrato (família): `familyStatus`/`nextStep` derivados em leitura, nunca persistidos (BR-PRC-02/03). */
 export interface ProcessView {
@@ -15,17 +15,20 @@ export interface ProcessView {
   openedAt: string;
 }
 
-/** `ClinicProcess` do contrato (BR-PRC-06): sem ids Vita, `familyStatus` nem `nextStep`. */
+/** `ClinicProcess` do contrato (BR-PRC-06): sem ids Vita, `familyStatus` nem `nextStep`. `phase` nulo na origem `AUTHORIZATION`. */
 export interface ClinicProcessView {
   id: string;
   kind: ProcessKind;
   origin: { type: ProcessOriginType; id: string };
-  phase: ActPhase;
+  phase: ActPhase | null;
   openedAt: string;
 }
 
-export function toProcessView(process: Process, fact: ActFact): ProcessView {
-  const { familyStatus, nextStep } = deriveFamilyStatus({ act: fact });
+/** Factos legíveis de um processo: com ato (e, opcionalmente, cobertura) ou só cobertura (origem `AUTHORIZATION`). */
+export type ReadableFacts = { act: ActFact; coverage?: CoverageFact } | { act?: undefined; coverage: CoverageFact };
+
+export function toProcessView(process: Process, facts: ReadableFacts): ProcessView {
+  const { familyStatus, nextStep } = deriveFamilyStatus(facts);
   return {
     id: process.id,
     memberId: process.memberId,
@@ -33,30 +36,25 @@ export function toProcessView(process: Process, fact: ActFact): ProcessView {
     familyStatus,
     nextStep,
     origin: { type: process.originType, id: process.originId },
-    scheduledAt: fact.scheduledAt ? fact.scheduledAt.toISOString() : null,
+    scheduledAt: facts.act?.scheduledAt ? facts.act.scheduledAt.toISOString() : null,
     openedAt: process.openedAt.toISOString(),
   };
 }
 
-export function toClinicProcessView(process: Process, fact: ActFact): ClinicProcessView {
+export function toClinicProcessView(process: Process, facts: ReadableFacts): ClinicProcessView {
   return {
     id: process.id,
     kind: process.kind,
     origin: { type: process.originType, id: process.originId },
-    phase: fact.phase,
+    phase: facts.act?.phase ?? null,
     openedAt: process.openedAt.toISOString(),
   };
 }
 
-export function refOf(process: Process): ActFactRef {
-  return { originType: process.originType, originId: process.originId };
-}
-
-/** Índice dos factos por ato (`tipo:id`) para juntar o lote de processos sem N+1. */
-export function indexFacts(entries: ActFactEntry[]): Map<string, ActFact> {
-  return new Map(entries.map((entry) => [`${entry.originType}:${entry.originId}`, entry.fact]));
-}
-
-export function factOf(index: Map<string, ActFact>, process: Process): ActFact | undefined {
-  return index.get(`${process.originType}:${process.originId}`);
+/** Os factos de um processo, ou `undefined` se a origem não é legível (BR-PRC-09: ato inexistente / sem pedido legível). */
+export function readableFactsOf(process: Process, loaded: LoadedFacts): ReadableFacts | undefined {
+  const act = loaded.acts.get(`${process.originType}:${process.originId}`);
+  const coverage = loaded.coverages.get(process.id);
+  if (hasAct(process.originType)) return act === undefined ? undefined : { act, ...(coverage ? { coverage } : {}) };
+  return coverage === undefined ? undefined : { coverage };
 }

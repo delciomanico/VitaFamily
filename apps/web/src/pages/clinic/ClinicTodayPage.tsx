@@ -334,13 +334,13 @@ export function ClinicTodayPage() {
         <CompleteConsultationForm
           booking={completing}
           onClose={() => setCompleting(null)}
-          onCompleted={() => {
+          onCompleted={({ receiptIssued }) => {
             const done = completing
             setCompleting(null)
-            toast.show('Consulta concluída.')
+            toast.show(receiptIssued ? 'Consulta concluída e recibo emitido.' : 'Consulta concluída.')
             reload()
             // Ao concluir, oferece-se logo o recibo (um toque); o Médico não emite (BR-CLN-39).
-            if (!isDoctor) setReceiptFor(done)
+            if (!isDoctor && !receiptIssued) setReceiptFor(done)
           }}
         />
       )}

@@ -37,6 +37,7 @@ import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPu
 import { createAlertsModule } from "../modules/alerts/index.js";
 import { createInsurerSettingsReader, createInsuranceModule, parseInsuranceSigningKeys } from "../modules/insurance/index.js";
 import { createInsurerOpsModule } from "../modules/insurer-ops/index.js";
+import { createAttachmentFiles } from "./attachment-files.js";
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
@@ -163,13 +164,14 @@ export function main(): void {
     bucket: config.S3_BUCKET_DOCUMENTS,
   });
   void ensureBucketWithRetry(storage, "storage_ensure_bucket_failed");
+  const virusScanner = new ClamAvScanner({ host: config.CLAMAV_HOST, port: config.CLAMAV_PORT });
   const documents = createDocumentsModule({
     db,
     audit,
     access,
     clock,
     storage,
-    virusScanner: new ClamAvScanner({ host: config.CLAMAV_HOST, port: config.CLAMAV_PORT }),
+    virusScanner,
     boss,
     maxFileSizeBytes: config.UPLOAD_MAX_BYTES,
     maxFamilyStorageBytes: config.FAMILY_STORAGE_QUOTA_BYTES,
@@ -229,6 +231,13 @@ export function main(): void {
         return { relation: ctx.relation ?? "OTHER" };
       },
     },
+    // Marco B fatia 3 (ADR-034, modules.md nota 31): `ProcessLinker` implementada por `processes` (resolvida tardiamente: `processes`
+    // precisa dos factos de `insurer-ops`) e ficheiros dos anexos sobre `Storage` + antivírus + outbox. Nenhum módulo importa o outro.
+    processes: {
+      open: (trx, input) => required(late.processes, "processes").linker.open(trx, input),
+      findForClinic: (trx, input) => required(late.processes, "processes").linker.findForClinic(trx, input),
+    },
+    files: createAttachmentFiles({ storage, virusScanner }),
   });
   const insurance = createInsuranceModule({
     operationalData: insurerOps.operationalData,
@@ -331,6 +340,19 @@ export function main(): void {
       open: (trx, input) => required(late.processes, "processes").linker.open(trx, input),
       discard: (trx, input) => required(late.processes, "processes").linker.discard(trx, input),
     },
+    // «Concluir ato» (BR-CLN-57, nota 31e): `CompletionReceiptIssuer` implementada por `clinic-receipts` (criado mais abaixo). O ator sem
+    // `professionalId` (Admin/Gestor) pode emitir; o Médico é recusado por quem implementa (BR-CLN-39).
+    completionReceipts: {
+      issue: (trx, actor, kind, bookingId, receipt, context) =>
+        required(late.clinicReceipts, "clinicReceipts").issueWithComplete(
+          trx,
+          { clinicAccountId: actor.clinicAccountId, clinicId: actor.clinicId, role: actor.professionalId ? "CLINIC_DOCTOR" : "CLINIC_MANAGER" },
+          kind,
+          bookingId,
+          receipt,
+          context,
+        ),
+    },
     consultationReports: {
       finalizeWithComplete: (trx, actor, kind, bookingId, report, context) =>
         required(late.clinicReports, "clinicReports").finalizeWithComplete(
@@ -369,6 +391,8 @@ export function main(): void {
     access,
     clock,
     facts: {
+      // Fatia 3 (ADR-034): o facto de cobertura sai de `insurer-ops` (projeção pura dos pedidos ligados ao processo).
+      getCoverageFacts: (trx, familyId, processIds) => insurerOps.getCoverageFacts(trx, familyId, processIds),
       getActFacts: async (trx, familyId, refs) => {
         const idsOf = (type: "APPOINTMENT" | "EXAMINATION") => refs.filter((ref) => ref.originType === type).map((ref) => ref.originId);
         const [appointmentFacts, examinationFacts] = await Promise.all([appointments.getActFacts(trx, familyId, idsOf("APPOINTMENT")), examinations.getActFacts(trx, familyId, idsOf("EXAMINATION"))]);

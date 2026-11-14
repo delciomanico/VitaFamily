@@ -3,6 +3,16 @@
 import { NotFoundError } from "../../../platform/errors/index.js";
 import { fail } from "./validation.js";
 
+/**
+ * Os NOMES das chaves de política que o pedido de autorização lê (marco B fatia 3). Único sítio do código que as nomeia
+ * (TC-CAT-06); os VALORES (24–120 h, 15 dias, 7 dias…) vivem em dados e resolvem-se por `resolvePolicySetting`, nunca aqui.
+ */
+export const POLICY_KEYS = {
+  decisionHours: "AUTHORIZATION_DECISION_HOURS",
+  appealDays: "APPEAL_REQUEST_DAYS",
+  infoExpiryDays: "INFO_REQUEST_EXPIRY_DAYS",
+} as const;
+
 export type PolicyUnit = "HOURS" | "DAYS";
 
 export interface PolicySettingDefinition {

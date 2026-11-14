@@ -3,7 +3,8 @@
 import { NotFoundError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { ActorIdentity, ProcessesDeps, RequestContext } from "./ports.js";
-import { factOf, indexFacts, refOf, toProcessView, type ProcessView } from "./process-view.js";
+import { loadProcessFacts } from "./load-facts.js";
+import { readableFactsOf, toProcessView, type ProcessView } from "./process-view.js";
 import { isAuditedReader, resolveReadAccess } from "./readable-categories.js";
 
 const notFound = () => new NotFoundError({ detail: "Processo não encontrado." });
@@ -17,8 +18,8 @@ export function createGetProcessUseCase<Trx>(deps: ProcessesDeps<Trx>) {
       if (!process || !readableOrigins.includes(process.originType)) {
         throw notFound();
       }
-      const fact = factOf(indexFacts(await deps.facts.getActFacts(trx, familyId, [refOf(process)])), process);
-      if (!fact) {
+      const facts = readableFactsOf(process, await loadProcessFacts(deps, trx, familyId, [process]));
+      if (!facts) {
         deps.onInconsistency({ processId: process.id, originType: process.originType });
         throw notFound();
       }
@@ -38,7 +39,7 @@ export function createGetProcessUseCase<Trx>(deps: ProcessesDeps<Trx>) {
           ...auditContextFields(context),
         });
       }
-      return toProcessView(process, fact);
+      return toProcessView(process, facts);
     });
   };
 }

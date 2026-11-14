@@ -238,12 +238,77 @@ export interface InsurerEligibilityResult {
   validTo?: string
   currency?: string
   coverages?: InsurerCoverageLimits[]
+  /** Marco B fatia 3 (BR-SEG-43): semáforo do serviço pedido; só com `serviceCode`. */
+  light?: EligibilityLight
+  /** Copagamento: % que o paciente paga no balcão; nulo se VERMELHO. */
+  patientSharePct?: number | null
+}
+
+export type EligibilityLight = 'GREEN' | 'YELLOW' | 'RED'
+
+/** Pedido de autorização do prestador (S4 simplificado, ADR-034). */
+export type AuthorizationStatus = 'SUBMITTED' | 'IN_REVIEW' | 'INFO_REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+export type AuthorizationAction = 'RESPOND' | 'CANCEL' | 'APPEAL' | 'ATTACH'
+/** Só documentos administrativos (BR-AUT-13). */
+export type AuthorizationAttachmentKind = 'QUOTE' | 'INSURER_FORM' | 'ID_COPY' | 'OTHER_ADMIN'
+
+export interface AuthorizationAttachment {
+  id: string
+  kind: AuthorizationAttachmentKind
+  originalName: string
+  mimeType: string
+  sizeBytes: number
+  createdAt: string
+}
+
+export interface AuthorizationRequest {
+  id: string
+  insurerId: string
+  insurerName: string
+  beneficiaryName: string
+  serviceCode: string
+  serviceName: string
+  guideType: string
+  currency: string
+  requestedAmount: number
+  authorizedAmount?: number | null
+  partial?: boolean
+  expectedOn: string
+  justification: string
+  status: AuthorizationStatus
+  closedReason?: 'INFO_TIMEOUT' | 'CLINIC_CANCELLED' | null
+  decisionNote?: string | null
+  code?: string | null
+  validUntil?: string | null
+  decisionDueAt?: string | null
+  infoExpiresAt?: string | null
+  appealOpenUntil?: string | null
+  processId?: string | null
+  parentRequestId?: string | null
+  allowedActions: AuthorizationAction[]
+  attachments?: AuthorizationAttachment[]
+  timeline?: Array<{ status: AuthorizationStatus; occurredAt: string; by: 'CLINIC' | 'INSURER' | 'SYSTEM'; note?: string | null }>
+  createdAt: string
+  updatedAt: string
+}
+
+/** `AuthorizationRequestInput` (sem campos clínicos, C2). */
+export interface AuthorizationRequestInput extends InsurerEligibilityRequest {
+  insurerId: string
+  serviceCode: string
+  guideType?: string
+  requestedAmount: number
+  expectedOn: string
+  justification: string
+  processId?: string
 }
 
 export interface ClinicInsurerService {
   code: string
   name: string
   category?: string | null
+  /** Marco B fatia 2: tipo de guia deduzido do serviço (nulo/ausente = por classificar). */
+  guideType?: string | null
 }
 
 export const beneficiaryStatusLabel: Record<BeneficiaryStatus, string> = {

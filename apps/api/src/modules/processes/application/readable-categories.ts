@@ -1,25 +1,27 @@
 // Decisão de leitura por categoria da origem (authorization.md §6.8, BR-PRC-05): `AccessPolicy.can(READ, categoria)`
-// uma vez por pedido e categoria. Única fonte de autorização: nada de ifs de permissão fora de `access`.
+// uma vez por pedido e categoria; a origem `AUTHORIZATION` (fatia 3) não tem categoria de saúde e usa `MANAGE_INSURANCE`.
+// Única fonte de autorização: nada de ifs de permissão fora de `access`.
 import { ForbiddenError, NotFoundError } from "../../../platform/errors/index.js";
 import type { Relation } from "../../access/index.js";
 import { categoryOfOrigin, PROCESS_ORIGIN_TYPES, type OriginCategory, type ProcessOriginType } from "../domain/process.js";
 import type { ActorIdentity, ProcessesDeps } from "./ports.js";
 
 export interface ReadAccess {
-  /** Origens que o ator pode ler (consulta ⇒ APPOINTMENTS, exame ⇒ EXAMS). Pode ser vazio (lista filtra, BR-PRC-05). */
+  /** Origens que o ator pode ler (consulta ⇒ APPOINTMENTS, exame ⇒ EXAMS, autorização ⇒ seguro). Pode ser vazio (lista filtra, BR-PRC-05). */
   readableOrigins: ProcessOriginType[];
   /** `undefined` só se nenhuma categoria foi permitida. */
   relation: Relation | undefined;
 }
 
-const CATEGORIES: readonly OriginCategory[] = ["APPOINTMENTS", "EXAMS"];
+const CATEGORIES: readonly OriginCategory[] = ["APPOINTMENTS", "EXAMS", "INSURANCE"];
 
 export async function resolveReadAccess<Trx>(deps: ProcessesDeps<Trx>, trx: Trx, actor: ActorIdentity, familyId: string, memberId: string): Promise<ReadAccess> {
   const allowed = new Set<OriginCategory>();
   let relation: Relation | undefined;
   for (const category of CATEGORIES) {
     try {
-      const context = await deps.policy.can(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, action: "READ", subjectMemberId: memberId, category });
+      const base = { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, subjectMemberId: memberId };
+      const context = await deps.policy.can(trx, category === "INSURANCE" ? { ...base, action: "MANAGE_INSURANCE" } : { ...base, action: "READ", category });
       allowed.add(category);
       relation = context.relation;
     } catch (error) {
