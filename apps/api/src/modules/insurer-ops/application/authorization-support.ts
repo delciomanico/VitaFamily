@@ -26,12 +26,16 @@ export async function policyValue<Trx>(deps: OpsDeps<Trx>, trx: Trx, insurerId: 
   return resolvePolicySetting(definition, await deps.policySettings.list(trx, insurerId), serviceId).value;
 }
 
-/** BR-AUT-06: prazo de decisão do pedido (serviço > seguradora > omissão do Vita). */
-export async function decisionDueAt<Trx>(deps: OpsDeps<Trx>, trx: Trx, insurerId: string, serviceId: string, now: Date): Promise<Date> {
-  return calcularPrazoDecisao(now, await policyValue(deps, trx, insurerId, POLICY_KEYS.decisionHours, serviceId));
+/**
+ * BR-AUT-06: prazo de decisão do pedido (serviço > seguradora > omissão do Vita); num recurso (`parentRequestId`) é
+ * `APPEAL_RESPONSE_HOURS` (fatia 4, ADR-035 §6).
+ */
+export async function decisionDueAt<Trx>(deps: OpsDeps<Trx>, trx: Trx, insurerId: string, serviceId: string, now: Date, isAppeal = false): Promise<Date> {
+  const hours = isAppeal ? await policyValue(deps, trx, insurerId, POLICY_KEYS.appealResponseHours) : await policyValue(deps, trx, insurerId, POLICY_KEYS.decisionHours, serviceId);
+  return calcularPrazoDecisao(now, hours);
 }
 
-/** BR-AUT-14: limite para a clínica responder, guardado ao entrar em `INFO_REQUESTED` (usado pela decisão do analista, fatia 4). */
+/** BR-AUT-14: limite para a clínica responder, guardado ao entrar em `INFO_REQUESTED` (pedido de informação do analista, fatia 4). */
 export async function infoExpiresAt<Trx>(deps: OpsDeps<Trx>, trx: Trx, insurerId: string, now: Date): Promise<Date> {
   return calcularLimiteInformacao(now, await policyValue(deps, trx, insurerId, POLICY_KEYS.infoExpiryDays));
 }
@@ -60,6 +64,8 @@ export interface TransitionInput {
   actorAccountId: string | null;
   note: string | null;
   closedReason?: ClosedReason;
+  /** Fatia 4: nota INTERNA (`overrideReason`, motivo de reabertura); só seguradora. */
+  internalNote?: string | null;
   now: Date;
 }
 
@@ -75,6 +81,8 @@ export async function recordTransition<Trx>(deps: Pick<OpsDeps<Trx>, "authorizat
     actorAccountId: input.actorAccountId,
     channel: "PORTAL",
     note: input.note,
+    ...(input.actor === "ANALYST" || input.actor === "SUPERVISOR" ? { actorRole: input.actor } : {}),
+    ...(input.internalNote !== undefined ? { internalNote: input.internalNote } : {}),
     at: input.now,
   });
 }
@@ -136,15 +144,16 @@ export async function toViews<Trx>(deps: OpsDeps<Trx>, trx: Trx, rows: Authoriza
       guideType: row.guideType,
       currency: insurer.currency,
       requestedAmount: row.requestedAmount,
-      authorizedAmount: row.authorizedAmount,
+      authorizedAmount: row.status === "APPROVED" ? row.authorizedAmount : null,
       partial: isPartial(row),
       expectedOn: row.expectedOn,
       justification: row.justification,
       status: row.status,
       closedReason: row.closedReason,
       decisionNote: row.decisionNote,
-      code: row.code,
-      validUntil: row.validUntil,
+      // BR-AUT-21: depois de revertida, o código deixa de valer (o pedido já não é APPROVED): a clínica não o volta a ver.
+      code: row.status === "APPROVED" ? row.code : null,
+      validUntil: row.status === "APPROVED" ? row.validUntil : null,
       decisionDueAt: row.decisionDueAt,
       infoExpiresAt: row.infoExpiresAt,
       appealOpenUntil: appealOpenUntil(row, insurer.appealDays),
@@ -159,7 +168,8 @@ export async function toViews<Trx>(deps: OpsDeps<Trx>, trx: Trx, rows: Authoriza
       view.timeline = (events.get(row.id) ?? []).map((e) => ({
         status: e.toStatus,
         occurredAt: e.occurredAt,
-        by: e.actorType === "CLINIC_ACCOUNT" ? ("CLINIC" as const) : e.actorType === "SYSTEM" ? ("SYSTEM" as const) : ("INSURER" as const),
+        // A auto-aprovação (`SYSTEM` → APPROVED) aparece como decisão da seguradora: a clínica nunca vê que foi automática (BR-AUT-11).
+        by: e.actorType === "CLINIC_ACCOUNT" ? ("CLINIC" as const) : e.actorType === "SYSTEM" && e.toStatus !== "APPROVED" ? ("SYSTEM" as const) : ("INSURER" as const),
         note: e.note,
       }));
     }

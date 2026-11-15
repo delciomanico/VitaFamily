@@ -9,7 +9,7 @@ import { auditEvent, authorize, notFound } from "./support.js";
 export function createResetPolicySettingUseCase<Trx>(deps: OpsDeps<Trx>) {
   return async function resetPolicySetting(actor: OpsActor, key: string, query: { serviceId?: string | undefined }, context: RequestContext): Promise<void> {
     return deps.withTransaction(async (trx) => {
-      await authorize(deps, trx, actor, "admin");
+      await authorize(deps, trx, actor, "policy-write");
       const definition = requireDefinition(await deps.policySettings.definitions(trx), key);
       const serviceId = query.serviceId === undefined ? undefined : requireUuid(query.serviceId, "serviceId");
       if (serviceId !== undefined && !(await deps.services.findById(trx, actor.insurerId, serviceId))) throw notFound();

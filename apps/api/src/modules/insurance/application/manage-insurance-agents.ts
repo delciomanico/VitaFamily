@@ -6,13 +6,13 @@ import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { InsuranceAccount } from "../domain/insurance-account.js";
 import { generateInitialInsurancePassword, hashInsurancePassword } from "../domain/insurance-crypto.js";
-import { assertCanManageAgents, assertRemovableAgentTarget, MANAGED_ACCOUNT_ROLES } from "../domain/insurance-staff-hierarchy.js";
+import { assertCanManageAgents, assertRemovableAgentTarget, MANAGED_ACCOUNT_ROLES, OPERATIONAL_ROLES } from "../domain/insurance-staff-hierarchy.js";
 import type { InsuranceDeps, InsurancePortalActor, RequestContext } from "./ports.js";
 import { trySendInsuranceMail } from "./send-insurance-mail.js";
 
 export interface CreateInsuranceAgentInput {
   email: string;
-  /** Por omissão `INSURANCE_AGENT`; `BENEFICIARY_MANAGER` só com o módulo operacional ativo (ADR-025, Fase A). */
+  /** Por omissão `INSURANCE_AGENT`; os papéis do módulo operacional (`BENEFICIARY_MANAGER`, `AUTHORIZATION_ANALYST`, `SUPERVISOR`) só com o módulo ativo (ADR-025/035). */
   role?: string | null;
 }
 
@@ -21,13 +21,15 @@ export function createCreateInsuranceAgentUseCase<Trx>(deps: InsuranceDeps<Trx>)
   return async function createInsuranceAgent(actor: InsurancePortalActor, input: CreateInsuranceAgentInput, context: RequestContext): Promise<InsuranceAccount> {
     assertCanManageAgents(actor);
     const email = input.email.trim().toLowerCase();
-    const role = input.role ?? "INSURANCE_AGENT";
-    if (role !== "INSURANCE_AGENT" && role !== "BENEFICIARY_MANAGER") {
-      throw new ValidationError([{ field: "role", message: "INSURANCE_AGENT ou BENEFICIARY_MANAGER" }], { detail: "Papel inválido." });
+    const requestedRole = input.role ?? "INSURANCE_AGENT";
+    const requested = MANAGED_ACCOUNT_ROLES.find((candidate) => candidate === requestedRole);
+    if (requested === undefined) {
+      throw new ValidationError([{ field: "role", message: MANAGED_ACCOUNT_ROLES.join(" | ") }], { detail: "Papel inválido." });
     }
 
+    const role = requested;
     const { account, password } = await deps.withTransaction(async (trx) => {
-      if (role === "BENEFICIARY_MANAGER" && (await deps.insurersRepo.findById(trx, actor.insurerId))?.operationalModuleEnabled !== true) {
+      if (OPERATIONAL_ROLES.includes(role) && (await deps.insurersRepo.findById(trx, actor.insurerId))?.operationalModuleEnabled !== true) {
         throw new ValidationError([{ field: "role", message: "requer o módulo operacional ativo" }], { detail: "O módulo operacional não está ativo nesta seguradora." });
       }
       if (await deps.insuranceAccountRepo.findByEmail(trx, email)) {
@@ -67,7 +69,7 @@ export function createCreateInsuranceAgentUseCase<Trx>(deps: InsuranceDeps<Trx>)
   };
 }
 
-/** `GET /insurance-portal/agents`: `INSURANCE_AGENT` e `BENEFICIARY_MANAGER` da própria seguradora (nunca o `INSURANCE_ADMIN`). */
+/** `GET /insurance-portal/agents`: contas geridas (`MANAGED_ACCOUNT_ROLES`) da própria seguradora (nunca o `INSURANCE_ADMIN`). */
 export function createListInsuranceAgentsUseCase<Trx>(deps: InsuranceDeps<Trx>) {
   return async function listInsuranceAgents(actor: InsurancePortalActor): Promise<InsuranceAccount[]> {
     assertCanManageAgents(actor);

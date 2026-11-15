@@ -17,6 +17,7 @@ import { runWithActor } from "../../src/platform/actor/index.js";
 import { FixedClock } from "../../src/platform/clock/index.js";
 import { createDb, withTransaction, type Database } from "../../src/platform/db/index.js";
 import { createApp } from "../../src/platform/http/index.js";
+import { openApiSpecPath } from "../support/openapi-spec.js";
 import { createLogger, type Logger } from "../../src/platform/logger/index.js";
 import { createAccessModule } from "../../src/modules/access/index.js";
 import { createAuditModule } from "../../src/modules/audit/index.js";
@@ -254,7 +255,7 @@ describe("integração HTTP: app do paciente (S6 parcial) — cartão, QR e cobe
       },
     });
     app = createApp({
-      openApiSpecPath: join(REPO_ROOT, "docs/05-api/openapi.yaml"),
+      openApiSpecPath: openApiSpecPath(REPO_ROOT),
       logger: createLogger({ level: "debug", destination: logDestination }),
       validateResponses: true,
       securityHandlers: {

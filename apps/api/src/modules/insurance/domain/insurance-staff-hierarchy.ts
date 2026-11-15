@@ -15,8 +15,14 @@ export function assertCanManageAgents(actor: InsuranceStaffActor): void {
   }
 }
 
-/** Contas geridas pelo `INSURANCE_ADMIN` da própria seguradora: `INSURANCE_AGENT` e (ADR-025, Fase A) `BENEFICIARY_MANAGER`. */
-export const MANAGED_ACCOUNT_ROLES: InsuranceAccountRole[] = ["INSURANCE_AGENT", "BENEFICIARY_MANAGER"];
+/**
+ * Contas geridas pelo `INSURANCE_ADMIN` da própria seguradora: `INSURANCE_AGENT`, (ADR-025, Fase A) `BENEFICIARY_MANAGER` e
+ * (fatia 4, ADR-035) `AUTHORIZATION_ANALYST` e `SUPERVISOR`. `CLAIMS_MANAGER`/`FINANCE_MANAGER` só quando tiverem rotas (S5).
+ */
+export const MANAGED_ACCOUNT_ROLES: InsuranceAccountRole[] = ["INSURANCE_AGENT", "BENEFICIARY_MANAGER", "AUTHORIZATION_ANALYST", "SUPERVISOR"];
+
+/** Papéis do módulo operacional: só se criam com `operational_module_enabled` (BR-INS-08, ADR-035). */
+export const OPERATIONAL_ROLES: InsuranceAccountRole[] = ["BENEFICIARY_MANAGER", "AUTHORIZATION_ANALYST", "SUPERVISOR"];
 
 /** Só remove contas geridas da própria seguradora; qualquer outro alvo (incl. o `INSURANCE_ADMIN`) é `NOT_FOUND`. */
 export function assertRemovableAgentTarget(actor: InsuranceStaffActor, target: InsuranceAccount | null): InsuranceAccount {

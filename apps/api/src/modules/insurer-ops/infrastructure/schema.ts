@@ -168,6 +168,7 @@ export interface InsurerProvidersTable extends Timestamps {
 
 type NullableTime = ColumnType<Date | null, Date | null | undefined, Date | null>;
 type Money = ColumnType<string, number | string, number | string>;
+type ClosedReasonDb = "INFO_TIMEOUT" | "CLINIC_CANCELLED" | "ANALYST_CANCELLED";
 type AuthorizationStatusDb = "SUBMITTED" | "IN_REVIEW" | "INFO_REQUESTED" | "APPROVED" | "REJECTED" | "CANCELLED";
 
 /** Fatia 3 (`0039`, schema.md §3c): nenhuma coluna clínica (C2, TC-AUT-17). `created_at`/`updated_at` definidos pela aplicação. */
@@ -181,7 +182,7 @@ export interface InsurerAuthorizationsTable {
   process_id: ColumnType<string | null, string | null | undefined, string | null>;
   parent_request_id: ColumnType<string | null, string | null | undefined, string | null>;
   status: ColumnType<AuthorizationStatusDb, AuthorizationStatusDb | undefined, AuthorizationStatusDb>;
-  closed_reason: ColumnType<"INFO_TIMEOUT" | "CLINIC_CANCELLED" | null, "INFO_TIMEOUT" | "CLINIC_CANCELLED" | null | undefined, "INFO_TIMEOUT" | "CLINIC_CANCELLED" | null>;
+  closed_reason: ColumnType<ClosedReasonDb | null, ClosedReasonDb | null | undefined, ClosedReasonDb | null>;
   justification: string;
   requested_amount: Money;
   authorized_amount: ColumnType<string | null, number | string | null | undefined, number | string | null>;
@@ -194,6 +195,26 @@ export interface InsurerAuthorizationsTable {
   decision_due_at: ColumnType<Date, Date, Date>;
   info_expires_at: NullableTime;
   submitted_by_clinic_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  // Fatia 4 (`0040`): decisor atual, atribuição (marca), escalada de SLA (marca) e rasto da auto-aprovação (só códigos).
+  decided_by_kind: ColumnType<"ANALYST" | "SUPERVISOR" | "SYSTEM" | null, "ANALYST" | "SUPERVISOR" | "SYSTEM" | null | undefined, "ANALYST" | "SUPERVISOR" | "SYSTEM" | null>;
+  assigned_to_insurance_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  assigned_at: NullableTime;
+  escalated_at: NullableTime;
+  auto_approval_trace: ColumnType<unknown, string | null | undefined, string | null>;
+  created_at: ColumnType<Date, Date, never>;
+  updated_at: ColumnType<Date, Date, Date>;
+}
+
+export interface InsurerAutoApprovalRulesTable {
+  id: Generated<string>;
+  insurer_id: string;
+  name: string;
+  service_kind_id: ColumnType<string | null, string | null | undefined, never>;
+  service_id: ColumnType<string | null, string | null | undefined, never>;
+  max_amount: Money;
+  active: ColumnType<boolean, boolean, boolean>;
+  created_by_insurance_account_id: ColumnType<string | null, string | null | undefined, string | null>;
+  updated_by_insurance_account_id: ColumnType<string | null, string | null | undefined, string | null>;
   created_at: ColumnType<Date, Date, never>;
   updated_at: ColumnType<Date, Date, Date>;
 }
@@ -208,6 +229,9 @@ export interface InsurerAuthorizationEventsTable {
   actor_account_id: string | null;
   channel: "PORTAL" | "PHONE" | "WHATSAPP" | "PHOTO" | "API";
   note: string | null;
+  /** Fatia 4: decisor (só em eventos de `INSURANCE_ACCOUNT`) e nota INTERNA (só seguradora). */
+  actor_role: ColumnType<"ANALYST" | "SUPERVISOR" | null, "ANALYST" | "SUPERVISOR" | null | undefined, never>;
+  internal_note: ColumnType<string | null, string | null | undefined, never>;
   occurred_at: Date;
 }
 
@@ -244,5 +268,6 @@ declare module "../../../platform/db/index.js" {
     insurer_authorizations: InsurerAuthorizationsTable;
     insurer_authorization_events: InsurerAuthorizationEventsTable;
     insurer_attachments: InsurerAttachmentsTable;
+    insurer_auto_approval_rules: InsurerAutoApprovalRulesTable;
   }
 }

@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { runWithActor } from "../../src/platform/actor/index.js";
 import { FixedClock } from "../../src/platform/clock/index.js";
 import { createApp } from "../../src/platform/http/index.js";
+import { openApiSpecPath } from "../support/openapi-spec.js";
 import { createLogger } from "../../src/platform/logger/index.js";
 import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createBearerAuthSecurityHandler } from "../../src/modules/auth/interface/middleware.js";
@@ -75,7 +76,7 @@ async function buildHarness() {
   };
   const insuranceActor = createInsuranceActorContextMiddleware({ resolveInsuranceActorState: createResolveInsuranceActorStateUseCase(fx.deps) });
   const app = createApp({
-    openApiSpecPath: join(REPO_ROOT, "docs/05-api/openapi.yaml"),
+    openApiSpecPath: openApiSpecPath(REPO_ROOT),
     logger: createLogger({ level: "silent" }),
     securityHandlers: {
       bearerAuth: createBearerAuthSecurityHandler({ signingKeys: KEYS, clock }),
@@ -302,6 +303,42 @@ describe("/insurance-portal/agents*", () => {
     expect(h.fx.insuranceAccountRepo.byId.has(AGT_B)).toBe(true);
     expect((await request(h.app).delete(`${base}/${AGT_A}`).set("Authorization", auth)).status).toBe(204);
     expect(h.fx.insuranceAccountRepo.byId.has(AGT_A)).toBe(false);
+  });
+
+  it("TC-DEC-18 (ADR-035): INSURANCE_ADMIN cria AUTHORIZATION_ANALYST e SUPERVISOR (vários SUPERVISOR) só com o módulo operacional ativo; audita com metadata.role; remove-os", async () => {
+    const auth = await h.insToken(ADM_A);
+    const create = (email: string, role: string) => request(h.app).post(base).set("Authorization", auth).send({ email, role });
+    // módulo desativado ⇒ 422 (field role); INSURANCE_AGENT continua a poder criar-se
+    for (const role of ["AUTHORIZATION_ANALYST", "SUPERVISOR"]) {
+      const refused = await create(`${role.toLowerCase()}@seg.pt`, role);
+      expect(refused.status, role).toBe(422);
+      expect((refused.body as { errors: { field: string }[] }).errors[0]?.field).toBe("role");
+    }
+    const insurer = h.fx.insurersRepo.byId.get(INS_A);
+    if (!insurer) throw new Error("seguradora em falta");
+    insurer.operationalModuleEnabled = true;
+    const created: Record<string, string> = {};
+    for (const [email, role] of [["analista@seg.pt", "AUTHORIZATION_ANALYST"], ["sup1@seg.pt", "SUPERVISOR"], ["sup2@seg.pt", "SUPERVISOR"]] as const) {
+      const res = await create(email, role);
+      expect(res.status, email).toBe(201);
+      expect(res.body).toMatchObject({ insurerId: INS_A, email, role, status: "ACTIVE" });
+      created[email] = (res.body as { id: string }).id;
+    }
+    // CLAIMS_MANAGER e FINANCE_MANAGER só quando tiverem rotas (S5); papel desconhecido ⇒ 4xx
+    for (const role of ["CLAIMS_MANAGER", "FINANCE_MANAGER", "INSURANCE_ADMIN"]) expect([400, 422], role).toContain((await create(`${role.toLowerCase()}@seg.pt`, role)).status);
+    const list = (await request(h.app).get(base).set("Authorization", auth)).body as { role: string }[];
+    expect(list.filter((a) => a.role === "SUPERVISOR")).toHaveLength(2);
+    const creations = h.fx.audit.events.filter((e) => e.action === "INSURER_ACCOUNT_CREATE");
+    expect(creations.map((e) => e.metadata)).toEqual([
+      { insurerId: INS_A, role: "AUTHORIZATION_ANALYST" },
+      { insurerId: INS_A, role: "SUPERVISOR" },
+      { insurerId: INS_A, role: "SUPERVISOR" },
+    ]);
+    expect((await request(h.app).delete(`${base}/${created["sup1@seg.pt"] ?? ""}`).set("Authorization", auth)).status).toBe(204);
+    expect(h.fx.audit.events.filter((e) => e.action === "INSURER_ACCOUNT_REMOVE").map((e) => e.metadata)).toEqual([{ insurerId: INS_A, role: "SUPERVISOR" }]);
+    // um SUPERVISOR/analista não gere contas
+    const supervisorToken = await h.insToken(created["sup2@seg.pt"] ?? "");
+    expect((await request(h.app).get(base).set("Authorization", supervisorToken)).status).toBe(403);
   });
 
   it("INSURANCE_AGENT -> 403 em listar/criar/remover", async () => {

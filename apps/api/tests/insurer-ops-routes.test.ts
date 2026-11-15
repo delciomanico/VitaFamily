@@ -8,6 +8,7 @@ import type { Router } from "express";
 import { describe, expect, it } from "vitest";
 import { createClinicAuthorizationsRouter } from "../src/modules/insurer-ops/interface/clinic-authorizations-router.js";
 import { createInsurerClinicRouter } from "../src/modules/insurer-ops/interface/clinic-router.js";
+import { createInsurerAuthorizationsRouter } from "../src/modules/insurer-ops/interface/insurer-authorizations-router.js";
 import { createInsurerPatientRouter } from "../src/modules/insurer-ops/interface/patient-router.js";
 import { createInsurerOpsRouter } from "../src/modules/insurer-ops/interface/portal-router.js";
 
@@ -59,6 +60,22 @@ describe("insurer-ops: rotas ↔ openapi", () => {
     expect(sorted(routerOperations(createClinicAuthorizationsRouter(stub())))).toEqual(sorted(contract));
   });
 
+  it("portal da seguradora: /insurance-portal/authorizations* e /auto-approval-rules* (15 operações, marco B fatia 4)", () => {
+    const contract = contractOperations(/^\/insurance-portal\/(authorizations|auto-approval-rules)(\/|$)/);
+    expect(contract.size).toBe(15);
+    expect(sorted(routerOperations(createInsurerAuthorizationsRouter(stub())))).toEqual(sorted(contract));
+  });
+
+  it("`metrics` e `assignees` registam-se antes de `/{authorizationId}` (senão seriam lidos como id)", () => {
+    const paths = [...routerOperations(createInsurerAuthorizationsRouter(stub()))];
+    const order = (router: ReturnType<typeof createInsurerAuthorizationsRouter>) => (router as unknown as { stack: { route?: { path: string } }[] }).stack.flatMap((l) => (l.route ? [l.route.path] : []));
+    const registered = order(createInsurerAuthorizationsRouter(stub()));
+    const byId = registered.indexOf("/insurance-portal/authorizations/:authorizationId");
+    expect(registered.indexOf("/insurance-portal/authorizations/metrics")).toBeLessThan(byId);
+    expect(registered.indexOf("/insurance-portal/authorizations/assignees")).toBeLessThan(byId);
+    expect(paths.length).toBe(15);
+  });
+
   it("app do paciente: /families/{familyId}/members/{memberId}/insurance/*", () => {
     const contract = contractOperations(/^\/families\/\{familyId\}\/members\/\{memberId\}\/insurance(\/|$)/);
     expect(contract.size).toBe(6);
@@ -71,8 +88,8 @@ describe("insurer-ops: todo caso de uso decide a autorização", () => {
   // `portal-me`: aberto a qualquer papel e com o módulo desativado por desenho (P-SEG-3); o ator vem do token e só lê a própria seguradora.
   // `ExpirePoliciesJob`, `PurgeImportPreviewsJob`: jobs de sistema, sem ator HTTP.
   // `ExpireInfoRequestsJob` (job de sistema) e `GetCoverageFacts` (porta de leitura de `processes`, sem ator HTTP; o acesso do
-  // utilizador é decidido por `processes` com `AccessPolicy`): sem ator da clínica.
-  const exempt = new Set(["createGetPortalMeUseCase", "createExpirePoliciesJobUseCase", "createPurgeImportPreviewsJobUseCase", "createExpireInfoRequestsJobUseCase", "createGetCoverageFactsUseCase"]);
+  // utilizador é decidido por `processes` com `AccessPolicy`): sem ator da clínica. `FlagSlaBreachesJob`: job de sistema (fatia 4).
+  const exempt = new Set(["createGetPortalMeUseCase", "createExpirePoliciesJobUseCase", "createPurgeImportPreviewsJobUseCase", "createExpireInfoRequestsJobUseCase", "createGetCoverageFactsUseCase", "createFlagSlaBreachesJobUseCase"]);
   // `loadForWrite` = `assertClinicRole` + pedido da própria clínica + ligação ativa (§6.2b, `authorization-support.ts`).
   const decision = /\b(authorize|authorizePatient|authorizeClinic|assertClinicRole|loadForWrite)\(/;
 

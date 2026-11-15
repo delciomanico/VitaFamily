@@ -10,6 +10,7 @@ import { FixedClock } from "../../src/platform/clock/index.js";
 import { runWithActor } from "../../src/platform/actor/index.js";
 import { DomainError } from "../../src/platform/errors/index.js";
 import { createApp } from "../../src/platform/http/index.js";
+import { openApiSpecPath } from "../support/openapi-spec.js";
 import { createLogger } from "../../src/platform/logger/index.js";
 import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createBearerAuthSecurityHandler } from "../../src/modules/auth/interface/middleware.js";
@@ -23,7 +24,7 @@ import { createProcessesClinicPortalRouter } from "../../src/modules/processes/i
 import { createProcessesRouter } from "../../src/modules/processes/interface/router.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
-const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
+const OPENAPI_SPEC_PATH = openApiSpecPath(REPO_ROOT);
 const NOW = new Date("2026-06-01T12:00:00.000Z");
 const FAMILY = "11111111-1111-4111-8111-111111111111";
 const MEMBER = "22222222-2222-4222-8222-222222222222";

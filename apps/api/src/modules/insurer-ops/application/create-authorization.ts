@@ -4,12 +4,12 @@
 import { RateLimitedError } from "../../../platform/errors/index.js";
 import { assertClinicRole, type ClinicOpsActor } from "../domain/access.js";
 import { parseCreateAuthorizationInput } from "../domain/authorization.js";
-import { evaluateEligibility } from "../domain/coverage.js";
+import { evaluateEligibility, toEligibilityLight } from "../domain/coverage.js";
 import { toViews, type AuthorizationView } from "./authorization-support.js";
 import { consumeLookupRateLimit, findBeneficiary, notFoundError } from "./beneficiary-lookup.js";
 import { authorizeClinic } from "./clinic-portal.js";
 import type { OpsDeps, RequestContext } from "./ports.js";
-import { gateRejection, lightOnDate, resolveGuideType, submitAuthorization } from "./submit-authorization.js";
+import { coverageOnDate, gateRejection, resolveGuideType, submitAuthorization } from "./submit-authorization.js";
 
 export function createCreateAuthorizationUseCase<Trx>(deps: OpsDeps<Trx>) {
   return async function createAuthorization(actor: ClinicOpsActor, body: unknown, context: RequestContext): Promise<AuthorizationView> {
@@ -30,8 +30,9 @@ export function createCreateAuthorizationUseCase<Trx>(deps: OpsDeps<Trx>) {
       // Serviço desconhecido, VERMELHO e VERDE dão a MESMA recusa (BR-AUT-02): a razão nunca sai.
       const service = await deps.authorizations.findServiceByCode(trx, input.insurerId, input.identification.serviceCode ?? "");
       if (service === null) throw gateRejection();
-      const light = await lightOnDate(deps, trx, input.insurerId, candidate.beneficiaryId, service, input.expectedOn);
-      if (light !== "YELLOW") throw gateRejection();
+      const coverage = await coverageOnDate(deps, trx, input.insurerId, candidate.beneficiaryId, service, input.expectedOn);
+      const light = coverage === null ? "RED" : toEligibilityLight(coverage);
+      if (coverage === null || light !== "YELLOW") throw gateRejection();
       const guideType = await resolveGuideType(deps, trx, service, input.guideType);
 
       const id = await submitAuthorization(deps, trx, {
@@ -48,6 +49,7 @@ export function createCreateAuthorizationUseCase<Trx>(deps: OpsDeps<Trx>) {
         processId: input.processId,
         parentRequestId: null,
         light,
+        coverage,
       });
       const row = await deps.authorizations.findForClinic(trx, actor.clinicId, id);
       if (!row) throw new Error("pedido inexistente logo após a escrita");

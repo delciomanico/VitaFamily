@@ -132,15 +132,15 @@ export class KyselyAuthorizationsRepository implements AuthorizationsRepository<
     return row?.id ?? null;
   }
 
-  async findServiceByCode(trx: Db, insurerId: string, code: string): Promise<{ id: string; status: "ACTIVE" | "INACTIVE"; guideType: string | null } | null> {
+  async findServiceByCode(trx: Db, insurerId: string, code: string): Promise<{ id: string; status: "ACTIVE" | "INACTIVE"; guideType: string | null; serviceKindId: string | null } | null> {
     const row = await trx
       .selectFrom("insurer_services as s")
       .leftJoin("insurer_service_kinds as k", (join) => join.onRef("k.insurer_id", "=", "s.insurer_id").onRef("k.id", "=", "s.service_kind_id"))
-      .select(["s.id", "s.status", "k.guide_type"])
+      .select(["s.id", "s.status", "s.service_kind_id", "k.guide_type"])
       .where("s.insurer_id", "=", insurerId)
       .where("s.code", "=", code)
       .executeTakeFirst();
-    return row ? { id: row.id, status: row.status, guideType: row.guide_type } : null;
+    return row ? { id: row.id, status: row.status, guideType: row.guide_type, serviceKindId: row.service_kind_id } : null;
   }
 
   async planCoverageLines(trx: Db, insurerId: string, planId: string): Promise<CoverageLine[]> {
@@ -177,6 +177,11 @@ export class KyselyAuthorizationsRepository implements AuthorizationsRepository<
             expected_on: record.expectedOn,
             decision_due_at: record.decisionDueAt,
             submitted_by_clinic_account_id: record.submittedByClinicAccountId,
+            // Auto-aprovação (BR-AUT-03): nasce APPROVED com decisor SYSTEM, código e validade (CHECK `approved_check`).
+            ...(record.autoApproval
+              ? { authorized_amount: record.autoApproval.authorizedAmount, code: record.autoApproval.code, valid_until: record.autoApproval.validUntil, decided_by_kind: "SYSTEM" as const, decided_at: record.now }
+              : {}),
+            auto_approval_trace: record.autoApprovalTrace === null ? null : JSON.stringify(record.autoApprovalTrace),
             created_at: record.now,
             updated_at: record.now,
           })
@@ -197,6 +202,8 @@ export class KyselyAuthorizationsRepository implements AuthorizationsRepository<
         actor_account_id: event.actorAccountId,
         channel: event.channel,
         note: event.note,
+        actor_role: event.actorRole ?? null,
+        internal_note: event.internalNote ?? null,
         occurred_at: event.at,
       })
       .execute();
@@ -227,7 +234,8 @@ export class KyselyAuthorizationsRepository implements AuthorizationsRepository<
         closed_reason: change.closedReason,
         info_expires_at: change.infoExpiresAt,
         updated_at: change.now,
-        ...(change.decisionDueAt ? { decision_due_at: change.decisionDueAt } : {}),
+        // Prazo recalculado ⇒ a marca de escalada limpa-se (BR-AUT-20).
+        ...(change.decisionDueAt ? { decision_due_at: change.decisionDueAt, escalated_at: null } : {}),
       })
       .where("insurer_id", "=", insurerId)
       .where("id", "=", id)
@@ -354,11 +362,11 @@ export class KyselyAuthorizationsRepository implements AuthorizationsRepository<
     return rows.map((r) => ({ id: r.id, insurerId: r.insurer_id }));
   }
 
-  async coverageFacts(trx: Db, processIds: string[]): Promise<{ processId: string; fact: CoverageFact }[]> {
+  async coverageFacts(trx: Db, processIds: string[], now: Date): Promise<{ processId: string; fact: CoverageFact }[]> {
     if (processIds.length === 0) return [];
     const rows = await trx
       .selectFrom("insurer_authorizations")
-      .select(["id", "process_id", "parent_request_id", "status", "decision_due_at", "updated_at"])
+      .select(["id", "process_id", "parent_request_id", "status", "decision_due_at", "valid_until", "updated_at"])
       .where("process_id", "in", processIds)
       .execute();
     const byProcess = new Map<string, typeof rows>();
@@ -368,7 +376,7 @@ export class KyselyAuthorizationsRepository implements AuthorizationsRepository<
     }
     const facts: { processId: string; fact: CoverageFact }[] = [];
     for (const [processId, requests] of byProcess) {
-      const fact = projectCoverage(requests.map((r) => ({ id: r.id, parentRequestId: r.parent_request_id, status: r.status, decisionDueAt: r.decision_due_at, updatedAt: r.updated_at })));
+      const fact = projectCoverage(requests.map((r) => ({ id: r.id, parentRequestId: r.parent_request_id, status: r.status, decisionDueAt: r.decision_due_at, validUntil: r.valid_until, updatedAt: r.updated_at })), now);
       if (fact !== undefined) facts.push({ processId, fact });
     }
     return facts;

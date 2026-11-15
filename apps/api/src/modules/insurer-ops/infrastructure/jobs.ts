@@ -40,3 +40,16 @@ export async function registerExpireInfoRequestsWorker(boss: PgBoss, handler: ()
     await handler();
   });
 }
+
+export const FLAG_SLA_BREACHES_QUEUE = "insurer.flag-sla-breaches";
+
+/** A cada 15 minutos (BR-AUT-20); idempotente (só marca `IN_REVIEW` com prazo atingido e ainda sem marca). */
+const SLA_CRON = "*/15 * * * *";
+
+export async function registerFlagSlaBreachesWorker(boss: PgBoss, handler: () => Promise<unknown>): Promise<string> {
+  await boss.createQueue(FLAG_SLA_BREACHES_QUEUE);
+  await boss.schedule(FLAG_SLA_BREACHES_QUEUE, SLA_CRON, {});
+  return boss.work(FLAG_SLA_BREACHES_QUEUE, async () => {
+    await handler();
+  });
+}

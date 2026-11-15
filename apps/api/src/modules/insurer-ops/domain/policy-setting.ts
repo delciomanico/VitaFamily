@@ -4,13 +4,17 @@ import { NotFoundError } from "../../../platform/errors/index.js";
 import { fail } from "./validation.js";
 
 /**
- * Os NOMES das chaves de política que o pedido de autorização lê (marco B fatia 3). Único sítio do código que as nomeia
+ * Os NOMES das chaves de política que o pedido de autorização lê (marco B fatias 3 e 4). Único sítio do código que as nomeia
  * (TC-CAT-06); os VALORES (24–120 h, 15 dias, 7 dias…) vivem em dados e resolvem-se por `resolvePolicySetting`, nunca aqui.
  */
 export const POLICY_KEYS = {
   decisionHours: "AUTHORIZATION_DECISION_HOURS",
   appealDays: "APPEAL_REQUEST_DAYS",
+  /** Fatia 4 (BR-AUT-06): prazo de resposta de um recurso (pedidos com `parentRequestId`). */
+  appealResponseHours: "APPEAL_RESPONSE_HOURS",
   infoExpiryDays: "INFO_REQUEST_EXPIRY_DAYS",
+  /** Fatia 4 (BR-AUT-07): dias de validade da aprovação após `expectedOn`. */
+  validityDays: "AUTHORIZATION_VALIDITY_DAYS",
 } as const;
 
 export type PolicyUnit = "HOURS" | "DAYS";

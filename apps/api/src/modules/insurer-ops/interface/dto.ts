@@ -18,6 +18,10 @@ import type { ClinicInsurer } from "../application/clinic-portal.js";
 import type { PartnerClinic } from "../application/providers.js";
 import type { CardClaimView, CardCoverageView, CardQrView, CardView } from "../application/patient-insurance.js";
 import type { PortalMe } from "../application/portal-me.js";
+import type { AutoApprovalRuleView } from "../application/auto-approval-rules.js";
+import type { AuthorizationMetricsView } from "../application/authorization-metrics.js";
+import type { InsurerAuthorizationDetailView, InsurerAuthorizationView } from "../application/insurer-authorization-support.js";
+import type { AuthorizationAssignee } from "../application/ports.js";
 
 export const toCompanyResponse = (c: Company) => ({ id: c.id, name: c.name, taxId: c.taxId, status: c.status, createdAt: c.createdAt.toISOString() });
 
@@ -254,3 +258,67 @@ export const toAuthorizationDetailResponse = (v: AuthorizationView) => ({
 });
 
 export const toAuthorizationPageResponse = (page: Page<AuthorizationView>) => ({ items: page.items.map(toAuthorizationResponse), nextCursor: page.nextCursor });
+
+// ---- Fatia 4 — vista da seguradora (`InsurerAuthorization*`, `AutoApprovalRule`, `AuthorizationSlaMetrics`) ----
+// Dados da seguradora e da clínica, nunca de saúde (C2): sem ids de utilizador/família/membro nem `processId`.
+export const toInsurerAuthorizationResponse = (v: InsurerAuthorizationView) => ({
+  id: v.id,
+  status: v.status,
+  closedReason: v.closedReason,
+  guideType: v.guideType,
+  serviceCode: v.serviceCode,
+  serviceName: v.serviceName,
+  providerName: v.providerName,
+  beneficiaryId: v.beneficiaryId,
+  beneficiaryName: v.beneficiaryName,
+  currency: v.currency,
+  requestedAmount: v.requestedAmount,
+  authorizedAmount: v.authorizedAmount,
+  partial: v.partial,
+  expectedOn: v.expectedOn,
+  justification: v.justification,
+  parentRequestId: v.parentRequestId,
+  isAppeal: v.isAppeal,
+  decisionNote: v.decisionNote,
+  code: v.code,
+  validUntil: iso(v.validUntil),
+  expired: v.expired,
+  decisionDueAt: v.decisionDueAt.toISOString(),
+  slaStatus: v.slaStatus,
+  escalatedAt: iso(v.escalatedAt),
+  infoExpiresAt: iso(v.infoExpiresAt),
+  assignedTo: v.assignedTo,
+  decidedBy: v.decidedBy,
+  decidedAt: iso(v.decidedAt),
+  autoApproval: v.autoApproval === null ? null : { ok: v.autoApproval.ok, ruleId: v.autoApproval.ruleId, ruleName: v.autoApproval.ruleName, checks: v.autoApproval.checks.map((c) => ({ check: c.check, ok: c.ok, reason: c.reason })) },
+  allowedActions: v.allowedActions,
+  createdAt: v.createdAt.toISOString(),
+  updatedAt: v.updatedAt.toISOString(),
+});
+
+export const toInsurerAuthorizationDetailResponse = (v: InsurerAuthorizationDetailView) => ({
+  ...toInsurerAuthorizationResponse(v),
+  coverage: v.coverage,
+  attachments: v.attachments.map(toAuthorizationAttachmentResponse),
+  timeline: v.timeline.map((e) => ({ status: e.status, occurredAt: e.occurredAt.toISOString(), by: e.by, note: e.note, internalNote: e.internalNote })),
+});
+
+export const toInsurerAuthorizationPageResponse = (page: Page<InsurerAuthorizationView>) => ({ items: page.items.map(toInsurerAuthorizationResponse), nextCursor: page.nextCursor });
+
+export const toAuthorizationAssigneeResponse = (a: AuthorizationAssignee) => ({ id: a.id, email: a.email });
+
+export const toAuthorizationMetricsResponse = (m: AuthorizationMetricsView) => ({ open: m.open, period: m.period });
+
+export const toAutoApprovalRuleResponse = (r: AutoApprovalRuleView) => ({
+  id: r.id,
+  name: r.name,
+  scope: r.scope,
+  serviceKindId: r.serviceKindId,
+  serviceId: r.serviceId,
+  targetName: r.targetName,
+  maxAmount: r.maxAmount,
+  currency: r.currency,
+  active: r.active,
+  createdAt: r.createdAt.toISOString(),
+  updatedAt: r.updatedAt.toISOString(),
+});

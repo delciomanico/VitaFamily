@@ -71,6 +71,7 @@ export function AuthorizationDetailModal({ authorizationId, onClose, onChanged }
             {request.status === 'INFO_REQUESTED' && request.infoExpiresAt && <span className="text-muted">Responda até {formatShortDate(request.infoExpiresAt)}</span>}
             {request.status === 'REJECTED' && request.appealOpenUntil && <span className="text-muted">Pode recorrer até {formatShortDate(request.appealOpenUntil)}</span>}
             {request.closedReason === 'INFO_TIMEOUT' && <span className="text-muted">Fechado por falta de resposta.</span>}
+            {request.closedReason === 'ANALYST_CANCELLED' && <span className="text-muted">A seguradora cancelou esta autorização.</span>}
           </p>
           {request.decisionNote && <p className="rounded-md bg-surface-muted px-3 py-2 text-sm">{request.decisionNote}</p>}
           <dl className="grid grid-cols-2 gap-3 text-sm">

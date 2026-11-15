@@ -5,7 +5,7 @@ import { calcularLimiteRecurso } from "./deadline.js";
 import { parseEligibilityRequest, type EligibilityRequest } from "./eligibility.js";
 import { fail, isIsoDate, requireText, requireUuid } from "./validation.js";
 
-export type ClosedReason = "INFO_TIMEOUT" | "CLINIC_CANCELLED";
+export type ClosedReason = "INFO_TIMEOUT" | "CLINIC_CANCELLED" | "ANALYST_CANCELLED";
 export type AuthorizationAction = "RESPOND" | "CANCEL" | "APPEAL" | "ATTACH";
 export type AttachmentKind = "QUOTE" | "INSURER_FORM" | "ID_COPY" | "OTHER_ADMIN";
 /** Só administrativos (BR-AUT-13): não existe tipo para laudo, receita, exame ou relatório. */

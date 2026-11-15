@@ -18,6 +18,7 @@ import { runWithActor } from "../../src/platform/actor/index.js";
 import { FixedClock } from "../../src/platform/clock/index.js";
 import { createDb, withTransaction, type Database } from "../../src/platform/db/index.js";
 import { createApp } from "../../src/platform/http/index.js";
+import { openApiSpecPath } from "../support/openapi-spec.js";
 import { createLogger, type Logger } from "../../src/platform/logger/index.js";
 import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createBearerAuthSecurityHandler } from "../../src/modules/auth/interface/middleware.js";
@@ -196,7 +197,7 @@ describe("integração HTTP: módulo operacional de seguradoras, S2 mínimo e S3
       },
     });
     app = createApp({
-      openApiSpecPath: join(REPO_ROOT, "docs/05-api/openapi.yaml"),
+      openApiSpecPath: openApiSpecPath(REPO_ROOT),
       logger: createLogger({ level: "debug", destination: logDestination }),
       validateResponses: true,
       securityHandlers: {

@@ -3,6 +3,7 @@ import type { AuthorizationAttachmentKind, AuthorizationRequest, AuthorizationRe
 import { db, newId } from '../db'
 import { respond } from '../respond'
 import { clinicOf, lightOf, policyCoverages } from './clinicInsurers'
+import { evaluateAutoApproval } from './insurerAuthorizations'
 
 /**
  * Pedidos de autorização do prestador (`/clinic-portal/authorizations*`, ADR-034). Reproduz o contrato: só Admin/Gestor; só pedidos
@@ -114,6 +115,8 @@ function insert(clinicId: string, input: AuthorizationRequestInput, beneficiary:
     updatedAt: now.toISOString(),
   }
   db.insurerOps.authorizations.unshift(created)
+  // Marco B fatia 4 (BR-AUT-03): as regras da seguradora podem aprovar o pedido na criação (nunca um recurso).
+  evaluateAutoApproval(created, now)
   return created
 }
 

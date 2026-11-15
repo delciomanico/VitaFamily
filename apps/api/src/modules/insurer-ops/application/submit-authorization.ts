@@ -4,27 +4,37 @@ import { ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { ClinicOpsActor } from "../domain/access.js";
-import { evaluateCoverage, toEligibilityLight, type EligibilityLight } from "../domain/coverage.js";
+import { podeAutoAprovar, type AutoApprovalTrace } from "../domain/auto-approval.js";
+import { generateAuthorizationCode } from "../domain/authorization-code.js";
+import { evaluateCoverage, toEligibilityLight, type CoverageDecision, type EligibilityLight } from "../domain/coverage.js";
+import { calcularValidade } from "../domain/deadline.js";
 import { fail } from "../domain/validation.js";
-import { decisionDueAt, gateRejection, recordTransition } from "./authorization-support.js";
+import { decisionDueAt, gateRejection, POLICY_KEYS, policyValue, recordTransition } from "./authorization-support.js";
 import type { OpsDeps, RequestContext } from "./ports.js";
 
 export interface ServiceForRequest {
   id: string;
   status: "ACTIVE" | "INACTIVE";
   guideType: string | null;
+  serviceKindId: string | null;
 }
 
 /**
- * Semáforo do beneficiário para o serviço na data (BR-SEG-43): UMA chamada a `evaluateCoverage`, que só se mapeia.
- * Beneficiário sem apólice vigente nessa data ⇒ plano vazio (a razão sai de `evaluateCoverage`).
+ * A decisão de cobertura do beneficiário para o serviço na data (BR-SEG-41): UMA chamada a `evaluateCoverage`, a única fonte
+ * (ADR-033). Beneficiário sem apólice vigente nessa data ⇒ plano vazio (a razão sai de `evaluateCoverage`); inexistente ⇒ `null`.
+ * Sem `usage`: o saldo é o teto (ADR-035 §7).
  */
-export async function lightOnDate<Trx>(deps: OpsDeps<Trx>, trx: Trx, insurerId: string, beneficiaryId: string, service: ServiceForRequest, date: string): Promise<EligibilityLight> {
+export async function coverageOnDate<Trx>(deps: OpsDeps<Trx>, trx: Trx, insurerId: string, beneficiaryId: string, service: Pick<ServiceForRequest, "id" | "status">, date: string): Promise<CoverageDecision | null> {
   const candidate = await deps.eligibility.find(trx, insurerId, { kind: "ID", beneficiaryId }, date);
-  if (candidate === null) return "RED";
+  if (candidate === null) return null;
   const coverages = candidate.policy ? await deps.authorizations.planCoverageLines(trx, insurerId, candidate.policy.planId) : [];
-  const decision = evaluateCoverage({ coverages }, { status: candidate.status, policy: candidate.policy }, { id: service.id, status: service.status }, date);
-  return toEligibilityLight(decision);
+  return evaluateCoverage({ coverages }, { status: candidate.status, policy: candidate.policy }, { id: service.id, status: service.status }, date);
+}
+
+/** Semáforo do beneficiário para o serviço na data (BR-SEG-43): só mapeia a `CoverageDecision`. Inexistente ⇒ VERMELHO. */
+export async function lightOnDate<Trx>(deps: OpsDeps<Trx>, trx: Trx, insurerId: string, beneficiaryId: string, service: Pick<ServiceForRequest, "id" | "status">, date: string): Promise<EligibilityLight> {
+  const decision = await coverageOnDate(deps, trx, insurerId, beneficiaryId, service, date);
+  return decision === null ? "RED" : toEligibilityLight(decision);
 }
 
 /** BR-AUT-16: o tipo de guia deduz-se do serviço; override só para um código ATIVO de `guide_types`. */
@@ -53,6 +63,8 @@ export interface SubmitInput {
   processId: string | null;
   parentRequestId: string | null;
   light: EligibilityLight;
+  /** A decisão de cobertura que originou o semáforo (alimenta `podeAutoAprovar`, que só corre em pedidos que não são recurso). */
+  coverage: CoverageDecision;
 }
 
 /** Grava o pedido já validado e devolve o seu id. */
@@ -81,6 +93,17 @@ export async function submitAuthorization<Trx>(deps: OpsDeps<Trx>, trx: Trx, inp
     processId = opened.processId;
   }
 
+  // BR-AUT-03: avalia-se UMA vez, na criação de um pedido que NÃO é recurso (nunca em resposta, reabertura ou recurso).
+  const isAppeal = input.parentRequestId !== null;
+  const trace: AutoApprovalTrace | null = isAppeal
+    ? null
+    : podeAutoAprovar(
+        { isAppeal, serviceId: input.service.id, serviceKindId: input.service.serviceKindId, requestedAmountMinor: Math.round(input.requestedAmount * 100) },
+        input.coverage,
+        await deps.autoApprovalRules.listActive(trx, input.insurerId),
+      );
+  const autoApproval = trace?.ok === true ? { authorizedAmount: input.requestedAmount, code: generateAuthorizationCode(), validUntil: calcularValidade(input.expectedOn, await policyValue(deps, trx, input.insurerId, POLICY_KEYS.validityDays)) } : undefined;
+
   await deps.authorizations.insert(trx, {
     id,
     insurerId: input.insurerId,
@@ -90,18 +113,20 @@ export async function submitAuthorization<Trx>(deps: OpsDeps<Trx>, trx: Trx, inp
     guideType: input.guideType,
     processId,
     parentRequestId: input.parentRequestId,
-    // SUBMITTED é transitório: passa a IN_REVIEW na mesma transação (a fatia 4 pode desviar para APPROVED, BR-AUT-03).
-    status: "IN_REVIEW",
+    // SUBMITTED é transitório: passa a IN_REVIEW (ou a APPROVED, auto-aprovação BR-AUT-03) na mesma transação.
+    status: autoApproval ? "APPROVED" : "IN_REVIEW",
+    ...(autoApproval ? { autoApproval } : {}),
+    autoApprovalTrace: trace,
     justification: input.justification,
     requestedAmount: input.requestedAmount,
     expectedOn: input.expectedOn,
-    decisionDueAt: await decisionDueAt(deps, trx, input.insurerId, input.service.id, now),
+    decisionDueAt: await decisionDueAt(deps, trx, input.insurerId, input.service.id, now, isAppeal),
     submittedByClinicAccountId: actor.clinicAccountId,
     now,
   });
   const base = { insurerId: input.insurerId, authorizationId: id, now };
   await recordTransition(deps, trx, { ...base, from: null, to: "SUBMITTED", actor: "CLINIC", actorAccountId: actor.clinicAccountId, note: null });
-  await recordTransition(deps, trx, { ...base, from: "SUBMITTED", to: "IN_REVIEW", actor: "SYSTEM", actorAccountId: null, note: null });
+  await recordTransition(deps, trx, { ...base, from: "SUBMITTED", to: autoApproval ? "APPROVED" : "IN_REVIEW", actor: "SYSTEM", actorAccountId: null, note: null });
 
   await deps.audit.record(trx, {
     occurredAt: now,
@@ -116,6 +141,19 @@ export async function submitAuthorization<Trx>(deps: OpsDeps<Trx>, trx: Trx, inp
     ...auditContextFields(context),
     metadata: { insurerId: input.insurerId, guideType: input.guideType, light: input.light, appeal: input.parentRequestId !== null, hasProcess: processId !== null, serviceId: input.service.id },
   });
+  if (trace?.ok === true) {
+    // Só ids e contagens: nunca o nome da regra, valores nem o código (audit.md §3, BR-AUT-12).
+    await deps.audit.record(trx, {
+      occurredAt: now,
+      actorType: "SYSTEM",
+      action: "AUTHORIZATION_AUTO_APPROVE",
+      resourceType: "AuthorizationRequest",
+      resourceId: id,
+      result: "SUCCESS",
+      requestId: context.requestId,
+      metadata: { insurerId: input.insurerId, ruleId: trace.ruleId, checks: trace.checks.length },
+    });
+  }
   return id;
 }
 

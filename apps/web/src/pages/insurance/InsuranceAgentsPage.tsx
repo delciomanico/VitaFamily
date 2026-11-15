@@ -24,6 +24,16 @@ interface InviteFormProps {
 }
 
 /** Criar uma conta de Agente da própria seguradora (`POST /insurance-portal/agents`, BR-INS-06). */
+const roleHint: Record<AgentRole, string> = {
+  INSURANCE_AGENT: 'O Agente vê e decide pedidos de reembolso desta seguradora, mas não cria nem remove contas.',
+  BENEFICIARY_MANAGER:
+    'O Gestor de beneficiários trata de empresas, beneficiários, apólices, importações e ligações de cartão (só com o módulo operacional ativo); não vê pedidos de reembolso.',
+  AUTHORIZATION_ANALYST:
+    'O Analista decide os pedidos de autorização normais: aprova, recusa ou pede mais informação (só com o módulo operacional ativo).',
+  SUPERVISOR:
+    'O Supervisor decide os recursos, reatribui e reabre pedidos, reverte aprovações e define as regras de aprovação automática e os prazos (só com o módulo operacional ativo). Para os recursos convém ter dois Supervisores.',
+}
+
 function InviteForm({ onClose, onCreated }: InviteFormProps) {
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<AgentRole>('INSURANCE_AGENT')
@@ -77,12 +87,12 @@ function InviteForm({ onClose, onCreated }: InviteFormProps) {
           options={[
             { value: 'INSURANCE_AGENT', label: insuranceRole.INSURANCE_AGENT },
             { value: 'BENEFICIARY_MANAGER', label: insuranceRole.BENEFICIARY_MANAGER },
+            { value: 'AUTHORIZATION_ANALYST', label: insuranceRole.AUTHORIZATION_ANALYST },
+            { value: 'SUPERVISOR', label: insuranceRole.SUPERVISOR },
           ]}
         />
         <p className="text-sm text-muted">
-          {role === 'INSURANCE_AGENT'
-            ? 'O Agente vê e decide pedidos de reembolso desta seguradora, mas não cria nem remove contas.'
-            : 'O Gestor de beneficiários trata de empresas, beneficiários, apólices, importações e ligações de cartão (só com o módulo operacional ativo); não vê pedidos de reembolso.'}
+          {roleHint[role]}
         </p>
         <FormError message={error} />
       </div>

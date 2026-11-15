@@ -15965,6 +15965,7 @@ components:
         reason: { type: string, description: "Código: OK, IS_APPEAL, os CoverageReason internos (WAITING_PERIOD, LIMIT_EXHAUSTED, NOT_IN_PLAN…), AMOUNT_ABOVE_LIMIT, NO_RULE_FOR_SERVICE, AMOUNT_ABOVE_RULE_MAX." }
     AutoApprovalTrace:
       type: object
+      nullable: true
       required: [ok, checks]
       description: "Rasto da avaliação de auto-aprovação feita na criação (BR-AUT-03). Gravado em todo o pedido avaliado; nunca visto pela clínica."
       properties:
@@ -15976,6 +15977,7 @@ components:
           items: { $ref: "#/components/schemas/AutoApprovalCheck" }
     AuthorizationAssignee:
       type: object
+      nullable: true
       required: [id, email]
       properties:
         id: { type: string, format: uuid }
@@ -16007,7 +16009,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         status: { $ref: "#/components/schemas/AuthorizationStatus" }
-        closedReason: { allOf: [{ $ref: "#/components/schemas/AuthorizationClosedReason" }], nullable: true }
+        closedReason: { type: string, enum: [INFO_TIMEOUT, CLINIC_CANCELLED, ANALYST_CANCELLED, null], nullable: true }
         guideType: { type: string }
         serviceCode: { type: string }
         serviceName: { type: string }
@@ -16027,13 +16029,13 @@ components:
         validUntil: { type: string, format: date-time, nullable: true }
         expired: { type: boolean, description: "Derivado: APPROVED com validUntil passada (não é estado, ADR-035 §6)." }
         decisionDueAt: { type: string, format: date-time }
-        slaStatus: { allOf: [{ $ref: "#/components/schemas/AuthorizationSlaStatus" }], nullable: true }
+        slaStatus: { type: string, enum: [ON_TIME, OVERDUE, MET, MISSED, null], nullable: true, description: "Ver AuthorizationSlaStatus." }
         escalatedAt: { type: string, format: date-time, nullable: true, description: "Marca do SLA (job insurer.flag-sla-breaches); limpa-se ao recalcular o prazo (BR-AUT-20)." }
         infoExpiresAt: { type: string, format: date-time, nullable: true }
-        assignedTo: { allOf: [{ $ref: "#/components/schemas/AuthorizationAssignee" }], nullable: true }
-        decidedBy: { allOf: [{ $ref: "#/components/schemas/AuthorizationDecider" }], nullable: true }
+        assignedTo: { type: object, nullable: true, allOf: [{ $ref: "#/components/schemas/AuthorizationAssignee" }] }
+        decidedBy: { type: string, enum: [ANALYST, SUPERVISOR, SYSTEM, null], nullable: true, description: "Ver AuthorizationDecider." }
         decidedAt: { type: string, format: date-time, nullable: true }
-        autoApproval: { allOf: [{ $ref: "#/components/schemas/AutoApprovalTrace" }], nullable: true, description: "Nulo em pedidos anteriores à fatia 4, recursos e pedidos não avaliados." }
+        autoApproval: { type: object, nullable: true, allOf: [{ $ref: "#/components/schemas/AutoApprovalTrace" }], description: "Nulo em pedidos anteriores à fatia 4, recursos e pedidos não avaliados." }
         allowedActions:
           type: array
           items: { $ref: "#/components/schemas/InsurerAuthorizationAction" }

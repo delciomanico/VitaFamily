@@ -28,6 +28,7 @@ describe("papéis: acesso `admin` (planos, serviços, prestadores, clínicas par
     ["AUTHORIZATION_ANALYST", false],
     ["CLAIMS_MANAGER", false],
     ["FINANCE_MANAGER", false],
+    ["SUPERVISOR", false],
     ["INSURANCE_AGENT", false],
   ];
   it.each(roles)("%s admin ⇒ %s", (role, allowed) => {

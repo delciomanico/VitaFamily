@@ -67,3 +67,18 @@ export async function refreshInsuranceAccessToken(): Promise<InsuranceTokenRespo
     return null
   }
 }
+
+
+/** Descarga um ficheiro (anexo de pedido) como `Blob`: a API autoriza, audita e entrega; o token vai no cabeçalho como nos restantes pedidos. */
+export async function insuranceApiBlob(path: string): Promise<Blob> {
+  const baseUrl = apiBaseUrl()
+  if (!baseUrl) throw new Error('VITE_API_URL não está configurado.')
+  const headers: Record<string, string> = {}
+  if (insuranceAccessToken) headers.Authorization = `Bearer ${insuranceAccessToken}`
+  const res = await fetch(`${baseUrl}/insurance-portal${path}`, { headers, credentials: 'include' })
+  if (!res.ok) {
+    const problem = parseJsonBody(await res.text()) as Problem
+    throw new AppError(toErrorCode(problem?.code ?? 'UNKNOWN'))
+  }
+  return res.blob()
+}

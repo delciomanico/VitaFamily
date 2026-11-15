@@ -276,7 +276,7 @@ export interface AuthorizationRequest {
   expectedOn: string
   justification: string
   status: AuthorizationStatus
-  closedReason?: 'INFO_TIMEOUT' | 'CLINIC_CANCELLED' | null
+  closedReason?: 'INFO_TIMEOUT' | 'CLINIC_CANCELLED' | 'ANALYST_CANCELLED' | null
   decisionNote?: string | null
   code?: string | null
   validUntil?: string | null

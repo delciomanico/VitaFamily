@@ -1,4 +1,4 @@
-// openapi setInsurerPolicySetting (UC-SEG-19, BR-SEG-40): só INSURANCE_ADMIN (SUPERVISOR na fatia 4, sem mudar o contrato).
+// openapi setInsurerPolicySetting (UC-SEG-19, BR-SEG-40): INSURANCE_ADMIN e, desde a fatia 4, SUPERVISOR (§8.2b).
 // Valor inteiro entre mín. e máx. do Vita; `serviceId` só em chaves com escopo por serviço e da própria seguradora; idempotente.
 import type { OpsActor } from "../domain/access.js";
 import { assertServiceScope, assertWithinLimits, describePolicySetting, requireDefinition, resolvePolicySetting, type PolicySettingView } from "../domain/policy-setting.js";
@@ -9,7 +9,7 @@ import { auditEvent, authorize, notFound } from "./support.js";
 export function createSetPolicySettingUseCase<Trx>(deps: OpsDeps<Trx>) {
   return async function setPolicySetting(actor: OpsActor, key: string, input: { value?: unknown; serviceId?: unknown }, context: RequestContext): Promise<PolicySettingView> {
     return deps.withTransaction(async (trx) => {
-      await authorize(deps, trx, actor, "admin");
+      await authorize(deps, trx, actor, "policy-write");
       const definition = requireDefinition(await deps.policySettings.definitions(trx), key);
       const serviceId = input.serviceId === undefined || input.serviceId === null ? undefined : requireUuid(input.serviceId, "serviceId");
       assertServiceScope(definition, serviceId);

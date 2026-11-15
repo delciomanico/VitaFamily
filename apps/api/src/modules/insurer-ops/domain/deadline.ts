@@ -18,3 +18,18 @@ export function calcularLimiteInformacao(requestedAt: Date, expiryDays: number):
 export function calcularLimiteRecurso(decidedAt: Date, appealDays: number): Date {
   return new Date(decidedAt.getTime() + appealDays * MS_PER_DAY);
 }
+
+/**
+ * BR-AUT-07: validade por omissão da aprovação = fim do dia (UTC) de `expectedOn` + AUTHORIZATION_VALIDITY_DAYS. Também serve
+ * para o limite máximo que o analista pode indicar (`expectedOn` + o máximo da chave). `expectedOn` é `AAAA-MM-DD`.
+ */
+export function calcularValidade(expectedOn: string, validityDays: number): Date {
+  const start = Date.parse(`${expectedOn}T00:00:00.000Z`);
+  if (Number.isNaN(start)) throw new Error("data inválida");
+  return new Date(start + (validityDays + 1) * MS_PER_DAY - 1);
+}
+
+/** BR-AUT-07: «expirada» é derivada (`validUntil` passada), nunca persistida nem por job. */
+export function isExpired(validUntil: Date | null, now: Date): boolean {
+  return validUntil !== null && validUntil.getTime() < now.getTime();
+}

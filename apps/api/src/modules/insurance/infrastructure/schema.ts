@@ -20,7 +20,7 @@ export interface InsuranceAccountsTable {
   insurer_id: string;
   email: string;
   password_hash: string;
-  role: "INSURANCE_ADMIN" | "INSURANCE_AGENT" | "BENEFICIARY_MANAGER" | "AUTHORIZATION_ANALYST" | "CLAIMS_MANAGER" | "FINANCE_MANAGER";
+  role: "INSURANCE_ADMIN" | "INSURANCE_AGENT" | "BENEFICIARY_MANAGER" | "AUTHORIZATION_ANALYST" | "CLAIMS_MANAGER" | "FINANCE_MANAGER" | "SUPERVISOR";
   status: "ACTIVE" | "SUSPENDED";
   created_by_platform_admin: string | null;
   suspended_at: ColumnType<Date | null, Date | null | undefined, Date | null>;

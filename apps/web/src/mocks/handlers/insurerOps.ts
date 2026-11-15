@@ -43,7 +43,9 @@ function ops(accountId: string, access: 'read' | 'ops' | 'admin' = 'read') {
   if (!account) throw new AppError('INVALID_CREDENTIALS')
   const isAdmin = account.role === 'INSURANCE_ADMIN'
   const isOps = isAdmin || account.role === 'BENEFICIARY_MANAGER'
-  if (!isOps) throw new AppError('FORBIDDEN')
+  // §8.2b: Analista, Supervisor e Gestores de despesas/financeiro leem o módulo; só Admin e Gestor de beneficiários escrevem.
+  const isReader = isOps || ['AUTHORIZATION_ANALYST', 'CLAIMS_MANAGER', 'FINANCE_MANAGER', 'SUPERVISOR'].includes(account.role)
+  if (!(access === 'read' ? isReader : isOps)) throw new AppError('FORBIDDEN')
   if (access === 'admin' && !isAdmin) throw new AppError('FORBIDDEN')
   // Fase A: Gestor de beneficiários escreve em beneficiários/apólices/importações/ligações/empresas e lê o resto.
   if (!db.insurerOps.modules[account.insurerId]?.enabled) throw new AppError('NOT_FOUND')

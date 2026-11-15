@@ -113,6 +113,10 @@ export const paths = {
   insurancePlan: (id: string) => `/insurance/plans/${id}`,
   insuranceServices: '/insurance/services',
   insuranceProviders: '/insurance/providers',
+  // Decisão pela seguradora (marco B fatia 4, ADR-035).
+  insuranceAuthorizations: '/insurance/authorizations',
+  insuranceAuthorization: (id: string) => `/insurance/authorizations/${id}`,
+  insuranceAutoApproval: '/insurance/auto-approval',
 
   // Área do Platform Admin: mesma conta/login de `User` (platformRole), mas sem família.
   admin: '/admin',

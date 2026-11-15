@@ -66,7 +66,8 @@ describe("arquitetura do código real (src/)", () => {
     expect(await read("processes", "ports.ts")).toMatch(/getCoverageFacts\(/);
     expect(await read("processes", "ports.ts")).not.toMatch(/export interface ProcessLinker</);
     expect(await read("appointments", "ports.ts")).toMatch(/export interface CompletionReceiptIssuer</);
-    for (const name of ["authorization-machine", "deadline", "coverage-phase"]) {
+    // Fatia 4 (TC-DEC-20): `auto-approval`, `authorization-actions`, `sla` e `authorization-decision` também só importam `domain/`.
+    for (const name of ["authorization-machine", "deadline", "coverage-phase", "auto-approval", "authorization-actions", "sla", "authorization-decision", "authorization-code"]) {
       const file = files.find((f) => f.file === `modules/insurer-ops/domain/${name}`);
       expect(file, name).toBeDefined();
       expect(file?.bareImports, name).toEqual([]);
@@ -75,7 +76,7 @@ describe("arquitetura do código real (src/)", () => {
   });
 
   it("TC-AUT-18: sem literais de prazo (48, 72, 15, 7) nos ficheiros do pedido de autorização", async () => {
-    const targets = ["domain/authorization.ts", "domain/authorization-machine.ts", "domain/deadline.ts", "domain/coverage-phase.ts", "application/authorization-support.ts", "application/create-authorization.ts", "application/appeal-authorization.ts", "application/respond-authorization.ts", "application/submit-authorization.ts", "application/expire-info-requests.ts"];
+    const targets = ["domain/authorization.ts", "domain/authorization-machine.ts", "domain/deadline.ts", "domain/coverage-phase.ts", "application/authorization-support.ts", "application/create-authorization.ts", "application/appeal-authorization.ts", "application/respond-authorization.ts", "application/submit-authorization.ts", "application/expire-info-requests.ts", "domain/auto-approval.ts", "domain/authorization-actions.ts", "domain/authorization-decision.ts", "domain/sla.ts", "application/insurer-authorization-support.ts", "application/approve-authorization.ts", "application/reopen-authorization.ts", "application/flag-sla-breaches.ts"];
     for (const target of targets) {
       const text = (await readFile(join(SRC_ROOT, "modules", "insurer-ops", target), "utf8")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""');
       expect(text, target).not.toMatch(/\b(48|72|15|7)\b/);

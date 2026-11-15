@@ -13,7 +13,7 @@ export function createRespondAuthorizationUseCase<Trx>(deps: OpsDeps<Trx>) {
       const { row } = await loadForWrite(deps, trx, actor, authorizationId);
       assertTransition(row.status, "IN_REVIEW", "CLINIC");
       const now = deps.clock.now();
-      await deps.authorizations.updateStatus(trx, row.insurerId, row.id, { status: "IN_REVIEW", closedReason: null, infoExpiresAt: null, decisionDueAt: await decisionDueAt(deps, trx, row.insurerId, row.serviceId, now), now });
+      await deps.authorizations.updateStatus(trx, row.insurerId, row.id, { status: "IN_REVIEW", closedReason: null, infoExpiresAt: null, decisionDueAt: await decisionDueAt(deps, trx, row.insurerId, row.serviceId, now, row.parentRequestId !== null), now });
       await recordTransition(deps, trx, { insurerId: row.insurerId, authorizationId: row.id, from: row.status, to: "IN_REVIEW", actor: "CLINIC", actorAccountId: actor.clinicAccountId, note: input.message, now });
       await deps.audit.record(trx, {
         occurredAt: now,

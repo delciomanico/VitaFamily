@@ -16,6 +16,7 @@ import { defaultMigrationsDir, runMigrations } from "../../db/migrate-runner.js"
 import { FixedClock } from "../../src/platform/clock/index.js";
 import { createDb, withTransaction, type Database } from "../../src/platform/db/index.js";
 import { createApp } from "../../src/platform/http/index.js";
+import { openApiSpecPath } from "../support/openapi-spec.js";
 import { createLogger, type Logger } from "../../src/platform/logger/index.js";
 import { createAuditModule } from "../../src/modules/audit/index.js";
 import { signClinicAccessToken } from "../../src/modules/clinics/domain/clinic-jwt.js";
@@ -160,7 +161,7 @@ describe("integração: catálogo service_kind, política e moeda (marco B fatia
     });
     const insuranceActor = createInsuranceActorContextMiddleware({ resolveInsuranceActorState: createResolveInsuranceActorStateUseCase(d) });
     app = createApp({
-      openApiSpecPath: join(REPO_ROOT, "docs/05-api/openapi.yaml"),
+      openApiSpecPath: openApiSpecPath(REPO_ROOT),
       logger: createLogger({ level: "silent" }),
       validateResponses: true,
       securityHandlers: {
@@ -193,10 +194,10 @@ describe("integração: catálogo service_kind, política e moeda (marco B fatia
 
   // ------------------------------------------------------------------ migração 0037
   describe("migração 0037 (TC-CAT-01/02)", () => {
-    it("TC-CAT-01: sementes (3 guias, 9 despesas com legacy_code, 5 chaves); seguradoras existentes com 9 tipos; repetir não duplica", async () => {
+    it("TC-CAT-01: sementes (3 guias, 9 despesas com legacy_code, 6 chaves: 5 da 0037 + AUTHORIZATION_VALIDITY_DAYS da 0040); seguradoras existentes com 9 tipos; repetir não duplica", async () => {
       expect((await rows("SELECT code FROM guide_types ORDER BY sort_order")).map((r) => r.code)).toEqual(["CONSULTATION", "SERVICES", "ADMISSION"]);
       expect((await rows("SELECT legacy_code FROM expense_types ORDER BY sort_order")).map((r) => r.legacy_code)).toEqual(["I", "P", "C", "EAD", "T", "E", "PO", "M", "SD"]);
-      expect((await rows("SELECT key FROM policy_setting_definitions ORDER BY key")).map((r) => r.key)).toEqual(["APPEAL_REQUEST_DAYS", "APPEAL_RESPONSE_HOURS", "AUTHORIZATION_DECISION_HOURS", "INFO_REQUEST_EXPIRY_DAYS", "URGENT_NOTICE_HOURS"]);
+      expect((await rows("SELECT key FROM policy_setting_definitions ORDER BY key")).map((r) => r.key)).toEqual(["APPEAL_REQUEST_DAYS", "APPEAL_RESPONSE_HOURS", "AUTHORIZATION_DECISION_HOURS", "AUTHORIZATION_VALIDITY_DAYS", "INFO_REQUEST_EXPIRY_DAYS", "URGENT_NOTICE_HOURS"]);
       for (const insurer of [id.insA, id.insB, id.insC]) expect(await rows("SELECT 1 FROM insurer_service_kinds WHERE insurer_id=$1", [insurer])).toHaveLength(9);
       expect(await rows("SELECT 1 FROM insurer_service_kinds WHERE insurer_id=$1", [id.insNew])).toHaveLength(0); // criada depois: semeia-se na 1.ª utilização
 
@@ -332,12 +333,13 @@ describe("integração: catálogo service_kind, política e moeda (marco B fatia
   describe("política da seguradora (TC-POL-02..06)", () => {
     const get = async (token = tokenA.INSURANCE_ADMIN) => as<Setting[]>(await send("get", "/policy-settings", token));
 
-    it("GET: 5 chaves com limites e omissão do Vita; qualquer papel do módulo lê; sem escrita ⇒ valor por omissão", async () => {
+    it("GET: 6 chaves com limites e omissão do Vita; qualquer papel do módulo lê; sem escrita ⇒ valor por omissão", async () => {
       const settings = await get(tokenA.FINANCE_MANAGER);
       expect(settings.map((s) => [s.key, s.value, s.source])).toEqual([
         ["APPEAL_REQUEST_DAYS", 15, "DEFAULT"],
         ["APPEAL_RESPONSE_HOURS", 72, "DEFAULT"],
         ["AUTHORIZATION_DECISION_HOURS", 48, "DEFAULT"],
+        ["AUTHORIZATION_VALIDITY_DAYS", 30, "DEFAULT"],
         ["INFO_REQUEST_EXPIRY_DAYS", 7, "DEFAULT"],
         ["URGENT_NOTICE_HOURS", 48, "DEFAULT"],
       ]);

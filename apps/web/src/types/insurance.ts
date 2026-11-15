@@ -22,6 +22,7 @@ export type InsuranceRole =
   | 'AUTHORIZATION_ANALYST'
   | 'CLAIMS_MANAGER'
   | 'FINANCE_MANAGER'
+  | 'SUPERVISOR'
 
 /** `GET /insurance-portal/me`: contexto da conta (funciona também com o módulo operacional desativado). */
 export interface InsurancePortalMe {
@@ -33,8 +34,8 @@ export interface InsurancePortalMe {
   role: InsuranceRole
 }
 
-/** Papéis criáveis pelo Admin na Fase A (`POST /insurance-portal/agents`). */
-export type AgentRole = 'INSURANCE_AGENT' | 'BENEFICIARY_MANAGER'
+/** Papéis criáveis pelo Admin (`POST /insurance-portal/agents`); Analista e Supervisor desde a fatia 4 (ADR-035). */
+export type AgentRole = 'INSURANCE_AGENT' | 'BENEFICIARY_MANAGER' | 'AUTHORIZATION_ANALYST' | 'SUPERVISOR'
 
 /** `InsuranceAccount` (openapi.yaml): conta do portal da seguradora (espaço de identidade próprio, ADR-021). */
 export interface InsuranceAccount {
@@ -149,4 +150,5 @@ export const insuranceRole: Record<InsuranceRole, string> = {
   AUTHORIZATION_ANALYST: 'Analista de autorizações',
   CLAIMS_MANAGER: 'Gestor de despesas',
   FINANCE_MANAGER: 'Gestor financeiro',
+  SUPERVISOR: 'Supervisor de autorizações',
 }

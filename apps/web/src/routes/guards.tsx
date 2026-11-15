@@ -106,8 +106,25 @@ export function RequireInsuranceOps() {
 
 /** Pedidos de reembolso: Admin e Agente; o Gestor de beneficiários segue para os beneficiários. */
 export function RequireInsuranceClaims() {
-  const { canSeeClaims, isOps } = useInsuranceAuth()
-  if (!canSeeClaims) return <Navigate to={isOps ? paths.insuranceBeneficiaries : paths.insuranceLogin} replace />
+  const { canSeeClaims, isOps, canSeeAuthorizations } = useInsuranceAuth()
+  if (!canSeeClaims) {
+    const target = isOps ? paths.insuranceBeneficiaries : canSeeAuthorizations ? paths.insuranceAuthorizations : paths.insuranceLogin
+    return <Navigate to={target} replace />
+  }
+  return <Outlet />
+}
+
+/** Fila e detalhe de autorizações (fatia 4, §8.2d): Admin, Analista, Gestores e Supervisor; o servidor decide cada ação. */
+export function RequireInsuranceAuthorizations() {
+  const { canSeeAuthorizations } = useInsuranceAuth()
+  if (!canSeeAuthorizations) return <Navigate to={paths.insurance} replace />
+  return <Outlet />
+}
+
+/** Regras de aprovação automática (§8.2d): lê o Supervisor, o Admin e o Analista; só o Supervisor altera. */
+export function RequireInsuranceRules() {
+  const { canSeeRules } = useInsuranceAuth()
+  if (!canSeeRules) return <Navigate to={paths.insurance} replace />
   return <Outlet />
 }
 

@@ -22,6 +22,13 @@ interface InsuranceAuthContextValue {
   isOps: boolean
   /** Pedidos de reembolso (§8.2): Admin e Agente; o Gestor de beneficiários não os vê. */
   canSeeClaims: boolean
+  /** Fila de autorizações, detalhe e métricas (§8.2b/§8.2d): Admin, Analista, Gestores de despesas/financeiro e Supervisor leem. */
+  canSeeAuthorizations: boolean
+  /** Analista e Supervisor decidem (o que cada um pode fazer em cada pedido vem do servidor em `allowedActions`). */
+  isAnalyst: boolean
+  isSupervisor: boolean
+  /** Regras de aprovação automática: lê o Supervisor, o Admin e o Analista; só o Supervisor altera (§8.2d). */
+  canSeeRules: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -86,6 +93,10 @@ export function InsuranceAuthProvider({ children }: { children: ReactNode }) {
         isAdmin: role === 'INSURANCE_ADMIN',
         isOps: role === 'INSURANCE_ADMIN' || role === 'BENEFICIARY_MANAGER',
         canSeeClaims: role === 'INSURANCE_ADMIN' || role === 'INSURANCE_AGENT',
+        canSeeAuthorizations: role === 'INSURANCE_ADMIN' || role === 'AUTHORIZATION_ANALYST' || role === 'CLAIMS_MANAGER' || role === 'FINANCE_MANAGER' || role === 'SUPERVISOR',
+        isAnalyst: role === 'AUTHORIZATION_ANALYST',
+        isSupervisor: role === 'SUPERVISOR',
+        canSeeRules: role === 'INSURANCE_ADMIN' || role === 'AUTHORIZATION_ANALYST' || role === 'SUPERVISOR',
         login,
         logout,
       }

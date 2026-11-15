@@ -25,6 +25,8 @@ import {
   InsuranceGuestOnly,
   RequireInsuranceAccount,
   RequireInsuranceAdmin,
+  RequireInsuranceAuthorizations,
+  RequireInsuranceRules,
   RequireInsuranceClaims,
   RequireInsuranceOps,
   GuestOnly,
@@ -293,6 +295,29 @@ export const routes: RouteObject[] = [
                     // Ligação de clínicas: só o Admin (§8.2b, partner-clinics ⇒ FORBIDDEN ao Gestor).
                     path: 'providers',
                     ...page(() => import('@/pages/insurance/ops/InsuranceProvidersPage'), 'InsuranceProvidersPage'),
+                  },
+                ],
+              },
+              {
+                // Decisão pela seguradora (fatia 4, ADR-035): fila, detalhe e métricas.
+                element: <RequireInsuranceAuthorizations />,
+                children: [
+                  {
+                    path: 'authorizations',
+                    ...page(() => import('@/pages/insurance/authorizations/InsuranceAuthorizationsPage'), 'InsuranceAuthorizationsPage'),
+                  },
+                  {
+                    path: 'authorizations/:authorizationId',
+                    ...page(() => import('@/pages/insurance/authorizations/InsuranceAuthorizationPage'), 'InsuranceAuthorizationPage'),
+                  },
+                ],
+              },
+              {
+                element: <RequireInsuranceRules />,
+                children: [
+                  {
+                    path: 'auto-approval',
+                    ...page(() => import('@/pages/insurance/authorizations/InsuranceAutoApprovalPage'), 'InsuranceAutoApprovalPage'),
                   },
                 ],
               },

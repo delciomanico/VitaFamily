@@ -56,17 +56,20 @@ export function insuranceRefresh(insuranceAccountId: string) {
 
 // --- Agentes (`/insurance-portal/agents`, BR-INS-06) ---
 
+/** Contas geridas pelo Admin (ADR-035: também Analista e Supervisor). */
+const MANAGED_ROLES: InsuranceAccount['role'][] = ['INSURANCE_AGENT', 'BENEFICIARY_MANAGER', 'AUTHORIZATION_ANALYST', 'SUPERVISOR']
+
 export function listInsuranceAgents(accountId: string) {
   return respond(() => {
     const admin = requireAdmin(accountId)
     return db.insuranceAccounts
-      .filter((a) => a.insurerId === admin.insurerId && (a.role === 'INSURANCE_AGENT' || a.role === 'BENEFICIARY_MANAGER'))
+      .filter((a) => a.insurerId === admin.insurerId && MANAGED_ROLES.includes(a.role))
       .map(toPublicAccount)
       .sort((a, b) => a.email.localeCompare(b.email, 'pt-PT'))
   })
 }
 
-/** Cria um `INSURANCE_AGENT` (por omissão) ou `BENEFICIARY_MANAGER`; e-mail em uso → 422. */
+/** Cria um `INSURANCE_AGENT` (por omissão), `BENEFICIARY_MANAGER`, `AUTHORIZATION_ANALYST` ou `SUPERVISOR`; e-mail em uso → 422. */
 export function createInsuranceAgent(accountId: string, email: string, role: AgentRole = 'INSURANCE_AGENT') {
   return respond((): InsuranceAccount => {
     const admin = requireAdmin(accountId)
@@ -90,7 +93,7 @@ export function removeInsuranceAgent(accountId: string, targetId: string) {
   return respond(() => {
     const admin = requireAdmin(accountId)
     const target = db.insuranceAccounts.find(
-      (a) => a.id === targetId && a.insurerId === admin.insurerId && (a.role === 'INSURANCE_AGENT' || a.role === 'BENEFICIARY_MANAGER'),
+      (a) => a.id === targetId && a.insurerId === admin.insurerId && MANAGED_ROLES.includes(a.role),
     )
     if (!target) throw new AppError('NOT_FOUND')
     db.insuranceAccounts = db.insuranceAccounts.filter((a) => a.id !== targetId)

@@ -10,6 +10,8 @@ import {
   UserRound,
   Users,
   Layers,
+  ShieldCheck,
+  WandSparkles,
 } from 'lucide-react'
 import { InsuranceAuthProvider, useInsuranceAuth } from '@/contexts/InsuranceAuthContext'
 import { paths } from '@/routes/paths'
@@ -31,7 +33,7 @@ export function InsurancePortalRoot() {
 
 /** Portal da seguradora: barra lateral/menu agrupados conforme o papel (§8.2b). */
 export function InsuranceShell() {
-  const { session, me, moduleEnabled, isAdmin, isOps, canSeeClaims, logout } = useInsuranceAuth()
+  const { session, me, moduleEnabled, isAdmin, isOps, canSeeClaims, canSeeAuthorizations, canSeeRules, logout } = useInsuranceAuth()
   const navigate = useNavigate()
 
   // O que o papel pode usar (§8.2b); a decisão real é do servidor, isto só poupa cliques inúteis.
@@ -39,6 +41,13 @@ export function InsuranceShell() {
   const groups: PortalNavGroup[] = [
     {
       items: canSeeClaims ? [{ to: paths.insurance, label: 'Pedidos', icon: Inbox, end: true }] : [],
+    },
+    {
+      title: 'Autorizações',
+      items: [
+        ...(canSeeAuthorizations && moduleEnabled ? [{ to: paths.insuranceAuthorizations, label: 'Autorizações', icon: ShieldCheck, end: false }] : []),
+        ...(canSeeRules && moduleEnabled ? [{ to: paths.insuranceAutoApproval, label: 'Aprovação automática', icon: WandSparkles, end: false }] : []),
+      ],
     },
     {
       title: 'Beneficiários',

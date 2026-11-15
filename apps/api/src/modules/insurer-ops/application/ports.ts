@@ -1,6 +1,7 @@
 // Portas do módulo `insurer-ops` (conventions.md §3.2): definidas aqui, implementadas em `infrastructure`; genéricas em
 // `Trx` para que esta camada nunca importe "kysely". Dados da seguradora: todas as consultas exigem `insurerId` (BR-SEG-14:
 // não existe consulta «por id» sem seguradora; recurso de outra seguradora ⇒ `null` ⇒ `NOT_FOUND`).
+import type { Readable } from "node:stream";
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Beneficiary, BeneficiaryPatch, BeneficiaryRelationship, BeneficiaryStatus } from "../domain/beneficiary.js";
@@ -18,6 +19,9 @@ import type { CatalogTypes, ServiceKind, ServiceKindInput, ServiceKindPatch } fr
 import type { InMemoryRateLimiter } from "../domain/rate-limiter.js";
 import type { Authorization, AuthorizationAttachment, AuthorizationEvent, AuthorizationListStatus, AuthorizationRow, ClosedReason, AttachmentKind } from "../domain/authorization.js";
 import type { AuthorizationStatus } from "../domain/authorization-machine.js";
+import type { AutoApprovalRule, AutoApprovalTrace } from "../domain/auto-approval.js";
+import type { AuthorizationDecider } from "../domain/authorization-actions.js";
+import type { InsurerAuthorizationEventRow, InsurerAuthorizationRow, InsurerQueueFilter, QueueCursor, SlaMetricsCounts } from "../domain/insurer-authorization.js";
 import type { CoverageFact } from "../domain/coverage-phase.js";
 import type { CoverageLine } from "../domain/coverage.js";
 
@@ -290,7 +294,13 @@ export interface PatientAccessPort<Trx> {
 }
 
 /** Pedido a gravar (já validado; estado inicial `IN_REVIEW` com os dois eventos, BR-AUT-02/06). */
-export interface NewAuthorizationRecord extends Omit<Authorization, "createdAt" | "updatedAt" | "closedReason" | "authorizedAmount" | "code" | "validUntil" | "decisionNote" | "decidedAt" | "infoExpiresAt"> {
+export interface NewAuthorizationRecord extends Omit<Authorization, "createdAt" | "updatedAt" | "closedReason" | "authorizedAmount" | "code" | "validUntil" | "decisionNote" | "decidedAt" | "infoExpiresAt" | "status"> {
+  /** `IN_REVIEW`, ou `APPROVED` quando a auto-aprovação se aplica (BR-AUT-03; a transição é registada nos eventos). */
+  status: "IN_REVIEW" | "APPROVED";
+  /** Só com `status=APPROVED`: aprovação automática (`decidedBy=SYSTEM`, `authorizedAmount=requestedAmount`). */
+  autoApproval?: { authorizedAmount: number; code: string; validUntil: Date };
+  /** Rasto da avaliação de auto-aprovação (nulo nos recursos). */
+  autoApprovalTrace: AutoApprovalTrace | null;
   submittedByClinicAccountId: string;
   now: Date;
 }
@@ -298,6 +308,7 @@ export interface NewAuthorizationRecord extends Omit<Authorization, "createdAt" 
 export interface AuthorizationStatusChange {
   status: AuthorizationStatus;
   closedReason: ClosedReason | null;
+  /** Prazo recalculado: limpa também a marca de escalada (BR-AUT-20). */
   decisionDueAt?: Date;
   /** `null` limpa o limite (fora de `INFO_REQUESTED`, CHECK da BD). */
   infoExpiresAt: Date | null;
@@ -314,6 +325,9 @@ export interface NewAuthorizationEvent {
   /** Só `PORTAL` nesta fatia (marco B §7.5). */
   channel: "PORTAL";
   note: string | null;
+  /** Fatia 4: decisor e nota INTERNA (só seguradora; nunca devolvida à clínica). */
+  actorRole?: "ANALYST" | "SUPERVISOR";
+  internalNote?: string | null;
   at: Date;
 }
 
@@ -347,7 +361,7 @@ export interface AuthorizationsRepository<Trx> {
   /** Ligação ATIVA da clínica à seguradora: id do `Provider` (o prestador do pedido). */
   activeProviderId(trx: Trx, clinicId: string, insurerId: string): Promise<string | null>;
   /** Serviço da seguradora por código (qualquer estado) com o tipo de guia do `service_kind`; `null` se não existe. */
-  findServiceByCode(trx: Trx, insurerId: string, code: string): Promise<{ id: string; status: "ACTIVE" | "INACTIVE"; guideType: string | null } | null>;
+  findServiceByCode(trx: Trx, insurerId: string, code: string): Promise<{ id: string; status: "ACTIVE" | "INACTIVE"; guideType: string | null; serviceKindId: string | null } | null>;
   /** Linhas do plano (incl. `EXCLUDED`) para `evaluateCoverage`. */
   planCoverageLines(trx: Trx, insurerId: string, planId: string): Promise<CoverageLine[]>;
   /** Tipos de guia ativos (dados, `guide_types`). */
@@ -369,7 +383,70 @@ export interface AuthorizationsRepository<Trx> {
   /** Job: `INFO_REQUESTED` com `info_expires_at <= now`, com bloqueio (`FOR UPDATE SKIP LOCKED`). */
   lockExpiredInfoRequests(trx: Trx, now: Date, limit: number): Promise<{ id: string; insurerId: string }[]>;
   /** `ProcessFacts.getCoverageFacts`: factos por processo, em lote (projeção pura de `coverage-phase.ts`). */
-  coverageFacts(trx: Trx, processIds: string[]): Promise<{ processId: string; fact: CoverageFact }[]>;
+  coverageFacts(trx: Trx, processIds: string[], now: Date): Promise<{ processId: string; fact: CoverageFact }[]>;
+}
+
+/** Decisão gravada sobre um pedido `IN_REVIEW` (UPDATE condicionado ao estado: a decisão perdida devolve `false`). */
+export type DecisionWrite =
+  | { kind: "APPROVE"; authorizedAmount: number; code: string; validUntil: Date; note: string | null; decidedBy: Extract<AuthorizationDecider, "ANALYST" | "SUPERVISOR">; accountId: string; now: Date }
+  | { kind: "REJECT"; note: string; decidedBy: Extract<AuthorizationDecider, "ANALYST" | "SUPERVISOR">; accountId: string; now: Date }
+  | { kind: "REQUEST_INFO"; note: string; infoExpiresAt: Date; accountId: string; now: Date }
+  | { kind: "REVERT"; note: string; now: Date }
+  | { kind: "REOPEN"; decisionDueAt: Date; now: Date };
+
+export interface QueuePage {
+  limit: number;
+  cursor?: QueueCursor;
+}
+
+/** Contas ATIVAS com papel `AUTHORIZATION_ANALYST` da seguradora (o selector de «atribuir»). */
+export interface AuthorizationAssignee {
+  id: string;
+  email: string;
+}
+
+/**
+ * Lado da SEGURADORA do pedido (fatia 4, ADR-035): fila, detalhe, decisão, atribuição, métricas e job de SLA. Todas as consultas
+ * filtram por `insurerId` (BR-SEG-14): pedido/anexo/conta de outra seguradora ⇒ `null`/`false` ⇒ `NOT_FOUND`.
+ */
+export interface InsurerAuthorizationsRepository<Trx> {
+  /** Fila ordenada (por prazo ou recente); até `limit + 1` linhas. `SUBMITTED` nunca aparece. */
+  list(trx: Trx, insurerId: string, filter: InsurerQueueFilter, page: QueuePage): Promise<InsurerAuthorizationRow[]>;
+  /** Pedido da seguradora, com `FOR UPDATE` se `lock`. */
+  find(trx: Trx, insurerId: string, id: string, lock?: boolean): Promise<InsurerAuthorizationRow | null>;
+  events(trx: Trx, insurerId: string, authorizationId: string): Promise<InsurerAuthorizationEventRow[]>;
+  /** Escreve a decisão; `false` se o pedido já não estava no estado esperado (corrida perdida ⇒ `409`). Limpa/define as marcas. */
+  decide(trx: Trx, insurerId: string, id: string, from: AuthorizationStatus, write: DecisionWrite): Promise<boolean>;
+  /** Atribuição (marca, não estado; auditada): `null` liberta. O pedido está bloqueado (`find(…, lock)`) na transação do chamador. */
+  assign(trx: Trx, insurerId: string, id: string, accountId: string | null, now: Date): Promise<void>;
+  /** Conta ATIVA com papel `AUTHORIZATION_ANALYST` da seguradora? */
+  isActiveAnalyst(trx: Trx, insurerId: string, accountId: string): Promise<boolean>;
+  listAssignees(trx: Trx, insurerId: string): Promise<AuthorizationAssignee[]>;
+  metrics(trx: Trx, insurerId: string, period: { from: Date; to: Date }, now: Date): Promise<SlaMetricsCounts>;
+  /** Job: `IN_REVIEW` com prazo atingido e sem marca, com bloqueio (`FOR UPDATE SKIP LOCKED`). */
+  lockSlaBreaches(trx: Trx, now: Date, limit: number): Promise<{ id: string; insurerId: string }[]>;
+  markEscalated(trx: Trx, insurerId: string, id: string, now: Date): Promise<void>;
+}
+
+/** `insurer_auto_approval_rules` (BR-AUT-23). */
+export interface AutoApprovalRuleRecord extends AutoApprovalRule {
+  targetName: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AutoApprovalRulesRepository<Trx> {
+  /** Ativas, para `podeAutoAprovar` na criação do pedido. */
+  listActive(trx: Trx, insurerId: string): Promise<AutoApprovalRule[]>;
+  /** Ordem: ativas primeiro, depois nome (até 100 por seguradora). */
+  list(trx: Trx, insurerId: string): Promise<AutoApprovalRuleRecord[]>;
+  count(trx: Trx, insurerId: string): Promise<number>;
+  find(trx: Trx, insurerId: string, id: string): Promise<AutoApprovalRuleRecord | null>;
+  /** UNIQUE parcial «uma ativa por alvo» ⇒ `ConflictError`; alvo de outra seguradora (FK composta) ⇒ `ConflictError`. */
+  insert(trx: Trx, record: { id: string; insurerId: string; name: string; serviceKindId: string | null; serviceId: string | null; maxAmount: number; active: boolean; accountId: string; now: Date }): Promise<void>;
+  update(trx: Trx, insurerId: string, id: string, patch: { name?: string; maxAmount?: number; active?: boolean }, accountId: string, now: Date): Promise<void>;
+  /** `true` se apagou. */
+  remove(trx: Trx, insurerId: string, id: string): Promise<boolean>;
 }
 
 /** Quem abre o processo (audit.md §3): a conta de clínica que submete o pedido. */
@@ -400,6 +477,8 @@ export interface AttachmentFiles<Trx> {
   /** Antivírus síncrono ANTES de gravar; indisponível ⇒ lança (⇒ 503). */
   scan(buffer: Buffer): Promise<"CLEAN" | "INFECTED">;
   put(key: string, buffer: Buffer, mimeType: string): Promise<void>;
+  /** Fatia 4: descarga em stream (o módulo não importa `node:stream` tipos de I/O além do tipo `Readable`); a interface faz o pipe. */
+  get(key: string): Promise<Readable>;
   /** Apaga o ficheiro pelo outbox (`file_deletions`), na transação do chamador. */
   scheduleDelete(trx: Trx, key: string): Promise<void>;
 }
@@ -420,6 +499,8 @@ export interface OpsDeps<Trx> {
   providers: ProvidersRepository<Trx>;
   eligibility: EligibilityRepository<Trx>;
   authorizations: AuthorizationsRepository<Trx>;
+  insurerAuthorizations: InsurerAuthorizationsRepository<Trx>;
+  autoApprovalRules: AutoApprovalRulesRepository<Trx>;
   processes: ProcessLinker<Trx>;
   files: AttachmentFiles<Trx>;
   partnerClinics: PartnerClinicDirectory<Trx>;

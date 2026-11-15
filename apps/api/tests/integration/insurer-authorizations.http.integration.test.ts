@@ -1,8 +1,8 @@
 // HTTP + PostgreSQL real (testcontainers) da fatia 3 do marco B (ADR-034, BR-AUT-01..16): migração 0039, as 8 rotas
 // `/clinic-portal/authorizations*`, o semáforo na elegibilidade, o job `insurer.expire-info-requests`, as portas reais com
 // `processes` (abrir/validar processo, factos de cobertura) e os anexos (antivírus fake). O supertest valida PEDIDOS e RESPOSTAS
-// contra docs/05-api/openapi.yaml (`validateResponses`). As decisões do analista são da fatia 4: os estados `APPROVED`, `REJECTED` e
-// `INFO_REQUESTED` obtêm-se por FIXTURE (SQL), nunca por rota (state-machines.md).
+// contra docs/05-api/openapi.yaml (`validateResponses`). As decisões do analista são da fatia 4 (`insurer-decisions.http.integration.test.ts`):
+// aqui os estados `APPROVED`, `REJECTED` e `INFO_REQUESTED` ainda se obtêm por FIXTURE (SQL; desde a `0040` com `decided_by_kind`).
 import { randomUUID } from "node:crypto";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +16,7 @@ import { defaultMigrationsDir, runMigrations } from "../../db/migrate-runner.js"
 import { FixedClock } from "../../src/platform/clock/index.js";
 import { createDb, withTransaction, type Database } from "../../src/platform/db/index.js";
 import { createApp } from "../../src/platform/http/index.js";
+import { openApiSpecPath } from "../support/openapi-spec.js";
 import { createLogger } from "../../src/platform/logger/index.js";
 import type { Storage } from "../../src/platform/storage/index.js";
 import { createAuditModule } from "../../src/modules/audit/index.js";
@@ -161,7 +162,7 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
     return { ben, auth: as<Auth>(res) };
   };
   const setState = (authId: string, sql: string, params: unknown[] = []) => pool.query(`UPDATE insurer_authorizations SET ${sql} WHERE id = $1`, [authId, ...params]);
-  const asRejected = (authId: string, decidedAt: Date) => setState(authId, "status='REJECTED', decision_note='Fora de cobertura', decided_at=$2", [decidedAt]);
+  const asRejected = (authId: string, decidedAt: Date) => setState(authId, "status='REJECTED', decided_by_kind='ANALYST', decision_note='Fora de cobertura', decided_at=$2", [decidedAt]);
   const asInfoRequested = (authId: string, expires: Date) => setState(authId, "status='INFO_REQUESTED', decision_note='Falta o orçamento', info_expires_at=$2", [expires]);
 
   beforeAll(async () => {
@@ -253,7 +254,7 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
       },
     });
     app = createApp({
-      openApiSpecPath: join(REPO_ROOT, "docs/05-api/openapi.yaml"),
+      openApiSpecPath: openApiSpecPath(REPO_ROOT),
       logger: createLogger({ level: "silent" }),
       validateResponses: true,
       securityHandlers: {
@@ -580,7 +581,7 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
       expect((await send("post", `/authorizations/${auth.id}/cancel`, tok.manager, {})).status).toBe(409);
       expect((await rows("SELECT count(*)::int AS n FROM audit_logs WHERE action='AUTHORIZATION_CANCEL' AND resource_id=$1", [auth.id]))[0]?.n).toBe(1);
       const approved = (await openRequest()).auth;
-      await setState(approved.id, "status='APPROVED', authorized_amount=100, code='COD-1', valid_until=now() + interval '30 days', decided_at=now()");
+      await setState(approved.id, "status='APPROVED', decided_by_kind='ANALYST', authorized_amount=100, code='COD-1', valid_until=now() + interval '30 days', decided_at=now()");
       expect((await send("post", `/authorizations/${approved.id}/cancel`, tok.admin, {})).status).toBe(409);
       const rejected = (await openRequest()).auth;
       await asRejected(rejected.id, clock.now());
@@ -772,7 +773,7 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
       expect(await view_(processId)).toMatchObject({ kind: "AUTHORIZED", familyStatus: "IN_PROGRESS", nextStep: { code: "AWAIT_INSURER_DECISION", actor: "INSURER", dueAt: new Date(auth.decisionDueAt) }, origin: { type: "AUTHORIZATION", id: auth.id } });
       await asInfoRequested(auth.id, new Date(clock.now().getTime() + 86_400_000));
       expect(await view_(processId)).toMatchObject({ familyStatus: "IN_PROGRESS", nextStep: { code: "AWAIT_CLINIC_INFORMATION", actor: "CLINIC" } });
-      await setState(auth.id, "status='APPROVED', info_expires_at=NULL, authorized_amount=100, code='COD-2', valid_until=now() + interval '30 days', decided_at=now()");
+      await setState(auth.id, "status='APPROVED', decided_by_kind='ANALYST', info_expires_at=NULL, authorized_amount=100, code='COD-2', valid_until=now() + interval '30 days', decided_at=now()");
       expect(await view_(processId)).toMatchObject({ familyStatus: "IN_PROGRESS", nextStep: { code: "ATTEND", actor: "FAMILY" } });
       await setState(auth.id, "status='CANCELLED', closed_reason='INFO_TIMEOUT', authorized_amount=NULL, code=NULL, valid_until=NULL");
       expect(await view_(processId)).toMatchObject({ familyStatus: "CANCELLED", nextStep: { code: "NOTHING_PENDING", actor: "NONE" } });
@@ -787,7 +788,7 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
       const res = await create(linked.card, { processId });
       expect(res.status, JSON.stringify(res.body)).toBe(201);
       expect(await view(processId, linked.memberId)).toMatchObject({ kind: "ROUTINE", familyStatus: "IN_PROGRESS", nextStep: { code: "AWAIT_INSURER_DECISION", actor: "INSURER" } });
-      await setState(as<Auth>(res).id, "status='APPROVED', authorized_amount=100, code='COD-3', valid_until=now() + interval '30 days', decided_at=now()");
+      await setState(as<Auth>(res).id, "status='APPROVED', decided_by_kind='ANALYST', authorized_amount=100, code='COD-3', valid_until=now() + interval '30 days', decided_at=now()");
       expect(await view(processId, linked.memberId)).toMatchObject({ familyStatus: "SCHEDULED", nextStep: { code: "ATTEND", actor: "FAMILY" } });
     });
 

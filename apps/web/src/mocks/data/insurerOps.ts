@@ -10,12 +10,29 @@ import type {
   InsurerService,
   AuthorizationRequest,
 } from '@/types/insurerOps'
+import type { AuthorizationDecider, AutoApprovalRule, AutoApprovalTrace, InsurerServiceKind, InsurerTimelineEntry } from '@/types/insurerAuthorizations'
 
 /**
  * Módulo operacional de seguradoras, Fase A (ADR-025) — dados demo. Todos os registos levam
  * `insurerId` (só no mock): a API real filtra sempre pela seguradora do token (BR-SEG-14).
  */
 type Owned<T> = T & { insurerId: string }
+
+/** Campos que só a seguradora tem de um pedido (a vista da clínica nunca os mostra, ADR-035). */
+export interface MockDecisionMeta {
+  assignedToId: string | null
+  decidedBy: AuthorizationDecider | null
+  decidedByAccountId: string | null
+  /** Marca de SLA (job `insurer.flag-sla-breaches`); só informa. */
+  escalatedAt: string | null
+  autoApproval: AutoApprovalTrace | null
+  /** Quem decidiu a recusa de que este recurso nasceu (separação de funções). */
+  originDeciderId: string | null
+  /** Quem recusou este pedido antes de ser reaberto. */
+  priorRejecterId: string | null
+  /** Linha do tempo da seguradora (com notas internas). */
+  events: InsurerTimelineEntry[]
+}
 
 export interface MockInsurerModule {
   /** `operational_module_enabled` (ligado pelo Platform Admin). */
@@ -47,6 +64,10 @@ export interface MockInsurerOps {
   eligibilityChecks: Record<string, number[]>
   /** Pedidos de autorização do prestador (ADR-034); `clinicId` só existe no mock. */
   authorizations: Array<AuthorizationRequest & { clinicId: string; beneficiaryId: string; originalDecisionAt?: string }>
+  /** Marco B fatia 4: dados só da seguradora por pedido, regras de aprovação automática e tipos de serviço. */
+  decisions: Record<string, MockDecisionMeta>
+  autoApprovalRules: Array<Owned<AutoApprovalRule>>
+  serviceKinds: Array<Owned<InsurerServiceKind>>
 }
 
 const CREATED = '2026-01-10T09:00:00.000Z'
@@ -196,5 +217,12 @@ export function seedInsurerOps(): MockInsurerOps {
     qrIssues: {},
     eligibilityChecks: {},
     authorizations: [],
+    decisions: {},
+    autoApprovalRules: [],
+    serviceKinds: [
+      { id: 'knd_consultas', insurerId, code: 'CONSULTATION', name: 'Consultas', status: 'ACTIVE' },
+      { id: 'knd_diagnostico', insurerId, code: 'DIAGNOSTICS', name: 'Exames e diagnóstico', status: 'ACTIVE' },
+      { id: 'knd_internamento', insurerId, code: 'INPATIENT', name: 'Internamento', status: 'ACTIVE' },
+    ],
   }
 }

@@ -49,6 +49,18 @@ import {
   createRevokeCardClaimUseCase,
 } from "./application/patient-insurance.js";
 import type { AttachmentFiles, InsurerSettingsPort, OpsDeps, PartnerClinicDirectory, PatientAccessPort, ProcessLinker } from "./application/ports.js";
+import { createApproveAuthorizationUseCase } from "./application/approve-authorization.js";
+import { createAssignAuthorizationUseCase } from "./application/assign-authorization.js";
+import { createGetAuthorizationMetricsUseCase } from "./application/authorization-metrics.js";
+import { createCreateAutoApprovalRuleUseCase, createDeleteAutoApprovalRuleUseCase, createListAutoApprovalRulesUseCase, createUpdateAutoApprovalRuleUseCase } from "./application/auto-approval-rules.js";
+import { createDownloadAuthorizationAttachmentUseCase } from "./application/download-authorization-attachment.js";
+import { createFlagSlaBreachesJobUseCase } from "./application/flag-sla-breaches.js";
+import { createGetInsurerAuthorizationUseCase, createListInsurerAuthorizationsUseCase } from "./application/list-insurer-authorizations.js";
+import { createListAuthorizationAssigneesUseCase } from "./application/list-authorization-assignees.js";
+import { createRejectAuthorizationUseCase } from "./application/reject-authorization.js";
+import { createReopenAuthorizationUseCase } from "./application/reopen-authorization.js";
+import { createRequestAuthorizationInfoUseCase } from "./application/request-authorization-info.js";
+import { createRevertAuthorizationUseCase } from "./application/revert-authorization.js";
 import { createAddAuthorizationAttachmentUseCase } from "./application/add-authorization-attachment.js";
 import { createAppealAuthorizationUseCase } from "./application/appeal-authorization.js";
 import { createCancelAuthorizationUseCase } from "./application/cancel-authorization.js";
@@ -72,7 +84,9 @@ import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
 import { KyselyCatalogTypesRepository, KyselyPlansRepository, KyselyPolicySettingsRepository, KyselyServiceKindsRepository, KyselyServicesRepository } from "./infrastructure/catalog-repo.js";
 import { KyselyEligibilityRepository, KyselyProvidersRepository } from "./infrastructure/clinic-repo.js";
 import { KyselyAuthorizationsRepository } from "./infrastructure/authorizations-repo.js";
-import { registerExpireInfoRequestsWorker, registerExpirePoliciesWorker, registerPurgeImportPreviewsWorker } from "./infrastructure/jobs.js";
+import { KyselyAutoApprovalRulesRepository } from "./infrastructure/auto-approval-repo.js";
+import { KyselyInsurerAuthorizationsRepository } from "./infrastructure/insurer-authorizations-repo.js";
+import { registerExpireInfoRequestsWorker, registerExpirePoliciesWorker, registerFlagSlaBreachesWorker, registerPurgeImportPreviewsWorker } from "./infrastructure/jobs.js";
 import { KyselyPatientInsuranceRepository } from "./infrastructure/patient-repo.js";
 import {
   KyselyBeneficiariesRepository,
@@ -82,6 +96,7 @@ import {
   KyselyPoliciesRepository,
 } from "./infrastructure/repo.js";
 import { createClinicAuthorizationsRouter, type InsurerClinicAuthorizationsController } from "./interface/clinic-authorizations-router.js";
+import { createInsurerAuthorizationsRouter, type InsurerAuthorizationsController } from "./interface/insurer-authorizations-router.js";
 import { createInsurerClinicRouter, type InsurerClinicController } from "./interface/clinic-router.js";
 import { createInsurerPatientRouter, type InsurerPatientController } from "./interface/patient-router.js";
 import { createInsurerOpsRouter, type InsurerOpsController } from "./interface/portal-router.js";
@@ -108,7 +123,7 @@ export interface InsurerOpsModuleDeps {
 }
 
 export interface InsurerOpsModule {
-  /** `/families/{f}/members/{m}/insurance/{card-claims,cards}` (S6 parcial, app do paciente) e `/insurance-portal/{companies,beneficiaries,imports,link-requests,policies,services,plans,partner-clinics,providers}` (S1–S3) e `/clinic-portal/insurers*` (S3 parcial). */
+  /** `/families/{f}/members/{m}/insurance/{card-claims,cards}` (S6 parcial, app do paciente) e `/insurance-portal/{companies,beneficiaries,imports,link-requests,policies,services,plans,partner-clinics,providers}` (S1–S3), `/insurance-portal/{authorizations,auto-approval-rules}*` (fatia 4) e `/clinic-portal/insurers*` (S3 parcial). */
   router: Router;
   /** `InsurerOperationalDataPort` de `insurance` (BR-SEG-19): a seguradora já tem beneficiários/apólices? */
   operationalData: { hasData: (trx: Kysely<Database>, insurerId: string) => Promise<boolean> };
@@ -132,6 +147,8 @@ function createOpsDeps(deps: InsurerOpsModuleDeps): OpsDeps<Kysely<Database>> {
     providers: new KyselyProvidersRepository(),
     eligibility: new KyselyEligibilityRepository(),
     authorizations: new KyselyAuthorizationsRepository(),
+    insurerAuthorizations: new KyselyInsurerAuthorizationsRepository(),
+    autoApprovalRules: new KyselyAutoApprovalRulesRepository(),
     processes: deps.processes,
     files: deps.files,
     partnerClinics: deps.partnerClinics,
@@ -208,6 +225,23 @@ export function createInsurerOpsModule(deps: InsurerOpsModuleDeps): InsurerOpsMo
     addAuthorizationAttachment: createAddAuthorizationAttachmentUseCase(ops),
     removeAuthorizationAttachment: createRemoveAuthorizationAttachmentUseCase(ops),
   };
+  const insurerAuthorizationsController: InsurerAuthorizationsController = {
+    listAuthorizations: createListInsurerAuthorizationsUseCase(ops),
+    getMetrics: createGetAuthorizationMetricsUseCase(ops),
+    listAssignees: createListAuthorizationAssigneesUseCase(ops),
+    getAuthorization: createGetInsurerAuthorizationUseCase(ops),
+    assign: createAssignAuthorizationUseCase(ops),
+    requestInfo: createRequestAuthorizationInfoUseCase(ops),
+    approve: createApproveAuthorizationUseCase(ops),
+    reject: createRejectAuthorizationUseCase(ops),
+    cancel: createRevertAuthorizationUseCase(ops),
+    reopen: createReopenAuthorizationUseCase(ops),
+    downloadAttachment: createDownloadAuthorizationAttachmentUseCase(ops),
+    listRules: createListAutoApprovalRulesUseCase(ops),
+    createRule: createCreateAutoApprovalRuleUseCase(ops),
+    updateRule: createUpdateAutoApprovalRuleUseCase(ops),
+    deleteRule: createDeleteAutoApprovalRuleUseCase(ops),
+  };
   const patientController: InsurerPatientController = {
     listCardClaims: createListCardClaimsUseCase(ops),
     claimCard: createClaimCardUseCase(ops),
@@ -221,6 +255,7 @@ export function createInsurerOpsModule(deps: InsurerOpsModuleDeps): InsurerOpsMo
   router.use(createInsurerPatientRouter(patientController));
   router.use(createInsurerClinicRouter(clinicController));
   router.use(createClinicAuthorizationsRouter(authorizationsController));
+  router.use(createInsurerAuthorizationsRouter(insurerAuthorizationsController));
   return {
     router,
     getCoverageFacts: createGetCoverageFactsUseCase(ops),
@@ -238,7 +273,7 @@ export interface InsurerOpsWorkerModuleDeps {
 }
 
 export interface InsurerOpsWorkerModule {
-  /** Jobs diários `insurer.expire-policies`, `insurer.purge-import-previews` e `insurer.expire-info-requests` — só o processo "worker" chama isto. */
+  /** Jobs `insurer.expire-policies`, `insurer.purge-import-previews`, `insurer.expire-info-requests` (diários) e `insurer.flag-sla-breaches` (15 min) — só o processo "worker" chama isto. */
   registerWorkers: () => Promise<void>;
   /** A expiração em si (idempotente), exposta para testes e execução manual. */
   expirePolicies: ReturnType<typeof createExpirePoliciesJobUseCase<Kysely<Database>>>;
@@ -246,6 +281,8 @@ export interface InsurerOpsWorkerModule {
   purgeImportPreviews: ReturnType<typeof createPurgeImportPreviewsJobUseCase<Kysely<Database>>>;
   /** Caducidade (idempotente) dos pedidos de informação sem resposta — job `insurer.expire-info-requests` (00:50 UTC, BR-AUT-14). */
   expireInfoRequests: ReturnType<typeof createExpireInfoRequestsJobUseCase<Kysely<Database>>>;
+  /** Marca de SLA (idempotente) nos `IN_REVIEW` com prazo atingido — job `insurer.flag-sla-breaches` (15 min, BR-AUT-20); nunca decide. */
+  flagSlaBreaches: ReturnType<typeof createFlagSlaBreachesJobUseCase<Kysely<Database>>>;
 }
 
 /** Composition root do processo "worker": só BD, auditoria e relógio. */
@@ -268,14 +305,22 @@ export function createInsurerOpsWorkerModule(deps: InsurerOpsWorkerModuleDeps): 
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
   });
+  const flagSlaBreaches = createFlagSlaBreachesJobUseCase<Kysely<Database>>({
+    insurerAuthorizations: new KyselyInsurerAuthorizationsRepository(),
+    audit: deps.audit,
+    withTransaction: (fn) => withTransaction(deps.db, fn),
+    clock: deps.clock,
+  });
   return {
     expirePolicies,
     purgeImportPreviews,
     expireInfoRequests,
+    flagSlaBreaches,
     registerWorkers: async () => {
       await registerExpirePoliciesWorker(deps.boss, expirePolicies);
       await registerPurgeImportPreviewsWorker(deps.boss, purgeImportPreviews);
       await registerExpireInfoRequestsWorker(deps.boss, expireInfoRequests);
+      await registerFlagSlaBreachesWorker(deps.boss, flagSlaBreaches);
     },
   };
 }

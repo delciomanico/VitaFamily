@@ -16,13 +16,14 @@ function codeOf(fn: () => unknown): string | undefined {
 
 
 describe("papéis (authorization.md §8.2b, Fase A)", () => {
-  const ROLES: OpsRole[] = ["INSURANCE_ADMIN", "INSURANCE_AGENT", "BENEFICIARY_MANAGER", "AUTHORIZATION_ANALYST", "CLAIMS_MANAGER", "FINANCE_MANAGER"];
+  const ROLES: OpsRole[] = ["INSURANCE_ADMIN", "INSURANCE_AGENT", "BENEFICIARY_MANAGER", "AUTHORIZATION_ANALYST", "CLAIMS_MANAGER", "FINANCE_MANAGER", "SUPERVISOR"];
   const allowed: Record<OpsRole, { read: boolean; write: boolean }> = {
     INSURANCE_ADMIN: { read: true, write: true },
     BENEFICIARY_MANAGER: { read: true, write: true },
     AUTHORIZATION_ANALYST: { read: true, write: false },
     CLAIMS_MANAGER: { read: true, write: false },
     FINANCE_MANAGER: { read: true, write: false },
+    SUPERVISOR: { read: true, write: false },
     INSURANCE_AGENT: { read: false, write: false },
   };
   it.each(ROLES.flatMap((role) => (["read", "write"] as const).map((access) => [role, access] as const)))("%s / %s", (role, access) => {

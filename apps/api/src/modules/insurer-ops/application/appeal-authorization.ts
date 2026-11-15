@@ -3,11 +3,12 @@
 import { ConflictError, DomainError, RateLimitedError } from "../../../platform/errors/index.js";
 import type { ClinicOpsActor } from "../domain/access.js";
 import { appealOpenUntil, parseAppealInput } from "../domain/authorization.js";
+import { toEligibilityLight } from "../domain/coverage.js";
 import { fail } from "../domain/validation.js";
 import { loadForWrite, POLICY_KEYS, policyValue, toViews, type AuthorizationView } from "./authorization-support.js";
 import { consumeLookupRateLimit } from "./beneficiary-lookup.js";
 import type { OpsDeps, RequestContext } from "./ports.js";
-import { gateRejection, lightOnDate, submitAuthorization } from "./submit-authorization.js";
+import { coverageOnDate, gateRejection, submitAuthorization } from "./submit-authorization.js";
 
 export function createAppealAuthorizationUseCase<Trx>(deps: OpsDeps<Trx>) {
   return async function appealAuthorization(actor: ClinicOpsActor, authorizationId: string, body: unknown, context: RequestContext): Promise<AuthorizationView> {
@@ -27,8 +28,9 @@ export function createAppealAuthorizationUseCase<Trx>(deps: OpsDeps<Trx>) {
       if (expectedOn < today) fail("expectedOn", "não pode ser uma data passada");
       const service = await deps.authorizations.findServiceByCode(trx, row.insurerId, row.serviceCode);
       if (service === null) throw gateRejection();
-      const light = await lightOnDate(deps, trx, row.insurerId, row.beneficiaryId, service, expectedOn);
-      if (light !== "YELLOW") throw gateRejection();
+      const coverage = await coverageOnDate(deps, trx, row.insurerId, row.beneficiaryId, service, expectedOn);
+      const light = coverage === null ? "RED" : toEligibilityLight(coverage);
+      if (coverage === null || light !== "YELLOW") throw gateRejection();
 
       const id = await submitAuthorization(deps, trx, {
         actor,
@@ -45,6 +47,7 @@ export function createAppealAuthorizationUseCase<Trx>(deps: OpsDeps<Trx>) {
         processId: row.processId,
         parentRequestId: row.id,
         light,
+        coverage,
       });
       const created = await deps.authorizations.findForClinic(trx, actor.clinicId, id);
       const [view] = await toViews(deps, trx, created ? [created] : [], false);

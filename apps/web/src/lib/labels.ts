@@ -244,3 +244,88 @@ export function nextStepSentence(step: { code: string; actor: string; dueAt?: st
       return 'Estamos a tratar do assunto.'
   }
 }
+
+// --- Decisão pela seguradora (marco B fatia 4, ADR-035): vocabulário do analista/supervisor, sem jargão técnico ---
+
+/** Estado do pedido para a seguradora: o da clínica, mais «Revertido» quando uma aprovação foi cancelada pela seguradora. */
+export function insurerStatusLabel(status: AuthorizationStatus, closedReason?: string | null): StatusLabel {
+  if (status === 'CANCELLED' && closedReason === 'ANALYST_CANCELLED') return { label: 'Aprovação revertida', tone: 'danger' }
+  if (status === 'CANCELLED' && closedReason === 'INFO_TIMEOUT') return { label: 'Fechado sem resposta', tone: 'neutral' }
+  if (status === 'CANCELLED') return { label: 'Cancelado pela clínica', tone: 'neutral' }
+  return authorizationStatus[status]
+}
+
+/** Quem tomou a decisão atual (a clínica nunca vê isto). */
+export const authorizationDeciderLabels: Record<string, string> = withFallback(
+  { ANALYST: 'Analista', SUPERVISOR: 'Supervisor', SYSTEM: 'Regra automática' } as Record<string, string>,
+  (key) => key,
+)
+
+/** Cumprimento do prazo de decisão (derivado; só informa, nunca decide). */
+export const slaStatusLabels: Record<string, { label: string; tone: Tone }> = withFallback(
+  {
+    ON_TIME: { label: 'Dentro do prazo', tone: 'success' as Tone },
+    OVERDUE: { label: 'Prazo ultrapassado', tone: 'danger' as Tone },
+    MET: { label: 'Decidido a tempo', tone: 'success' as Tone },
+    MISSED: { label: 'Decidido fora do prazo', tone: 'warning' as Tone },
+  } as Record<string, { label: string; tone: Tone }>,
+  () => ({ label: '', tone: 'neutral' as Tone }),
+)
+
+/** Verificações da aprovação automática, em linguagem simples. */
+export const autoApprovalCheckLabels: Record<string, string> = withFallback(
+  {
+    NOT_APPEAL: 'Não é um recurso',
+    COVERED_REQUIRES_AUTHORIZATION: 'Coberto e exige autorização',
+    WITHIN_LIMIT: 'Dentro do saldo disponível',
+    RULE_MATCH: 'Dentro da regra da seguradora',
+  } as Record<string, string>,
+  (key) => key,
+)
+
+/** Razão de uma verificação (código) → frase para o analista. */
+export const autoApprovalReasonLabels: Record<string, string> = withFallback(
+  {
+    OK: 'Cumpre',
+    IS_APPEAL: 'É um recurso: decide sempre uma pessoa',
+    AUTHORIZATION_NOT_REQUIRED: 'O serviço não exige autorização',
+    AMOUNT_ABOVE_LIMIT: 'O valor pedido é maior do que o saldo disponível',
+    NO_RULE_FOR_SERVICE: 'Não há regra de aprovação automática para este serviço',
+    AMOUNT_ABOVE_RULE_MAX: 'O valor pedido é maior do que o máximo da regra',
+    WAITING_PERIOD: 'Está em período de carência',
+    LIMIT_EXHAUSTED: 'O limite do plano está esgotado',
+    NOT_IN_PLAN: 'O serviço não está no plano',
+    EXCLUDED: 'O serviço está excluído do plano',
+    SERVICE_INACTIVE: 'O serviço está inativo',
+    BENEFICIARY_NOT_ACTIVE: 'O beneficiário não está ativo',
+    POLICY_NOT_ACTIVE: 'A apólice não está ativa',
+    OUTSIDE_POLICY_PERIOD: 'A data prevista está fora da validade da apólice',
+    COVERED: 'Coberto',
+  } as Record<string, string>,
+  () => 'Não cumpre',
+)
+
+/** Situação de cobertura que o analista vê (interna: nunca vai à clínica nem à família). */
+export const coverageReasonLabels: Record<string, string> = withFallback(
+  {
+    COVERED: 'Coberto',
+    WAITING_PERIOD: 'Em período de carência',
+    LIMIT_EXHAUSTED: 'Limite esgotado',
+    EXCLUDED: 'Serviço excluído do plano',
+    NOT_IN_PLAN: 'Serviço fora do plano',
+    SERVICE_INACTIVE: 'Serviço inativo',
+    OUTSIDE_POLICY_PERIOD: 'Fora da validade da apólice',
+    POLICY_NOT_ACTIVE: 'Apólice não ativa',
+    BENEFICIARY_NOT_ACTIVE: 'Beneficiário não ativo',
+  } as Record<string, string>,
+  () => 'Sem informação',
+)
+
+/** Razões de cobertura que o analista pode sobrepor com uma nota interna (BR-SEG-04). */
+export const OVERRIDABLE_COVERAGE_REASONS = ['WAITING_PERIOD', 'LIMIT_EXHAUSTED']
+
+/** Quem escreveu cada passo da linha do tempo, vista da seguradora. */
+export const insurerTimelineActorLabels: Record<string, string> = withFallback(
+  { CLINIC: 'Clínica', ANALYST: 'Analista', SUPERVISOR: 'Supervisor', SYSTEM: 'Sistema' } as Record<string, string>,
+  (key) => key,
+)

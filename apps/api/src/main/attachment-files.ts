@@ -10,6 +10,8 @@ export function createAttachmentFiles(deps: { storage: Storage; virusScanner: Vi
   return {
     scan: (buffer) => deps.virusScanner.scan(buffer),
     put: (key, buffer, mimeType) => deps.storage.putObject(key, buffer, mimeType),
+    // Fatia 4: o analista/supervisor descarrega em stream, mediado pela API (ADR-006).
+    get: (key) => deps.storage.getObject(key),
     // Outbox (ADR-011): o ficheiro só é apagado depois de a transação do pedido comitar; o job `lifecycle.delete-files` esvazia-o.
     scheduleDelete: async (trx, key) => {
       await trx.insertInto("file_deletions").values({ storage_key: key }).execute();

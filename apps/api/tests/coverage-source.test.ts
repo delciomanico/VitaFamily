@@ -43,7 +43,7 @@ describe("BR-SEG-41 uma só função de cobertura (TC-COV-13)", () => {
   });
 
   it("TC-CAT-06 BR-SEG-39/40: sem literais de tipos de guia/despesa nem de chaves de política em código não-teste de insurer-ops", async () => {
-    const literals = /["'`](CONSULTATION|SERVICES|ADMISSION|INPATIENT|CHILDBIRTH|DIAGNOSTICS|TREATMENT|DENTAL|PROSTHETICS|MEDICATION|DAILY_ALLOWANCE|AUTHORIZATION_DECISION_HOURS|APPEAL_REQUEST_DAYS|APPEAL_RESPONSE_HOURS|INFO_REQUEST_EXPIRY_DAYS|URGENT_NOTICE_HOURS)["'`]/;
+    const literals = /["'`](CONSULTATION|SERVICES|ADMISSION|INPATIENT|CHILDBIRTH|DIAGNOSTICS|TREATMENT|DENTAL|PROSTHETICS|MEDICATION|DAILY_ALLOWANCE|AUTHORIZATION_DECISION_HOURS|APPEAL_REQUEST_DAYS|APPEAL_RESPONSE_HOURS|INFO_REQUEST_EXPIRY_DAYS|AUTHORIZATION_VALIDITY_DAYS|URGENT_NOTICE_HOURS)["'`]/;
     const offenders: string[] = [];
     for (const file of await files(MODULE)) {
       // Fatia 3: `domain/policy-setting.ts` é o ÚNICO sítio que nomeia as chaves (`POLICY_KEYS`); os valores nunca (TC-AUT-18).

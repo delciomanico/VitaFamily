@@ -257,7 +257,21 @@ export type AuditAction =
   | "AUTHORIZATION_CANCEL"
   | "AUTHORIZATION_ATTACHMENT_ADD"
   | "AUTHORIZATION_ATTACHMENT_REMOVE"
-  | "AUTHORIZATION_INFO_TIMEOUT";
+  | "AUTHORIZATION_INFO_TIMEOUT"
+  // Decisão pela seguradora, auto-aprovação e SLA (marco B fatia 4, ADR-035, audit.md §3): `metadata` só com `insurerId`, ids, enums,
+  // booleanos e contagens — NUNCA `reason`/`note`/`overrideReason`, valores, nome da regra, código de autorização nem nome de ficheiro.
+  | "AUTHORIZATION_APPROVE"
+  | "AUTHORIZATION_REJECT"
+  | "AUTHORIZATION_REQUEST_INFO"
+  | "AUTHORIZATION_REVERT"
+  | "AUTHORIZATION_REOPEN"
+  | "AUTHORIZATION_ASSIGN"
+  | "AUTHORIZATION_AUTO_APPROVE"
+  | "AUTHORIZATION_SLA_BREACH"
+  | "AUTHORIZATION_ATTACHMENT_DOWNLOAD"
+  | "AUTO_APPROVAL_RULE_CREATE"
+  | "AUTO_APPROVAL_RULE_UPDATE"
+  | "AUTO_APPROVAL_RULE_DELETE";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT";
 
