@@ -89,6 +89,17 @@
 | `insurer_authorization_events (authorization_id, id)` | `timeline` do pedido |
 | `insurer_attachments (authorization_id)` · UNIQUE `(storage_key)` | anexos do pedido (máx. 5) |
 
+## Decisão pela seguradora (marco B fatia 4; `schema.md` §3c, migração `0040`)
+| Índice | Para quê |
+|---|---|
+| `insurer_authorizations (insurer_id, status, decision_due_at, id)` | fila por prazo, cursor por (`decision_due_at`, `id`) (BR-AUT-19) |
+| `insurer_authorizations (insurer_id, updated_at DESC, id DESC)` | histórico (`sort=RECENT`) |
+| `insurer_authorizations (assigned_to_insurance_account_id) WHERE assigned_to_insurance_account_id IS NOT NULL` | filtro «meus» e `SET NULL` ao remover a conta |
+| `insurer_authorizations (decision_due_at) WHERE status = 'IN_REVIEW' AND escalated_at IS NULL` | job `insurer.flag-sla-breaches` (BR-AUT-20) |
+| UNIQUE parcial `insurer_authorizations (insurer_id, beneficiary_id, provider_id, service_id, expected_on) WHERE status IN ('SUBMITTED','IN_REVIEW','INFO_REQUESTED','APPROVED')` (**recria o da `0039`**) | duplicado em curso **ou já aprovado**, também sob concorrência (BR-AUT-09) |
+| UNIQUE parcial `insurer_auto_approval_rules (insurer_id, service_kind_id) WHERE active AND service_kind_id IS NOT NULL` · `(insurer_id, service_id) WHERE active AND service_id IS NOT NULL` · UNIQUE `(insurer_id, id)` | uma regra ativa por alvo; alvo das FKs (BR-AUT-23) |
+| `insurer_auto_approval_rules (insurer_id, active)` | carregar as regras ativas na criação do pedido |
+
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).
 2. Antes de M10, validar os 5 caminhos quentes: scanner, agenda do dia, lista de alertas, resolução de membership, relatório individual.

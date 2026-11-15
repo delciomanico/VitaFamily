@@ -7785,7 +7785,7 @@ paths:
     post:
       tags: [Insurance Portal]
       operationId: createInsuranceAgent
-      summary: "Criar uma conta INSURANCE_AGENT ou BENEFICIARY_MANAGER na própria seguradora."
+      summary: "Criar uma conta INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST ou SUPERVISOR na própria seguradora."
       description: "Autorização: INSURANCE_ADMIN. BR-INS-06: self-service; o Platform Admin nunca cria agentes individualmente. `role` por omissão INSURANCE_AGENT (ADR-025/§8.3)."
       security:
         - insuranceBearerAuth: []
@@ -7820,7 +7820,7 @@ paths:
       tags: [Insurance Portal]
       operationId: removeInsuranceAgent
       summary: "Remover uma conta (não-admin) da própria seguradora."
-      description: "Autorização: INSURANCE_ADMIN. Remove contas INSURANCE_AGENT e BENEFICIARY_MANAGER (ADR-025); a conta INSURANCE_ADMIN raiz só é reposta pelo Platform Admin (POST /admin/insurers/{id}/root-account)."
+      description: "Autorização: INSURANCE_ADMIN. Remove contas INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST e SUPERVISOR (ADR-025/035; os pedidos atribuídos à conta removida voltam à fila: assignedTo passa a nulo); a conta INSURANCE_ADMIN raiz só é reposta pelo Platform Admin (POST /admin/insurers/{id}/root-account)."
       security:
         - insuranceBearerAuth: []
       parameters:
@@ -10043,7 +10043,7 @@ paths:
       tags: [Insurance Portal]
       operationId: setInsurerPolicySetting
       summary: "Definir o valor de uma regra de política (da seguradora ou de um serviço)."
-      description: "Autorização: INSURANCE_ADMIN (o papel SUPERVISOR passa a poder, sem outra alteração de contrato, quando for criado na fatia 4: authorization.md §8.2c). BR-SEG-40: `value` inteiro entre o mínimo e o máximo do Vita para a chave (fora ⇒ VALIDATION_ERROR com `errors[].field=value`); `serviceId` opcional só se a chave admitir exceção por serviço (senão VALIDATION_ERROR) e tem de ser da própria seguradora (senão NOT_FOUND); chave desconhecida ⇒ NOT_FOUND. Idempotente (upsert). Auditoria INSURER_POLICY_SETTING_UPDATE (`metadata`: `insurerId`, `key`, `serviceId?`, `from`, `to`). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      description: "Autorização: INSURANCE_ADMIN e SUPERVISOR (fatia 4, ADR-035; authorization.md §8.2c/§8.2d). BR-SEG-40: `value` inteiro entre o mínimo e o máximo do Vita para a chave (fora ⇒ VALIDATION_ERROR com `errors[].field=value`); `serviceId` opcional só se a chave admitir exceção por serviço (senão VALIDATION_ERROR) e tem de ser da própria seguradora (senão NOT_FOUND); chave desconhecida ⇒ NOT_FOUND. Idempotente (upsert). Auditoria INSURER_POLICY_SETTING_UPDATE (`metadata`: `insurerId`, `key`, `serviceId?`, `from`, `to`). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
       security:
         - insuranceBearerAuth: []
       parameters:
@@ -10083,7 +10083,7 @@ paths:
       tags: [Insurance Portal]
       operationId: resetInsurerPolicySetting
       summary: "Repor o valor por omissão (apaga a definição da seguradora ou do serviço)."
-      description: "Autorização: INSURANCE_ADMIN. BR-SEG-40: sem `serviceId` apaga a definição da seguradora (volta ao valor por omissão do Vita); com `serviceId` apaga a exceção do serviço (volta ao valor da seguradora). Idempotente (204 mesmo que não exista). Auditoria INSURER_POLICY_SETTING_RESET só quando algo foi apagado. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
+      description: "Autorização: INSURANCE_ADMIN e SUPERVISOR. BR-SEG-40: sem `serviceId` apaga a definição da seguradora (volta ao valor por omissão do Vita); com `serviceId` apaga a exceção do serviço (volta ao valor da seguradora). Idempotente (204 mesmo que não exista). Auditoria INSURER_POLICY_SETTING_RESET só quando algo foi apagado. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT não tem acesso a este recurso (403 FORBIDDEN, authorization.md §8.2b); insurerId do token filtra tudo (BR-SEG-14: recurso de outra seguradora ⇒ 404 NOT_FOUND)."
       security:
         - insuranceBearerAuth: []
       parameters:
@@ -10373,12 +10373,606 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerAuthorizations
+      summary: "Fila de pedidos de autorização da seguradora (ordenada por prazo)."
+      description: "Autorização: INSURANCE_ADMIN, AUTHORIZATION_ANALYST, CLAIMS_MANAGER, FINANCE_MANAGER e SUPERVISOR (leitura; BENEFICIARY_MANAGER ⇒ 403). Marco B fatia 4, UC-SEG-07/20, BR-AUT-17..19. Por omissão `status=OPEN` (IN_REVIEW e INFO_REQUESTED) ordenados por decisionDueAt crescente (mais atrasado primeiro; cursor por decisionDueAt+id); `sort=RECENT` ordena por updatedAt decrescente (histórico). SUBMITTED nunca aparece (transitório). Filtros: assigned (ME, UNASSIGNED, ANY), overdue (aberto com prazo passado), escalated (escalated_at preenchido), appeal (só recursos), decidedBy. O analista vê os recursos mas não os decide; o supervisor filtra appeal=true e escalated=true. Leitura sem auditoria. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, SUBMITTED, IN_REVIEW, INFO_REQUESTED, APPROVED, REJECTED, CANCELLED], default: OPEN } }
+        - { name: assigned, in: query, schema: { type: string, enum: [ME, UNASSIGNED, ANY], default: ANY } }
+        - { name: overdue, in: query, schema: { type: boolean } }
+        - { name: escalated, in: query, schema: { type: boolean } }
+        - { name: appeal, in: query, schema: { type: boolean } }
+        - { name: decidedBy, in: query, schema: { $ref: "#/components/schemas/AuthorizationDecider" } }
+        - { name: sort, in: query, schema: { type: string, enum: [DUE, RECENT], default: DUE } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerAuthorizationPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/metrics:
+    get:
+      tags: [Insurance Portal]
+      operationId: getInsurerAuthorizationMetrics
+      summary: "Métricas de SLA e de auto-aprovação."
+      description: "Autorização: como a fila (todos os papéis com leitura de autorizações). BR-AUT-20. `open` é o retrato de agora; `period` agrega os pedidos cuja decisão (decidedAt, estado atual APPROVED ou REJECTED) caiu em [from, to). Cumprimento = decidedAt ≤ decisionDueAt (o prazo vigente à data da decisão). Sem dados pessoais. Aproximação documentada: um pedido reaberto só volta a contar quando decidido de novo. Leitura sem auditoria. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date, description: "Omissão: 30 dias antes de `to`." } }
+        - { name: to, in: query, schema: { type: string, format: date, description: "Exclusivo; omissão: amanhã (UTC). Intervalo máximo 366 dias, senão 422." } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorizationSlaMetrics" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/assignees:
+    get:
+      tags: [Insurance Portal]
+      operationId: listInsurerAuthorizationAssignees
+      summary: "Analistas a quem se pode atribuir um pedido."
+      description: "Autorização: SUPERVISOR e INSURANCE_ADMIN. Devolve as contas ATIVAS com papel AUTHORIZATION_ANALYST da própria seguradora (id e e-mail; sem mais dados), para o selector de «atribuir». Sem auditoria. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AuthorizationAssignee" } }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/{authorizationId}:
+    get:
+      tags: [Insurance Portal]
+      operationId: getInsurerAuthorization
+      summary: "Ver um pedido de autorização (para decidir)."
+      description: "Autorização: como a fila. UC-SEG-07, BR-AUT-17/18. Devolve o pedido com a justificação administrativa, a cobertura avaliada agora (evaluateCoverage em expectedOn: razão interna, copagamento e saldo; só para o analista/supervisor), o rasto da auto-aprovação (autoApproval), os anexos (metadados), a linha do tempo completa (incluindo as notas internas) e allowedActions calculadas no servidor para o papel e o pedido (a UI mostra só estes botões). Nunca saldo consumido (não existe, ADR-035 §7) nem identificadores da família. Leitura sem auditoria. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerAuthorizationDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/{authorizationId}/assign:
+    post:
+      tags: [Insurance Portal]
+      operationId: assignInsurerAuthorization
+      summary: "Atribuir (ou libertar) um pedido a um analista."
+      description: "Autorização: AUTHORIZATION_ANALYST (só toma para si um pedido IN_REVIEW livre que não seja recurso; `analystId` omitido ou o seu) e SUPERVISOR (qualquer analista ativo da seguradora, ou `analystId: null` para libertar). BR-AUT-18. Só IN_REVIEW ou INFO_REQUESTED e nunca um recurso (os recursos são do supervisor e não se atribuem): outro estado ⇒ 409 INVALID_STATE_TRANSITION; analista a tomar um pedido já atribuído a outrem ⇒ 409 CONFLICT; `analystId` que não é conta ATIVA AUTHORIZATION_ANALYST da seguradora ⇒ 422 (field analystId). Não é transição de estado (não gera evento de estado). Auditoria AUTHORIZATION_ASSIGN. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationAssignRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerAuthorizationDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (ou INVALID_STATE_TRANSITION)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/{authorizationId}/request-info:
+    post:
+      tags: [Insurance Portal]
+      operationId: requestInsurerAuthorizationInfo
+      summary: "Pedir informação à clínica («falta informação»)."
+      description: "Autorização: AUTHORIZATION_ANALYST (pedidos que não são recurso, livres ou atribuídos a si) e SUPERVISOR (só recursos). UC-SEG-07, BR-AUT-14/18. IN_REVIEW → INFO_REQUESTED; `reason` 1–500 caracteres, visível à clínica (administrativa, sem dados clínicos); define infoExpiresAt (INFO_REQUEST_EXPIRY_DAYS por resolvePolicySetting) e atribui o pedido a quem o pede, se livre. Outro estado ⇒ 409 INVALID_STATE_TRANSITION. Auditoria AUTHORIZATION_REQUEST_INFO (sem o texto). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationReasonRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerAuthorizationDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (ou INVALID_STATE_TRANSITION)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/{authorizationId}/approve:
+    post:
+      tags: [Insurance Portal]
+      operationId: approveInsurerAuthorization
+      summary: "Aprovar um pedido (com valor autorizado e validade)."
+      description: "Autorização: AUTHORIZATION_ANALYST (pedidos que não são recurso, livres ou atribuídos a si) e SUPERVISOR (só recursos). UC-SEG-07, BR-AUT-04/07/17/18. IN_REVIEW → APPROVED com decidedBy=ANALYST|SUPERVISOR. `authorizedAmount` omitido = requestedAmount; > 0 e ≤ requestedAmount e, havendo teto, ≤ saldo (evaluateCoverage em expectedOn); menor que o pedido (aprovação em parte) exige `note` (visível à clínica). `validUntil` omitido = fim do dia de expectedOn + AUTHORIZATION_VALIDITY_DAYS (resolvePolicySetting); se indicado, futuro e até expectedOn + o máximo dessa chave. Cobertura RED agora (estado/apólice/serviço mudaram) ⇒ 422 (field coverage; a seguradora recusa em vez de aprovar). Razão interna de carência ou limite esgotado ⇒ `overrideReason` obrigatório (nota INTERNA, nunca vista pela clínica; BR-SEG-04). Gera o código (BR-SEG-05). Recurso: quem decidiu a recusa de origem ⇒ 403. Outro estado ⇒ 409 INVALID_STATE_TRANSITION; atribuído a outro analista ⇒ 409 CONFLICT. Auditoria AUTHORIZATION_APPROVE (metadata: decidedBy, partial, override). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationApproveRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerAuthorizationDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (ou INVALID_STATE_TRANSITION)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/{authorizationId}/reject:
+    post:
+      tags: [Insurance Portal]
+      operationId: rejectInsurerAuthorization
+      summary: "Recusar um pedido (motivo obrigatório)."
+      description: "Autorização: AUTHORIZATION_ANALYST (pedidos que não são recurso, livres ou atribuídos a si) e SUPERVISOR (só recursos). UC-SEG-07, BR-AUT-17/18. IN_REVIEW → REJECTED (final para a clínica; recurso = novo pedido, BR-AUT-08); `reason` 1–500 caracteres, visível à clínica. A mesma regra de separação de funções de approve. Outro estado ⇒ 409 INVALID_STATE_TRANSITION. Auditoria AUTHORIZATION_REJECT (sem o texto). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationReasonRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerAuthorizationDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (ou INVALID_STATE_TRANSITION)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/{authorizationId}/cancel:
+    post:
+      tags: [Insurance Portal]
+      operationId: cancelInsurerAuthorization
+      summary: "Reverter (cancelar) uma aprovação."
+      description: "Autorização: AUTHORIZATION_ANALYST (só se decidedBy=ANALYST) e SUPERVISOR (qualquer aprovação, incluindo a automática decidedBy=SYSTEM, que só ele pode reverter). BR-SEG-16, BR-AUT-03/21. APPROVED → CANCELLED com closedReason=ANALYST_CANCELLED (também quando é o supervisor); `reason` 1–500 caracteres, visível à clínica (guarda-se em decisionNote). O código deixa de ser válido. Outro estado ⇒ 409 INVALID_STATE_TRANSITION; analista sobre decisão que não é sua (SYSTEM, SUPERVISOR) ⇒ 403. Auditoria AUTHORIZATION_REVERT (metadata: previousDecidedBy). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationReasonRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerAuthorizationDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (ou INVALID_STATE_TRANSITION)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/{authorizationId}/reopen:
+    post:
+      tags: [Insurance Portal]
+      operationId: reopenInsurerAuthorization
+      summary: "Reabrir uma recusa (só supervisor)."
+      description: "Autorização: SUPERVISOR. BR-AUT-22 (ADR-035 §2). REJECTED → IN_REVIEW, só até appealOpenUntil (APPEAL_REQUEST_DAYS após a decisão), sem recurso não cancelado e sem outro pedido em curso igual (UNIQUE de BR-AUT-09 ⇒ 409 CONFLICT); `reason` 1–500, **interna** (nunca visível à clínica). Limpa a decisão, a atribuição e a marca de escalada; recalcula decisionDueAt; o pedido volta à fila livre e **quem o recusou não pode voltar a decidi-lo** (403). Outro estado ⇒ 409 INVALID_STATE_TRANSITION. Auditoria AUTHORIZATION_REOPEN. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizationReasonRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InsurerAuthorizationDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (ou INVALID_STATE_TRANSITION)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/authorizations/{authorizationId}/attachments/{attachmentId}:
+    get:
+      tags: [Insurance Portal]
+      operationId: downloadInsurerAuthorizationAttachment
+      summary: "Descarregar um anexo administrativo do pedido (stream mediado)."
+      description: "Autorização: AUTHORIZATION_ANALYST e SUPERVISOR (INSURANCE_ADMIN, CLAIMS_MANAGER e FINANCE_MANAGER veem só metadados). BR-AUT-13, ADR-006: autoriza, audita e entrega; `Cache-Control: private, no-store`; `Content-Disposition: attachment`. Anexo de outro pedido ou seguradora ⇒ 404. Auditoria AUTHORIZATION_ATTACHMENT_DOWNLOAD (sem o nome do ficheiro). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: authorizationId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: attachmentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/auto-approval-rules:
+    get:
+      tags: [Insurance Portal]
+      operationId: listAutoApprovalRules
+      summary: "Listar as regras de auto-aprovação da seguradora."
+      description: "Autorização: leitura para SUPERVISOR, INSURANCE_ADMIN e AUTHORIZATION_ANALYST. BR-AUT-03/23, UC-SEG-21. Máx. 100 por seguradora, sem paginação; ordem: ativas primeiro, depois nome. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/AutoApprovalRule" } }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Insurance Portal]
+      operationId: createAutoApprovalRule
+      summary: "Criar uma regra de auto-aprovação."
+      description: "Autorização: SUPERVISOR. BR-AUT-03/23, UC-SEG-21. Exatamente um de serviceKindId e serviceId, ATIVO e da própria seguradora; maxAmount > 0 na moeda da seguradora; uma regra ATIVA por alvo (duplicada ⇒ 409 CONFLICT); mais de 100 ⇒ 409 LIMIT_EXCEEDED. Aplica-se só a pedidos novos (não é retroativa). Auditoria AUTO_APPROVAL_RULE_CREATE. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AutoApprovalRuleInput" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutoApprovalRule" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (ou INVALID_STATE_TRANSITION)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /insurance-portal/auto-approval-rules/{ruleId}:
+    patch:
+      tags: [Insurance Portal]
+      operationId: updateAutoApprovalRule
+      summary: "Alterar uma regra (nome, valor máximo, ativa)."
+      description: "Autorização: SUPERVISOR. BR-AUT-03/23. O alvo (serviceKindId/serviceId) não se altera (apaga-se e cria-se outra). Reativar com outra regra ativa no mesmo alvo ⇒ 409 CONFLICT. Auditoria AUTO_APPROVAL_RULE_UPDATE (metadata: campos alterados, active e maxAmount de/para). Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: ruleId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AutoApprovalRulePatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AutoApprovalRule" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (ou INVALID_STATE_TRANSITION)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [Insurance Portal]
+      operationId: deleteAutoApprovalRule
+      summary: "Apagar uma regra."
+      description: "Autorização: SUPERVISOR. BR-AUT-23. Apaga a regra (os pedidos já decididos mantêm o rasto com o nome da regra à data). Idempotente: 204 mesmo que já não exista. Auditoria AUTO_APPROVAL_RULE_DELETE só quando algo foi apagado. Só para seguradoras com operationalModuleEnabled (senão 404 NOT_FOUND); INSURANCE_AGENT e BENEFICIARY_MANAGER ⇒ 403 FORBIDDEN; insurerId do token filtra tudo (BR-SEG-14: pedido, regra ou conta de outra seguradora ⇒ 404 NOT_FOUND sem enumeração). authorization.md §8.2b/§8.2d. Nunca devolve ids de utilizador/família/membro do paciente nem dados clínicos (C2)."
+      security:
+        - insuranceBearerAuth: []
+      parameters:
+        - { name: ruleId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /clinic-portal/authorizations:
     post:
       tags: [Clinic Portal]
       operationId: createAuthorizationRequest
       summary: "Pedir autorização a uma seguradora (serviço do catálogo + justificação administrativa)."
-      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. UC-SEG-06, BR-AUT-01/02/09/12/16, BR-SEG-18/22/29/41. Escrita: exige ligação ACTIVE da clínica à seguradora e módulo ativo (senão 404). O beneficiário identifica-se como na elegibilidade (exatamente um de cardNumber, qrToken, idDocument) e é revalidado no servidor: não elegível/inexistente/QR inválido ⇒ o mesmo 404 NOT_FOUND (sem motivo). O servidor avalia evaluateCoverage na data expectedOn: semáforo VERMELHO ⇒ 422 VALIDATION_ERROR (field serviceCode, sem motivo); VERDE (não exige autorização) ⇒ 422 VALIDATION_ERROR (field serviceCode); só AMARELO cria o pedido. guideType deduz-se do serviço (service_kind) e só pode ser indicado como override para um tipo ativo de guide_types; serviço por classificar sem guideType ⇒ 422 (field guideType). justification é administrativa (1–500 caracteres; **sem diagnóstico nem dados clínicos**, C2/BR-SEG-23; a UI avisa) e requestedAmount > 0 na moeda da seguradora. processId (opcional) liga o pedido ao Process do ato (de ClinicBooking.processId); inválido ou de outro beneficiário ⇒ 422 (field processId, mensagem única); ausente e beneficiário ligado a um membro (BR-SEG-20) ⇒ abre-se um Process novo (originType AUTHORIZATION) pela porta ProcessLinker; beneficiário não ligado ⇒ sem Process. Nasce SUBMITTED e passa a IN_REVIEW na mesma transação (decisão pela seguradora: fatia 4). decisionDueAt = agora + AUTHORIZATION_DECISION_HOURS resolvido (BR-SEG-40). Pedido em curso (SUBMITTED/IN_REVIEW/INFO_REQUESTED) para o mesmo beneficiário, prestador, serviço e expectedOn ⇒ 409 CONFLICT (BR-AUT-09; sem Idempotency-Key, fora do MVP). Mesmo rate limit de elegibilidade (por conta de clínica e por IP; 429 RATE_LIMITED + Retry-After). Auditoria AUTHORIZATION_SUBMIT."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. UC-SEG-06, BR-AUT-01/02/09/12/16, BR-SEG-18/22/29/41. Escrita: exige ligação ACTIVE da clínica à seguradora e módulo ativo (senão 404). O beneficiário identifica-se como na elegibilidade (exatamente um de cardNumber, qrToken, idDocument) e é revalidado no servidor: não elegível/inexistente/QR inválido ⇒ o mesmo 404 NOT_FOUND (sem motivo). O servidor avalia evaluateCoverage na data expectedOn: semáforo VERMELHO ⇒ 422 VALIDATION_ERROR (field serviceCode, sem motivo); VERDE (não exige autorização) ⇒ 422 VALIDATION_ERROR (field serviceCode); só AMARELO cria o pedido. guideType deduz-se do serviço (service_kind) e só pode ser indicado como override para um tipo ativo de guide_types; serviço por classificar sem guideType ⇒ 422 (field guideType). justification é administrativa (1–500 caracteres; **sem diagnóstico nem dados clínicos**, C2/BR-SEG-23; a UI avisa) e requestedAmount > 0 na moeda da seguradora. processId (opcional) liga o pedido ao Process do ato (de ClinicBooking.processId); inválido ou de outro beneficiário ⇒ 422 (field processId, mensagem única); ausente e beneficiário ligado a um membro (BR-SEG-20) ⇒ abre-se um Process novo (originType AUTHORIZATION) pela porta ProcessLinker; beneficiário não ligado ⇒ sem Process. Nasce SUBMITTED e passa a IN_REVIEW na mesma transação; fatia 4 (BR-AUT-03): se as regras de auto-aprovação da seguradora o permitem, passa a APPROVED (decidedBy=SYSTEM, com código, authorizedAmount=requestedAmount e validUntil) na mesma transação e a resposta 201 já traz status=APPROVED; a clínica nunca vê que foi automática. A decisão manual é da seguradora (/insurance-portal/authorizations*). decisionDueAt = agora + AUTHORIZATION_DECISION_HOURS resolvido (BR-SEG-40); nos recursos, APPEAL_RESPONSE_HOURS. Pedido em curso (SUBMITTED/IN_REVIEW/INFO_REQUESTED) ou já APPROVED (fatia 4) para o mesmo beneficiário, prestador, serviço e expectedOn ⇒ 409 CONFLICT (BR-AUT-09; sem Idempotency-Key, fora do MVP). Mesmo rate limit de elegibilidade (por conta de clínica e por IP; 429 RATE_LIMITED + Retry-After). Auditoria AUTHORIZATION_SUBMIT."
       security:
         - clinicBearerAuth: []
       requestBody:
@@ -10538,7 +11132,7 @@ paths:
       tags: [Clinic Portal]
       operationId: cancelAuthorizationRequest
       summary: "Cancelar um pedido de autorização pendente."
-      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. BR-AUT-15, authorization.md §8.4. SUBMITTED, IN_REVIEW ou INFO_REQUESTED → CANCELLED com closedReason=CLINIC_CANCELLED; noutro estado ⇒ 409 INVALID_STATE_TRANSITION (cancelar um pedido APPROVED fica para a fatia 4, com a reserva de saldo). note opcional (≤200). Auditoria AUTHORIZATION_CANCEL."
+      description: "Autorização: CLINIC_ADMIN e CLINIC_MANAGER (Q6; CLINIC_DOCTOR ⇒ 403 FORBIDDEN, authorization.md §6.2b/§8.4). Só pedidos da própria clínica (insurer_providers.clinic_id = clínica do token); outro caso ⇒ 404 NOT_FOUND sem enumeração. BR-AUT-15, authorization.md §8.4. SUBMITTED, IN_REVIEW ou INFO_REQUESTED → CANCELLED com closedReason=CLINIC_CANCELLED; noutro estado ⇒ 409 INVALID_STATE_TRANSITION (a clínica não cancela um pedido APPROVED: a reversão é da seguradora, BR-AUT-21, ADR-035). note opcional (≤200). Auditoria AUTHORIZATION_CANCEL."
       security:
         - clinicBearerAuth: []
       parameters:
@@ -14589,7 +15183,7 @@ components:
           format: uuid
         role:
           type: string
-          enum: [INSURANCE_ADMIN, INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST, CLAIMS_MANAGER, FINANCE_MANAGER]
+          enum: [INSURANCE_ADMIN, INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST, CLAIMS_MANAGER, FINANCE_MANAGER, SUPERVISOR]
     InsuranceAccount:
       type: object
       required: [id, insurerId, email, role, status]
@@ -14605,7 +15199,7 @@ components:
           format: email
         role:
           type: string
-          enum: [INSURANCE_ADMIN, INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST, CLAIMS_MANAGER, FINANCE_MANAGER]
+          enum: [INSURANCE_ADMIN, INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST, CLAIMS_MANAGER, FINANCE_MANAGER, SUPERVISOR]
         status:
           type: string
           enum: [ACTIVE, SUSPENDED]
@@ -14619,9 +15213,9 @@ components:
           description: "Palavra-passe inicial enviada por e-mail (BR-INS-06)."
         role:
           type: string
-          enum: [INSURANCE_AGENT, BENEFICIARY_MANAGER]
+          enum: [INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST, SUPERVISOR]
           default: INSURANCE_AGENT
-          description: "ADR-025 Fase A: BENEFICIARY_MANAGER só com operationalModuleEnabled (senão 422 VALIDATION_ERROR). AUTHORIZATION_ANALYST, CLAIMS_MANAGER e FINANCE_MANAGER existem no enum mas só são criáveis a partir de S4/S5 (sem rotas na Fase A)."
+          description: "ADR-025 Fase A: BENEFICIARY_MANAGER só com operationalModuleEnabled (senão 422 VALIDATION_ERROR). Fatia 4 (ADR-035): AUTHORIZATION_ANALYST e SUPERVISOR também só com módulo ativo; podem existir vários SUPERVISOR. CLAIMS_MANAGER e FINANCE_MANAGER existem no enum mas só são criáveis a partir de S5 (sem rotas)."
     InsuranceClaimView:
       type: object
       required: [id, status, amount, currency, policyHolderName, policyNumber, documentIds]
@@ -14798,7 +15392,7 @@ components:
         operationalModuleEnabled: { type: boolean }
         role:
           type: string
-          enum: [INSURANCE_ADMIN, INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST, CLAIMS_MANAGER, FINANCE_MANAGER]
+          enum: [INSURANCE_ADMIN, INSURANCE_AGENT, BENEFICIARY_MANAGER, AUTHORIZATION_ANALYST, CLAIMS_MANAGER, FINANCE_MANAGER, SUPERVISOR]
     InsurerBeneficiaryInput:
       type: object
       required: [name, idDocumentType, idDocumentNumber, birthDate, relationship]
@@ -15226,8 +15820,8 @@ components:
       description: "S4 simplificado (marco-b-construcao.md §6): sem AUTO_APPROVED (= APPROVED com decidedBy=SYSTEM, fatia 4), EXPIRED, USED nem PARTIAL (derivados ou closedReason). SUBMITTED é transitório (passa a IN_REVIEW na mesma transação). Conjunto aberto: os clientes toleram valores desconhecidos."
     AuthorizationClosedReason:
       type: string
-      enum: [INFO_TIMEOUT, CLINIC_CANCELLED]
-      description: "Só em CANCELLED (BR-AUT-14/15). INFO_TIMEOUT: sem resposta ao pedido de informação em INFO_REQUEST_EXPIRY_DAYS (7 por omissão). Valores novos (EXPIRED, USED, ANALYST_CANCELLED) entram nas fatias seguintes por ADD VALUE."
+      enum: [INFO_TIMEOUT, CLINIC_CANCELLED, ANALYST_CANCELLED]
+      description: "Só em CANCELLED (BR-AUT-14/15/21). INFO_TIMEOUT: sem resposta ao pedido de informação em INFO_REQUEST_EXPIRY_DAYS (7 por omissão). ANALYST_CANCELLED (fatia 4, ADR-035): a seguradora reverteu uma aprovação (analista ou supervisor); o motivo vai em decisionNote. Valores novos (USED, EXPIRED…) entram nas fatias seguintes por ADD VALUE."
     AuthorizationAction:
       type: string
       enum: [RESPOND, CANCEL, APPEAL, ATTACH]
@@ -15302,16 +15896,16 @@ components:
         guideType: { type: string }
         currency: { type: string }
         requestedAmount: { type: number }
-        authorizedAmount: { type: number, nullable: true, description: "Só APPROVED (fatia 4). Menor que requestedAmount ⇒ `partial` = true (BR-AUT-04)." }
+        authorizedAmount: { type: number, nullable: true, description: "Só APPROVED (decisão manual ou automática, fatia 4). Menor que requestedAmount ⇒ `partial` = true (BR-AUT-04)." }
         partial: { type: boolean, description: "Derivado: APPROVED com authorizedAmount < requestedAmount (BR-AUT-04). Não é um estado." }
         expectedOn: { type: string, format: date }
         justification: { type: string }
         status: { $ref: "#/components/schemas/AuthorizationStatus" }
-        closedReason: { type: string, enum: [INFO_TIMEOUT, CLINIC_CANCELLED, null], nullable: true, description: "Ver AuthorizationClosedReason (só CANCELLED)." }
-        decisionNote: { type: string, nullable: true, description: "Motivo da recusa ou do pedido de informação, escrito pela seguradora." }
+        closedReason: { type: string, enum: [INFO_TIMEOUT, CLINIC_CANCELLED, ANALYST_CANCELLED, null], nullable: true, description: "Ver AuthorizationClosedReason (só CANCELLED)." }
+        decisionNote: { type: string, nullable: true, description: "Motivo da recusa, do pedido de informação, da reversão ou da aprovação em parte, escrito pela seguradora (nunca notas internas)." }
         code: { type: string, nullable: true, description: "Código de autorização (BR-SEG-05); só APPROVED." }
         validUntil: { type: string, format: date-time, nullable: true }
-        decisionDueAt: { type: string, format: date-time, nullable: true, description: "Prazo de decisão da seguradora (BR-AUT-06); informativo: a escalada é da fatia 4; nunca há aprovação por silêncio." }
+        decisionDueAt: { type: string, format: date-time, nullable: true, description: "Prazo de decisão da seguradora (BR-AUT-06); informativo (SLA medido, BR-AUT-20): ultrapassá-lo apenas marca o pedido para o supervisor; nunca há aprovação por silêncio. Recurso: prazo de APPEAL_RESPONSE_HOURS." }
         infoExpiresAt: { type: string, format: date-time, nullable: true, description: "Só INFO_REQUESTED: limite para responder antes de INFO_TIMEOUT (BR-AUT-14)." }
         appealOpenUntil: { type: string, format: date-time, nullable: true, description: "Só REJECTED: fim do prazo de recurso (BR-AUT-08)." }
         processId: { type: string, format: uuid, nullable: true }
@@ -15330,7 +15924,7 @@ components:
       properties:
         status: { $ref: "#/components/schemas/AuthorizationStatus" }
         occurredAt: { type: string, format: date-time }
-        by: { type: string, enum: [CLINIC, INSURER, SYSTEM] }
+        by: { type: string, enum: [CLINIC, INSURER, SYSTEM], description: "INSURER = qualquer decisão da seguradora (analista, supervisor ou auto-aprovação: a clínica nunca vê qual, BR-AUT-11); SYSTEM só nos jobs (INFO_TIMEOUT) e na passagem a IN_REVIEW." }
         note: { type: string, nullable: true, description: "Só decisões (motivo) e respostas da clínica; nunca notas internas." }
     AuthorizationRequestDetail:
       allOf:
@@ -15349,6 +15943,204 @@ components:
           type: array
           items: { $ref: "#/components/schemas/AuthorizationRequest" }
         nextCursor: { type: string, nullable: true }
+    AuthorizationDecider:
+      type: string
+      enum: [ANALYST, SUPERVISOR, SYSTEM]
+      description: "Quem tomou a decisão atual (BR-AUT-03/17). SYSTEM = auto-aprovação por regra da seguradora (só APPROVED). Conjunto aberto."
+    InsurerAuthorizationAction:
+      type: string
+      enum: [ASSIGN, UNASSIGN, APPROVE, REJECT, REQUEST_INFO, CANCEL, REOPEN, DOWNLOAD_ATTACHMENT]
+      description: "Ações que o servidor permite agora a este papel neste pedido (authorization.md §8.2d); a UI mostra só estas. CANCEL = reverter uma aprovação. Conjunto aberto."
+    AuthorizationSlaStatus:
+      type: string
+      enum: [ON_TIME, OVERDUE, MET, MISSED]
+      description: "Derivado (BR-AUT-20), nunca persistido: IN_REVIEW dentro do prazo = ON_TIME; IN_REVIEW com decisionDueAt passado = OVERDUE; APPROVED/REJECTED decidido a tempo = MET, tarde = MISSED. Ausente nos restantes estados (SUBMITTED, INFO_REQUESTED, CANCELLED). Conjunto aberto."
+    AutoApprovalCheck:
+      type: object
+      required: [check, ok, reason]
+      description: "Uma verificação de podeAutoAprovar (função pura). Só códigos: nunca texto livre nem dados pessoais."
+      properties:
+        check: { type: string, enum: [NOT_APPEAL, COVERED_REQUIRES_AUTHORIZATION, WITHIN_LIMIT, RULE_MATCH], description: "Conjunto aberto." }
+        ok: { type: boolean }
+        reason: { type: string, description: "Código: OK, IS_APPEAL, os CoverageReason internos (WAITING_PERIOD, LIMIT_EXHAUSTED, NOT_IN_PLAN…), AMOUNT_ABOVE_LIMIT, NO_RULE_FOR_SERVICE, AMOUNT_ABOVE_RULE_MAX." }
+    AutoApprovalTrace:
+      type: object
+      required: [ok, checks]
+      description: "Rasto da avaliação de auto-aprovação feita na criação (BR-AUT-03). Gravado em todo o pedido avaliado; nunca visto pela clínica."
+      properties:
+        ok: { type: boolean, description: "Todas as verificações ok ⇒ o pedido nasceu APPROVED com decidedBy=SYSTEM." }
+        ruleId: { type: string, format: uuid, nullable: true, description: "Regra aplicável (serviço > tipo de serviço), se houver." }
+        ruleName: { type: string, nullable: true, description: "Nome da regra à data da avaliação." }
+        checks:
+          type: array
+          items: { $ref: "#/components/schemas/AutoApprovalCheck" }
+    AuthorizationAssignee:
+      type: object
+      required: [id, email]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+    InsurerAuthorizationCoverage:
+      type: object
+      required: [reason, copayPct, requiresAuthorization]
+      description: "evaluateCoverage em expectedOn (razão INTERNA, BR-SEG-41; só para analista/supervisor; nunca à clínica nem à família)."
+      properties:
+        reason: { type: string, description: "CoverageReason: COVERED, WAITING_PERIOD, LIMIT_EXHAUSTED, EXCLUDED, NOT_IN_PLAN, SERVICE_INACTIVE, OUTSIDE_POLICY_PERIOD, POLICY_NOT_ACTIVE, BENEFICIARY_NOT_ACTIVE. Conjunto aberto." }
+        copayPct: { type: number, minimum: 0, maximum: 100, description: "% paga pela seguradora (BR-SEG-06)." }
+        requiresAuthorization: { type: boolean }
+        waitingEndsOn: { type: string, format: date, nullable: true }
+        limitPerYear: { type: number, nullable: true }
+        remaining: { type: number, nullable: true, description: "Saldo = teto anual (sem consumo informado, ADR-035 §7); nulo sem teto." }
+    InsurerAuthorizationTimelineEntry:
+      type: object
+      required: [status, occurredAt, by]
+      properties:
+        status: { $ref: "#/components/schemas/AuthorizationStatus" }
+        occurredAt: { type: string, format: date-time }
+        by: { type: string, enum: [CLINIC, ANALYST, SUPERVISOR, SYSTEM] }
+        note: { type: string, nullable: true, description: "Visível também à clínica: motivo da decisão ou resposta." }
+        internalNote: { type: string, nullable: true, description: "Só seguradora: overrideReason da aprovação ou motivo da reabertura (BR-AUT-22). Nunca devolvida à clínica." }
+    InsurerAuthorization:
+      type: object
+      required: [id, status, guideType, serviceCode, serviceName, providerName, beneficiaryId, beneficiaryName, currency, requestedAmount, partial, expectedOn, justification, isAppeal, expired, decisionDueAt, allowedActions, createdAt, updatedAt]
+      description: "Vista da seguradora do pedido (fila e detalhe). Dados da seguradora e da clínica, nunca de saúde (C2): sem ids de utilizador/família/membro nem processId."
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/AuthorizationStatus" }
+        closedReason: { allOf: [{ $ref: "#/components/schemas/AuthorizationClosedReason" }], nullable: true }
+        guideType: { type: string }
+        serviceCode: { type: string }
+        serviceName: { type: string }
+        providerName: { type: string }
+        beneficiaryId: { type: string, format: uuid, description: "Beneficiário da própria seguradora (liga à ficha no portal)." }
+        beneficiaryName: { type: string }
+        currency: { type: string }
+        requestedAmount: { type: number }
+        authorizedAmount: { type: number, nullable: true }
+        partial: { type: boolean, description: "Derivado (BR-AUT-04)." }
+        expectedOn: { type: string, format: date }
+        justification: { type: string, description: "Administrativa (C2/BR-AUT-12): só a leem a clínica e o analista/supervisor." }
+        parentRequestId: { type: string, format: uuid, nullable: true }
+        isAppeal: { type: boolean, description: "parentRequestId preenchido: decide o SUPERVISOR (BR-AUT-18)." }
+        decisionNote: { type: string, nullable: true, description: "Motivo visível à clínica (recusa, pedido de informação, reversão, aprovação em parte)." }
+        code: { type: string, nullable: true }
+        validUntil: { type: string, format: date-time, nullable: true }
+        expired: { type: boolean, description: "Derivado: APPROVED com validUntil passada (não é estado, ADR-035 §6)." }
+        decisionDueAt: { type: string, format: date-time }
+        slaStatus: { allOf: [{ $ref: "#/components/schemas/AuthorizationSlaStatus" }], nullable: true }
+        escalatedAt: { type: string, format: date-time, nullable: true, description: "Marca do SLA (job insurer.flag-sla-breaches); limpa-se ao recalcular o prazo (BR-AUT-20)." }
+        infoExpiresAt: { type: string, format: date-time, nullable: true }
+        assignedTo: { allOf: [{ $ref: "#/components/schemas/AuthorizationAssignee" }], nullable: true }
+        decidedBy: { allOf: [{ $ref: "#/components/schemas/AuthorizationDecider" }], nullable: true }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        autoApproval: { allOf: [{ $ref: "#/components/schemas/AutoApprovalTrace" }], nullable: true, description: "Nulo em pedidos anteriores à fatia 4, recursos e pedidos não avaliados." }
+        allowedActions:
+          type: array
+          items: { $ref: "#/components/schemas/InsurerAuthorizationAction" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    InsurerAuthorizationDetail:
+      allOf:
+        - $ref: "#/components/schemas/InsurerAuthorization"
+        - type: object
+          required: [coverage, attachments, timeline]
+          properties:
+            coverage: { $ref: "#/components/schemas/InsurerAuthorizationCoverage" }
+            attachments:
+              type: array
+              items: { $ref: "#/components/schemas/AuthorizationAttachment" }
+            timeline:
+              type: array
+              items: { $ref: "#/components/schemas/InsurerAuthorizationTimelineEntry" }
+    InsurerAuthorizationPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/InsurerAuthorization" }
+        nextCursor: { type: string, nullable: true }
+    AuthorizationAssignRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        analystId: { type: string, format: uuid, nullable: true, description: "Omitido = eu (analista). Supervisor: id de um analista ativo, ou null para libertar o pedido." }
+    AuthorizationReasonRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 500, description: "Motivo ADMINISTRATIVO (sem dados clínicos, C2). Visível à clínica em request-info, reject e cancel; INTERNO em reopen." }
+    AuthorizationApproveRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        authorizedAmount: { type: number, exclusiveMinimum: true, minimum: 0, maximum: 999999999999.99, multipleOf: 0.01, description: "Omitido = requestedAmount." }
+        validUntil: { type: string, format: date-time, description: "Omitido = expectedOn + AUTHORIZATION_VALIDITY_DAYS." }
+        note: { type: string, minLength: 1, maxLength: 200, description: "Visível à clínica; obrigatória se authorizedAmount < requestedAmount." }
+        overrideReason: { type: string, minLength: 1, maxLength: 200, description: "INTERNA; obrigatória se a razão de cobertura é carência ou limite esgotado (BR-SEG-04)." }
+    AuthorizationSlaMetrics:
+      type: object
+      required: [open, period]
+      properties:
+        open:
+          type: object
+          required: [total, unassigned, overdue, escalated, infoRequested]
+          properties:
+            total: { type: integer, description: "IN_REVIEW + INFO_REQUESTED." }
+            unassigned: { type: integer, description: "IN_REVIEW sem analista (recursos não contam)." }
+            overdue: { type: integer, description: "IN_REVIEW com decisionDueAt passado." }
+            escalated: { type: integer, description: "IN_REVIEW com escalatedAt." }
+            infoRequested: { type: integer }
+        period:
+          type: object
+          required: [from, to, decided, approved, rejected, autoApproved, decidedWithinSla]
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+            decided: { type: integer }
+            approved: { type: integer }
+            rejected: { type: integer }
+            autoApproved: { type: integer, description: "Dos aprovados, decidedBy=SYSTEM." }
+            decidedWithinSla: { type: integer }
+            slaMetPct: { type: number, nullable: true, description: "decidedWithinSla / decided × 100; nulo se decided = 0." }
+            autoApprovedPct: { type: number, nullable: true, description: "autoApproved / decided × 100; nulo se decided = 0." }
+            medianDecisionHours: { type: number, nullable: true, description: "Mediana de (decidedAt − createdAt) em horas, incluindo a espera por informação da clínica; nulo se decided = 0." }
+    AutoApprovalRule:
+      type: object
+      required: [id, name, scope, maxAmount, currency, active, createdAt, updatedAt]
+      description: "Regra simples de auto-aprovação (BR-AUT-23): um alvo (tipo de serviço OU serviço) e um valor máximo. Uma regra ativa por alvo; serviço precede tipo."
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        scope: { type: string, enum: [SERVICE_KIND, SERVICE] }
+        serviceKindId: { type: string, format: uuid, nullable: true }
+        serviceId: { type: string, format: uuid, nullable: true }
+        targetName: { type: string, description: "Nome do tipo de serviço ou do serviço alvo (só leitura)." }
+        maxAmount: { type: number }
+        currency: { type: string }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AutoApprovalRuleInput:
+      type: object
+      additionalProperties: false
+      required: [name, maxAmount]
+      description: "Exatamente um de serviceKindId e serviceId."
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        serviceKindId: { type: string, format: uuid }
+        serviceId: { type: string, format: uuid }
+        maxAmount: { type: number, exclusiveMinimum: true, minimum: 0, maximum: 999999999999.99, multipleOf: 0.01 }
+        active: { type: boolean, default: true }
+    AutoApprovalRulePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        maxAmount: { type: number, exclusiveMinimum: true, minimum: 0, maximum: 999999999999.99, multipleOf: 0.01 }
+        active: { type: boolean }
     EligibilityLight:
       type: string
       enum: [GREEN, YELLOW, RED]

@@ -12,6 +12,10 @@
 | **Semáforo (elegibilidade)** | (BR-SEG-43) Resposta de cobertura à clínica para um serviço: **verde** (coberto, sem autorização), **amarelo** (pedir autorização), **vermelho** (não coberto), mais o copagamento; nunca a razão nem o saldo. |
 | **Recurso** | (BR-AUT-08) Novo pedido de autorização ligado a um pedido recusado, dentro de 15 dias (valor da seguradora); o recusado não muda; vários, sem limite fixo. |
 | **Concluir ato** | (BR-CLN-57) Ação única da clínica que conclui a consulta e grava, na mesma transação, o relatório (Médico), os pedidos de exame (Médico) e o recibo (Admin/Gestor); a despesa junta-se na fatia 2b. |
+| **Fila de autorizações** | (ADR-035, marco B fatia 4) Lista de pedidos de autorização a decidir pela seguradora, o mais atrasado primeiro; vê-se no portal da seguradora (não é termo da família nem da clínica). |
+| **Regra de auto-aprovação** | (BR-AUT-23) Regra simples da **seguradora**: um tipo de serviço (ou serviço) e um valor máximo. Se um pedido a cumpre e o serviço está coberto, sem carência nem limite esgotado, nasce aprovado pelo sistema (decisão automática, auditada, com o rasto visível ao analista e reversível só pelo Supervisor). Sem IA; o Vita não decide. |
+| **Supervisor** | (ADR-035, `authorization.md` §8.2c) Papel da seguradora que atribui pedidos, decide **recursos**, reabre recusas, reverte aprovações (a automática só ele) e gere as regras de auto-aprovação; não decide pedidos normais. Quem analisa ≠ quem supervisiona. |
+| **Prazo de decisão / SLA** | (BR-AUT-06/20) Prazo (24–120 h, 48 h por omissão, configurável pela seguradora) em que a seguradora deve decidir. É **medido**, não decide: ultrapassá-lo só marca o pedido para o Supervisor; **nunca** aprova por silêncio. |
 | **Dependente** | FamilyMember sob responsabilidade de um tutor; pode ter conta de acesso limitado (M4). |
 | **Family Admin** | Papel com permissões de gestão da família. Âmbito exato: Fase 5. |
 | **Family Member** | Papel com permissões limitadas. Âmbito exato: Fase 5. |
