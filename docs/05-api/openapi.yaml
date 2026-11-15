@@ -11740,6 +11740,7 @@ paths:
       description: |
         Autorização: READ da categoria da origem de cada processo (APPOINTMENTS para consulta, EXAMS para exame; authorization.md §6.8). A lista **filtra** (omite) os processos cuja categoria o actor não pode ler (§5.3); DEPENDENT_SELF vê só os de consulta; OTHER só com SharingGrant da categoria. Sem nenhuma leitura permitida devolve lista vazia.
         `familyStatus` e `nextStep` são **derivados** em leitura por deriveFamilyStatus(facts) (BR-PRC-02/03); não existem na BD nem em escrita.
+        Fatia 5 (ADR-036, BR-PRC-12/13): `coverage` (estado simples do pedido à seguradora: aprovado, não aprovado, a analisar, a completar, expirado, cancelado pela seguradora) só é devolvido a quem tem MANAGE_INSURANCE sobre o membro (SELF adulto, TUTOR_OF); para os restantes é `null` e `nextStep` não reflete a cobertura (só o ato). Em processo com ato, `coverage` é `null` com o ato DONE ou CANCELLED. A decisão de MANAGE_INSURANCE é tomada uma vez por pedido. Sem rotas de escrita nem de detalhe do pedido.
         Ordenação fixa: `openedAt` decrescente, depois `id` decrescente. `status` é filtrado **depois** da derivação: o servidor percorre a BD em lotes (máx. 200 processos por pedido) e devolve até `limit` itens; se o limite de varrimento for atingido com menos itens, `nextCursor` continua não nulo — o cliente segue `nextCursor` até ser nulo. Processos cujo ato já não existe são omitidos (BR-PRC-09). Leitura por quem não é o titular é auditada (PROCESS_VIEW). Sem rate limit específico (limite global da API).
       parameters:
         - name: familyId
@@ -11794,7 +11795,7 @@ paths:
       operationId: getProcess
       summary: "Detalhe de um processo (estado simples e o que falta e de quem)."
       description: |
-        Autorização: READ da categoria da origem do processo (authorization.md §6.8). Processo inexistente, de outro membro/família **ou cuja categoria o actor não pode ler** ⇒ `404 NOT_FOUND` (sem enumeração, BR-PRC-05). Leitura por quem não é o titular é auditada (PROCESS_VIEW). Sem rate limit específico.
+        Autorização: READ da categoria da origem do processo (authorization.md §6.8). Processo inexistente, de outro membro/família **ou cuja categoria o actor não pode ler** ⇒ `404 NOT_FOUND` (sem enumeração, BR-PRC-05). Leitura por quem não é o titular é auditada (PROCESS_VIEW). Fatia 5 (ADR-036): `coverage` e a regra de gating como em listProcesses. Sem rate limit específico.
       parameters:
         - name: familyId
           in: path
@@ -13582,11 +13583,11 @@ components:
     ProcessOriginType:
       type: string
       enum: [APPOINTMENT, EXAMINATION, AUTHORIZATION]
-      description: "Ato que abriu o processo. AUTHORIZATION (fatia 3): pedido de autorização sem marcação prévia; `origin.id` é opaco para a família (sem rota de detalhe até à fatia 5). Valores novos nas fatias seguintes."
+      description: "Ato que abriu o processo. AUTHORIZATION (fatia 3): pedido de autorização sem marcação prévia; `origin.id` é opaco para a família (**sem rota de detalhe do pedido**: a família só vê o `Process`, ADR-036). Valores novos nas fatias seguintes."
     ProcessNextStepCode:
       type: string
-      enum: [AWAIT_CLINIC_RESPONSE, ATTEND, BEING_ATTENDED, RESCHEDULE, NOTHING_PENDING, AWAIT_INSURER_DECISION, AWAIT_CLINIC_INFORMATION, COVERAGE_NOT_APPROVED]
-      description: "Frase estruturada 'o que falta' (a UI traduz, lib/labels.ts). Conjunto aberto: os clientes tratam códigos desconhecidos como NOTHING_PENDING/genérico."
+      enum: [AWAIT_CLINIC_RESPONSE, ATTEND, BEING_ATTENDED, RESCHEDULE, NOTHING_PENDING, AWAIT_INSURER_DECISION, AWAIT_CLINIC_INFORMATION, COVERAGE_NOT_APPROVED, COVERAGE_EXPIRED, COVERAGE_WITHDRAWN]
+      description: "Frase estruturada 'o que falta' (a UI traduz, lib/labels.ts). Conjunto aberto: os clientes tratam códigos desconhecidos como NOTHING_PENDING/genérico. Fatia 5 (ADR-036): COVERAGE_EXPIRED (a aprovação expirou; só em processo sem ato) e COVERAGE_WITHDRAWN (a seguradora cancelou a aprovação; só em processo sem ato), ambos com actor FAMILY."
     ProcessNextStepActor:
       type: string
       enum: [FAMILY, CLINIC, INSURER, NONE]
@@ -13598,6 +13599,33 @@ components:
         code: { $ref: "#/components/schemas/ProcessNextStepCode" }
         actor: { $ref: "#/components/schemas/ProcessNextStepActor" }
         dueAt: { type: string, format: date-time, nullable: true, description: "Fatia 3: só em AWAIT_INSURER_DECISION (= decisionDueAt do pedido, BR-AUT-06); permite «resposta até quinta». Informativo." }
+    ProcessCoverageState:
+      type: string
+      enum: [PENDING, NEEDS_INFO, APPROVED, NOT_APPROVED, EXPIRED, WITHDRAWN]
+      description: "Estado do pedido à seguradora visto pela família (ADR-036; a UI traduz, lib/labels.ts, sem 'autorização'/'guia'/'recurso'). PENDING = a seguradora está a analisar; NEEDS_INFO = a clínica está a completar o pedido; APPROVED; NOT_APPROVED; EXPIRED = a aprovação expirou (derivado de validUntil); WITHDRAWN = a seguradora cancelou a aprovação. Conjunto aberto: os clientes tratam valores desconhecidos como ausência de estado."
+    ProcessCoverage:
+      type: object
+      nullable: true
+      required: [state, appeal, partial]
+      description: "Fatia 5 (ADR-036, BR-PRC-12): só o estado simples do pedido à seguradora. Nunca inclui motivo, valor, serviço, justificação, anexos, decisor, nota interna, rasto de auto-aprovação nem a distinção entre decisão automática e manual. Só é devolvido a quem tem MANAGE_INSURANCE sobre o membro (SELF adulto ou TUTOR_OF) e, em processo com ato, enquanto o ato não está DONE nem CANCELLED; nos restantes casos é null ou omitido."
+      properties:
+        state: { $ref: "#/components/schemas/ProcessCoverageState" }
+        appeal:
+          type: boolean
+          description: "true se o estado vem de uma nova análise pedida após uma recusa (a UI diz 'nova análise'). A família não cria nem vê os pedidos de nova análise: só este estado."
+        partial:
+          type: boolean
+          description: "true só em APPROVED quando a seguradora aprovou em parte (valor autorizado inferior ao pedido); false nos restantes estados. Sem valores."
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Só em PENDING: data prevista da resposta (decisionDueAt, informativo); null nos restantes."
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Só em APPROVED e EXPIRED: fim de validade da aprovação; null nos restantes."
     ProcessActPhase:
       type: string
       enum: [PENDING, SCHEDULED, IN_PROGRESS, DONE, CANCELLED, NO_SHOW]
@@ -13611,6 +13639,7 @@ components:
         kind: { $ref: "#/components/schemas/ProcessKind" }
         familyStatus: { $ref: "#/components/schemas/ProcessFamilyStatus" }
         nextStep: { $ref: "#/components/schemas/ProcessNextStep" }
+        coverage: { $ref: "#/components/schemas/ProcessCoverage" }
         origin:
           type: object
           required: [type, id]
@@ -14783,7 +14812,8 @@ components:
           format: uuid
         type:
           type: string
-          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED, APPOINTMENT_CONFIRM_REQUEST, FOLLOWUP_REMINDER, EXAM_ORDER_ADDED]
+          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED, APPOINTMENT_CONFIRM_REQUEST, FOLLOWUP_REMINDER, EXAM_ORDER_ADDED, AUTHORIZATION_APPROVED, AUTHORIZATION_NOT_APPROVED, AUTHORIZATION_INFO_REQUESTED, AUTHORIZATION_EXPIRING, AUTHORIZATION_WITHDRAWN]
+          description: "Fatia 5 (ADR-036): os cinco AUTHORIZATION_* têm sourceType=PROCESS e sourceId = processId (abre GET .../processes/{processId}); mensagem fixa, sem dados clínicos, serviço, clínica, valor nem motivo. Sem interruptor de tipo próprio (sempre ativos, como RECOMMENDATION_ADDED); os canais push/e-mail seguem as preferências."
         familyId:
           type: string
           format: uuid
@@ -14796,7 +14826,7 @@ components:
           type: string
         sourceType:
           type: string
-          enum: [DOSE, APPOINTMENT, EXAMINATION, RECOMMENDATION]
+          enum: [DOSE, APPOINTMENT, EXAMINATION, RECOMMENDATION, PROCESS]
         sourceId:
           type: string
           format: uuid

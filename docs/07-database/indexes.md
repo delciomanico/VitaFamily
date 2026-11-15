@@ -103,3 +103,8 @@
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).
 2. Antes de M10, validar os 5 caminhos quentes: scanner, agenda do dia, lista de alertas, resolução de membership, relatório individual.
+
+## Alertas do pedido de autorização (marco B fatia 5; migração `0041`, ADR-036)
+| Índice | Consulta |
+|---|---|
+| `insurer_authorizations (valid_until) WHERE status = 'APPROVED' AND process_id IS NOT NULL` (`0041`, ADR-036) | candidatas de `AUTHORIZATION_EXPIRING` no `alerts.scan` (BR-ALR-10) |

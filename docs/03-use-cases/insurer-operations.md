@@ -89,3 +89,5 @@
 ### UC-SEG-22 Acompanhar o SLA — marco B fatia 4
 - **Ator:** os mesmos papéis de leitura da fila · **BR:** BR-AUT-20, BR-SEG-40 · **Fluxo:** consulta as métricas (abertos, em atraso, escalados; no período: decididos, % no prazo, % automáticos, mediana de horas) → no pedido escalado o `SUPERVISOR` reatribui ou, se for recurso, decide; o prazo configura-se em UC-SEG-19.
 - **Alternativos:** período superior a 366 dias ⇒ `422`. O atraso **só marca**; nunca decide.
+
+> **Fatia 5 (ADR-036):** as transições de UC-SEG-06/07/20 (auto-aprovação, aprovar, recusar, pedir informação, reverter) passam a chamar, **na mesma transação**, a porta `FamilyNotifier` (UC-ALR-07, BR-ALR-10); a clínica **não** recebe notificação nova e a família só vê o estado no `Process` (BR-PRC-12). Nenhum fluxo do analista ou do prestador muda.

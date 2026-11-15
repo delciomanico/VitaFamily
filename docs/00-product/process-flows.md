@@ -135,6 +135,7 @@ Receita Vita + farmácia na rede ⇒ rotina (QR no balcão, copagamento, despesa
 | 9 | Indicadores | — | — | vê tudo o seu | **só agregados anónimos (k mínimo), adesão** | fora do fluxo individual (ADR-031) |
 
 ## 5. Quem vê o quê em cada estado
+> **Fatia 5 (ADR-036, 2026-11-15) — a coluna «Família» desta tabela fica SUBSTITUÍDA para o pedido de autorização:** a família vê **só o estado simples e o passo seguinte** (`Process.coverage` + `nextStep`, §14), **sem** valor, copagamento, motivo (geral ou de falta de informação), serviço, código nem decisor; o saldo/copagamento estimado dependem de §11a e da 2b. A coluna Prestador/Seguradora mantém-se.
 Legenda: **V** vê · **E** age · **M** só o mínimo · **—** não vê. "Diagnóstico" nunca viaja por defeito (C2).
 
 | Estado | Família | Prestador | Seguradora |
@@ -153,6 +154,7 @@ Legenda: **V** vê · **E** age · **M** só o mínimo · **—** não vê. "Dia
 | Convenções e preços | — | só a sua | V/E |
 
 ## 6. Notificações por transição (caixa única; eventos propostos, sem texto clínico)
+> **Fatia 5 (ADR-036):** para a **família**, só os eventos «aprovada / recusada», «falta informação», «a expirar (3 dias)» e «aprovação cancelada pela seguradora» estão **contratados**, como 5 tipos de alerta `AUTHORIZATION_*` (§14); «aprovada em parte» não tem evento próprio (é `partial` no `Process`), **«expirada» não notifica** (derivada; vê-se no `Process`), «usada» e as despesas são da 2b, a urgência da fatia 6. Os avisos ao prestador, as escaladas e os nomes `AUTH_*` desta tabela **não** estão contratados.
 Canal e retry como `Alert/Notification` (ST6). Os alertas à família não contêm diagnóstico (BR-ALR existentes).
 
 | Transição | Destinatários | Evento proposto |
@@ -334,3 +336,26 @@ Decorrem das decisões de 2026-11-14. Texto atual -> texto proposto.
 | **C9** medição/faturação | A taxa por transação conta autorizações/despesas: ver `processId`. |
 | **C10** quarto ator | Empresa fora do fluxo individual; só agregados (ADR-031). |
 Dependências: marco B (S4 autorizações) exige ADR-030 mínimo (convenção) e resolver C2; marco C (S5 despesas) exige B e C9. Contrato OpenAPI, `schema.md`, `modules.md` §3 e `authorization.md` por escrever.
+
+## 14. Vista da família e notificações do pedido de autorização (CONTRATADO 2026-11-15, ADR-036, marco B fatia 5)
+A família **não** pede, não responde, não recorre nem cancela (é do prestador): só **sabe como está** e **o que falta**. Sem passos novos (0). Vê o pedido **só no cartão do processo** (`Process`), nunca o pedido em si, e só se for o titular adulto ou tutor (`MANAGE_INSURANCE`).
+
+**Estado e passo seguinte (pt-PT, família; a API devolve só códigos, a UI traduz em `lib/labels.ts`; sem «autorização», «guia», «recurso» nem «analista»):**
+| `coverage.state` | Texto do estado | O que falta e de quem (`nextStep`/frase) |
+|---|---|---|
+| `PENDING` | «A seguradora está a analisar o pedido.» + «Resposta prevista até {dia}.» (`dueAt`) | Da seguradora. Nada a fazer por si. |
+| `PENDING` + `appeal` | «A seguradora está a fazer uma nova análise do pedido.» | Da seguradora. Nada a fazer por si. |
+| `NEEDS_INFO` | «A clínica está a completar o pedido à seguradora.» | Da clínica. Nada a fazer por si. |
+| `APPROVED` | «A seguradora aprovou o pedido. Válido até {dia}.» (`validUntil`) | Pode ser atendido: «Marque ou compareça no atendimento.» (`ATTEND`) |
+| `APPROVED` + `partial` | «A seguradora aprovou o pedido em parte. Válido até {dia}.» | idem |
+| `APPROVED` + `appeal` | prefixo «Depois de uma nova análise, …» | idem |
+| `NOT_APPROVED` | «A seguradora não aprovou o pedido. A clínica pode pedir uma nova análise. Para saber mais, fale com a seguradora.» (`COVERAGE_NOT_APPROVED`, da clínica) | Da clínica; a família pode falar com a seguradora. |
+| `NOT_APPROVED` + `appeal` | «Depois de uma nova análise, a seguradora não aprovou o pedido. Para saber mais, fale com a seguradora.» | idem |
+| `EXPIRED` | «A aprovação expirou em {dia}. Se ainda precisar, fale com a clínica para fazer um novo pedido.» (`COVERAGE_EXPIRED`, da família, só sem ato) | Da família. |
+| `WITHDRAWN` | «A seguradora cancelou a aprovação. Para saber mais, fale com a seguradora.» (`COVERAGE_WITHDRAWN`, da família, só sem ato) | Da família. |
+O **motivo** da recusa ou do cancelamento **não** é mostrado (texto livre do analista, pode ter dados sensíveis; a família pergunta à seguradora). Processo com ato `DONE`/`CANCELLED`: sem bloco de cobertura. Processo sem ato: o estado do processo é `IN_PROGRESS` (todos, exceto `EXPIRED`/`WITHDRAWN`/fechado ⇒ `CANCELLED`).
+
+**Notificações à família (`alerts` + `notifications` existentes; in-app, push e e-mail conforme preferências; texto externo = a mensagem genérica única; texto in-app fixo, sem nome da clínica, serviço, valor nem motivo):** «A seguradora aprovou um pedido.» · «A seguradora não aprovou um pedido.» · «A seguradora pediu mais informação à clínica sobre um pedido.» · «Uma aprovação da seguradora expira em breve.» (3 dias antes) · «A seguradora cancelou uma aprovação.» Cada alerta abre o cartão do processo. A família não sabe se a decisão foi automática (nem a clínica).
+
+**Reservado (fora desta fatia):** urgência (fatia 6); despesa, saldo consumido e «usada» (2b); saldo/copagamento estimado (§11a); aviso ao prestador.
+
