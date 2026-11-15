@@ -10,6 +10,7 @@ import type { Database } from "../../platform/db/index.js";
 import { withTransaction } from "../../platform/db/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
+import { createDescribeForAlertsUseCase, type ProcessAlertTarget } from "./application/describe-for-alerts.js";
 import { createGetClinicProcessUseCase } from "./application/get-clinic-process.js";
 import { createGetProcessUseCase } from "./application/get-process.js";
 import { createDiscardProcessUseCase, createFindProcessForClinicUseCase, createOpenProcessUseCase } from "./application/link-process.js";
@@ -20,6 +21,7 @@ import { createProcessesClinicPortalRouter } from "./interface/clinic-portal-rou
 import { createProcessesRouter } from "./interface/router.js";
 
 export type { ActFact, ActPhase, CoverageFact, CoveragePhase, FamilyStatus, NextStep, ProcessOriginType } from "./domain/process.js";
+export type { ProcessAlertTarget } from "./application/describe-for-alerts.js";
 export type { ActFactEntry, ActFactRef, CoverageFactEntry, DiscardProcessInput, OpenProcessInput, ProcessActor, ProcessFacts } from "./application/ports.js";
 
 export interface ProcessesModuleDeps {
@@ -41,6 +43,8 @@ export interface ProcessesModule {
     /** Fatia 3: só leitura, para validar o `processId` de um pedido de autorização (porta de `insurer-ops`). */
     findForClinic: (trx: Kysely<Database>, input: { clinicId: string; processId: string }) => Promise<{ processId: string; familyId: string; memberId: string } | null>;
   };
+  /** Fatia 5 (ADR-036): dono e «aberto» de cada processo, para `alerts` (porta `ProcessTargets`); leitura de sistema, sem ator. */
+  describeForAlerts: (trx: Kysely<Database>, processIds: string[]) => Promise<ProcessAlertTarget[]>;
   /** `/families/{f}/members/{m}/processes*`. */
   router: Router;
   /** `/clinic-portal/processes/{processId}`. */
@@ -61,6 +65,7 @@ export function createProcessesModule(deps: ProcessesModuleDeps): ProcessesModul
 
   return {
     linker: { open: createOpenProcessUseCase(processesDeps), discard: createDiscardProcessUseCase(processesDeps), findForClinic: createFindProcessForClinicUseCase(processesDeps) },
+    describeForAlerts: createDescribeForAlertsUseCase(processesDeps),
     router: createProcessesRouter({ listProcesses: createListProcessesUseCase(processesDeps), getProcess: createGetProcessUseCase(processesDeps) }),
     clinicPortalRouter: createProcessesClinicPortalRouter({ getClinicProcess: createGetClinicProcessUseCase(processesDeps) }),
   };

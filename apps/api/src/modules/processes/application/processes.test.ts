@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DomainError, ForbiddenError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { FixedClock } from "../../../platform/clock/index.js";
 import type { Relation } from "../../access/index.js";
+import { createDescribeForAlertsUseCase } from "./describe-for-alerts.js";
 import { createGetClinicProcessUseCase } from "./get-clinic-process.js";
 import { createGetProcessUseCase } from "./get-process.js";
 import { createDiscardProcessUseCase, createOpenProcessUseCase } from "./link-process.js";
@@ -186,11 +187,42 @@ describe("getProcess (UC-PRC-04, AC-PRC-06)", () => {
       kind: "ROUTINE",
       familyStatus: "IN_PROGRESS",
       nextStep: { code: "BEING_ATTENDED", actor: "CLINIC" },
+      coverage: null,
       origin: { type: "APPOINTMENT", id: "appt-9" },
       scheduledAt: scheduledAt.toISOString(),
       openedAt: NOW.toISOString(),
     });
     expect(JSON.stringify(view)).not.toMatch(/NO_SHOW|ARRIVED|REQUESTED/);
+  });
+
+  it("TC-PRC-30/TC-AZ-PRC-07 com MANAGE_INSURANCE: coverage preenchida e o nextStep mantém a linha do ato (aprovação) / muda nas 3 fases que travam o ato", async () => {
+    fx.addProcess({ id: "p1", openedAt: NOW, originId: "appt-1", phase: "SCHEDULED" });
+    fx.facts.seedCoverage("p1", { phase: "APPROVED", validUntil: new Date("2026-07-01T00:00:00Z"), partial: true, appeal: true });
+    expect(await get("p1")).toMatchObject({ nextStep: { code: "ATTEND", actor: "FAMILY" }, coverage: { state: "APPROVED", partial: true, appeal: true, validUntil: new Date("2026-07-01T00:00:00Z") } });
+    fx.facts.seedCoverage("p1", { phase: "NEEDS_INFO" });
+    expect(await get("p1")).toMatchObject({ nextStep: { code: "AWAIT_CLINIC_INFORMATION" }, coverage: { state: "NEEDS_INFO", appeal: false, partial: false } });
+  });
+
+  it("TC-AZ-PRC-07 sem MANAGE_INSURANCE (DEPENDENT_SELF/OTHER): coverage = null SEM erro e o nextStep deriva só do ato; decisão uma vez por pedido", async () => {
+    fx.addProcess({ id: "p1", openedAt: NOW, originId: "appt-1", phase: "PENDING" });
+    fx.facts.seedCoverage("p1", { phase: "NEEDS_INFO" });
+    fx.policy.deniedActions.add("MANAGE_INSURANCE");
+    expect(await get("p1")).toMatchObject({ nextStep: { code: "AWAIT_CLINIC_RESPONSE", actor: "CLINIC" }, coverage: null });
+    expect(fx.policy.calls.filter((c) => c.action === "MANAGE_INSURANCE")).toHaveLength(1);
+  });
+
+  it("TC-PRC-29 ato DONE/CANCELLED => coverage null; NO_SHOW mantém", async () => {
+    for (const [phase, visible] of [["DONE", false], ["CANCELLED", false], ["NO_SHOW", true]] as const) {
+      fx.addProcess({ id: `p-${phase}`, openedAt: NOW, originId: `a-${phase}`, phase });
+      fx.facts.seedCoverage(`p-${phase}`, { phase: "APPROVED", validUntil: NOW });
+      expect((await get(`p-${phase}`)).coverage !== null).toBe(visible);
+    }
+  });
+
+  it.each<[string, "WITHDRAWN" | "EXPIRED", string]>([["revertido", "WITHDRAWN", "COVERAGE_WITHDRAWN"], ["expirado", "EXPIRED", "COVERAGE_EXPIRED"]])("TC-PRC-30 sem ato, pedido %s => CANCELLED / %s / FAMILY", async (_name, phase, code) => {
+    fx.addProcess({ id: "p1", openedAt: NOW, originType: "AUTHORIZATION", originId: "auth-1" });
+    fx.facts.seedCoverage("p1", { phase, validUntil: NOW });
+    expect(await get("p1")).toMatchObject({ familyStatus: "CANCELLED", nextStep: { code, actor: "FAMILY" }, coverage: { state: phase } });
   });
 
   it("scheduledAt é null quando o ato não tem hora", async () => {
@@ -262,5 +294,22 @@ describe("getClinicProcess (UC-PRC-05, BR-PRC-06, AC-PRC-04)", () => {
     await get("p1");
     expect(fx.audit.events).toHaveLength(0);
     expect(fx.policy.calls).toHaveLength(0);
+  });
+});
+
+describe("describeForAlerts (ADR-036, modules.md nota 33a)", () => {
+  it("dá o dono e se está aberto: SCHEDULED/IN_PROGRESS abertos; DONE/CANCELLED/sem ato legível fechados; ids repetidos/desconhecidos tolerados", async () => {
+    fx.addProcess({ id: "open", openedAt: NOW, originId: "a1", phase: "SCHEDULED" });
+    fx.addProcess({ id: "done", openedAt: NOW, originId: "a2", phase: "DONE" });
+    fx.addProcess({ id: "orphan", openedAt: NOW, originId: "a3", phase: null });
+    fx.addProcess({ id: "auth", openedAt: NOW, originType: "AUTHORIZATION", originId: "auth-1" });
+    fx.facts.seedCoverage("auth", { phase: "APPROVED", validUntil: NOW });
+    const targets = await createDescribeForAlertsUseCase(fx.deps)(TRX, ["open", "open", "done", "orphan", "auth", "missing"]);
+    expect(targets.map((t) => [t.processId, t.familyId, t.memberId, t.open]).sort()).toEqual([
+      ["auth", FAMILY, MEMBER, true],
+      ["done", FAMILY, MEMBER, false],
+      ["open", FAMILY, MEMBER, true],
+      ["orphan", FAMILY, MEMBER, false],
+    ]);
   });
 });

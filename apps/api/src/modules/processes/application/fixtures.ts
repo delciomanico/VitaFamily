@@ -58,8 +58,8 @@ export class FakeProcessFacts implements ProcessFacts<FakeTrx> {
   readonly coverageRequests: string[][] = [];
 
   /** Facto de cobertura de um processo (fatia 3). */
-  seedCoverage(processId: string, fact: Omit<CoverageFact, "changedAt"> & { changedAt?: Date }): void {
-    this.coverage.set(processId, { changedAt: new Date("2026-01-01T00:00:00Z"), ...fact });
+  seedCoverage(processId: string, fact: Omit<CoverageFact, "changedAt" | "appeal" | "partial"> & { changedAt?: Date; appeal?: boolean; partial?: boolean }): void {
+    this.coverage.set(processId, { changedAt: new Date("2026-01-01T00:00:00Z"), appeal: false, partial: false, ...fact });
   }
 
   async getCoverageFacts(_trx: FakeTrx, _familyId: string, processIds: string[]): Promise<CoverageFactEntry[]> {
@@ -125,6 +125,10 @@ export class FakeProcessesRepository implements ProcessesRepository<FakeTrx> {
         return p.openedAt.getTime() < at || (p.openedAt.getTime() === at && p.id < filter.after.id);
       });
     return Promise.resolve({ rows: sorted.slice(0, limit), hasMore: sorted.length > limit });
+  }
+
+  async findByIds(_trx: FakeTrx, processIds: string[]): Promise<Process[]> {
+    return Promise.resolve(this.rows.filter((p) => processIds.includes(p.id)));
   }
 
   async findOfClinic(_trx: FakeTrx, clinicId: string, processId: string): Promise<Process | null> {

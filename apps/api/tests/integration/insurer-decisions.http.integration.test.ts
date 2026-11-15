@@ -109,6 +109,7 @@ describe("integração: decisão pela seguradora, auto-aprovação, SLA e SUPERV
   let tokUser = "";
   let kindConsult = "";
   let kindInpatient = "";
+  const notified: { kind: string; processId: string; requestId: string; occurredAt: Date }[] = [];
 
   const need = <T>(value: T | null | undefined): T => {
     if (value === null || value === undefined) throw new Error("valor em falta");
@@ -264,6 +265,8 @@ describe("integração: decisão pela seguradora, auto-aprovação, SLA e SUPERV
       partnerClinics: { list: (trx, query) => new KyselyClinicsRepository().listPartnerDirectory(trx, query), find: (trx, clinicId) => new KyselyClinicsRepository().findPartnerDirectoryEntry(trx, clinicId) },
       patientAccess: { authorize: () => Promise.reject(new Error("rotas do paciente não usadas aqui")) },
       processes: { open: createOpenProcessUseCase(procDeps), findForClinic: createFindProcessForClinicUseCase(procDeps) },
+      // Fatia 5 (ADR-036): regista os avisos à família emitidos na transação da transição (TC-ALR-09, lado `insurer-ops`).
+      familyNotifier: { notify: (_trx, input) => Promise.resolve(void notified.push(input)) },
       files: createAttachmentFiles({ storage, virusScanner: { scan: () => Promise.resolve("CLEAN" as const) } }),
     });
     worker = createInsurerOpsWorkerModule({ db, audit, clock, boss: {} as never });
@@ -962,7 +965,7 @@ describe("integração: decisão pela seguradora, auto-aprovação, SLA e SUPERV
 
   // ------------------------------------------------------------------ validade derivada
   describe("validade e expiração derivada (TC-DEC-15, BR-AUT-07)", () => {
-    it("AUTHORIZATION_VALIDITY_DAYS em dados muda o validUntil seguinte; expired deriva do relógio, sem job nem estado; coverage-phase com now ⇒ CLOSED", async () => {
+    it("AUTHORIZATION_VALIDITY_DAYS em dados muda o validUntil seguinte; expired deriva do relógio, sem job nem estado; coverage-phase com now ⇒ EXPIRED (fatia 5)", async () => {
       expect((await ins("put", "/policy-settings/AUTHORIZATION_VALIDITY_DAYS", tokA.SUPERVISOR, { value: 60 })).status).toBe(200);
       const exp = day(6);
       const { auth } = await openRequest({ expectedOn: exp }, true);
@@ -978,12 +981,122 @@ describe("integração: decisão pela seguradora, auto-aprovação, SLA e SUPERV
       const t0 = clock.now();
       clock.set(new Date(Date.parse(need(done.validUntil)) + 1000));
       expect((await get(auth.id)).expired).toBe(true);
-      expect(await phase()).toBe("CLOSED");
+      expect(await phase()).toBe("EXPIRED"); // fatia 5 (ADR-036): já não CLOSED
       expect((await get(auth.id)).status).toBe("APPROVED"); // sem estado EXPIRED nem job
       clock.set(t0);
       // o valor por omissão (30 d) volta depois de apagar a definição da seguradora
       const next = as<Auth>(await approve((await openRequest({ expectedOn: exp })).auth.id, tokA.AUTHORIZATION_ANALYST));
       expect(next.validUntil).toBe(endOfDay(exp, 30));
+    });
+  });
+
+  // ------------------------------------------------------------------ fatia 5
+  describe("avisos à família e vista de cobertura (marco B fatia 5, ADR-036; TC-ALR-09 lado insurer-ops, TC-PRC-26/30)", () => {
+    const processOf = async (authId: string) => need((await rows("SELECT process_id FROM insurer_authorizations WHERE id=$1", [authId]))[0]?.process_id) as string;
+    const fact = async (processId: string) => (await ops.getCoverageFacts(db, id.family, [processId]))[0]?.fact;
+
+    it("cada transição avisa UMA vez, na transação, com o tipo certo e só ids/instante; sem processo, em reabertura, INFO_TIMEOUT, cancelamento da clínica e escalada ⇒ nada", async () => {
+      notified.length = 0;
+      // aprovar (manual), recusar, pedir informação, reverter — pedidos ligados a membro (têm processo)
+      const approved = (await openRequest({}, true)).auth;
+      expect((await approve(approved.id, tokA.AUTHORIZATION_ANALYST)).status).toBe(200);
+      const rejected = (await openRequest({}, true)).auth;
+      expect((await reject(rejected.id, tokA.AUTHORIZATION_ANALYST)).status).toBe(200);
+      const info = (await openRequest({}, true)).auth;
+      expect((await ins("post", `/authorizations/${info.id}/request-info`, tokA.AUTHORIZATION_ANALYST, { reason: "Falta" })).status).toBe(200);
+      expect((await ins("post", `/authorizations/${approved.id}/cancel`, tokA.AUTHORIZATION_ANALYST, { reason: "Erro" })).status).toBe(200);
+      expect(notified.map((n) => [n.kind, n.requestId])).toEqual([["APPROVED", approved.id], ["NOT_APPROVED", rejected.id], ["INFO_REQUESTED", info.id], ["WITHDRAWN", approved.id]]);
+      expect(notified.map((n) => n.processId)).toEqual([await processOf(approved.id), await processOf(rejected.id), await processOf(info.id), await processOf(approved.id)]);
+      expect(Object.keys(notified[0] ?? {}).sort()).toEqual(["kind", "occurredAt", "processId", "requestId"]);
+
+      // sem alerta: sem processo; reabertura; resposta da clínica; INFO_TIMEOUT; cancelamento pela clínica; escalada
+      notified.length = 0;
+      const noProcess = (await openRequest()).auth;
+      expect((await approve(noProcess.id, tokA.AUTHORIZATION_ANALYST)).status).toBe(200);
+      tick();
+      expect((await ins("post", `/authorizations/${rejected.id}/reopen`, tokA.SUPERVISOR, { reason: "Revisto" })).status).toBe(200);
+      tick();
+      expect((await clinic("post", `/authorizations/${info.id}/respond`, { message: "Ok" })).status).toBe(200);
+      const toCancel = (await openRequest({}, true)).auth;
+      tick();
+      expect((await clinic("post", `/authorizations/${toCancel.id}/cancel`, {})).status).toBe(200);
+      await pool.query("UPDATE insurer_authorizations SET decision_due_at = now() - interval '1 hour' WHERE id=$1", [info.id]);
+      await worker.flagSlaBreaches();
+      expect(notified).toEqual([]);
+    });
+
+    it("a notificação corre na MESMA transação: se falha, a transição reverte-se (sem decisão gravada)", async () => {
+      const { auth } = await openRequest({}, true);
+      const original = notified.push.bind(notified);
+      notified.push = () => {
+        throw new Error("falha do alerta");
+      };
+      try {
+        expect((await approve(auth.id, tokA.AUTHORIZATION_ANALYST)).status).toBeGreaterThanOrEqual(500);
+      } finally {
+        notified.push = original;
+      }
+      expect(await get(auth.id)).toMatchObject({ status: "IN_REVIEW", code: null });
+      expect(await rows("SELECT 1 FROM insurer_authorization_events WHERE authorization_id=$1 AND to_status='APPROVED'", [auth.id])).toHaveLength(0);
+    });
+
+    it("auto-aprovação ⇒ o mesmo aviso APPROVED da manual (a família não distingue)", async () => {
+      await createRule({ name: "Auto", serviceId: svc.CONS, maxAmount: 300 });
+      notified.length = 0;
+      const ben = await newBeneficiary({ linked: true });
+      const res = await create(ben.card);
+      expect(res.status).toBe(201);
+      expect(as<Auth>(res).status).toBe("APPROVED");
+      expect(notified.map((n) => n.kind)).toEqual(["APPROVED"]);
+      expect(notified[0]?.requestId).toBe(as<Auth>(res).id);
+      await clearRules();
+    });
+
+    it("coverage-phase real: aprovação revertida ⇒ WITHDRAWN; expirada ⇒ EXPIRED; recurso ⇒ appeal; em parte ⇒ partial; recusa com recurso vivo ⇒ PENDING+appeal; cancelamento da clínica ignorado", async () => {
+      const exp = day(6);
+      const { auth } = await openRequest({ expectedOn: exp }, true);
+      const processId = await processOf(auth.id);
+      expect(await fact(processId)).toMatchObject({ phase: "PENDING_DECISION", appeal: false, partial: false });
+      const partial = await approve(auth.id, tokA.AUTHORIZATION_ANALYST, { authorizedAmount: 100, note: "Só em parte" });
+      expect(partial.status, JSON.stringify(partial.body)).toBe(200);
+      expect(await fact(processId)).toMatchObject({ phase: "APPROVED", partial: true, appeal: false, validUntil: new Date(endOfDay(exp, 30)) });
+      const t0 = clock.now();
+      clock.set(new Date(Date.parse(endOfDay(exp, 30)) + 1000));
+      expect(await fact(processId)).toMatchObject({ phase: "EXPIRED", partial: false, validUntil: new Date(endOfDay(exp, 30)) });
+      clock.set(t0);
+      expect((await ins("post", `/authorizations/${auth.id}/cancel`, tokA.AUTHORIZATION_ANALYST, { reason: "Erro" })).status).toBe(200);
+      expect(await fact(processId)).toMatchObject({ phase: "WITHDRAWN", appeal: false, partial: false });
+
+      // recusa ⇒ NOT_APPROVED; recurso vivo ⇒ PENDING + appeal; recurso recusado ⇒ NOT_APPROVED + appeal
+      const second = await openRequest({}, true);
+      const p2 = await processOf(second.auth.id);
+      expect((await reject(second.auth.id, tokA.AUTHORIZATION_ANALYST)).status).toBe(200);
+      expect(await fact(p2)).toMatchObject({ phase: "NOT_APPROVED", appeal: false });
+      const appealed = await appeal(second.auth.id);
+      expect(appealed.status, JSON.stringify(appealed.body)).toBe(201);
+      expect(await fact(p2)).toMatchObject({ phase: "PENDING_DECISION", appeal: true });
+      expect((await reject(as<Auth>(appealed).id, tokA.SUPERVISOR)).status).toBe(200);
+      expect(await fact(p2)).toMatchObject({ phase: "NOT_APPROVED", appeal: true });
+
+      // CLINIC_CANCELLED continua ignorado (CLOSED, sem estado a mostrar)
+      const third = await openRequest({}, true);
+      tick();
+      expect((await clinic("post", `/authorizations/${third.auth.id}/cancel`, {})).status).toBe(200);
+      expect(await fact(await processOf(third.auth.id))).toMatchObject({ phase: "CLOSED" });
+    });
+
+    it("o índice parcial da 0041 existe e listExpiringApprovals só devolve APPROVED com processo na janela", async () => {
+      expect((await rows("SELECT indexdef FROM pg_indexes WHERE indexname='insurer_authorizations_expiring_idx'"))[0]?.indexdef).toMatch(/valid_until.*WHERE.*status.*APPROVED.*process_id IS NOT NULL/);
+      const { auth } = await openRequest({ expectedOn: day(6) }, true);
+      const done = as<Auth>(await approve(auth.id, tokA.AUTHORIZATION_ANALYST));
+      const until = new Date(need(done.validUntil));
+      const inWindow = await ops.listExpiringApprovals(db, new Date(until.getTime() - 86_400_000), new Date(until.getTime() + 1), 500);
+      expect(inWindow.find((a) => a.requestId === auth.id)).toMatchObject({ processId: await processOf(auth.id), validUntil: until });
+      expect((await ops.listExpiringApprovals(db, until, new Date(until.getTime() + 86_400_000), 500)).some((a) => a.requestId === auth.id)).toBe(false); // (from, to]
+      expect((await ops.listExpiringApprovals(db, new Date(until.getTime() - 86_400_000), new Date(until.getTime() - 1), 500)).some((a) => a.requestId === auth.id)).toBe(false);
+      const unlinked = (await openRequest({ expectedOn: day(6) })).auth;
+      await approve(unlinked.id, tokA.AUTHORIZATION_ANALYST);
+      expect((await ops.listExpiringApprovals(db, new Date(until.getTime() - 86_400_000), new Date(until.getTime() + 86_400_000), 500)).some((a) => a.requestId === unlinked.id)).toBe(false);
     });
   });
 

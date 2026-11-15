@@ -12,13 +12,13 @@ const notFound = () => new NotFoundError({ detail: "Processo não encontrado." }
 export function createGetProcessUseCase<Trx>(deps: ProcessesDeps<Trx>) {
   return async function getProcess(actor: ActorIdentity, familyId: string, memberId: string, processId: string, context: RequestContext): Promise<ProcessView> {
     return deps.withTransaction(async (trx) => {
-      const { readableOrigins, relation } = await resolveReadAccess(deps, trx, actor, familyId, memberId);
+      const { readableOrigins, relation, coverageVisible } = await resolveReadAccess(deps, trx, actor, familyId, memberId);
 
       const process = await deps.repo.findOfMember(trx, familyId, memberId, processId);
       if (!process || !readableOrigins.includes(process.originType)) {
         throw notFound();
       }
-      const facts = readableFactsOf(process, await loadProcessFacts(deps, trx, familyId, [process]));
+      const facts = readableFactsOf(process, await loadProcessFacts(deps, trx, familyId, [process]), coverageVisible);
       if (!facts) {
         deps.onInconsistency({ processId: process.id, originType: process.originType });
         throw notFound();

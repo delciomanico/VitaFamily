@@ -19,7 +19,7 @@ import { POLICY_KEYS, requireDefinition, resolvePolicySetting } from "../domain/
 export { POLICY_KEYS };
 import { notFoundError } from "./beneficiary-lookup.js";
 import { authorizeClinic } from "./clinic-portal.js";
-import type { OpsDeps } from "./ports.js";
+import type { FamilyNotifyKind, OpsDeps } from "./ports.js";
 
 export async function policyValue<Trx>(deps: OpsDeps<Trx>, trx: Trx, insurerId: string, key: string, serviceId?: string): Promise<number> {
   const definition = requireDefinition(await deps.policySettings.definitions(trx), key);
@@ -85,6 +85,15 @@ export async function recordTransition<Trx>(deps: Pick<OpsDeps<Trx>, "authorizat
     ...(input.internalNote !== undefined ? { internalNote: input.internalNote } : {}),
     at: input.now,
   });
+}
+
+/**
+ * Avisa a família de uma transição (ADR-036, BR-ALR-10), na MESMA transação: sem `processId` não há alerta (BR-AUT-01). A porta
+ * não recebe nenhum dado do pedido além do tipo, do processo, do próprio pedido (idempotência) e do instante da transição.
+ */
+export async function notifyFamily<Trx>(deps: Pick<OpsDeps<Trx>, "familyNotifier">, trx: Trx, input: { processId: string | null; kind: FamilyNotifyKind; requestId: string; now: Date }): Promise<void> {
+  if (input.processId === null) return;
+  await deps.familyNotifier.notify(trx, { kind: input.kind, processId: input.processId, requestId: input.requestId, occurredAt: input.now });
 }
 
 /** Vista do prestador (`AuthorizationRequest`/`Detail` do contrato). Datas como `Date`; a `interface` serializa. */

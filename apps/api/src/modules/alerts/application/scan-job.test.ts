@@ -200,3 +200,63 @@ describe("alerts.scan", () => {
     expect(result.alertsCreated).toBe(0);
   });
 });
+
+// TC-ALR-11 (ADR-036, BR-ALR-10): `AUTHORIZATION_EXPIRING` a validUntil − 3 dias.
+describe("alerts.scan — aprovação a expirar", () => {
+  const SCAN_NOW = new Date("2026-12-07T12:00:00Z");
+  const VALID_UNTIL = new Date("2026-12-10T12:00:00Z");
+  const DECIDED = new Date("2026-11-20T09:00:00Z");
+  let clock: FixedClock;
+  let fx: AlertsFixtures;
+
+  const approval = (over: Partial<{ requestId: string; processId: string; decidedAt: Date | null; validUntil: Date }> = {}) => ({ requestId: "r1", processId: "proc-1", decidedAt: DECIDED, validUntil: VALID_UNTIL, ...over });
+
+  beforeEach(() => {
+    clock = new FixedClock(SCAN_NOW);
+    fx = createAlertsFixtures(clock);
+    fx.families.seedMember({ id: "member-1", familyId: "fam-1", userId: "user-1", name: "Titular", birthDate: "1990-01-01", isDependent: false, status: "ACTIVE", createdAt: SCAN_NOW });
+    fx.processes.seed({ processId: "proc-1", familyId: "fam-1", memberId: "member-1", open: true });
+  });
+
+  it("emite à validUntil − 3 dias (sourceType PROCESS) e é idempotente em N scans", async () => {
+    fx.insurerOps.approvals = [approval()];
+    const scan = createScanJobUseCase(fx.deps);
+    expect((await scan()).alertsCreated).toBe(1);
+    await scan();
+    await scan();
+    const [alert] = [...fx.alertsRepo.byId.values()];
+    expect(alert).toMatchObject({ type: "AUTHORIZATION_EXPIRING", ruleKey: "authorization.expiring", sourceType: "PROCESS", sourceId: "proc-1", recipientUserId: "user-1", triggerAt: SCAN_NOW });
+    expect(fx.alertsRepo.byId.size).toBe(1);
+    expect(fx.notifications.enqueued).toHaveLength(1);
+  });
+
+  it("antes da janela de 3 dias não há candidata; no instante em que expira nunca emite «expirada»", async () => {
+    fx.insurerOps.approvals = [approval()];
+    clock.set(new Date("2026-12-07T11:59:00Z"));
+    expect((await createScanJobUseCase(fx.deps)()).alertsCreated).toBe(0);
+    clock.set(VALID_UNTIL);
+    expect((await createScanJobUseCase(fx.deps)()).alertsCreated).toBe(0);
+  });
+
+  it.each([
+    ["aprovada com menos de 3 dias de validade", approval({ decidedAt: new Date("2026-12-08T09:00:00Z") })],
+    ["sem data de decisão", approval({ decidedAt: null })],
+  ])("não emite: %s", async (_name, candidate) => {
+    fx.insurerOps.approvals = [candidate];
+    expect((await createScanJobUseCase(fx.deps)()).alertsCreated).toBe(0);
+  });
+
+  it("não emite com o processo fechado (ato DONE/CANCELLED) nem sem processo conhecido", async () => {
+    fx.insurerOps.approvals = [approval(), approval({ requestId: "r2", processId: "proc-gone" })];
+    fx.processes.seed({ processId: "proc-1", familyId: "fam-1", memberId: "member-1", open: false });
+    expect((await createScanJobUseCase(fx.deps)()).alertsCreated).toBe(0);
+  });
+
+  it("destinatários = titular adulto ou tutores (nunca o dependente com conta)", async () => {
+    fx.insurerOps.approvals = [approval()];
+    fx.families.members.set("member-1", { id: "member-1", familyId: "fam-1", userId: "dep-user", name: "Dependente", birthDate: "2015-01-01", isDependent: true, status: "ACTIVE", createdAt: SCAN_NOW });
+    fx.families.guardianUserIdsByDependent.set("member-1", ["tutor-1"]);
+    await createScanJobUseCase(fx.deps)();
+    expect([...fx.alertsRepo.byId.values()].map((a) => a.recipientUserId)).toEqual(["tutor-1"]);
+  });
+});

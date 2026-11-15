@@ -17,8 +17,13 @@ export interface AlertsTable {
     | "RECOMMENDATION_ADDED"
     | "APPOINTMENT_CONFIRM_REQUEST"
     | "FOLLOWUP_REMINDER"
-    | "EXAM_ORDER_ADDED";
-  source_type: "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION";
+    | "EXAM_ORDER_ADDED"
+    | "AUTHORIZATION_APPROVED"
+    | "AUTHORIZATION_NOT_APPROVED"
+    | "AUTHORIZATION_INFO_REQUESTED"
+    | "AUTHORIZATION_EXPIRING"
+    | "AUTHORIZATION_WITHDRAWN";
+  source_type: "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION" | "PROCESS";
   source_id: string;
   rule_key: string;
   dedupe_key: string;

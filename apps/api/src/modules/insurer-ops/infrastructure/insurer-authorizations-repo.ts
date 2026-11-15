@@ -3,7 +3,7 @@
 // `insurer_id` (BR-SEG-14). Nenhuma coluna clínica nem id de utilizador/família/membro sai daqui (C2).
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
-import type { DecisionWrite, InsurerAuthorizationsRepository, AuthorizationAssignee, QueuePage } from "../application/ports.js";
+import type { DecisionWrite, ExpiringApproval, InsurerAuthorizationsRepository, AuthorizationAssignee, QueuePage } from "../application/ports.js";
 import type { AutoApprovalTrace } from "../domain/auto-approval.js";
 import type { AuthorizationStatus } from "../domain/authorization-machine.js";
 import type { InsurerAuthorizationEventRow, InsurerAuthorizationRow, InsurerQueueFilter, SlaMetricsCounts } from "../domain/insurer-authorization.js";
@@ -27,6 +27,7 @@ function baseQuery(trx: Db, insurerId: string) {
       "a.service_id",
       "a.guide_type",
       "a.parent_request_id",
+      "a.process_id",
       "a.status",
       "a.closed_reason",
       "a.justification",
@@ -82,6 +83,7 @@ function toRow(r: Raw): InsurerAuthorizationRow {
     authorizedAmount: r.authorized_amount === null ? null : Number(r.authorized_amount),
     expectedOn: r.expected_on,
     parentRequestId: r.parent_request_id,
+    processId: r.process_id,
     decisionNote: r.decision_note,
     code: r.code,
     validUntil: r.valid_until,
@@ -273,6 +275,21 @@ export class KyselyInsurerAuthorizationsRepository implements InsurerAuthorizati
       .skipLocked()
       .execute();
     return rows.map((r) => ({ id: r.id, insurerId: r.insurer_id }));
+  }
+
+  async listExpiringApprovals(trx: Db, from: Date, to: Date, limit: number): Promise<ExpiringApproval[]> {
+    const rows = await trx
+      .selectFrom("insurer_authorizations")
+      .select(["id", "process_id", "decided_at", "valid_until"])
+      .where("status", "=", "APPROVED")
+      .where("process_id", "is not", null)
+      .where("valid_until", ">", from)
+      .where("valid_until", "<=", to)
+      .orderBy("valid_until")
+      .orderBy("id")
+      .limit(limit)
+      .execute();
+    return rows.flatMap((r) => (r.process_id === null || r.valid_until === null ? [] : [{ requestId: r.id, processId: r.process_id, decidedAt: r.decided_at, validUntil: r.valid_until }]));
   }
 
   async markEscalated(trx: Db, insurerId: string, id: string, now: Date): Promise<void> {

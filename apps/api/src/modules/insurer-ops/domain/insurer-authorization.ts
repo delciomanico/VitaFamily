@@ -24,6 +24,8 @@ export interface InsurerAuthorizationRow {
   authorizedAmount: number | null;
   expectedOn: string;
   parentRequestId: string | null;
+  /** Só para o aviso à família (`FamilyNotifier`, ADR-036): NUNCA sai para a vista da seguradora (C2, BR-AUT-19). */
+  processId: string | null;
   decisionNote: string | null;
   code: string | null;
   validUntil: Date | null;

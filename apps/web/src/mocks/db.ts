@@ -17,6 +17,7 @@ import { allergies, conditions } from './data/health'
 import { seedDocuments, seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
 import { insuranceAccounts, insurers } from './data/insurers'
 import { seedInsurerOps } from './data/insurerOps'
+import { seedProcesses } from './data/processes'
 import { users } from './data/users'
 import type { InsurancePolicy, ReimbursementClaim } from '@/types/insurance'
 import type { Recommendation } from '@/types/recommendation'
@@ -148,6 +149,8 @@ function seed(now: Date = new Date()) {
     clinicLinkCodes: [] as MockClinicLinkCode[],
     /** Visitas presenciais só da clínica (BR-CLN-18 c). */
     clinicVisits: seedClinicVisits(now) as MockClinicVisit[],
+    /** Processos da família com o estado simples do pedido à seguradora (ADR-036). */
+    processes: seedProcesses(now),
     alerts: [] as MockAlert[],
     /** Só quem alterou as preferências; os restantes usam DEFAULT_NOTIFICATION_PREFERENCES. */
     notificationPreferences: [] as MockNotificationPreferences[],

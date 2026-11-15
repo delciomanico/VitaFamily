@@ -9,7 +9,7 @@ import { generateAuthorizationCode } from "../domain/authorization-code.js";
 import { evaluateCoverage, toEligibilityLight, type CoverageDecision, type EligibilityLight } from "../domain/coverage.js";
 import { calcularValidade } from "../domain/deadline.js";
 import { fail } from "../domain/validation.js";
-import { decisionDueAt, gateRejection, POLICY_KEYS, policyValue, recordTransition } from "./authorization-support.js";
+import { decisionDueAt, gateRejection, notifyFamily, POLICY_KEYS, policyValue, recordTransition } from "./authorization-support.js";
 import type { OpsDeps, RequestContext } from "./ports.js";
 
 export interface ServiceForRequest {
@@ -127,6 +127,8 @@ export async function submitAuthorization<Trx>(deps: OpsDeps<Trx>, trx: Trx, inp
   const base = { insurerId: input.insurerId, authorizationId: id, now };
   await recordTransition(deps, trx, { ...base, from: null, to: "SUBMITTED", actor: "CLINIC", actorAccountId: actor.clinicAccountId, note: null });
   await recordTransition(deps, trx, { ...base, from: "SUBMITTED", to: autoApproval ? "APPROVED" : "IN_REVIEW", actor: "SYSTEM", actorAccountId: null, note: null });
+  // ADR-036: a aprovação automática avisa a família como a manual (`APPROVED` igual; a clínica e a família não a distinguem).
+  if (autoApproval) await notifyFamily(deps, trx, { processId, kind: "APPROVED", requestId: id, now });
 
   await deps.audit.record(trx, {
     occurredAt: now,

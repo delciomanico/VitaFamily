@@ -426,6 +426,8 @@ export interface InsurerAuthorizationsRepository<Trx> {
   /** Job: `IN_REVIEW` com prazo atingido e sem marca, com bloqueio (`FOR UPDATE SKIP LOCKED`). */
   lockSlaBreaches(trx: Trx, now: Date, limit: number): Promise<{ id: string; insurerId: string }[]>;
   markEscalated(trx: Trx, insurerId: string, id: string, now: Date): Promise<void>;
+  /** Fatia 5 (BR-ALR-10): aprovações `APPROVED` com processo e `validUntil` em `(from, to]` (índice parcial da `0041`); ordem por `validUntil`. */
+  listExpiringApprovals(trx: Trx, from: Date, to: Date, limit: number): Promise<ExpiringApproval[]>;
 }
 
 /** `insurer_auto_approval_rules` (BR-AUT-23). */
@@ -470,6 +472,25 @@ export interface ProcessLinker<Trx> {
 }
 
 /**
+ * `FamilyNotifier` (ADR-036, modules.md nota 33b): definida AQUI, implementada pelo adaptador de `alerts` ligado em `main/api.ts`
+ * (`insurer-ops` nunca importa `alerts`). Corre na MESMA transação da transição (sem transição, sem alerta; se o alerta falha, a
+ * transição reverte-se). Só é chamada com `processId` não nulo (BR-ALR-10: sem processo, sem alerta). Sem dados do pedido: só o
+ * tipo de evento, o processo, o pedido (idempotência) e o instante.
+ */
+export type FamilyNotifyKind = "APPROVED" | "NOT_APPROVED" | "INFO_REQUESTED" | "WITHDRAWN";
+export interface FamilyNotifier<Trx> {
+  notify(trx: Trx, input: { kind: FamilyNotifyKind; processId: string; requestId: string; occurredAt: Date }): Promise<void>;
+}
+
+/** Candidata a `AUTHORIZATION_EXPIRING` (BR-ALR-10): aprovação em vigor com processo; só ids e datas. */
+export interface ExpiringApproval {
+  requestId: string;
+  processId: string;
+  decidedAt: Date | null;
+  validUntil: Date;
+}
+
+/**
  * Ficheiros dos anexos (BR-AUT-13; modules.md nota 31d): `Storage` + antivírus + outbox `file_deletions`, ligados em `main/api.ts`.
  * `insurer-ops` não usa `documents`.
  */
@@ -502,6 +523,8 @@ export interface OpsDeps<Trx> {
   insurerAuthorizations: InsurerAuthorizationsRepository<Trx>;
   autoApprovalRules: AutoApprovalRulesRepository<Trx>;
   processes: ProcessLinker<Trx>;
+  /** Fatia 5 (ADR-036): avisa a família na transação da transição (ligada em `main/api.ts` a `alerts`). */
+  familyNotifier: FamilyNotifier<Trx>;
   files: AttachmentFiles<Trx>;
   partnerClinics: PartnerClinicDirectory<Trx>;
   patients: PatientInsuranceRepository<Trx>;

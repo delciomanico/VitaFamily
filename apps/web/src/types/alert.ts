@@ -13,6 +13,12 @@ export type AlertType =
   | 'EXAM_ORDER_ADDED'
   | 'EXAM_CANCELLED'
   | 'EXAM_RESULTS_AVAILABLE'
+  // Fatia 5 (ADR-036): pedido à seguradora; abrem o cartão do processo.
+  | 'AUTHORIZATION_APPROVED'
+  | 'AUTHORIZATION_NOT_APPROVED'
+  | 'AUTHORIZATION_INFO_REQUESTED'
+  | 'AUTHORIZATION_EXPIRING'
+  | 'AUTHORIZATION_WITHDRAWN'
 
 /** Regra que gerou o alerta (Evento → Regra → Alerta, UC-ALR-01). */
 export type AlertRuleKey =
@@ -31,6 +37,11 @@ export type AlertRuleKey =
   | 'exam-order.added'
   | 'exam.cancelled'
   | 'exam.results'
+  | 'authorization.approved'
+  | 'authorization.not_approved'
+  | 'authorization.info_requested'
+  | 'authorization.expiring'
+  | 'authorization.withdrawn'
 
 export interface HealthAlert {
   id: string
@@ -39,7 +50,7 @@ export interface HealthAlert {
   memberId: string
   type: AlertType
   ruleKey: AlertRuleKey
-  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION' | 'RECOMMENDATION'
+  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION' | 'RECOMMENDATION' | 'PROCESS'
   sourceId: string
   triggerAt: string
   readAt?: string

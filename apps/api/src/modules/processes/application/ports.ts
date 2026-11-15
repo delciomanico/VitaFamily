@@ -119,6 +119,8 @@ export interface ProcessesRepository<Trx> {
   findOfMember(trx: Trx, familyId: string, memberId: string, processId: string): Promise<Process | null>;
   /** `openedAt` desc, `id` desc; até `limit` linhas e se há mais (busca `limit + 1`). */
   listOfMember(trx: Trx, familyId: string, memberId: string, filter: ProcessListFilter, limit: number): Promise<{ rows: Process[]; hasMore: boolean }>;
+  /** Fatia 5 (ADR-036): leitura de sistema (job `alerts.scan` e alertas por evento) pelos ids; sem ator, só dono e ids. */
+  findByIds(trx: Trx, processIds: string[]): Promise<Process[]>;
   /** BR-PRC-06: só se `clinic_id` é a clínica do token. */
   findOfClinic(trx: Trx, clinicId: string, processId: string): Promise<Process | null>;
 }

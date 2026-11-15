@@ -48,7 +48,7 @@ import {
   createListCardsUseCase,
   createRevokeCardClaimUseCase,
 } from "./application/patient-insurance.js";
-import type { AttachmentFiles, InsurerSettingsPort, OpsDeps, PartnerClinicDirectory, PatientAccessPort, ProcessLinker } from "./application/ports.js";
+import type { AttachmentFiles, ExpiringApproval, FamilyNotifier, InsurerSettingsPort, OpsDeps, PartnerClinicDirectory, PatientAccessPort, ProcessLinker } from "./application/ports.js";
 import { createApproveAuthorizationUseCase } from "./application/approve-authorization.js";
 import { createAssignAuthorizationUseCase } from "./application/assign-authorization.js";
 import { createGetAuthorizationMetricsUseCase } from "./application/authorization-metrics.js";
@@ -102,7 +102,7 @@ import { createInsurerPatientRouter, type InsurerPatientController } from "./int
 import { createInsurerOpsRouter, type InsurerOpsController } from "./interface/portal-router.js";
 
 export type { OpsActor, OpsRole } from "./domain/access.js";
-export type { AttachmentFiles, ProcessLinker } from "./application/ports.js";
+export type { AttachmentFiles, ExpiringApproval, FamilyNotifier, FamilyNotifyKind, ProcessLinker } from "./application/ports.js";
 
 export interface InsurerOpsModuleDeps {
   db: Kysely<Database>;
@@ -118,6 +118,8 @@ export interface InsurerOpsModuleDeps {
   patientAccess: PatientAccessPort<Kysely<Database>>;
   /** `ProcessLinker` (ADR-034): implementada por `processes`, ligada em `main/api.ts` (`insurer-ops` e `processes` não se importam). */
   processes: ProcessLinker<Kysely<Database>>;
+  /** `FamilyNotifier` (ADR-036): implementada pelo adaptador de `alerts`, ligada em `main/api.ts` (`insurer-ops` nunca importa `alerts`). */
+  familyNotifier: FamilyNotifier<Kysely<Database>>;
   /** Ficheiros dos anexos (Storage + antivírus + outbox `file_deletions`), ligada em `main/api.ts` (nota 31d). */
   files: AttachmentFiles<Kysely<Database>>;
 }
@@ -129,6 +131,8 @@ export interface InsurerOpsModule {
   operationalData: { hasData: (trx: Kysely<Database>, insurerId: string) => Promise<boolean> };
   /** Implementa `ProcessFacts.getCoverageFacts` de `processes` (ADR-034): ligada em `main/api.ts`. */
   getCoverageFacts: ReturnType<typeof createGetCoverageFactsUseCase<Kysely<Database>>>;
+  /** Candidatas de `AUTHORIZATION_EXPIRING` (ADR-036, BR-ALR-10; modules.md nota 33b). */
+  listExpiringApprovals: (trx: Kysely<Database>, from: Date, to: Date, limit: number) => Promise<ExpiringApproval[]>;
 }
 
 function createOpsDeps(deps: InsurerOpsModuleDeps): OpsDeps<Kysely<Database>> {
@@ -150,6 +154,7 @@ function createOpsDeps(deps: InsurerOpsModuleDeps): OpsDeps<Kysely<Database>> {
     insurerAuthorizations: new KyselyInsurerAuthorizationsRepository(),
     autoApprovalRules: new KyselyAutoApprovalRulesRepository(),
     processes: deps.processes,
+    familyNotifier: deps.familyNotifier,
     files: deps.files,
     partnerClinics: deps.partnerClinics,
     patients: new KyselyPatientInsuranceRepository(),
@@ -259,6 +264,7 @@ export function createInsurerOpsModule(deps: InsurerOpsModuleDeps): InsurerOpsMo
   return {
     router,
     getCoverageFacts: createGetCoverageFactsUseCase(ops),
+    listExpiringApprovals: (trx, from, to, limit) => ops.insurerAuthorizations.listExpiringApprovals(trx, from, to, limit),
     operationalData: {
       hasData: async (trx, insurerId) => (await ops.beneficiaries.hasAny(trx, insurerId)) || (await ops.policies.hasAny(trx, insurerId)),
     },
@@ -273,6 +279,10 @@ export interface InsurerOpsWorkerModuleDeps {
 }
 
 export interface InsurerOpsWorkerModule {
+  /** Implementa `ProcessFacts.getCoverageFacts` de `processes` no processo "worker" (ADR-036: `alerts.scan` pergunta se o processo está aberto). */
+  getCoverageFacts: ReturnType<typeof createGetCoverageFactsUseCase<Kysely<Database>>>;
+  /** Candidatas de `AUTHORIZATION_EXPIRING` (ADR-036, BR-ALR-10): `APPROVED` com processo e `validUntil` em `(from, to]`; só leitura, usada por `alerts.scan`. */
+  listExpiringApprovals: (trx: Kysely<Database>, from: Date, to: Date, limit: number) => Promise<ExpiringApproval[]>;
   /** Jobs `insurer.expire-policies`, `insurer.purge-import-previews`, `insurer.expire-info-requests` (diários) e `insurer.flag-sla-breaches` (15 min) — só o processo "worker" chama isto. */
   registerWorkers: () => Promise<void>;
   /** A expiração em si (idempotente), exposta para testes e execução manual. */
@@ -311,7 +321,10 @@ export function createInsurerOpsWorkerModule(deps: InsurerOpsWorkerModuleDeps): 
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
   });
+  const insurerAuthorizations = new KyselyInsurerAuthorizationsRepository();
   return {
+    getCoverageFacts: createGetCoverageFactsUseCase({ authorizations: new KyselyAuthorizationsRepository(), clock: deps.clock }),
+    listExpiringApprovals: (trx, from, to, limit) => insurerAuthorizations.listExpiringApprovals(trx, from, to, limit),
     expirePolicies,
     purgeImportPreviews,
     expireInfoRequests,

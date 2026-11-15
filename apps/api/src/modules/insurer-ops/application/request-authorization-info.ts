@@ -3,7 +3,7 @@
 import type { OpsActor } from "../domain/access.js";
 import { parseReasonInput } from "../domain/authorization-decision.js";
 import { claimIfFreeAnalyst, decisionRole, loadForDecision, reloadDetail, requireAction } from "./insurer-authorization-support.js";
-import { infoExpiresAt, recordTransition } from "./authorization-support.js";
+import { infoExpiresAt, notifyFamily, recordTransition } from "./authorization-support.js";
 import { conflictOnDecisionLost } from "./decision-support.js";
 import type { OpsDeps, RequestContext } from "./ports.js";
 import { auditEvent, authorize } from "./support.js";
@@ -20,6 +20,7 @@ export function createRequestAuthorizationInfoUseCase<Trx>(deps: OpsDeps<Trx>) {
       const limit = await infoExpiresAt(deps, trx, actor.insurerId, now);
       if (!(await deps.insurerAuthorizations.decide(trx, actor.insurerId, row.id, "IN_REVIEW", { kind: "REQUEST_INFO", note: reason, infoExpiresAt: limit, accountId: actor.insuranceAccountId, now }))) throw conflictOnDecisionLost();
       await recordTransition(deps, trx, { insurerId: actor.insurerId, authorizationId: row.id, from: "IN_REVIEW", to: "INFO_REQUESTED", actor: by, actorAccountId: actor.insuranceAccountId, note: reason, now });
+      await notifyFamily(deps, trx, { processId: row.processId, kind: "INFO_REQUESTED", requestId: row.id, now });
       await deps.audit.record(trx, auditEvent(deps, actor, context, { action: "AUTHORIZATION_REQUEST_INFO", resourceType: "AuthorizationRequest", resourceId: row.id }));
       return reloadDetail(deps, trx, actor, row.id, currency);
     });

@@ -73,6 +73,11 @@ export class KyselyProcessesRepository implements ProcessesRepository<Kysely<Dat
     return { rows: rows.slice(0, limit).map(toProcess), hasMore: rows.length > limit };
   }
 
+  async findByIds(trx: Kysely<Database>, processIds: string[]): Promise<Process[]> {
+    if (processIds.length === 0) return [];
+    return (await trx.selectFrom("processes").select(PROCESS_COLUMNS).where("id", "in", processIds).execute()).map(toProcess);
+  }
+
   async findOfClinic(trx: Kysely<Database>, clinicId: string, processId: string): Promise<Process | null> {
     const row = await trx.selectFrom("processes").select(PROCESS_COLUMNS).where("clinic_id", "=", clinicId).where("id", "=", processId).executeTakeFirst();
     return row ? toProcess(row) : null;

@@ -11,6 +11,7 @@ import {
   FlaskConical,
   MessageSquareText,
   Pill,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -33,6 +34,11 @@ const iconsBase: Record<AlertType, LucideIcon> = {
   EXAM_ORDER_ADDED: FileText,
   EXAM_CANCELLED: CalendarX,
   EXAM_RESULTS_AVAILABLE: FlaskConical,
+  AUTHORIZATION_APPROVED: ShieldCheck,
+  AUTHORIZATION_NOT_APPROVED: ShieldCheck,
+  AUTHORIZATION_INFO_REQUESTED: ShieldCheck,
+  AUTHORIZATION_EXPIRING: ShieldCheck,
+  AUTHORIZATION_WITHDRAWN: ShieldCheck,
 }
 /** Tipo de alerta desconhecido → ícone genérico. */
 const icons = withFallback(iconsBase, () => Bell)

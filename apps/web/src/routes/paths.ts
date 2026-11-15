@@ -62,6 +62,8 @@ export const paths = {
   watchMetric: (slug: string) => `/app/watch/${slug}`,
 
   alerts: '/app/alerts',
+  /** Cartão do processo (fatia 5, ADR-036): estado simples e o que falta; aberto a partir de um alerta. */
+  process: (memberId: string, processId: string) => `/app/processes/${memberId}/${processId}`,
   familyReport: '/app/reports/family',
   preventiveReport: '/app/reports/preventive',
   preventiveReportOf: (memberId: string) => `/app/reports/preventive?membro=${memberId}`,

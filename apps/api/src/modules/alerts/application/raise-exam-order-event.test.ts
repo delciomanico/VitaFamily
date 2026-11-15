@@ -1,7 +1,7 @@
 // ADR-028 (BR-CLN-53): alerta `exam_order.added` genérico, só SELF/TUTOR_OF, idempotente, sem conteúdo clínico (BR-HLT-05).
 import { beforeEach, describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
-import { resolveExamOrderRecipients } from "../domain/recipients.js";
+import { resolveSelfOrTutorRecipients } from "../domain/recipients.js";
 import { createAlertsFixtures, type AlertsFixtures } from "./fixtures.js";
 import { createRaiseExamOrderEventUseCase } from "./raise-exam-order-event.js";
 
@@ -9,14 +9,14 @@ const NOW = new Date("2026-11-10T08:00:00Z");
 const TRX = {};
 const INPUT = { appointmentId: "apt-1", familyId: "fam-1", memberId: "member-1" };
 
-describe("resolveExamOrderRecipients", () => {
+describe("resolveSelfOrTutorRecipients", () => {
   it.each([
     [{ userId: "u1", isDependent: false }, ["t1"], ["u1"]],
     [{ isDependent: false }, ["t1"], []],
     [{ userId: "dep-user", isDependent: true }, ["t1", "t2", "t1"], ["t1", "t2"]],
     [{ isDependent: true }, [], []],
   ])("%j + tutores %j => %j (nunca o dependente com conta)", (member, guardians, expected) => {
-    expect(resolveExamOrderRecipients(member, guardians)).toEqual(expected);
+    expect(resolveSelfOrTutorRecipients(member, guardians)).toEqual(expected);
   });
 });
 

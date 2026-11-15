@@ -32,13 +32,20 @@ export interface ActFact {
 }
 
 /** Fase de cobertura publicada por quem dono dos pedidos (state-machines.md, Process, tabela 3). */
-export type CoveragePhase = "PENDING_DECISION" | "NEEDS_INFO" | "NOT_APPROVED" | "APPROVED" | "CLOSED";
-export const COVERAGE_PHASES: readonly CoveragePhase[] = ["PENDING_DECISION", "NEEDS_INFO", "NOT_APPROVED", "APPROVED", "CLOSED"];
+export type CoveragePhase = "PENDING_DECISION" | "NEEDS_INFO" | "NOT_APPROVED" | "APPROVED" | "WITHDRAWN" | "EXPIRED" | "CLOSED";
+export const COVERAGE_PHASES: readonly CoveragePhase[] = ["PENDING_DECISION", "NEEDS_INFO", "NOT_APPROVED", "APPROVED", "WITHDRAWN", "EXPIRED", "CLOSED"];
 
-/** Facto de cobertura de um processo (ADR-034): `dueAt` só em `PENDING_DECISION` (informativo). */
+/**
+ * Facto de cobertura de um processo (ADR-034; fatia 5, ADR-036): `dueAt` só em `PENDING_DECISION` (informativo),
+ * `validUntil` só em `APPROVED`/`EXPIRED`, `partial` só em `APPROVED`, `appeal` = o pedido determinante é uma nova análise.
+ * Só booleanos e datas: nunca valores, motivos, decisor nem rasto (BR-PRC-12).
+ */
 export interface CoverageFact {
   phase: CoveragePhase;
   dueAt?: Date;
+  validUntil?: Date;
+  appeal: boolean;
+  partial: boolean;
   changedAt: Date;
 }
 
@@ -54,7 +61,9 @@ export type NextStepCode =
   | "NOTHING_PENDING"
   | "AWAIT_INSURER_DECISION"
   | "AWAIT_CLINIC_INFORMATION"
-  | "COVERAGE_NOT_APPROVED";
+  | "COVERAGE_NOT_APPROVED"
+  | "COVERAGE_EXPIRED"
+  | "COVERAGE_WITHDRAWN";
 export type NextStepActor = "FAMILY" | "CLINIC" | "INSURER" | "NONE";
 export interface NextStep {
   code: NextStepCode;

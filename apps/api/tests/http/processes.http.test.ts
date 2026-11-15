@@ -203,10 +203,43 @@ describe("GET /families/{f}/members/{m}/processes/{processId} (UC-PRC-04)", () =
       kind: "ROUTINE",
       familyStatus: "SCHEDULED",
       nextStep: { code: "ATTEND", actor: "FAMILY" },
+      coverage: null,
       origin: { type: "APPOINTMENT", id: ACT_APPT },
       scheduledAt: "2026-07-01T09:00:00.000Z",
       openedAt: "2026-05-01T10:00:00.000Z",
     });
+  });
+
+  // TC-PRC-30/31 (fatia 5, ADR-036): `coverage` e `nextStep` contra o contrato REAL (sem VITA_OPENAPI_SPEC); respostas validadas.
+  it.each<[string, "WITHDRAWN" | "EXPIRED", string]>([["revertido", "WITHDRAWN", "COVERAGE_WITHDRAWN"], ["expirado", "EXPIRED", "COVERAGE_EXPIRED"]])("TC-PRC-30 processo sem ato, aprovação %s ⇒ CANCELLED / %s / FAMILY", async (_name, phase, code) => {
+    const h = await buildHarness();
+    const id = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeee02";
+    h.fx.addProcess({ id, familyId: FAMILY, memberId: MEMBER, originType: "AUTHORIZATION", originId: "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1", openedAt: NOW });
+    h.fx.facts.seedCoverage(id, { phase, validUntil: new Date("2026-06-20T10:00:00Z") });
+    const res = await request(h.app).get(`${FAMILY_URL}/${id}`).set("Authorization", bearer(h.userToken));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ familyStatus: "CANCELLED", nextStep: { code, actor: "FAMILY" }, coverage: { state: phase, appeal: false, partial: false, dueAt: null, validUntil: phase === "EXPIRED" ? "2026-06-20T10:00:00.000Z" : null } });
+  });
+
+  it("TC-PRC-30 com ato: coverage traz o estado e o nextStep mantém a linha do ato; nova análise (appeal) e em parte; TC-PRC-31 não vaza campos internos", async () => {
+    const h = await buildHarness();
+    h.fx.facts.seed("APPOINTMENT", ACT_APPT, { phase: "SCHEDULED" });
+    h.fx.facts.seedCoverage(P_APPT, { phase: "APPROVED", validUntil: new Date("2026-06-20T10:00:00Z"), partial: true, appeal: true });
+    const res = await request(h.app).get(`${FAMILY_URL}/${P_APPT}`).set("Authorization", bearer(h.userToken));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ nextStep: { code: "ATTEND", actor: "FAMILY" }, coverage: { state: "APPROVED", appeal: true, partial: true, dueAt: null, validUntil: "2026-06-20T10:00:00.000Z" } });
+    expect(Object.keys((res.body as { coverage: object }).coverage).sort()).toEqual(["appeal", "dueAt", "partial", "state", "validUntil"]);
+    expect(JSON.stringify(res.body)).not.toMatch(/decisionNote|internalNote|overrideReason|authorizedAmount|requestedAmount|serviceId|justification|decidedBy|autoApproval|assignedTo|escalatedAt/);
+  });
+
+  it("TC-PRC-30 em lista: coverage PENDING com dueAt; sem MANAGE_INSURANCE ⇒ coverage null e 200", async () => {
+    const h = await buildHarness();
+    h.fx.facts.seed("APPOINTMENT", ACT_APPT, { phase: "PENDING" });
+    h.fx.facts.seedCoverage(P_APPT, { phase: "PENDING_DECISION", dueAt: new Date("2026-06-03T10:00:00Z") });
+    const found = async () => ((await request(h.app).get(`${FAMILY_URL}?originType=APPOINTMENT`).set("Authorization", bearer(h.userToken))).body as { items: { id: string; coverage: object | null; nextStep: { code: string } }[] }).items.find((i) => i.id === P_APPT);
+    expect(await found()).toMatchObject({ coverage: { state: "PENDING", dueAt: "2026-06-03T10:00:00.000Z" }, nextStep: { code: "AWAIT_INSURER_DECISION" } });
+    h.fx.policy.deniedActions.add("MANAGE_INSURANCE");
+    expect(await found()).toMatchObject({ coverage: null, nextStep: { code: "AWAIT_CLINIC_RESPONSE" } });
   });
 
   it("TC-AZ-PRC-02: inexistente, de outro membro e de categoria não legível => 404 com corpo igual", async () => {

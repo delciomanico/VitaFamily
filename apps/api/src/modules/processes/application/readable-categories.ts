@@ -11,6 +11,8 @@ export interface ReadAccess {
   readableOrigins: ProcessOriginType[];
   /** `undefined` só se nenhuma categoria foi permitida. */
   relation: Relation | undefined;
+  /** BR-PRC-13: `MANAGE_INSURANCE` concedido (decidido uma vez por pedido, na mesma decisão que governa a origem `AUTHORIZATION`). */
+  coverageVisible: boolean;
 }
 
 const CATEGORIES: readonly OriginCategory[] = ["APPOINTMENTS", "EXAMS", "INSURANCE"];
@@ -34,7 +36,7 @@ export async function resolveReadAccess<Trx>(deps: ProcessesDeps<Trx>, trx: Trx,
       throw error;
     }
   }
-  return { readableOrigins: PROCESS_ORIGIN_TYPES.filter((type) => allowed.has(categoryOfOrigin(type))), relation };
+  return { readableOrigins: PROCESS_ORIGIN_TYPES.filter((type) => allowed.has(categoryOfOrigin(type))), relation, coverageVisible: allowed.has("INSURANCE") };
 }
 
 /** audit.md §3 / BR-PRC-11: só a leitura por quem não é o titular (tutor ou `OTHER` com partilha) é auditada. */

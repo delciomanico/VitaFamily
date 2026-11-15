@@ -42,6 +42,9 @@ function targetOf(alert: AlertItem): string | undefined {
       return paths.examination(alert.targetId)
     case 'RECOMMENDATION':
       return undefined
+    case 'PROCESS':
+      // Fatia 5 (ADR-036): o alerta abre o cartão do processo; a página repete a decisão de acesso (404 ⇒ «já não está disponível»).
+      return paths.process(alert.memberId, alert.targetId)
   }
 }
 

@@ -4,14 +4,16 @@
 import { newId } from "../../../platform/ids/index.js";
 import { addDaysIso, localDateIso } from "../../../platform/time/index.js";
 import type { AlertSourceType } from "../domain/alert.js";
-import { resolveRecipients } from "../domain/recipients.js";
+import { resolveRecipients, resolveSelfOrTutorRecipients } from "../domain/recipients.js";
 import {
   APPOINTMENT_CONFIRM_REQUEST_LEAD_MS,
   APPOINTMENT_OUTCOME_DELAY_MS,
+  AUTHORIZATION_EXPIRING_LEAD_MS,
   FOLLOW_UP_REMINDER_LEAD_DAYS,
   appointmentConfirmRequestRules,
   appointmentOutcomeRule,
   appointmentReminderRules,
+  authorizationExpiringRules,
   buildDedupeKey,
   doseRules,
   examReminderRule,
@@ -39,7 +41,7 @@ export function createScanJobUseCase<Trx>(deps: AlertsWorkerDeps<Trx>) {
   async function processCandidate(
     trx: Trx,
     now: Date,
-    ctx: { familyId: string; memberId: string; sourceType: AlertSourceType; sourceId: string; rules: Rule[] },
+    ctx: { familyId: string; memberId: string; sourceType: AlertSourceType; sourceId: string; rules: Rule[]; recipients?: "SELF_OR_TUTOR" },
   ): Promise<number> {
     const dueRules = ctx.rules.filter((rule) => rule.triggerAt.getTime() <= now.getTime());
     if (dueRules.length === 0) {
@@ -52,7 +54,8 @@ export function createScanJobUseCase<Trx>(deps: AlertsWorkerDeps<Trx>) {
       return 0;
     }
     const guardianUserIds = member.isDependent ? await deps.families.listGuardianUserIds(trx, ctx.familyId, ctx.memberId) : [];
-    const recipients = resolveRecipients(member, guardianUserIds);
+    // BR-ALR-11 (fatia 5): os alertas do pedido de autorização só vão a quem tem `MANAGE_INSURANCE` (titular adulto e tutores).
+    const recipients = ctx.recipients === "SELF_OR_TUTOR" ? resolveSelfOrTutorRecipients(member, guardianUserIds) : resolveRecipients(member, guardianUserIds);
 
     let created = 0;
     for (const rule of dueRules) {
@@ -154,6 +157,22 @@ export function createScanJobUseCase<Trx>(deps: AlertsWorkerDeps<Trx>) {
           sourceType: "EXAMINATION",
           sourceId: examination.id,
           rules: [rule],
+        });
+      }
+
+      // BR-ALR-10 (ADR-036): `AUTHORIZATION_EXPIRING` 3 dias antes de `validUntil`; só com o processo ainda aberto (ato DONE/CANCELLED ⇒ nada).
+      const expiring = await deps.insurerOps.listExpiringApprovals(trx, now, new Date(now.getTime() + AUTHORIZATION_EXPIRING_LEAD_MS), BATCH_SIZE);
+      const targets = new Map((await deps.processes.describe(trx, expiring.map((approval) => approval.processId))).map((target) => [target.processId, target]));
+      for (const approval of expiring) {
+        const target = targets.get(approval.processId);
+        if (!target?.open) continue;
+        alertsCreated += await processCandidate(trx, now, {
+          familyId: target.familyId,
+          memberId: target.memberId,
+          sourceType: "PROCESS",
+          sourceId: approval.processId,
+          rules: authorizationExpiringRules(approval, now),
+          recipients: "SELF_OR_TUTOR",
         });
       }
     });

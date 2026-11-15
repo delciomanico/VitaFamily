@@ -28,10 +28,13 @@ const COVERAGE_ONLY_TABLE: Record<CoveragePhase, FamilyView> = {
   NEEDS_INFO: { familyStatus: "IN_PROGRESS", nextStep: { code: "AWAIT_CLINIC_INFORMATION", actor: "CLINIC" } },
   NOT_APPROVED: { familyStatus: "IN_PROGRESS", nextStep: { code: "COVERAGE_NOT_APPROVED", actor: "CLINIC" } },
   APPROVED: { familyStatus: "IN_PROGRESS", nextStep: { code: "ATTEND", actor: "FAMILY" } },
+  // Fatia 5 (ADR-036): sem ato, o passo seguinte é da família (falar com a clínica ou com a seguradora).
+  WITHDRAWN: { familyStatus: "CANCELLED", nextStep: { code: "COVERAGE_WITHDRAWN", actor: "FAMILY" } },
+  EXPIRED: { familyStatus: "CANCELLED", nextStep: { code: "COVERAGE_EXPIRED", actor: "FAMILY" } },
   CLOSED: { familyStatus: "CANCELLED", nextStep: { code: "NOTHING_PENDING", actor: "NONE" } },
 };
 
-/** Com ato por começar (`PENDING`/`SCHEDULED`): só as três fases que ainda travam o ato mudam a linha; as restantes mantêm a do ato. */
+/** Com ato por começar (`PENDING`/`SCHEDULED`): só as três fases que ainda travam o ato mudam a linha; as restantes (incl. `EXPIRED`/`WITHDRAWN`, fatia 5) mantêm a do ato. */
 const COVERAGE_OVER_ACT_TABLE: Partial<Record<CoveragePhase, FamilyView>> = {
   PENDING_DECISION: COVERAGE_ONLY_TABLE.PENDING_DECISION,
   NEEDS_INFO: COVERAGE_ONLY_TABLE.NEEDS_INFO,

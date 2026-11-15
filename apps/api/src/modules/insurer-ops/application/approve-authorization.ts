@@ -6,7 +6,7 @@ import { generateAuthorizationCode } from "../domain/authorization-code.js";
 import { decideApproval, parseApproveInput } from "../domain/authorization-decision.js";
 import { requireDefinition } from "../domain/policy-setting.js";
 import { claimIfFreeAnalyst, decisionRole, loadForDecision, reloadDetail, requireAction } from "./insurer-authorization-support.js";
-import { POLICY_KEYS, policyValue, recordTransition } from "./authorization-support.js";
+import { notifyFamily, POLICY_KEYS, policyValue, recordTransition } from "./authorization-support.js";
 import { conflictOnDecisionLost } from "./decision-support.js";
 import type { OpsDeps, RequestContext } from "./ports.js";
 import { coverageOnDate } from "./submit-authorization.js";
@@ -45,6 +45,8 @@ export function createApproveAuthorizationUseCase<Trx>(deps: OpsDeps<Trx>) {
       });
       if (!written) throw conflictOnDecisionLost();
       await recordTransition(deps, trx, { insurerId: actor.insurerId, authorizationId: row.id, from: "IN_REVIEW", to: "APPROVED", actor: decidedBy, actorAccountId: actor.insuranceAccountId, note: input.note, internalNote: input.overrideReason, now });
+      // ADR-036: a aprovação (de um pedido ou de um recurso) avisa a família na mesma transação.
+      await notifyFamily(deps, trx, { processId: row.processId, kind: "APPROVED", requestId: row.id, now });
       await deps.audit.record(trx, auditEvent(deps, actor, context, { action: "AUTHORIZATION_APPROVE", resourceType: "AuthorizationRequest", resourceId: row.id, metadata: { decidedBy, partial: approval.partial, override: approval.override } }));
       return reloadDetail(deps, trx, actor, row.id, currency);
     });

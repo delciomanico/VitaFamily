@@ -20,7 +20,13 @@ export type AlertNotificationType =
   | "APPOINTMENT_CONFIRM_REQUEST"
   | "FOLLOWUP_REMINDER"
   // M15 U (ADR-028): novo pedido de exame; sem interruptor próprio (sempre ativo, como `RECOMMENDATION_ADDED`).
-  | "EXAM_ORDER_ADDED";
+  | "EXAM_ORDER_ADDED"
+  // Fatia 5 (ADR-036, BR-ALR-11): pedido de autorização; sem interruptor próprio (sempre ativos); só os canais push/e-mail mandam.
+  | "AUTHORIZATION_APPROVED"
+  | "AUTHORIZATION_NOT_APPROVED"
+  | "AUTHORIZATION_INFO_REQUESTED"
+  | "AUTHORIZATION_EXPIRING"
+  | "AUTHORIZATION_WITHDRAWN";
 
 export type Channel = "PUSH" | "EMAIL";
 

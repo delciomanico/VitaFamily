@@ -4,7 +4,7 @@
 import type { OpsActor } from "../domain/access.js";
 import { parseReasonInput } from "../domain/authorization-decision.js";
 import { decisionRole, loadForDecision, reloadDetail, requireAction } from "./insurer-authorization-support.js";
-import { recordTransition } from "./authorization-support.js";
+import { notifyFamily, recordTransition } from "./authorization-support.js";
 import { conflictOnDecisionLost } from "./decision-support.js";
 import type { OpsDeps, RequestContext } from "./ports.js";
 import { auditEvent, authorize } from "./support.js";
@@ -18,6 +18,7 @@ export function createRevertAuthorizationUseCase<Trx>(deps: OpsDeps<Trx>) {
       requireAction("CANCEL", actor, row, appealDays, now);
       if (!(await deps.insurerAuthorizations.decide(trx, actor.insurerId, row.id, "APPROVED", { kind: "REVERT", note: reason, now }))) throw conflictOnDecisionLost();
       await recordTransition(deps, trx, { insurerId: actor.insurerId, authorizationId: row.id, from: "APPROVED", to: "CANCELLED", actor: decisionRole(actor), actorAccountId: actor.insuranceAccountId, note: reason, closedReason: "ANALYST_CANCELLED", now });
+      await notifyFamily(deps, trx, { processId: row.processId, kind: "WITHDRAWN", requestId: row.id, now });
       await deps.audit.record(trx, auditEvent(deps, actor, context, { action: "AUTHORIZATION_REVERT", resourceType: "AuthorizationRequest", resourceId: row.id, metadata: { previousDecidedBy: row.decidedByKind } }));
       return reloadDetail(deps, trx, actor, row.id, currency);
     });

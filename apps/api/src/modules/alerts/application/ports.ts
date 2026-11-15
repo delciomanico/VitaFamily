@@ -31,6 +31,24 @@ export interface ExaminationsPort<Trx> {
   listReminderCandidates(trx: Trx, from: string, to: string, limit: number): Promise<Examination[]>;
 }
 
+/** `insurer-ops` (modules.md nota 33c; só leitura pela raiz): aprovações `APPROVED` com processo a expirar em `(from, to]`. */
+export interface InsurerOpsPort<Trx> {
+  listExpiringApprovals(trx: Trx, from: Date, to: Date, limit: number): Promise<{ requestId: string; processId: string; decidedAt: Date | null; validUntil: Date }[]>;
+}
+
+/** Dono de um processo e se continua aberto (`SCHEDULED`/`IN_PROGRESS`) — `processes.describeForAlerts` (modules.md nota 33a). */
+export interface ProcessTarget {
+  processId: string;
+  familyId: string;
+  memberId: string;
+  open: boolean;
+}
+
+/** `processes` (modules.md nota 33c; só leitura pela raiz). */
+export interface ProcessTargetsPort<Trx> {
+  describe(trx: Trx, processIds: string[]): Promise<ProcessTarget[]>;
+}
+
 /** `families` (modules.md §2) — destinatários (FR-ALR-08) e fuso efetivo (Q8). */
 export interface FamiliesPort<Trx> {
   findMemberById(trx: Trx, familyId: string, memberId: string): Promise<FamilyMember | null>;
@@ -94,6 +112,8 @@ export interface AlertsDeps<Trx> {
   examinations: ExaminationsPort<Trx>;
   families: FamiliesPort<Trx>;
   notifications: NotificationsPort<Trx>;
+  insurerOps: InsurerOpsPort<Trx>;
+  processes: ProcessTargetsPort<Trx>;
   db: Trx;
   withTransaction: WithTransaction<Trx>;
   clock: Clock;
@@ -102,9 +122,9 @@ export interface AlertsDeps<Trx> {
 /** Subconjunto para o processo "api" (`listAlerts`/`markAlertRead`/`markAllAlertsRead`) — sem as
  * portas de dados de agenda; `families` só para o nome do membro na vista (`interface/dto.ts`,
  * openapi.yaml `Alert.memberName`), `notifications` para `skipPendingForAlert` ao ler. */
-export type AlertsApiDeps<Trx> = Pick<AlertsDeps<Trx>, "alertsRepo" | "families" | "notifications" | "db" | "withTransaction" | "clock">;
+export type AlertsApiDeps<Trx> = Pick<AlertsDeps<Trx>, "alertsRepo" | "families" | "notifications" | "processes" | "db" | "withTransaction" | "clock">;
 
 /** Subconjunto para o processo "worker" (`alerts.scan`) — nunca HTTP. */
-export type AlertsWorkerDeps<Trx> = Pick<AlertsDeps<Trx>, "alertsRepo" | "medications" | "appointments" | "examinations" | "families" | "notifications" | "withTransaction" | "clock">;
+export type AlertsWorkerDeps<Trx> = Pick<AlertsDeps<Trx>, "alertsRepo" | "medications" | "appointments" | "examinations" | "families" | "notifications" | "insurerOps" | "processes" | "withTransaction" | "clock">;
 
 export type { Alert, AlertSourceType, AlertType, RuleKey } from "../domain/alert.js";

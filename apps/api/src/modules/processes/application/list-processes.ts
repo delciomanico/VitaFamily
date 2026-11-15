@@ -53,7 +53,7 @@ export function createListProcessesUseCase<Trx>(deps: ProcessesDeps<Trx>) {
     let after = parseCursor(query.cursor);
 
     return deps.withTransaction(async (trx) => {
-      const { readableOrigins, relation } = await resolveReadAccess(deps, trx, actor, familyId, memberId);
+      const { readableOrigins, relation, coverageVisible } = await resolveReadAccess(deps, trx, actor, familyId, memberId);
       const originTypes = readableOrigins.filter((type) => originType === undefined || type === originType);
       if (originTypes.length === 0) {
         return { items: [], nextCursor: null };
@@ -73,7 +73,7 @@ export function createListProcessesUseCase<Trx>(deps: ProcessesDeps<Trx>) {
         for (const [index, process] of rows.entries()) {
           last = process;
           remainingScan--;
-          const facts = readableFactsOf(process, loaded);
+          const facts = readableFactsOf(process, loaded, coverageVisible);
           if (!facts) {
             deps.onInconsistency({ processId: process.id, originType: process.originType }); // BR-PRC-09: omite
           } else if (status === undefined || deriveFamilyStatus(facts).familyStatus === status) {

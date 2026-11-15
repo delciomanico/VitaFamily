@@ -24,10 +24,10 @@ export function resolveRecipients(member: MemberFacts, guardianUserIds: string[]
 }
 
 /**
- * ADR-028/BR-CLN-53: o pedido de exame só notifica `SELF` (titular adulto com conta) e `TUTOR_OF` — nunca o dependente com conta
- * próprio (`DEPENDENT_SELF` não lê os pedidos, authorization.md §6.7). Dependente => só os tutores com conta.
+ * ADR-028/BR-CLN-53 e ADR-036/BR-ALR-11: só notifica `SELF` (titular adulto com conta) e `TUTOR_OF` — nunca o dependente com conta
+ * próprio (`DEPENDENT_SELF` não lê os pedidos de exame nem tem `MANAGE_INSURANCE`). Dependente => só os tutores com conta.
  */
-export function resolveExamOrderRecipients(member: MemberFacts, guardianUserIds: string[]): string[] {
+export function resolveSelfOrTutorRecipients(member: MemberFacts, guardianUserIds: string[]): string[] {
   if (member.isDependent) return [...new Set(guardianUserIds)];
   return member.userId ? [member.userId] : [];
 }

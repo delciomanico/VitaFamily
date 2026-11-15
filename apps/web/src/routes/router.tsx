@@ -202,6 +202,10 @@ export const routes: RouteObject[] = [
                 ...page(() => import('@/pages/wearables/WatchMetricPage'), 'WatchMetricPage'),
               },
               { path: 'alerts', ...page(() => import('@/pages/alerts/AlertsPage'), 'AlertsPage') },
+              {
+                path: 'processes/:memberId/:processId',
+                ...page(() => import('@/pages/processes/ProcessPage'), 'ProcessPage'),
+              },
               { path: 'reports/family', ...page(() => import('@/pages/reports/FamilyReportPage'), 'FamilyReportPage') },
               {
                 path: 'reports/preventive',

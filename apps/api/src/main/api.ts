@@ -34,7 +34,7 @@ import { createLifecycleModule, type LifecycleModule } from "../modules/lifecycl
 import { createAdminModule } from "../modules/admin/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
-import { createAlertsModule } from "../modules/alerts/index.js";
+import { createAlertsModule, type AlertsModule } from "../modules/alerts/index.js";
 import { createInsurerSettingsReader, createInsuranceModule, parseInsuranceSigningKeys } from "../modules/insurance/index.js";
 import { createInsurerOpsModule } from "../modules/insurer-ops/index.js";
 import { createAttachmentFiles } from "./attachment-files.js";
@@ -110,7 +110,7 @@ export function main(): void {
   // da criação do User.
   // `families` precisa de `documents` (ficheiros) e `lifecycle` (pacote de dados), que dependem dele:
   // a porta `memberData` resolve-os tardiamente (atribuídos mais abaixo, antes de o servidor ouvir).
-  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule; clinicReports?: ClinicReportsModule; processes?: ProcessesModule } = {};
+  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule; clinicReports?: ClinicReportsModule; processes?: ProcessesModule; alerts?: AlertsModule } = {};
   const required = <T>(module: T | undefined, name: string): T => {
     if (!module) throw new Error(`${name} ainda não inicializado`);
     return module;
@@ -237,6 +237,13 @@ export function main(): void {
       open: (trx, input) => required(late.processes, "processes").linker.open(trx, input),
       findForClinic: (trx, input) => required(late.processes, "processes").linker.findForClinic(trx, input),
     },
+    // Fatia 5 (ADR-036, modules.md nota 33b): `FamilyNotifier` → `alerts.raiseAuthorizationEvent`, na transação da transição
+    // (resolvida tardiamente: `alerts` é criado depois); `insurer-ops` nunca importa `alerts`.
+    familyNotifier: {
+      notify: async (trx, input) => {
+        await required(late.alerts, "alerts").raiseAuthorizationEvent(trx, input);
+      },
+    },
     files: createAttachmentFiles({ storage, virusScanner }),
   });
   const insurance = createInsuranceModule({
@@ -270,7 +277,9 @@ export function main(): void {
     mailer: new NotificationsSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
     pushSender: new WebPushSender({ publicKey: config.VAPID_PUBLIC_KEY, privateKey: config.VAPID_PRIVATE_KEY, subject: config.VAPID_SUBJECT }),
   });
-  const alerts = createAlertsModule({ db, families, notifications, clock });
+  // Fatia 5 (ADR-036, modules.md nota 33c): `alerts` lê o dono/«aberto» do processo pela raiz de `processes` (criado mais abaixo).
+  const alerts = createAlertsModule({ db, families, notifications, clock, processes: { describeForAlerts: (trx, processIds) => required(late.processes, "processes").describeForAlerts(trx, processIds) } });
+  late.alerts = alerts;
 
   const examinations = createExaminationsModule({ db, audit, access, clinics, documents, alerts: { raiseExamEvent: alerts.raiseExamEvent },
     receipts: { findIssuedReceiptIds: (trx, clinicId, kind, bookingIds) => required(late.clinicReceipts, "clinicReceipts").findIssuedReceiptIds(trx, clinicId, kind, bookingIds) },

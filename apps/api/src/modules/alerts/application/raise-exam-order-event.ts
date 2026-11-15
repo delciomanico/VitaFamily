@@ -1,9 +1,9 @@
 // Alerta `exam_order.added` (ADR-028, BR-CLN-53, UC-CLN-39): nasce quando o Médico cria o pedido de exame, na MESMA transação (sem
 // pedido, sem alerta). Quem chama é `clinic-reports`, ligado a esta função só no composition root — `alerts` não o importa.
 // Texto sempre genérico (BR-HLT-05/BR-ALR-07/08): o alerta guarda só tipo/origem (a consulta), nunca o nome do exame, do membro
-// nem da clínica. Destinatários SÓ `SELF`/`TUTOR_OF` (`resolveExamOrderRecipients`); sem interruptor próprio.
+// nem da clínica. Destinatários SÓ `SELF`/`TUTOR_OF` (`resolveSelfOrTutorRecipients`); sem interruptor próprio.
 import { newId } from "../../../platform/ids/index.js";
-import { resolveExamOrderRecipients } from "../domain/recipients.js";
+import { resolveSelfOrTutorRecipients } from "../domain/recipients.js";
 import { buildDedupeKey, examOrderAddedRule } from "../domain/rule.js";
 import type { AlertsEventDeps } from "./raise-exam-event.js";
 
@@ -25,7 +25,7 @@ export function createRaiseExamOrderEventUseCase<Trx>(deps: AlertsEventDeps<Trx>
     const rule = examOrderAddedRule(now);
 
     let created = 0;
-    for (const recipientUserId of resolveExamOrderRecipients(member, guardianUserIds)) {
+    for (const recipientUserId of resolveSelfOrTutorRecipients(member, guardianUserIds)) {
       if (!(await deps.notifications.isTypeEnabled(trx, recipientUserId, rule.type))) {
         continue;
       }

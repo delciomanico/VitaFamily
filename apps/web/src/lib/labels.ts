@@ -137,6 +137,17 @@ export function alertTitle({
       return sourceLabel ? `Resultados disponíveis: ${sourceLabel}` : 'Há resultados de exame disponíveis.'
     case 'FOLLOWUP_REMINDER':
       return sourceLabel ? `Está na altura de marcar o retorno: ${sourceLabel}` : 'Está na altura de marcar o retorno.'
+    // Fatia 5 (ADR-036, process-flows.md §14): texto fixo, sem clínica, serviço, valor nem motivo; o detalhe está no cartão do processo.
+    case 'AUTHORIZATION_APPROVED':
+      return 'A seguradora aprovou um pedido.'
+    case 'AUTHORIZATION_NOT_APPROVED':
+      return 'A seguradora não aprovou um pedido.'
+    case 'AUTHORIZATION_INFO_REQUESTED':
+      return 'A seguradora pediu mais informação à clínica sobre um pedido.'
+    case 'AUTHORIZATION_EXPIRING':
+      return 'Uma aprovação da seguradora expira em breve.'
+    case 'AUTHORIZATION_WITHDRAWN':
+      return 'A seguradora cancelou uma aprovação.'
     default:
       // Tipo novo no backend, ainda sem texto próprio na app.
       return sourceLabel ? `Novo aviso: ${sourceLabel}` : 'Tem um novo aviso.'
@@ -158,6 +169,11 @@ const alertCategoryOfBase: Record<AlertType, AlertCategory> = {
   EXAM_ORDER_ADDED: 'FOLLOW_UP',
   EXAM_CANCELLED: 'EXAMS',
   EXAM_RESULTS_AVAILABLE: 'EXAMS',
+  AUTHORIZATION_APPROVED: 'FOLLOW_UP',
+  AUTHORIZATION_NOT_APPROVED: 'FOLLOW_UP',
+  AUTHORIZATION_INFO_REQUESTED: 'FOLLOW_UP',
+  AUTHORIZATION_EXPIRING: 'FOLLOW_UP',
+  AUTHORIZATION_WITHDRAWN: 'FOLLOW_UP',
 }
 export const alertCategoryOf: Record<AlertType, AlertCategory> = withFallback(alertCategoryOfBase, () => 'OTHER' as AlertCategory)
 
@@ -240,6 +256,11 @@ export function nextStepSentence(step: { code: string; actor: string; dueAt?: st
       return 'Pode voltar a marcar.'
     case 'NOTHING_PENDING':
       return 'Não falta nada.'
+    // Fatia 5 (ADR-036, process-flows.md §14): o passo seguinte é da família.
+    case 'COVERAGE_EXPIRED':
+      return 'Se ainda precisar, fale com a clínica.'
+    case 'COVERAGE_WITHDRAWN':
+      return 'Para saber mais, fale com a seguradora.'
     default:
       return 'Estamos a tratar do assunto.'
   }
@@ -329,3 +350,67 @@ export const insurerTimelineActorLabels: Record<string, string> = withFallback(
   { CLINIC: 'Clínica', ANALYST: 'Analista', SUPERVISOR: 'Supervisor', SYSTEM: 'Sistema' } as Record<string, string>,
   (key) => key,
 )
+
+// --- Vista da família do pedido à seguradora (marco B fatia 5, ADR-036; process-flows.md §14) ---
+
+/** Estado visível do processo (BR-PRC-02): só 4 valores, sem os estados internos do ato. */
+export const processStatusLabels: Record<string, StatusLabel> = withFallback(
+  {
+    SCHEDULED: { label: 'Marcado', tone: 'primary' },
+    IN_PROGRESS: { label: 'A tratar', tone: 'warning' },
+    DONE: { label: 'Feito', tone: 'success' },
+    CANCELLED: { label: 'Cancelado', tone: 'neutral' },
+  } as Record<string, StatusLabel>,
+  () => ({ label: 'A tratar', tone: 'neutral' }),
+)
+
+/** `Process.coverage` (a API devolve só códigos): texto do estado e, se houver, o que fazer a seguir. Sem «autorização», «guia», «recurso» nem «analista». */
+export interface CoverageText {
+  headline: string
+  hint?: string
+  tone: Tone
+}
+
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
+
+export function coverageText(
+  coverage: { state: string; appeal: boolean; partial: boolean; dueAt?: string | null; validUntil?: string | null },
+  formatDay: (iso: string) => string,
+): CoverageText | undefined {
+  const until = coverage.validUntil ? ` Válido até ${formatDay(coverage.validUntil)}.` : ''
+  switch (coverage.state) {
+    case 'PENDING':
+      if (coverage.appeal) return { headline: 'A seguradora está a fazer uma nova análise do pedido.', tone: 'warning' }
+      return {
+        headline: `A seguradora está a analisar o pedido.${coverage.dueAt ? ` Resposta prevista até ${formatDay(coverage.dueAt)}.` : ''}`,
+        tone: 'warning',
+      }
+    case 'NEEDS_INFO':
+      return { headline: 'A clínica está a completar o pedido à seguradora.', tone: 'warning' }
+    case 'APPROVED': {
+      const sentence = `A seguradora aprovou o pedido${coverage.partial ? ' em parte' : ''}.${until}`
+      return {
+        headline: coverage.appeal ? `Depois de uma nova análise, ${lowerFirst(sentence)}` : sentence,
+        hint: 'Marque ou compareça no atendimento.',
+        tone: 'success',
+      }
+    }
+    case 'NOT_APPROVED':
+      return {
+        headline: coverage.appeal
+          ? 'Depois de uma nova análise, a seguradora não aprovou o pedido. Para saber mais, fale com a seguradora.'
+          : 'A seguradora não aprovou o pedido. A clínica pode pedir uma nova análise. Para saber mais, fale com a seguradora.',
+        tone: 'danger',
+      }
+    case 'EXPIRED':
+      return {
+        headline: `A aprovação expirou${coverage.validUntil ? ` em ${formatDay(coverage.validUntil)}` : ''}. Se ainda precisar, fale com a clínica para fazer um novo pedido.`,
+        tone: 'neutral',
+      }
+    case 'WITHDRAWN':
+      return { headline: 'A seguradora cancelou a aprovação. Para saber mais, fale com a seguradora.', tone: 'danger' }
+    default:
+      // Estado novo no backend: sem bloco (ADR-036: os clientes tratam valores desconhecidos como ausência).
+      return undefined
+  }
+}

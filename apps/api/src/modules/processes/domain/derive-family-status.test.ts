@@ -25,7 +25,7 @@ describe("deriveFamilyStatus — tabela de verdade (state-machines.md, Process)"
     expect(asDomain).toHaveLength(6);
 
     const statuses: Contract["ProcessFamilyStatus"][] = ["SCHEDULED", "IN_PROGRESS", "DONE", "CANCELLED"];
-    const codes: Contract["ProcessNextStepCode"][] = ["AWAIT_CLINIC_RESPONSE", "ATTEND", "BEING_ATTENDED", "RESCHEDULE", "NOTHING_PENDING", "AWAIT_INSURER_DECISION", "AWAIT_CLINIC_INFORMATION", "COVERAGE_NOT_APPROVED"];
+    const codes: Contract["ProcessNextStepCode"][] = ["AWAIT_CLINIC_RESPONSE", "ATTEND", "BEING_ATTENDED", "RESCHEDULE", "NOTHING_PENDING", "AWAIT_INSURER_DECISION", "AWAIT_CLINIC_INFORMATION", "COVERAGE_NOT_APPROVED", "COVERAGE_EXPIRED", "COVERAGE_WITHDRAWN"];
     const actors: Contract["ProcessNextStepActor"][] = ["FAMILY", "CLINIC", "INSURER", "NONE"];
     for (const phase of contractPhases) {
       const view = deriveFamilyStatus({ act: { phase } });
@@ -58,7 +58,7 @@ describe("deriveFamilyStatus — facto de cobertura (fatia 3)", () => {
     expect(view.nextStep.dueAt).toEqual(code === "AWAIT_INSURER_DECISION" ? DUE : undefined);
   });
 
-  it.each(["APPROVED", "CLOSED"] as const)("com ato por começar e cobertura %s => a linha do ato (inalterada)", (coverage) => {
+  it.each(["APPROVED", "EXPIRED", "WITHDRAWN", "CLOSED"] as const)("com ato por começar e cobertura %s => a linha do ato (inalterada)", (coverage) => {
     for (const phase of ["PENDING", "SCHEDULED"] as const) {
       expect(deriveFamilyStatus({ act: { phase }, coverage: { phase: coverage } })).toEqual(deriveFamilyStatus({ act: { phase } }));
     }
@@ -77,6 +77,8 @@ describe("deriveFamilyStatus — facto de cobertura (fatia 3)", () => {
     ["NEEDS_INFO", "IN_PROGRESS", "AWAIT_CLINIC_INFORMATION", "CLINIC"],
     ["NOT_APPROVED", "IN_PROGRESS", "COVERAGE_NOT_APPROVED", "CLINIC"],
     ["APPROVED", "IN_PROGRESS", "ATTEND", "FAMILY"],
+    ["WITHDRAWN", "CANCELLED", "COVERAGE_WITHDRAWN", "FAMILY"],
+    ["EXPIRED", "CANCELLED", "COVERAGE_EXPIRED", "FAMILY"],
     ["CLOSED", "CANCELLED", "NOTHING_PENDING", "NONE"],
   ])("sem ato e cobertura %s => %s / %s / %s (nunca DONE)", (phase, familyStatus, code, actor) => {
     const view = deriveFamilyStatus({ coverage: { phase, dueAt: DUE } });

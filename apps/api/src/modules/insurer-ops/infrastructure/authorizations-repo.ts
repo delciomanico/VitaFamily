@@ -366,7 +366,7 @@ export class KyselyAuthorizationsRepository implements AuthorizationsRepository<
     if (processIds.length === 0) return [];
     const rows = await trx
       .selectFrom("insurer_authorizations")
-      .select(["id", "process_id", "parent_request_id", "status", "decision_due_at", "valid_until", "updated_at"])
+      .select(["id", "process_id", "parent_request_id", "status", "closed_reason", "decision_due_at", "valid_until", "requested_amount", "authorized_amount", "updated_at"])
       .where("process_id", "in", processIds)
       .execute();
     const byProcess = new Map<string, typeof rows>();
@@ -376,7 +376,7 @@ export class KyselyAuthorizationsRepository implements AuthorizationsRepository<
     }
     const facts: { processId: string; fact: CoverageFact }[] = [];
     for (const [processId, requests] of byProcess) {
-      const fact = projectCoverage(requests.map((r) => ({ id: r.id, parentRequestId: r.parent_request_id, status: r.status, decisionDueAt: r.decision_due_at, validUntil: r.valid_until, updatedAt: r.updated_at })), now);
+      const fact = projectCoverage(requests.map((r) => ({ id: r.id, parentRequestId: r.parent_request_id, status: r.status, closedReason: r.closed_reason, decisionDueAt: r.decision_due_at, validUntil: r.valid_until, requestedAmount: Number(r.requested_amount), authorizedAmount: r.authorized_amount === null ? null : Number(r.authorized_amount), updatedAt: r.updated_at })), now);
       if (fact !== undefined) facts.push({ processId, fact });
     }
     return facts;

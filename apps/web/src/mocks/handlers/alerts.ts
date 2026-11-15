@@ -37,6 +37,9 @@ function source(alert: HealthAlert, now: Date): Pick<AlertItem, 'sourceLabel' | 
     }
     case 'RECOMMENDATION':
       return { sourceLabel: '' }
+    case 'PROCESS':
+      // Abre o cartão do processo; se já não existir, a página mostra «já não está disponível» (404).
+      return { sourceLabel: '', targetId: alert.sourceId }
   }
 }
 

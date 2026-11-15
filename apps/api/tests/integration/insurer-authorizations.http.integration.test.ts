@@ -244,6 +244,7 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
       partnerClinics: { list: (trx, query) => new KyselyClinicsRepository().listPartnerDirectory(trx, query), find: (trx, clinicId) => new KyselyClinicsRepository().findPartnerDirectoryEntry(trx, clinicId) },
       patientAccess: { authorize: () => Promise.reject(new Error("rotas do paciente não usadas aqui")) },
       processes: { open: createOpenProcessUseCase(procDeps), findForClinic: createFindProcessForClinicUseCase(procDeps) },
+      familyNotifier: { notify: () => Promise.resolve() },
       files: createAttachmentFiles({ storage, virusScanner }),
     });
     worker = createInsurerOpsWorkerModule({ db, audit, clock, boss: {} as never });
