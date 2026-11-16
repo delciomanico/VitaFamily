@@ -260,7 +260,7 @@ Sem FKs (sobrevive à eliminação de dados). Papel da aplicação: só `INSERT`
 
 **Risco e retenção:** as FKs para `family_members` são `CASCADE`/`SET NULL` (`0025`, `0033`, `0039`): apagar membros/famílias continua a funcionar e arrasta os dados inertes ligados ao membro. Os dados próprios das seguradoras (sem FK ao membro) não são apagados com o utilizador: entram na revisão de privacidade do R9/AIPD (`11-implementation/arquivo-marco-b.md` §3).
 
-## 11. Mercado de profissionais — MK1 (ADR-037; migração proposta `0043_professionals.sql`, **sem ficheiro .sql até à validação do proprietário**)
+## 11. Mercado de profissionais — MK1 (ADR-037; migração `0043_professionals.sql`, implementada (S1))
 
 > Espaço de identidade **separado** (BR-MKT-13): **sem FK** entre estas tabelas e `users`/`family_members`/`clinic_accounts`, exceto `validation_cases.decided_by → users` (`SET NULL`, só o id do admin). **Sem dados de saúde nem ids de famílias** (BR-MKT-27). Isolamento por `professional_id` do token (404 sem enumeração). Convenções de §cabeçalho (`id`, `created_at`, `updated_at`). `btree_gist` já existe (`0027`).
 

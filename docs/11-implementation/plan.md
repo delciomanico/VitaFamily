@@ -84,7 +84,7 @@ Detalhe, modelo de dados, regras BR-MKT candidatas, riscos e a lista de decisõe
 | Fatia | Conteúdo | Depende de | Modelo sugerido |
 |---|---|---|---|
 | **S0** | Validação do contrato e ratificação das OP «por omissão»; criar o agente/ficheiro `vita-marketplace` se ainda não existir | — | proprietário + `vita-architect` |
-| **S1** | Migração `0043` (SQL, trigger de imutabilidade, `EXCLUDE`, CHECKs) + testes de constraint (TC-MKT-30..34, 14) | S0 | **Sonnet** (SQL com `EXCLUDE`/trigger/enum `ADD VALUE`); Haiku só nos casos de teste de tabela, com revisão |
+| **S1** (**feita 2026-11-16**) | Migração `0043` (SQL, trigger de imutabilidade, `EXCLUDE`, CHECKs) + testes de constraint (TC-MKT-30..34, 14) | S0 | **Sonnet** (SQL com `EXCLUDE`/trigger/enum `ADD VALUE`); Haiku só nos casos de teste de tabela, com revisão |
 | **S2** | Domínio puro de `professionals`: máquina de estados + tabela de decisões, `deriveRequirements`, validação de ofertas/regras, geração (função pura) — testes de tabela (TC-MKT-05/06/20/25/37) | S0 | **Sonnet** (desenho das funções); Haiku para completar as tabelas de casos |
 | **S3** | Identidade do profissional: `professional_accounts/tokens/sessions`, register/verify/resend/login/refresh/logout/forgot/reset, `ProfessionalActorInfo`, rate limits, auditoria, tokens cruzados (TC-MKT-01..04, TC-AZ-MKT-01/06) | S1 | **Sonnet/Opus** (segurança; clone supervisionado do padrão de `clinics`); Haiku só para DTOs/mappers e testes derivados |
 | **S4** | Catálogo de especialidades (admin CRUD) + `GET /professional-portal/specialties` (TC-MKT-19) | S1 | **Haiku** (CRUD simples sobre o contrato), revisão por mim |
