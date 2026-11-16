@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowRight, CalendarCheck, Check, Lock, Pill, QrCode, ShieldCheck, Stethoscope, Users } from 'lucide-react'
+import { ArrowRight, CalendarCheck, Check, Lock, Pill, Stethoscope, Users } from 'lucide-react'
 import { ButtonLink } from '@/components/ui/Button'
 import { HeroMedia } from '@/components/ui/HeroMedia'
 import { Reveal } from '@/components/ui/Reveal'
@@ -56,7 +56,7 @@ export function LandingPage() {
                 A saúde de toda a família, num só lugar.
               </h1>
               <p className="max-w-xl text-xl text-white md:text-2xl md:leading-9">
-                Medicação, consultas e exames de cada pessoa, ligados à sua clínica e seguradora.
+                Medicação, consultas e exames de cada pessoa, ligados à sua clínica.
               </p>
               <div className="flex flex-wrap gap-4 pt-2">
                 <ButtonLink to={paths.register} variant="secondary" size="lg" className={bigButton}>
@@ -78,11 +78,10 @@ export function LandingPage() {
 
       {/* Acessos: centrados na borda inferior do hero, mais largos que o texto */}
       <div className="relative z-10 mx-auto -mt-12 w-[calc(100%-2.5rem)] max-w-[90rem] animate-rise [animation-delay:200ms] md:absolute md:inset-x-0 md:bottom-0 md:mt-0 md:w-[calc(100%-5rem)] md:translate-y-1/2">
-      <ul className="grid bg-surface text-foreground shadow-overlay md:grid-cols-3 md:divide-x md:divide-border max-md:divide-y max-md:divide-border">
+      <ul className="grid bg-surface text-foreground shadow-overlay md:grid-cols-2 md:divide-x md:divide-border max-md:divide-y max-md:divide-border">
         {[
           [Users, 'Famílias', 'Organize a saúde de todos', '#familias'],
           [Stethoscope, 'Clínicas', 'Agenda e pacientes ligados', paths.clinics],
-          [ShieldCheck, 'Seguradoras', 'Beneficiários e reembolsos', paths.insurers],
         ].map(([Icon, title, text, href]) => {
           const I = Icon as typeof Users
           return (
@@ -118,7 +117,7 @@ export function LandingPage() {
             {[
               ['1', 'Crie a família', 'Adicione filhos, pais e outros dependentes numa só conta.'],
               ['2', 'Registe e seja lembrado', 'Receitas, consultas e exames com alertas na hora certa.'],
-              ['3', 'Ligue a clínica e o seguro', 'Só partilha o que quiser, e pode retirar quando quiser.'],
+              ['3', 'Ligue a clínica', 'Só partilha o que quiser, e pode retirar quando quiser.'],
             ].map(([n, title, text], index) => (
               <li key={n}>
                 <Reveal delay={index * 120} className="flex flex-col gap-4">
@@ -150,7 +149,6 @@ export function LandingPage() {
               {[
                 [Pill, 'Medicação sem falhas', 'Alertas de toma e acompanhamento do tratamento.'],
                 [CalendarCheck, 'Consultas e exames', 'Marque na sua clínica e leve o histórico consigo.'],
-                [QrCode, 'Cartão do seguro', 'A apólice sempre consigo, com pedidos de reembolso.'],
               ].map(([Icon, title, text]) => {
                 const I = Icon as typeof Pill
                 return (
@@ -175,14 +173,14 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Clínicas e seguradoras */}
+      {/* Clínicas */}
       <section className="bg-surface-muted">
         <div className="mx-auto max-w-7xl px-5 py-24 lg:px-10 lg:py-36">
           <Reveal>
             <Eyebrow>Para profissionais</Eyebrow>
-            <Heading className="mt-4 max-w-3xl">Clínicas e seguradoras, ligadas às famílias.</Heading>
+            <Heading className="mt-4 max-w-3xl">Clínicas ligadas às famílias.</Heading>
           </Reveal>
-          <div className="mt-16 grid gap-8 lg:grid-cols-2">
+          <div className="mt-16 grid gap-8">
             <Reveal>
               <article
                 id="clinicas"
@@ -212,27 +210,6 @@ export function LandingPage() {
                 </div>
               </article>
             </Reveal>
-            <Reveal delay={150}>
-              <article
-                id="seguradoras"
-                className="group relative flex h-full scroll-mt-24 flex-col overflow-hidden rounded-[2rem] bg-primary p-8 text-white shadow-card transition-shadow duration-300 hover:shadow-overlay lg:p-10"
-              >
-                <div aria-hidden className="absolute -top-20 -right-20 size-72 animate-drift rounded-full bg-white/10 blur-2xl" />
-                <ShieldCheck className="relative size-20 text-white/90 transition-transform duration-500 group-hover:scale-110" strokeWidth={1.25} aria-hidden />
-                <div className="relative mt-auto flex flex-col gap-4 pt-24">
-                  <h3 className="text-3xl font-bold tracking-tight">Seguradoras</h3>
-                  <p className="text-lg text-white">Beneficiários, planos, rede de clínicas e reembolsos.</p>
-                  <div className="flex flex-wrap gap-3 pt-4">
-                    <ButtonLink to={paths.insurers} variant="secondary" size="lg">
-                      Saber mais
-                    </ButtonLink>
-                    <ButtonLink to={paths.insuranceLogin} variant="ghost" size="lg" className="text-white hover:bg-white/15">
-                      Entrar no portal
-                    </ButtonLink>
-                  </div>
-                </div>
-              </article>
-            </Reveal>
           </div>
         </div>
       </section>
@@ -249,7 +226,7 @@ export function LandingPage() {
               Privados por defeito. Só partilha com quem escolher, e pode retirar o consentimento quando quiser.
             </p>
             <ul className="flex flex-wrap justify-center gap-3 pt-2">
-              {['Privado por defeito', 'Partilha com consentimento', 'A seguradora não vê o seu perfil de saúde'].map((label) => (
+              {['Privado por defeito', 'Partilha com consentimento'].map((label) => (
                 <li key={label} className="flex items-center gap-2 rounded-full bg-surface px-5 py-3 text-base font-medium shadow-card">
                   <Check className="size-5 text-success" aria-hidden />
                   {label}

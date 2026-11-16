@@ -9,8 +9,8 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { cn } from '@/lib/cn'
 import { paths } from '@/routes/paths'
 
-type Category = 'Famílias' | 'Clínicas' | 'Seguradoras' | 'Privacidade'
-const categories: Category[] = ['Famílias', 'Clínicas', 'Seguradoras', 'Privacidade']
+type Category = 'Famílias' | 'Clínicas' | 'Privacidade'
+const categories: Category[] = ['Famílias', 'Clínicas', 'Privacidade']
 
 interface Faq {
   category: Category
@@ -41,7 +41,7 @@ const faqs: Faq[] = [
   },
   {
     category: 'Clínicas',
-    q: 'Como se criam as contas de clínicas e seguradoras?',
+    q: 'Como se criam as contas de clínicas?',
     a: 'São criadas pela equipa Vita Family depois de validar a entidade. Peça acesso na página própria e entraremos em contacto.',
   },
   {
@@ -55,16 +55,6 @@ const faqs: Faq[] = [
     a: 'A partilha futura pára de imediato. A clínica conserva o que ela própria registou.',
   },
   {
-    category: 'Seguradoras',
-    q: 'A seguradora vê o perfil de saúde dos segurados?',
-    a: 'Não. A seguradora vê apenas os dados da sua apólice e os documentos que o titular escolher anexar a um pedido de reembolso.',
-  },
-  {
-    category: 'Seguradoras',
-    q: 'Tenho de migrar o meu sistema?',
-    a: 'Não. O seu sistema central continua a ser a fonte de verdade; importa os beneficiários e apólices que quiser ligar.',
-  },
-  {
     category: 'Privacidade',
     q: 'Quem pode ver a informação de saúde de um membro?',
     a: 'Por defeito, só o próprio e os seus tutores. A família só vê o nome e a data de nascimento; o resto depende da partilha por categoria que o titular escolher.',
@@ -76,8 +66,8 @@ const faqs: Faq[] = [
   },
   {
     category: 'Privacidade',
-    q: 'Os meus dados são usados para publicidade ou para decidir o preço do seguro?',
-    a: 'Não. Os dados da app não são usados para publicidade nem para decidir preço, subscrição ou cobertura de seguros.',
+    q: 'Os meus dados são usados para publicidade?',
+    a: 'Não. Os dados da app não são usados para publicidade.',
   },
 ]
 
@@ -121,7 +111,7 @@ export function FaqPage() {
               label="Pesquisar nas perguntas"
               type="search"
               icon={Search}
-              placeholder="Ex.: consentimento, seguro, apagar conta…"
+              placeholder="Ex.: consentimento, apagar conta…"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="h-14 text-base"

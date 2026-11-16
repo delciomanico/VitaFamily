@@ -80,7 +80,7 @@ interface PortalSidebarProps {
 }
 
 /**
- * Barra lateral fixa (desktop, `lg`) dos portais da clínica, da seguradora e da administração:
+ * Barra lateral fixa (desktop, `lg`) dos portais da clínica e da administração:
  * identidade, navegação por secções, conta em sessão e Sair.
  */
 export function PortalSidebar({ ariaLabel, title, subtitle, email, groups, onSignOut }: PortalSidebarProps) {

@@ -1,5 +1,5 @@
 import { Outlet, useNavigate } from 'react-router-dom'
-import { Building2, ShieldCheck, Users } from 'lucide-react'
+import { Building2, Users } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { paths } from '@/routes/paths'
 import { PortalMobileHeader } from './PortalMobileHeader'
@@ -7,7 +7,7 @@ import { PortalSidebar, portalMainClass } from './PortalSidebar'
 
 /**
  * Área do Platform Admin (`/admin/*`): faixa com a conta em sessão e Sair, e separadores
- * Contas / Clínicas / Seguradoras. Mesma sessão de `User` da app de família (ver `admin.service.ts`), mas
+ * Contas / Clínicas. Mesma sessão de `User` da app de família (ver `admin.service.ts`), mas
  * nunca mostra nada de família — a conta de Platform Admin não tem uma.
  */
 export function AdminShell() {
@@ -19,7 +19,6 @@ export function AdminShell() {
       items: [
         { to: paths.admin, label: 'Contas', icon: Users, end: true },
         { to: paths.adminClinics, label: 'Clínicas', icon: Building2, end: false },
-        { to: paths.adminInsurers, label: 'Seguradoras', icon: ShieldCheck, end: false },
       ],
     },
   ]

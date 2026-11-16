@@ -1,6 +1,5 @@
 import type { AdminClinicAccount, AdminUser, AdminUserDetail, AdminUserPage, ClinicInput, ClinicPatch } from '@/types/admin'
 import type { Clinic, ClinicAccount } from '@/types/clinic'
-import type { InsuranceAccount, Insurer, InsurerInput, InsurerPatch } from '@/types/insurance'
 import { AppError } from '@/lib/errors'
 import { DEMO_PASSWORD, type MockUserRecord } from '../data/users'
 import { db, newId } from '../db'
@@ -198,88 +197,6 @@ export function adminCreateOrResetClinicRootAccount(clinicId: string, email: str
       status: 'ACTIVE' as const,
     }
     db.clinicAccounts.push(created)
-    const { password: _password, ...account } = created
-    return account
-  })
-}
-
-/** `GET /admin/insurers`. */
-export function adminListInsurers(): Promise<Insurer[]> {
-  return respond(() => [...db.insurers].sort((a, b) => a.name.localeCompare(b.name, 'pt-PT')))
-}
-
-function assertInsurerFields(name: string | undefined, taxId: string | undefined, exceptId?: string) {
-  if (name !== undefined && !name.trim()) throw new AppError('VALIDATION_ERROR')
-  if (taxId !== undefined) {
-    const normalized = taxId.trim()
-    if (!/^\d{9}$/.test(normalized)) throw new AppError('VALIDATION_ERROR')
-    if (db.insurers.some((i) => i.taxId === normalized && i.id !== exceptId)) throw new AppError('VALIDATION_ERROR')
-  }
-}
-
-/** `POST /admin/insurers` (BR-ADM-05): NIF duplicado → 422. */
-export function adminCreateInsurer(input: InsurerInput): Promise<Insurer> {
-  return respond(() => {
-    assertInsurerFields(input.name || undefined, input.taxId)
-    if (!input.name.trim()) throw new AppError('VALIDATION_ERROR')
-    const insurer: Insurer = {
-      id: newId('ins'),
-      name: input.name.trim(),
-      taxId: input.taxId.trim(),
-      status: 'ACTIVE',
-    }
-    db.insurers.push(insurer)
-    return insurer
-  })
-}
-
-/** `PATCH /admin/insurers/{id}`. */
-export function adminUpdateInsurer(insurerId: string, patch: InsurerPatch): Promise<Insurer> {
-  return respond(() => {
-    const insurer = db.insurers.find((i) => i.id === insurerId)
-    if (!insurer) throw new AppError('NOT_FOUND')
-    assertInsurerFields(patch.name, patch.taxId, insurerId)
-    if (patch.name !== undefined) insurer.name = patch.name.trim()
-    if (patch.taxId !== undefined) insurer.taxId = patch.taxId.trim()
-    return insurer
-  })
-}
-
-/** `PUT /admin/insurers/{id}/status`: suspender não apaga apólices nem pedidos existentes. */
-export function adminSetInsurerStatus(insurerId: string, status: Insurer['status']): Promise<Insurer> {
-  return respond(() => {
-    const insurer = db.insurers.find((i) => i.id === insurerId)
-    if (!insurer) throw new AppError('NOT_FOUND')
-    insurer.status = status
-    return insurer
-  })
-}
-
-/** `POST /admin/insurers/{id}/root-account`: idempotente — repõe a conta INSURANCE_ADMIN existente. */
-export function adminCreateOrResetInsurerRootAccount(insurerId: string, email: string): Promise<InsuranceAccount> {
-  return respond(() => {
-    if (!db.insurers.some((i) => i.id === insurerId)) throw new AppError('NOT_FOUND')
-    const normalized = email.trim().toLowerCase()
-    if (db.insuranceAccounts.some((a) => a.email === normalized && !(a.insurerId === insurerId && a.role === 'INSURANCE_ADMIN'))) {
-      throw new AppError('VALIDATION_ERROR')
-    }
-    const existing = db.insuranceAccounts.find((a) => a.insurerId === insurerId && a.role === 'INSURANCE_ADMIN')
-    if (existing) {
-      existing.email = normalized
-      existing.password = DEMO_PASSWORD
-      existing.status = 'ACTIVE'
-      const { password: _password, ...account } = existing
-      return account
-    }
-    const created = {
-      id: newId('iac'),
-      insurerId,
-      email: normalized,
-      password: DEMO_PASSWORD,
-      role: 'INSURANCE_ADMIN' as const,
-      status: 'ACTIVE' as const,
-    }
-    db.insuranceAccounts.push(created)
     const { password: _password, ...account } = created
     return account
   })

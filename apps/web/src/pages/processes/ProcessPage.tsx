@@ -1,23 +1,21 @@
 import { useParams } from 'react-router-dom'
-import { CircleSlash, ShieldCheck } from 'lucide-react'
+import { CircleSlash } from 'lucide-react'
 import { Page } from '@/components/layout/Page'
 import { Badge } from '@/components/ui/Badge'
 import { ButtonLink } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { DetailSection } from '@/components/ui/InfoList'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { isAppError } from '@/lib/errors'
-import { formatLongDate, formatWhen } from '@/lib/format'
-import { coverageText, nextStepSentence, processStatusLabels } from '@/lib/labels'
+import { formatWhen } from '@/lib/format'
+import { nextStepSentence, processStatusLabels } from '@/lib/labels'
 import { paths } from '@/routes/paths'
 import { processService } from '@/services/process.service'
 import type { FamilyProcess } from '@/types/process'
 
 /**
- * Cartão do processo (fatia 5, ADR-036; process-flows.md §14): o estado, o que falta e, para o titular/tutor, como está o
- * pedido à seguradora. Só códigos da API traduzidos aqui; nunca motivo, valor, serviço nem decisor (BR-PRC-12).
+ * Cartão do processo (episódio de cuidado, UC-PRC-04): o estado e o que falta. Só códigos da API traduzidos aqui.
  * Inexistente ou sem acesso (404, sem enumeração) ⇒ «já não está disponível».
  */
 export function ProcessPage() {
@@ -55,7 +53,6 @@ export function ProcessPage() {
 
 function ProcessCard({ process }: { process: FamilyProcess }) {
   const status = processStatusLabels[process.familyStatus] ?? { label: 'A tratar', tone: 'neutral' as const }
-  const coverage = process.coverage ? coverageText(process.coverage, formatLongDate) : undefined
   const origin =
     process.origin.type === 'APPOINTMENT'
       ? { to: paths.appointment(process.origin.id), label: 'Ver consulta' }
@@ -72,19 +69,8 @@ function ProcessCard({ process }: { process: FamilyProcess }) {
           </Badge>
           {process.scheduledAt && <span className="text-sm text-muted">{formatWhen(process.scheduledAt)}</span>}
         </div>
-        <p className="font-medium">{nextStepSentence(process.nextStep, formatLongDate)}</p>
+        <p className="font-medium">{nextStepSentence(process.nextStep)}</p>
       </Card>
-      {coverage && (
-        <DetailSection title="Seguro">
-          <Card className="flex items-start gap-3" data-testid="coverage-block">
-            <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
-            <div className="flex flex-col gap-1">
-              <p>{coverage.headline}</p>
-              {coverage.hint && <p className="text-sm text-muted">{coverage.hint}</p>}
-            </div>
-          </Card>
-        </DetailSection>
-      )}
       {origin && (
         <ButtonLink to={origin.to} variant="soft">
           {origin.label}

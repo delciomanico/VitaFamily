@@ -18,12 +18,6 @@ const kinds = {
     lead: 'As contas do portal da clínica são criadas pela equipa Vita Family depois de validarmos a clínica.',
     login: paths.clinicLogin,
   },
-  seguradora: {
-    entity: 'Seguradora',
-    title: 'Solicitar acesso para a sua seguradora',
-    lead: 'As contas do portal da seguradora são criadas pela equipa Vita Family depois de validarmos a entidade.',
-    login: paths.insuranceLogin,
-  },
 } as const
 
 const schema = z.object({
@@ -36,13 +30,13 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 /**
- * Pedido de acesso de clínicas e seguradoras. Sem endpoint dedicado ainda (a fila de pedidos
+ * Pedido de acesso de clínicas. Sem endpoint dedicado ainda (a fila de pedidos
  * exige change control em docs/): o pedido segue por e-mail para a equipa, que cria a conta
- * (as contas dos portais são sempre criadas pelo Platform Admin, ADR-020/021).
+ * (as contas do portal são sempre criadas pelo Platform Admin, ADR-020).
  */
 export function RequestAccessPage() {
   const { kind } = useParams()
-  const config = kind === 'clinica' || kind === 'seguradora' ? kinds[kind] : null
+  const config = kind === 'clinica' ? kinds[kind] : null
   usePageTitle(config ? 'Solicitar acesso' : undefined)
   const [sent, setSent] = useState<string | null>(null)
   const {

@@ -15,11 +15,8 @@ import {
 import { seedProfessionals, seedScheduleRules, seedServices } from './data/clinicCatalog'
 import { allergies, conditions } from './data/health'
 import { seedDocuments, seedDoses, seedMedicationPlans, seedPrescriptions } from './data/medications'
-import { insuranceAccounts, insurers } from './data/insurers'
-import { seedInsurerOps } from './data/insurerOps'
 import { seedProcesses } from './data/processes'
 import { users } from './data/users'
-import type { InsurancePolicy, ReimbursementClaim } from '@/types/insurance'
 import type { Recommendation } from '@/types/recommendation'
 import type { DataExport, NotificationPreferences } from '@/types/settings'
 import { scanAlerts, type MockAlert } from './alertRules'
@@ -97,8 +94,6 @@ function seed(now: Date = new Date()) {
       clinics,
       clinicAccounts,
       sharingGrants,
-      insurers,
-      insuranceAccounts,
     }),
     /** Resultado da consulta escrito pela clínica (BR-CLN-06). O contrato nunca o devolve
      * (`outcomeNote` só existe no pedido de `completeClinicAppointment`), por isso fica fora
@@ -114,14 +109,6 @@ function seed(now: Date = new Date()) {
     examResults: seedExamResults(now),
     /** Recomendações escritas pelas clínicas (BR-CLN-09); `clinicName` congelado. */
     recommendations: [] as Array<Recommendation & { familyId: string; clinicId: string }>,
-    /** Apólices dos membros (BR-INS-01); `familyId` só no mock, o contrato não o devolve. */
-    insurancePolicies: [] as Array<InsurancePolicy & { familyId: string }>,
-    /** Pedidos de reembolso (BR-INS-03); `insurerId` congelado na submissão, `decidedAt` só no mock. */
-    reimbursementClaims: [] as Array<
-      ReimbursementClaim & { familyId: string; memberId: string; insurerId: string; receiptIds?: string[] }
-    >,
-    /** Módulo operacional de seguradoras, Fase A (ADR-025). */
-    insurerOps: seedInsurerOps(),
     /** Recibos das clínicas (M14 R, BR-CLN-31..35). */
     clinicReceipts: [] as MockClinicReceipt[],
     /** Contador sequencial por clínica (BR-CLN-32): último número atribuído. */
@@ -149,7 +136,7 @@ function seed(now: Date = new Date()) {
     clinicLinkCodes: [] as MockClinicLinkCode[],
     /** Visitas presenciais só da clínica (BR-CLN-18 c). */
     clinicVisits: seedClinicVisits(now) as MockClinicVisit[],
-    /** Processos da família com o estado simples do pedido à seguradora (ADR-036). */
+    /** Processos (episódios de cuidado) da família. */
     processes: seedProcesses(now),
     alerts: [] as MockAlert[],
     /** Só quem alterou as preferências; os restantes usam DEFAULT_NOTIFICATION_PREFERENCES. */

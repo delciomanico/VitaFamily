@@ -155,12 +155,6 @@ export function ClinicAgendaPage() {
                     onComplete={setCompleting}
                     onFollowUp={setFollowingUp}
                   />
-                  {/* Autorização a partir do atendimento: o processo da marcação segue no pedido (BR-AUT-01). */}
-                  {!isDoctor && booking.status === 'SCHEDULED' && booking.source !== 'MANUAL' && (
-                    <Button variant="ghost" onClick={() => navigate(`${paths.clinicAuthorizations}?new=1${booking.processId ? `&processId=${booking.processId}` : ''}`)}>
-                      Pedir autorização
-                    </Button>
-                  )}
                   {!isDoctor && booking.status === 'SCHEDULED' && Date.parse(booking.scheduledAt) > Date.now() && (
                     <Button variant="danger-ghost" size="sm" onClick={() => setCancelling(booking)}>
                       Cancelar consulta

@@ -11,7 +11,6 @@ import { Logo } from './Logo'
 const links = [
   { to: `${paths.splash}#familias`, label: 'Famílias', hash: true },
   { to: paths.clinics, label: 'Clínicas', hash: false },
-  { to: paths.insurers, label: 'Seguradoras', hash: false },
   { to: paths.partners, label: 'Rede de prestadores', hash: false },
   { to: paths.faq, label: 'Perguntas frequentes', hash: false },
   { to: paths.contact, label: 'Contacto', hash: false },
@@ -101,7 +100,7 @@ export function SiteFrame({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-3">
             <Logo />
             <p className="max-w-xs text-base text-muted">
-              A saúde da família num só lugar, ligada às clínicas e seguradoras que a acompanham.
+              A saúde da família num só lugar, ligada às clínicas que a acompanham.
             </p>
           </div>
           <nav aria-label="Entrar" className="flex flex-col gap-3 text-base">
@@ -111,9 +110,6 @@ export function SiteFrame({ children }: { children: ReactNode }) {
             </Link>
             <Link to={paths.clinics} className="text-muted hover:text-foreground">
               Clínicas
-            </Link>
-            <Link to={paths.insurers} className="text-muted hover:text-foreground">
-              Seguradoras
             </Link>
             <Link to={paths.partners} className="text-muted hover:text-foreground">
               Rede de prestadores

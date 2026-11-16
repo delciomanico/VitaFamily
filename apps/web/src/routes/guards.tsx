@@ -2,7 +2,6 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { FullScreenLoader } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicAuth } from '@/contexts/ClinicAuthContext'
-import { useInsuranceAuth } from '@/contexts/InsuranceAuthContext'
 import { paths } from './paths'
 
 interface FromState {
@@ -76,64 +75,6 @@ export function ClinicGuestOnly() {
   const from = (useLocation().state as FromState | null)?.from
   if (status === 'loading') return <FullScreenLoader />
   if (session) return <Navigate to={from?.startsWith(paths.clinic) ? from : paths.clinic} replace />
-  return <Outlet />
-}
-
-/** Portal da seguradora (ADR-021): exige uma sessão de `InsuranceAccount`, nunca a de `User` nem a da clínica. */
-export function RequireInsuranceAccount() {
-  const { status, session } = useInsuranceAuth()
-  const location = useLocation()
-  if (status === 'loading') return <FullScreenLoader />
-  if (!session) {
-    return <Navigate to={paths.insuranceLogin} replace state={{ from: location.pathname } satisfies FromState} />
-  }
-  return <Outlet />
-}
-
-/** Gestão de agentes: só o Admin da seguradora (BR-INS-06). */
-export function RequireInsuranceAdmin() {
-  const { isAdmin } = useInsuranceAuth()
-  if (!isAdmin) return <Navigate to={paths.insurance} replace />
-  return <Outlet />
-}
-
-/** Módulo operacional (§8.2b): Admin e Gestor de beneficiários. O Agente só tem pedidos de reembolso. */
-export function RequireInsuranceOps() {
-  const { isOps } = useInsuranceAuth()
-  if (!isOps) return <Navigate to={paths.insurance} replace />
-  return <Outlet />
-}
-
-/** Pedidos de reembolso: Admin e Agente; o Gestor de beneficiários segue para os beneficiários. */
-export function RequireInsuranceClaims() {
-  const { canSeeClaims, isOps, canSeeAuthorizations } = useInsuranceAuth()
-  if (!canSeeClaims) {
-    const target = isOps ? paths.insuranceBeneficiaries : canSeeAuthorizations ? paths.insuranceAuthorizations : paths.insuranceLogin
-    return <Navigate to={target} replace />
-  }
-  return <Outlet />
-}
-
-/** Fila e detalhe de autorizações (fatia 4, §8.2d): Admin, Analista, Gestores e Supervisor; o servidor decide cada ação. */
-export function RequireInsuranceAuthorizations() {
-  const { canSeeAuthorizations } = useInsuranceAuth()
-  if (!canSeeAuthorizations) return <Navigate to={paths.insurance} replace />
-  return <Outlet />
-}
-
-/** Regras de aprovação automática (§8.2d): lê o Supervisor, o Admin e o Analista; só o Supervisor altera. */
-export function RequireInsuranceRules() {
-  const { canSeeRules } = useInsuranceAuth()
-  if (!canSeeRules) return <Navigate to={paths.insurance} replace />
-  return <Outlet />
-}
-
-/** Login do portal: com sessão já iniciada, segue para os pedidos. */
-export function InsuranceGuestOnly() {
-  const { status, session } = useInsuranceAuth()
-  const from = (useLocation().state as FromState | null)?.from
-  if (status === 'loading') return <FullScreenLoader />
-  if (session) return <Navigate to={from?.startsWith(paths.insurance) ? from : paths.insurance} replace />
   return <Outlet />
 }
 

@@ -3,8 +3,6 @@ import type { AppError } from '@/lib/errors'
 import type { Appointment } from '@/types/appointment'
 import { db, resetDb } from '../db'
 import { at } from '../time'
-import * as insurance from './insurance'
-import * as insurancePortal from './insurancePortal'
 import * as clinicDay from './clinicDay'
 import * as patients from './clinicPatients'
 import * as portal from './clinicPortal'
@@ -278,79 +276,6 @@ describe('consentimento na emissão e recibos do paciente (BR-CLN-35)', () => {
     // Ana (adulta) não é titular nem tutora da Maria.
     expect(await code(receipts.listFamilyClinicReceipts(FAMILY, 'usr_ana', 'mem_maria'))).toBe('FORBIDDEN')
     expect(await code(receipts.getFamilyClinicReceipt(FAMILY, MONARCA, 'mem_monarca', r.id))).toBe('NOT_FOUND')
-  })
-})
-
-describe('anexar recibos a um pedido de reembolso (BR-CLN-36)', () => {
-  async function setup() {
-    db.clinicConsents.push({ memberId: 'mem_maria', clinicId: 'cln_horizonte', level: 'BOOKINGS' })
-    const r = await issue(completed().id)
-    const policy = await insurance.createInsurancePolicy(FAMILY, MONARCA, 'mem_maria', {
-      insurerId: db.insurers[0]!.id,
-      insurerName: db.insurers[0]!.name,
-      policyNumber: 'P-1',
-      holderName: 'Maria',
-      validUntil: null,
-    })
-    return { r, policy }
-  }
-
-  it('o recibo vale como comprovativo (sem documentos), mesma moeda, e a seguradora vê só o resumo', async () => {
-    const { r, policy } = await setup()
-    // Recibo em moeda diferente da da seguradora (AOA) ⇒ VALIDATION_ERROR, sem conversão (BR-SEG-42).
-    const original = db.clinicReceipts.find((x) => x.id === r.id)!
-    original.currency = 'USD'
-    expect(
-      await code(insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, { amount: 15000, documentIds: [], receiptIds: [r.id] })),
-    ).toBe('VALIDATION_ERROR')
-    original.currency = 'AOA'
-    const claim = await insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, {
-      amount: 15000,
-      documentIds: [],
-      receiptIds: [r.id],
-    })
-    expect(claim.receipts).toEqual([{ receiptId: r.id, number: 1, status: 'ISSUED', totalMinor: 1_500_000, currency: 'AOA' }])
-    // Fica marcado como usado na cópia do paciente.
-    expect((await receipts.getFamilyClinicReceipt(FAMILY, MONARCA, 'mem_maria', r.id)).attachedToClaimIds).toEqual([claim.id])
-
-    const agent = db.insuranceAccounts.find((a) => a.insurerId === db.insurers[0]!.id)!
-    const [view] = await insurancePortal.listInsuranceClaims(agent.id)
-    expect(view!.receipts).toEqual([
-      {
-        number: 1,
-        issuedAt: expect.any(String),
-        clinicName: 'Clínica Horizonte',
-        lines: [{ description: 'Consulta de cardiologia', amountMinor: 1_500_000 }],
-        totalMinor: 1_500_000,
-        currency: 'AOA',
-        status: 'ISSUED',
-      },
-    ])
-    expect(JSON.stringify(view)).not.toContain(r.id)
-  })
-
-  it('anulado, já anexado a pedido ativo ou não visível ⇒ erro; recusado liberta o recibo', async () => {
-    const { r, policy } = await setup()
-    const input = { amount: 15000, currency: 'AOA', documentIds: [], receiptIds: [r.id] }
-    const claim = await insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, input)
-    expect(await code(insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, input))).toBe('CONFLICT')
-    db.reimbursementClaims.find((c) => c.id === claim.id)!.status = 'REJECTED'
-    const again = await insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, input)
-    expect(again.receipts).toHaveLength(1)
-    // Anulado.
-    const second = await issue(completed().id)
-    await receipts.voidClinicReceipt(MANAGER, second.id, 'motivo', NOW)
-    expect(
-      await code(insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, { ...input, receiptIds: [second.id] })),
-    ).toBe('CONFLICT')
-    // Inexistente / de outro membro.
-    expect(
-      await code(insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, { ...input, receiptIds: ['rcp_x'] })),
-    ).toBe('NOT_FOUND')
-    // Sem documentos nem recibos.
-    expect(await code(insurance.submitReimbursementClaim(FAMILY, MONARCA, 'mem_maria', policy.id, { ...input, receiptIds: [] }))).toBe(
-      'VALIDATION_ERROR',
-    )
   })
 })
 

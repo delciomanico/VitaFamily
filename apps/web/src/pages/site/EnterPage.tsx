@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Building2, LockKeyhole, ShieldCheck, Users } from 'lucide-react'
+import { ArrowRight, Building2, LockKeyhole, Users } from 'lucide-react'
 import { Reveal } from '@/components/ui/Reveal'
 import { useAppEntry } from '@/hooks/useAppEntry'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -34,15 +34,6 @@ const cards: PortalCard[] = [
     login: paths.clinicLogin,
     loginLabel: 'Entrar como clínica',
     extra: { to: paths.requestAccess('clinica'), label: 'Solicitar acesso' },
-  },
-  {
-    title: 'Seguradoras',
-    text: 'Beneficiários, planos, rede de clínicas e reembolsos.',
-    icon: ShieldCheck,
-    image: '/images/site/recepcao.webp',
-    login: paths.insuranceLogin,
-    loginLabel: 'Entrar como seguradora',
-    extra: { to: paths.requestAccess('seguradora'), label: 'Solicitar acesso' },
   },
 ]
 
@@ -131,7 +122,7 @@ export function EnterPage() {
                 </span>
                 <span>
                   <span className="block text-2xl font-bold tracking-tight">Entrar como backoffice</span>
-                  <span className="block text-lg text-white/90">Acesso interno da equipa Vita Family: contas, clínicas e seguradoras.</span>
+                  <span className="block text-lg text-white/90">Acesso interno da equipa Vita Family: contas e clínicas.</span>
                 </span>
               </div>
               <span className="relative flex h-14 shrink-0 items-center gap-3 rounded-full bg-white px-7 text-base font-medium text-foreground transition-colors group-hover:bg-primary-soft">

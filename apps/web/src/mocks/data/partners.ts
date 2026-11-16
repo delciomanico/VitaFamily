@@ -13,7 +13,6 @@ export const publicPartners: PublicPartner[] = [
     openingHours: 'Seg a Sex 08:00–18:00 · Sáb 09:00–13:00',
     description: 'Consultas de especialidade e análises clínicas para toda a família.',
     specialties: ['Cardiologia', 'Dermatologia', 'Pediatria', 'Medicina geral', 'Análises clínicas'],
-    insurers: ['Seguradora Aurora'],
   },
   {
     id: 'pub_vidaplena',
@@ -25,7 +24,6 @@ export const publicPartners: PublicPartner[] = [
     openingHours: 'Seg a Sáb 07:00–17:00',
     description: 'Análises clínicas e exames de imagem com resultados na app.',
     specialties: ['Análises clínicas', 'Imagiologia'],
-    insurers: ['Seguradora Aurora'],
   },
   {
     id: 'pub_atlantico',
@@ -47,7 +45,6 @@ export const publicPartners: PublicPartner[] = [
     phone: '+244 923 000 444',
     description: 'Medicina geral, cardiologia e pequena cirurgia.',
     specialties: ['Cardiologia', 'Medicina geral', 'Ortopedia'],
-    insurers: ['Seguradora Aurora', 'Seguradora Kwanza'],
   },
   {
     id: 'pub_kilamba',
@@ -59,7 +56,6 @@ export const publicPartners: PublicPartner[] = [
     openingHours: 'Seg a Sex 08:00–19:00',
     description: 'Medicina geral, pediatria e vacinação.',
     specialties: ['Medicina geral', 'Pediatria'],
-    insurers: ['Seguradora Kwanza'],
   },
   {
     id: 'pub_lobito',
@@ -81,23 +77,5 @@ export const publicPartners: PublicPartner[] = [
     openingHours: 'Seg a Sáb 08:00–16:00',
     description: 'Medicina geral e análises clínicas.',
     specialties: ['Medicina geral', 'Análises clínicas'],
-    insurers: ['Seguradora Aurora'],
-  },
-  {
-    id: 'pub_aurora',
-    kind: 'INSURER',
-    name: 'Seguradora Aurora',
-    city: 'Luanda',
-    address: 'Edifício Aurora, Belas Business Park, Luanda',
-    phone: '+244 923 000 555',
-    email: 'info@seguradoraaurora.pt',
-    description: 'Seguros de saúde para famílias e empresas, com cartão digital e reembolsos na app.',
-  },
-  {
-    id: 'pub_kwanza',
-    kind: 'INSURER',
-    name: 'Seguradora Kwanza',
-    city: 'Luanda',
-    description: 'Planos de saúde individuais e familiares.',
   },
 ]

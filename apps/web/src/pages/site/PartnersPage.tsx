@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Building2, Clock, Mail, MapPin, Phone, Search, ShieldCheck, Stethoscope } from 'lucide-react'
+import { Building2, Clock, Mail, MapPin, Phone, Search, Stethoscope } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { ButtonLink, Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -12,18 +12,10 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { cn } from '@/lib/cn'
 import { paths } from '@/routes/paths'
 import { partnersService } from '@/services/partners.service'
-import type { PartnerKind, PublicPartner } from '@/types/partner'
-
-type KindFilter = 'ALL' | PartnerKind
+import type { PublicPartner } from '@/types/partner'
 
 /** Itens por página (o primeiro é o padrão). */
 const PAGE_SIZES = [5, 10, 20]
-
-const kindFilters: { value: KindFilter; label: string }[] = [
-  { value: 'ALL', label: 'Todos' },
-  { value: 'CLINIC', label: 'Clínicas' },
-  { value: 'INSURER', label: 'Seguradoras' },
-]
 
 /** Minúsculas e sem acentos, para a pesquisa não falhar por «Clinica» vs «Clínica». */
 function normalize(text: string): string {
@@ -33,7 +25,7 @@ function normalize(text: string): string {
 function matches(partner: PublicPartner, query: string): boolean {
   if (!query) return true
   const haystack = normalize(
-    [partner.name, partner.city, partner.address, partner.description, ...(partner.specialties ?? []), ...(partner.insurers ?? [])]
+    [partner.name, partner.city, partner.address, partner.description, ...(partner.specialties ?? [])]
       .filter(Boolean)
       .join(' '),
   )
@@ -57,21 +49,18 @@ function Cell({ label, children, className }: { label: string; children: ReactNo
 }
 
 function PartnerRow({ partner }: { partner: PublicPartner }) {
-  const isClinic = partner.kind === 'CLINIC'
-  const Icon = isClinic ? Stethoscope : ShieldCheck
   const specialties = partner.specialties ?? []
-  const insurers = partner.insurers ?? []
   return (
     <tr className="block border-b border-border py-3 transition-colors last:border-b-0 hover:bg-primary-soft/40 md:table-row md:py-0">
       <th scope="row" className="block px-5 py-2 text-left align-top font-normal md:table-cell md:px-6 md:py-5">
         <div className="flex items-start gap-4">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary">
-            <Icon className="size-6" aria-hidden />
+            <Stethoscope className="size-6" aria-hidden />
           </span>
           <div className="min-w-0">
             <p className="text-lg font-bold">{partner.name}</p>
             <Badge tone="primary" className="mt-1">
-              {isClinic ? 'Clínica' : 'Seguradora'}
+              Clínica
             </Badge>
             {partner.description && <p className="mt-2 max-w-sm text-base text-muted">{partner.description}</p>}
           </div>
@@ -116,8 +105,8 @@ function PartnerRow({ partner }: { partner: PublicPartner }) {
           {!partner.phone && !partner.email && <span className="text-muted">—</span>}
         </div>
       </Cell>
-      <Cell label={isClinic ? 'Especialidades e seguros' : 'Rede'}>
-        {specialties.length > 0 || insurers.length > 0 ? (
+      <Cell label="Especialidades">
+        {specialties.length > 0 ? (
           <div className="flex flex-col gap-3">
             {specialties.length > 0 && (
               <ul aria-label="Especialidades" className="flex flex-wrap gap-2">
@@ -127,12 +116,6 @@ function PartnerRow({ partner }: { partner: PublicPartner }) {
                   </li>
                 ))}
               </ul>
-            )}
-            {insurers.length > 0 && (
-              <p className="text-sm text-muted">
-                <span className="font-semibold text-foreground">Seguros ligados: </span>
-                {insurers.join(', ')}
-              </p>
             )}
           </div>
         ) : (
@@ -144,14 +127,13 @@ function PartnerRow({ partner }: { partner: PublicPartner }) {
 }
 
 /**
- * Pesquisa pública da rede de prestadores (clínicas e seguradoras ligadas ao Vita Family).
+ * Pesquisa pública da rede de prestadores (clínicas ligadas ao Vita Family).
  * Filtros e pesquisa ficam no URL (`?q=&tipo=&cidade=&especialidade=`) para se poder partilhar.
  */
 export function PartnersPage() {
   usePageTitle('Rede de prestadores')
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
-  const kind = (['CLINIC', 'INSURER'].includes(params.get('tipo') ?? '') ? params.get('tipo') : 'ALL') as KindFilter
   const city = params.get('cidade') ?? ''
   const specialty = params.get('especialidade') ?? ''
   const pageSize = PAGE_SIZES.includes(Number(params.get('por'))) ? Number(params.get('por')) : PAGE_SIZES[0]!
@@ -181,14 +163,13 @@ export function PartnersPage() {
     const query = normalize(q)
     return partners.filter(
       (p) =>
-        (kind === 'ALL' || p.kind === kind) &&
         (!city || p.city === city) &&
         (!specialty || (p.specialties ?? []).includes(specialty)) &&
         matches(p, query),
     )
-  }, [partners, q, kind, city, specialty])
+  }, [partners, q, city, specialty])
 
-  const hasFilters = Boolean(q || kind !== 'ALL' || city || specialty)
+  const hasFilters = Boolean(q || city || specialty)
   const pages = Math.max(1, Math.ceil(results.length / pageSize))
   const page = Math.min(requestedPage, pages)
   const visible = results.slice((page - 1) * pageSize, page * pageSize)
@@ -233,24 +214,6 @@ export function PartnersPage() {
                 onChange={(event) => update({ especialidade: event.target.value })}
                 options={specialties.map((value) => ({ value, label: value }))}
               />
-            </div>
-            <div role="group" aria-label="Tipo de prestador" className="flex flex-wrap gap-2">
-              {kindFilters.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={kind === option.value}
-                  onClick={() => update({ tipo: option.value })}
-                  className={cn(
-                    'h-11 rounded-full border px-5 text-base font-medium transition-colors',
-                    kind === option.value
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-surface hover:bg-surface-muted',
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
             </div>
           </form>
         </div>
@@ -300,7 +263,7 @@ export function PartnersPage() {
                           Contactos
                         </th>
                         <th scope="col" className="px-6 py-4 text-sm font-semibold tracking-wide text-muted uppercase">
-                          Especialidades e seguros
+                          Especialidades
                         </th>
                       </tr>
                     </thead>
@@ -336,9 +299,6 @@ export function PartnersPage() {
           <div className="flex flex-wrap gap-3">
             <ButtonLink to={paths.requestAccess('clinica')} size="lg">
               Sou uma clínica
-            </ButtonLink>
-            <ButtonLink to={paths.requestAccess('seguradora')} variant="secondary" size="lg">
-              Sou uma seguradora
             </ButtonLink>
           </div>
         </div>

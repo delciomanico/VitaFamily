@@ -36,7 +36,6 @@ describe('site público (F0.2)', () => {
     const main = within(await screen.findByRole('main'))
     expect(await main.findByRole('link', { name: /entrar como família/i })).toHaveAttribute('href', '/login')
     expect(main.getByRole('link', { name: /entrar como clínica/i })).toHaveAttribute('href', '/clinic/login')
-    expect(main.getByRole('link', { name: /entrar como seguradora/i })).toHaveAttribute('href', '/insurance/login')
     expect(main.getByRole('link', { name: /entrar como backoffice/i })).toHaveAttribute('href', '/backoffice')
   })
 
@@ -69,29 +68,22 @@ describe('site público (F0.2)', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/entrar'))
   })
 
-  it('clínicas e seguradoras têm página própria com pedido de acesso', async () => {
+  it('as clínicas têm página própria com pedido de acesso', async () => {
     renderAt('/clinicas')
     expect(await screen.findByRole('heading', { level: 1, name: /agenda cheia/i })).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Solicitar acesso' })[0]).toHaveAttribute('href', '/solicitar-acesso/clinica')
-    cleanup()
-    renderAt('/seguradoras')
-    expect(await screen.findByRole('heading', { level: 1, name: /beneficiários e clínicas/i })).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Solicitar acesso' })[0]).toHaveAttribute('href', '/solicitar-acesso/seguradora')
   })
 
-  it('a pesquisa pública da rede de prestadores filtra por texto (sem acentos) e por tipo', async () => {
+  it('a pesquisa pública da rede de prestadores filtra por texto (sem acentos)', async () => {
     renderAt('/rede-de-prestadores')
-    expect(await screen.findByText('9 prestadores encontrados')).toBeInTheDocument()
-    expect(screen.getByText('A mostrar 1–5 de 9')).toBeInTheDocument()
+    expect(await screen.findByText('7 prestadores encontrados')).toBeInTheDocument()
+    expect(screen.getByText('A mostrar 1–5 de 7')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Página seguinte' }))
-    expect(await screen.findByText('A mostrar 6–9 de 9')).toBeInTheDocument()
+    expect(await screen.findByText('A mostrar 6–7 de 7')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Página 2' })).toHaveAttribute('aria-current', 'page')
     fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar prestadores' }), { target: { value: 'pediatria' } })
     expect(await screen.findByText('3 prestadores encontrados')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Paginação' })).not.toBeInTheDocument()
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar prestadores' }), { target: { value: 'seguradora' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Seguradoras' }))
-    expect(await screen.findByText('2 prestadores encontrados')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar prestadores' }), { target: { value: 'xyz' } })
     expect(await screen.findByText('Nenhum prestador corresponde à pesquisa')).toBeInTheDocument()
   })
@@ -118,8 +110,8 @@ describe('site público (F0.2)', () => {
     renderAt('/faq')
     await screen.findByRole('heading', { level: 1, name: 'Como podemos ajudar?' })
     expect(screen.getAllByRole('group', { name: 'Categoria' })).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Seguradoras' }))
-    expect(await screen.findByText('Tenho de migrar o meu sistema?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clínicas' }))
+    expect(await screen.findByText('Tenho de usar o Vita Family em vez do meu sistema atual?')).toBeInTheDocument()
     expect(screen.queryByText('Funciona no telemóvel?')).not.toBeInTheDocument()
     fireEvent.change(screen.getByRole('searchbox', { name: 'Pesquisar nas perguntas' }), { target: { value: 'zzzz' } })
     expect(await screen.findByText('Nenhuma pergunta encontrada')).toBeInTheDocument()

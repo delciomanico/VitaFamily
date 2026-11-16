@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowRight, Building2, CircleHelp, Mail, MailCheck, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Building2, CircleHelp, Mail, MailCheck } from 'lucide-react'
 import { z } from 'zod'
 import { Button } from '@/components/ui/Button'
 import { HeroMedia } from '@/components/ui/HeroMedia'
@@ -17,7 +17,6 @@ import { paths } from '@/routes/paths'
 const subjects = [
   'Apoio com a minha conta',
   'Quero ligar a minha clínica',
-  'Quero ligar a minha seguradora',
   'Outro assunto',
 ]
 
@@ -32,7 +31,6 @@ type FormValues = z.infer<typeof schema>
 const shortcuts = [
   { to: paths.faq, icon: CircleHelp, title: 'Perguntas frequentes', text: 'Respostas rápidas às dúvidas mais comuns.' },
   { to: paths.requestAccess('clinica'), icon: Building2, title: 'Sou uma clínica', text: 'Peça acesso ao portal da clínica.' },
-  { to: paths.requestAccess('seguradora'), icon: ShieldCheck, title: 'Sou uma seguradora', text: 'Peça acesso ao portal da seguradora.' },
 ]
 
 /**
@@ -65,7 +63,7 @@ export function ContactPage() {
           <h1 className="mt-4 max-w-3xl text-4xl leading-[1.08] font-bold tracking-tight text-balance md:text-6xl">
             Fale com a nossa equipa.
           </h1>
-          <p className="mt-5 max-w-2xl text-xl md:text-2xl">Apoio, dúvidas ou interesse em ligar a sua clínica ou seguradora.</p>
+          <p className="mt-5 max-w-2xl text-xl md:text-2xl">Apoio, dúvidas ou interesse em ligar a sua clínica.</p>
         </div>
       </section>
 

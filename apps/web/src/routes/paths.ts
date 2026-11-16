@@ -12,13 +12,12 @@ export const paths = {
   /** Site público (F0.2): entrada, pedidos de acesso e páginas institucionais. */
   enter: '/entrar',
   backofficeLogin: '/backoffice',
-  requestAccess: (kind: 'clinica' | 'seguradora') => `/solicitar-acesso/${kind}`,
+  requestAccess: (kind: 'clinica') => `/solicitar-acesso/${kind}`,
   requestAccessPattern: '/solicitar-acesso/:kind',
   partners: '/rede-de-prestadores',
   /** Endereço antigo da pesquisa de prestadores: redireciona. */
   partnersLegacy: '/parceiros',
   clinics: '/clinicas',
-  insurers: '/seguradoras',
   contact: '/contacto',
   faq: '/faq',
   termsPublic: '/termos',
@@ -53,8 +52,6 @@ export const paths = {
 
   family: '/app/family',
   familyMember: (id: string) => `/app/family/${id}`,
-  familyMemberInsurance: (id: string) => `/app/family/${id}/insurance`,
-  familyMemberReceipt: (id: string, receiptId: string) => `/app/family/${id}/insurance/receipts/${receiptId}`,
   familyMemberHistory: (id: string) => `/app/family/${id}/history`,
 
   watch: '/app/watch',
@@ -85,10 +82,6 @@ export const paths = {
   clinicAgenda: '/clinic/agenda',
   clinicSlots: '/clinic/slots',
   clinicServices: '/clinic/services',
-  /** Fase A de seguradoras: validação de beneficiário na clínica (UC-SEG-05). */
-  clinicInsurers: '/clinic/insurers',
-  /** Marco B fatia 3: pedidos de autorização do prestador (ADR-034). */
-  clinicAuthorizations: '/clinic/authorizations',
   clinicPatients: '/clinic/patients',
   clinicPatient: (id: string) => `/clinic/patients/${id}`,
   clinicExams: '/clinic/exams',
@@ -101,27 +94,7 @@ export const paths = {
   clinicSettings: '/clinic/settings',
   clinicAudit: '/clinic/settings/audit',
 
-  // Portal da seguradora (ADR-021): terceiro espaço de identidade, login e sessão próprios.
-  insuranceLogin: '/insurance/login',
-  insurance: '/insurance',
-  insuranceAgents: '/insurance/agents',
-  // Módulo operacional, Fase A (ADR-025).
-  insuranceCompanies: '/insurance/companies',
-  insuranceBeneficiaries: '/insurance/beneficiaries',
-  insurancePolicies: '/insurance/policies',
-  insuranceImports: '/insurance/imports',
-  insuranceLinks: '/insurance/links',
-  insurancePlans: '/insurance/plans',
-  insurancePlan: (id: string) => `/insurance/plans/${id}`,
-  insuranceServices: '/insurance/services',
-  insuranceProviders: '/insurance/providers',
-  // Decisão pela seguradora (marco B fatia 4, ADR-035).
-  insuranceAuthorizations: '/insurance/authorizations',
-  insuranceAuthorization: (id: string) => `/insurance/authorizations/${id}`,
-  insuranceAutoApproval: '/insurance/auto-approval',
-
   // Área do Platform Admin: mesma conta/login de `User` (platformRole), mas sem família.
   admin: '/admin',
   adminClinics: '/admin/clinics',
-  adminInsurers: '/admin/insurers',
 } as const

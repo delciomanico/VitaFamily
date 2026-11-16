@@ -1,5 +1,5 @@
 /** Documento anexado — docs/04-domain/entities.md → Document (sem armazenamento real nos mocks). */
-export type DocumentResourceType = 'PRESCRIPTION' | 'EXAMINATION' | 'INSURANCE_POLICY'
+export type DocumentResourceType = 'PRESCRIPTION' | 'EXAMINATION'
 
 export interface DocumentInfo {
   id: string

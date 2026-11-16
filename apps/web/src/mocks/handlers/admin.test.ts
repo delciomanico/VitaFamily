@@ -58,25 +58,3 @@ describe('admin: contas de clínica', () => {
     expect(await code(admin.adminReactivateClinicAccount(CLINIC, 'cac_extra'))).toBe('CONFLICT')
   })
 })
-
-describe('admin: seguradoras', () => {
-  it('cria, rejeita NIF duplicado ou inválido, edita e suspende', async () => {
-    const created = await admin.adminCreateInsurer({ name: ' Nova ', taxId: '500999888' })
-    expect(created).toMatchObject({ name: 'Nova', status: 'ACTIVE' })
-    expect(await code(admin.adminCreateInsurer({ name: 'Outra', taxId: '500999888' }))).toBe('VALIDATION_ERROR')
-    expect(await code(admin.adminCreateInsurer({ name: 'X', taxId: '123' }))).toBe('VALIDATION_ERROR')
-    expect((await admin.adminUpdateInsurer(created.id, { name: 'Renomeada' })).name).toBe('Renomeada')
-    expect((await admin.adminSetInsurerStatus(created.id, 'SUSPENDED')).status).toBe('SUSPENDED')
-    expect((await admin.adminListInsurers()).some((i) => i.id === created.id)).toBe(true)
-  })
-
-  it('conta raiz é idempotente e rejeita e-mail de outra conta', async () => {
-    const first = await admin.adminCreateOrResetInsurerRootAccount('ins_aurora', 'novo@aurora.pt')
-    const again = await admin.adminCreateOrResetInsurerRootAccount('ins_aurora', 'outro@aurora.pt')
-    expect(again.id).toBe(first.id)
-    expect(await code(admin.adminCreateOrResetInsurerRootAccount('ins_aurora', 'agente@seguradoraaurora.pt'))).toBe(
-      'VALIDATION_ERROR',
-    )
-    expect(await code(admin.adminCreateOrResetInsurerRootAccount('nope', 'a@b.pt'))).toBe('NOT_FOUND')
-  })
-})

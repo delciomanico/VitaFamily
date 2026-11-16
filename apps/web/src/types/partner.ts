@@ -1,8 +1,8 @@
 /**
- * Parceiro listado no diretório público (clínicas e seguradoras ligadas ao Vita Family).
+ * Parceiro listado no diretório público (clínicas ligadas ao Vita Family).
  * Só dados institucionais que a entidade aceita tornar públicos: nunca contas, pacientes ou beneficiários.
  */
-export type PartnerKind = 'CLINIC' | 'INSURER'
+export type PartnerKind = 'CLINIC'
 
 export interface PublicPartner {
   id: string
@@ -18,6 +18,4 @@ export interface PublicPartner {
   openingHours?: string
   /** Só clínicas: especialidades e serviços oferecidos. */
   specialties?: string[]
-  /** Só clínicas: seguradoras com cobertura ligada ao Vita Family. */
-  insurers?: string[]
 }

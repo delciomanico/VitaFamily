@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { History, Lock, ShieldCheck } from 'lucide-react'
+import { History, Lock } from 'lucide-react'
 import { AppointmentList } from '@/components/domain/AppointmentList'
 import { ExaminationList } from '@/components/domain/ExaminationList'
 import { ClinicConsentsSection } from '@/components/domain/ClinicConsentsSection'
@@ -171,16 +171,6 @@ function ProfileContent({
         >
           Ver histórico completo
         </ButtonLink>
-        {manage && (
-          <ButtonLink
-            to={paths.familyMemberInsurance(member.id)}
-            variant="secondary"
-            size="lg"
-            icon={<ShieldCheck className="size-4" aria-hidden />}
-          >
-            Seguro e reembolsos
-          </ButtonLink>
-        )}
         {profile.canRemove && (
           <Button variant="danger-ghost" size="lg" onClick={onRemove}>
             Remover membro

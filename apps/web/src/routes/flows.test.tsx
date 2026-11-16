@@ -503,16 +503,4 @@ describe('M14 R: recibos, perfil, Médico e auditoria', () => {
     renderAt('/clinic/settings/audit')
     expect(await screen.findByText('Atualizou o perfil da clínica')).toBeInTheDocument()
   })
-
-  it('família: recibo recebido aparece em Seguro e reembolsos como comprovativo imprimível', async () => {
-    db.clinicConsents.push({ memberId: 'mem_maria', clinicId: 'cln_horizonte', level: 'BOOKINGS' })
-    completedToday()
-    const { issueClinicReceipt } = await import('@/mocks/handlers/clinicReceipts')
-    await issueClinicReceipt('cac_horizonte_rececao', { bookingKind: 'APPOINTMENT', bookingId: 'apt_r_flow', paymentMethod: 'CARD' })
-    window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
-    renderAt('/app/family/mem_maria/insurance')
-    fireEvent.click(await screen.findByRole('link', { name: /R-000001/ }))
-    expect(await screen.findByLabelText('Recibo R-000001', {}, { timeout: 5000 })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Imprimir/ })).toBeInTheDocument()
-  })
 })

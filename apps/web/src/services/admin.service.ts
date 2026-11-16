@@ -2,7 +2,6 @@ import * as mock from '@/mocks/handlers/admin'
 import { apiFetch, hasApiBackend } from '@/lib/apiClient'
 import type { AdminClinicAccount, AdminUserDetail, AdminUserPage, ClinicInput, ClinicPatch } from '@/types/admin'
 import type { Clinic, ClinicAccount } from '@/types/clinic'
-import type { InsuranceAccount, Insurer, InsurerInput, InsurerPatch } from '@/types/insurance'
 
 /**
  * Área do Platform Admin (`/admin/*`, openapi.yaml tag "Admin"). Usa a mesma sessão de `User`
@@ -93,28 +92,6 @@ const apiImpl = {
       method: 'POST',
       body: { email: email.trim().toLowerCase() },
     }),
-
-  listInsurers: () => apiFetch<Insurer[]>('/admin/insurers'),
-  createInsurer: (input: InsurerInput) =>
-    apiFetch<Insurer>('/admin/insurers', {
-      method: 'POST',
-      body: { name: input.name.trim(), taxId: input.taxId.trim() },
-    }),
-  updateInsurer: (insurerId: string, patch: InsurerPatch) =>
-    apiFetch<Insurer>(`/admin/insurers/${insurerId}`, {
-      method: 'PATCH',
-      body: {
-        ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
-        ...(patch.taxId !== undefined ? { taxId: patch.taxId.trim() } : {}),
-      },
-    }),
-  setInsurerStatus: (insurerId: string, status: Insurer['status']) =>
-    apiFetch<Insurer>(`/admin/insurers/${insurerId}/status`, { method: 'PUT', body: { status } }),
-  createOrResetInsurerRootAccount: (insurerId: string, email: string) =>
-    apiFetch<InsuranceAccount>(`/admin/insurers/${insurerId}/root-account`, {
-      method: 'POST',
-      body: { email: email.trim().toLowerCase() },
-    }),
 }
 
 const mockImpl = {
@@ -137,12 +114,6 @@ const mockImpl = {
   createOrResetClinicRootAccount: (clinicId: string, email: string) =>
     mock.adminCreateOrResetClinicRootAccount(clinicId, email),
 
-  listInsurers: () => mock.adminListInsurers(),
-  createInsurer: (input: InsurerInput) => mock.adminCreateInsurer(input),
-  updateInsurer: (insurerId: string, patch: InsurerPatch) => mock.adminUpdateInsurer(insurerId, patch),
-  setInsurerStatus: (insurerId: string, status: Insurer['status']) => mock.adminSetInsurerStatus(insurerId, status),
-  createOrResetInsurerRootAccount: (insurerId: string, email: string) =>
-    mock.adminCreateOrResetInsurerRootAccount(insurerId, email),
 }
 
 /**

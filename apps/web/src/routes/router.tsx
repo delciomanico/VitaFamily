@@ -3,7 +3,6 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-do
 import { AdminShell } from '@/components/layout/AdminShell'
 import { AppShell } from '@/components/layout/AppShell'
 import { ClinicPortalRoot, ClinicShell } from '@/components/layout/ClinicShell'
-import { InsurancePortalRoot, InsuranceShell } from '@/components/layout/InsuranceShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { PublicSiteLayout } from '@/components/layout/PublicSiteLayout'
 import { HomePage } from '@/pages/home/HomePage'
@@ -22,13 +21,6 @@ import { FullScreenLoader } from '@/components/ui/states'
 import { RouteError } from '@/components/ui/RouteError'
 import {
   ClinicGuestOnly,
-  InsuranceGuestOnly,
-  RequireInsuranceAccount,
-  RequireInsuranceAdmin,
-  RequireInsuranceAuthorizations,
-  RequireInsuranceRules,
-  RequireInsuranceClaims,
-  RequireInsuranceOps,
   GuestOnly,
   RequireAuth,
   RequireClinicAccount,
@@ -62,7 +54,6 @@ export const routes: RouteObject[] = [
       { path: paths.partners, ...page(() => import('@/pages/site/PartnersPage'), 'PartnersPage') },
       { path: paths.partnersLegacy, element: <Navigate to={paths.partners} replace /> },
       { path: paths.clinics, ...page(() => import('@/pages/site/ProfessionalPages'), 'ClinicsPage') },
-      { path: paths.insurers, ...page(() => import('@/pages/site/ProfessionalPages'), 'InsurersPage') },
       { path: paths.contact, ...page(() => import('@/pages/site/ContactPage'), 'ContactPage') },
       { path: paths.faq, ...page(() => import('@/pages/site/FaqPage'), 'FaqPage') },
       { path: paths.termsPublic, ...page(() => import('@/pages/site/LegalPages'), 'TermsPublicPage') },
@@ -179,14 +170,6 @@ export const routes: RouteObject[] = [
                 ...page(() => import('@/pages/appointments/ConsultationReportPage'), 'ConsultationReportPage'),
               },
               { path: 'family', ...page(() => import('@/pages/family/FamilyPage'), 'FamilyPage') },
-              {
-                path: 'family/:id/insurance',
-                ...page(() => import('@/pages/family/MemberInsurancePage'), 'MemberInsurancePage'),
-              },
-              {
-                path: 'family/:id/insurance/receipts/:receiptId',
-                ...page(() => import('@/pages/family/MemberReceiptPage'), 'MemberReceiptPage'),
-              },
               { path: 'family/:id', ...page(() => import('@/pages/family/MemberProfilePage'), 'MemberProfilePage') },
               {
                 path: 'family/:id/history',
@@ -260,103 +243,6 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, ...page(() => import('@/pages/admin/AdminUsersPage'), 'AdminUsersPage') },
               { path: 'clinics', ...page(() => import('@/pages/admin/AdminClinicsPage'), 'AdminClinicsPage') },
-              { path: 'insurers', ...page(() => import('@/pages/admin/AdminInsurersPage'), 'AdminInsurersPage') },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    /*
-     * Portal da seguradora (ADR-021): árvore de rotas disjunta da app e do portal da clínica,
-     * com sessão de `InsuranceAccount` (`InsurancePortalRoot` monta o seu provider) e login próprio.
-     */
-    path: paths.insurance,
-    element: <InsurancePortalRoot />,
-    children: [
-      {
-        element: <InsuranceGuestOnly />,
-        children: [{ path: 'login', ...page(() => import('@/pages/insurance/InsuranceLoginPage'), 'InsuranceLoginPage') }],
-      },
-      {
-        element: <RequireInsuranceAccount />,
-        children: [
-          {
-            element: <InsuranceShell />,
-            children: [
-              {
-                element: <RequireInsuranceClaims />,
-                children: [
-                  { index: true, ...page(() => import('@/pages/insurance/InsuranceClaimsPage'), 'InsuranceClaimsPage') },
-                ],
-              },
-              {
-                element: <RequireInsuranceAdmin />,
-                children: [
-                  { path: 'agents', ...page(() => import('@/pages/insurance/InsuranceAgentsPage'), 'InsuranceAgentsPage') },
-                  {
-                    // Ligação de clínicas: só o Admin (§8.2b, partner-clinics ⇒ FORBIDDEN ao Gestor).
-                    path: 'providers',
-                    ...page(() => import('@/pages/insurance/ops/InsuranceProvidersPage'), 'InsuranceProvidersPage'),
-                  },
-                ],
-              },
-              {
-                // Decisão pela seguradora (fatia 4, ADR-035): fila, detalhe e métricas.
-                element: <RequireInsuranceAuthorizations />,
-                children: [
-                  {
-                    path: 'authorizations',
-                    ...page(() => import('@/pages/insurance/authorizations/InsuranceAuthorizationsPage'), 'InsuranceAuthorizationsPage'),
-                  },
-                  {
-                    path: 'authorizations/:authorizationId',
-                    ...page(() => import('@/pages/insurance/authorizations/InsuranceAuthorizationPage'), 'InsuranceAuthorizationPage'),
-                  },
-                ],
-              },
-              {
-                element: <RequireInsuranceRules />,
-                children: [
-                  {
-                    path: 'auto-approval',
-                    ...page(() => import('@/pages/insurance/authorizations/InsuranceAutoApprovalPage'), 'InsuranceAutoApprovalPage'),
-                  },
-                ],
-              },
-              {
-                // Fase A (ADR-025): Admin e Gestor de beneficiários; o Agente só tem pedidos de reembolso.
-                element: <RequireInsuranceOps />,
-                children: [
-                  {
-                    path: 'companies',
-                    ...page(() => import('@/pages/insurance/ops/InsuranceCompaniesPage'), 'InsuranceCompaniesPage'),
-                  },
-                  {
-                    path: 'beneficiaries',
-                    ...page(() => import('@/pages/insurance/ops/InsuranceBeneficiariesPage'), 'InsuranceBeneficiariesPage'),
-                  },
-                  {
-                    path: 'policies',
-                    ...page(() => import('@/pages/insurance/ops/InsurancePoliciesPage'), 'InsurancePoliciesPage'),
-                  },
-                  {
-                    path: 'imports',
-                    ...page(() => import('@/pages/insurance/ops/InsuranceImportsPage'), 'InsuranceImportsPage'),
-                  },
-                  { path: 'links', ...page(() => import('@/pages/insurance/ops/InsuranceLinksPage'), 'InsuranceLinksPage') },
-                  { path: 'plans', ...page(() => import('@/pages/insurance/ops/InsurancePlansPage'), 'InsurancePlansPage') },
-                  {
-                    path: 'plans/:planId',
-                    ...page(() => import('@/pages/insurance/ops/InsurancePlanPage'), 'InsurancePlanPage'),
-                  },
-                  {
-                    path: 'services',
-                    ...page(() => import('@/pages/insurance/ops/InsuranceServicesPage'), 'InsuranceServicesPage'),
-                  },
-                ],
-              },
             ],
           },
         ],
@@ -406,14 +292,6 @@ export const routes: RouteObject[] = [
                 element: <RequireClinicStaff />,
                 children: [
                   { path: 'requests', ...page(() => import('@/pages/clinic/ClinicRequestsPage'), 'ClinicRequestsPage') },
-                  {
-                    path: 'insurers',
-                    ...page(() => import('@/pages/clinic/insurers/ClinicInsurersPage'), 'ClinicInsurersPage'),
-                  },
-                  {
-                    path: 'authorizations',
-                    ...page(() => import('@/pages/clinic/authorizations/ClinicAuthorizationsPage'), 'ClinicAuthorizationsPage'),
-                  },
                   { path: 'reports', ...page(() => import('@/pages/clinic/ClinicReportsPage'), 'ClinicReportsPage') },
                   { path: 'slots', ...page(() => import('@/pages/clinic/ClinicSlotsPage'), 'ClinicSlotsPage') },
                   {

@@ -6,13 +6,8 @@ import {
   ClipboardCheck,
   FileText,
   HeartPulse,
-  Layers,
   Lock,
   QrCode,
-  ShieldCheck,
-  Stethoscope,
-  Upload,
-  Users,
 } from 'lucide-react'
 import { ButtonLink } from '@/components/ui/Button'
 import { HeroMedia } from '@/components/ui/HeroMedia'
@@ -55,8 +50,7 @@ const clinics: ProfessionalContent = {
     { icon: QrCode, title: 'Ligação ao paciente', text: 'O paciente liga-se por código ou QR gerado na app. Sem consentimento, a clínica não vê nada.' },
     { icon: ClipboardCheck, title: 'Relatório e laudo', text: 'Relatório da consulta, laudo em PDF e pedidos de exame entregues ao paciente.' },
     { icon: HeartPulse, title: 'Exames e resultados', text: 'Registe resultados e recomendações; o paciente recebe-os na app, com alerta discreto.' },
-    { icon: FileText, title: 'Recibos internos', text: 'Emita recibos não fiscais, imprima ou guarde em PDF e partilhe com o paciente e o seguro.' },
-    { icon: ShieldCheck, title: 'Elegibilidade de seguros', text: 'Consulte a cobertura do paciente nas seguradoras ligadas, com resposta mínima.' },
+    { icon: FileText, title: 'Recibos internos', text: 'Emita recibos não fiscais, imprima ou guarde em PDF e partilhe com o paciente.' },
   ],
   steps: [
     { title: 'Solicite acesso', text: 'Preencha o pedido com os dados da clínica.' },
@@ -79,47 +73,6 @@ const clinics: ProfessionalContent = {
   faq: [
     { q: 'Tenho de usar o Vita Family em vez do meu sistema atual?', a: 'Não. O portal serve a agenda, os pacientes ligados e a troca com as famílias. Não substitui um sistema de gestão clínica completo.' },
     { q: 'O que acontece se o paciente retirar o consentimento?', a: 'A partilha futura pára de imediato. A clínica conserva o que ela própria registou.' },
-    { q: 'Quanto custa?', a: 'Fale connosco para conhecer as condições.' },
-  ],
-}
-
-const insurers: ProfessionalContent = {
-  title: 'Seguradoras',
-  eyebrow: 'Para seguradoras',
-  headline: 'Beneficiários e clínicas ligados, sem papel.',
-  lead: 'Um portal para gerir beneficiários, apólices e planos, e uma ligação direta às clínicas e às famílias.',
-  images: ['/images/site/recepcao.webp', '/images/site/medicacao.webp'],
-  loginPath: paths.insuranceLogin,
-  requestPath: paths.requestAccess('seguradora'),
-  benefits: [
-    { icon: Users, title: 'Beneficiários e apólices', text: 'Registo individual ou importação em lote por CSV ou XLSX, com empresas e apólices.' },
-    { icon: Layers, title: 'Planos e coberturas', text: 'Defina planos, serviços cobertos e regras de cobertura por plano.' },
-    { icon: QrCode, title: 'Cartão com QR', text: 'O segurado reclama o cartão na app e a clínica valida a elegibilidade na hora.' },
-    { icon: Stethoscope, title: 'Rede de clínicas', text: 'Escolha as clínicas parceiras ligadas à sua rede de prestadores.' },
-    { icon: FileText, title: 'Reembolsos', text: 'Receba pedidos com os documentos que o titular escolheu anexar, com estados claros até ao pagamento.' },
-    { icon: Upload, title: 'Fonte de verdade sua', text: 'O seu sistema central continua a ser a referência; o Vita Family é a porta de entrada.' },
-  ],
-  steps: [
-    { title: 'Solicite acesso', text: 'Preencha o pedido com os dados da seguradora.' },
-    { title: 'Validamos a entidade', text: 'A equipa Vita Family confirma a seguradora.' },
-    { title: 'Receba a conta de administrador', text: 'Entre no portal e configure a seguradora.' },
-    { title: 'Convide a equipa', text: 'Crie as contas de gestores e agentes, cada uma com o seu papel.' },
-  ],
-  roles: [
-    { name: 'Administrador', text: 'Gere a equipa, as clínicas da rede e as definições.' },
-    { name: 'Gestor de beneficiários', text: 'Trata de empresas, beneficiários, apólices, planos e importações.' },
-    { name: 'Agente', text: 'Analisa e decide os pedidos de reembolso.' },
-  ],
-  privacy: [
-    'A seguradora nunca vê o perfil de saúde da família.',
-    'A ligação entre o beneficiário e o paciente só existe se o segurado a pedir e a seguradora a confirmar; pode ser desligada.',
-    'Num reembolso, a seguradora vê apenas os documentos que o titular escolheu anexar.',
-    'Os dados da app não são usados para preço, subscrição nem decisões de cobertura.',
-  ],
-  notYet: ['Autorizações prévias (em desenvolvimento)', 'Despesas e faturação direta (em desenvolvimento)', 'Saldos de utilização'],
-  faq: [
-    { q: 'Tenho de migrar o meu sistema?', a: 'Não. O seu sistema central continua a ser a fonte de verdade; importa os beneficiários e apólices que quiser ligar.' },
-    { q: 'A seguradora acede a dados de saúde dos segurados?', a: 'Não. Só vê os seus próprios dados e os documentos anexados pelo titular a um reembolso.' },
     { q: 'Quanto custa?', a: 'Fale connosco para conhecer as condições.' },
   ],
 }
@@ -257,7 +210,7 @@ function ProfessionalPage({ content }: { content: ProfessionalContent }) {
           <div className="relative mx-auto flex max-w-7xl flex-col items-start gap-8 overflow-hidden rounded-[2.5rem] bg-primary px-8 py-16 text-white md:px-16 md:py-20">
             <div aria-hidden className="absolute -right-24 -bottom-24 size-96 animate-drift rounded-full bg-white/10 blur-2xl" />
             <h2 className="relative max-w-3xl text-4xl leading-tight font-bold tracking-tight text-balance md:text-5xl">
-              Pronto para ligar a sua {content.title.toLowerCase() === 'clínicas' ? 'clínica' : 'seguradora'} às famílias?
+              Pronto para ligar a sua clínica às famílias?
             </h2>
             <div className="relative flex flex-wrap gap-4">
               <ButtonLink to={content.requestPath} variant="secondary" size="lg" className="h-14 px-8 text-base">
@@ -276,8 +229,4 @@ function ProfessionalPage({ content }: { content: ProfessionalContent }) {
 
 export function ClinicsPage() {
   return <ProfessionalPage content={clinics} />
-}
-
-export function InsurersPage() {
-  return <ProfessionalPage content={insurers} />
 }

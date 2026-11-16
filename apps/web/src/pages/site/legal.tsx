@@ -43,9 +43,9 @@ export function TermsContent() {
           pelos perfis de menores e dependentes que gerem.
         </p>
       </Block>
-      <Block title="Clínicas e seguradoras">
+      <Block title="Clínicas">
         <p className="text-muted">
-          As clínicas e seguradoras ligadas ao Vita Family usam portais próprios. Só acedem aos seus dados com o seu
+          As clínicas ligadas ao Vita Family usam portais próprios. Só acedem aos seus dados com o seu
           consentimento, que pode retirar a qualquer momento.
         </p>
       </Block>
@@ -83,7 +83,6 @@ export function PrivacyContent() {
           <li>Por defeito, ninguém: o perfil de saúde é privado.</li>
           <li>Com a família, por categoria, conforme a partilha que escolher.</li>
           <li>Com uma clínica, só se a ligar e consentir, por clínica e revogável.</li>
-          <li>Com uma seguradora, nunca o perfil de saúde: apenas os documentos que escolher anexar a um reembolso.</li>
         </ul>
       </Block>
       <Block title="Os seus direitos">

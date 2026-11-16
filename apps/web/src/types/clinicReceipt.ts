@@ -48,7 +48,7 @@ export interface ClinicReceipt {
   issuedAt: string
   issuedByClinicAccountId: string | null
   voidedAt: string | null
-  /** Interno da clínica; nunca vai ao paciente nem à seguradora. */
+  /** Interno da clínica; nunca vai ao paciente. */
   voidReason: string | null
   voidedByClinicAccountId: string | null
   notice: string
@@ -111,8 +111,6 @@ export interface FamilyClinicReceipt {
   issuedAt: string
   voidedAt: string | null
   notice: string
-  /** Pedidos de reembolso do membro a que está anexado. */
-  attachedToClaimIds: string[]
 }
 
 export interface FamilyClinicReceiptPage {

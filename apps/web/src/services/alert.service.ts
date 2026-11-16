@@ -33,11 +33,6 @@ const ruleKeyOf: Record<AlertType, AlertRuleKey> = {
   EXAM_ORDER_ADDED: 'exam-order.added',
   EXAM_CANCELLED: 'exam.cancelled',
   EXAM_RESULTS_AVAILABLE: 'exam.results',
-  AUTHORIZATION_APPROVED: 'authorization.approved',
-  AUTHORIZATION_NOT_APPROVED: 'authorization.not_approved',
-  AUTHORIZATION_INFO_REQUESTED: 'authorization.info_requested',
-  AUTHORIZATION_EXPIRING: 'authorization.expiring',
-  AUTHORIZATION_WITHDRAWN: 'authorization.withdrawn',
 }
 
 export function toAlertItem(alert: ApiAlert): AlertItem {
