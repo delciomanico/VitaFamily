@@ -13,6 +13,7 @@
 | **Dependente com conta (acesso limitado)** | FamilyMember sob tutela com conta própria. Vê os seus medicamentos e consultas e confirma tomas (N2). | Sim | Sim |
 | **Tutor / Responsável** | FamilyMember adulto responsável por um ou mais dependentes (relação por dependente, N1). Não é um papel da família. | Sim | Sim |
 | **Platform Admin** | Staff Vita. Gere contas (incl. pesquisa e reposição de acesso), clínicas parceiras e as contas do portal da clínica (listar/suspender); **sem acesso a dados de saúde** (D4, R10). | Sim (conta de plataforma) | Sim |
+| **Profissional do mercado (`ProfessionalAccount`, MK1, ADR-037)** | Médico, nutricionista, personal trainer… Auto-regista-se, carrega credenciais, é **validado pelo Platform Admin**, publica ofertas em Kz e horários; sem acesso a dados de saúde (só o que a família partilhar, MK4). Portal `/professional-portal/*`, token e sessões próprios (`business-rules.md` §17). | Sim (conta própria, não `User`) | MK1 (contrato) |
 | **Gestor da clínica (Clinic Manager)** | Conta de uma clínica **parceira** (D17). Publica horários, confirma/recusa pedidos de consulta e vê a agenda da clínica — só dados mínimos da marcação, **nunca dados de saúde**. | Sim | Sim |
 
 ## 2. Atores do sistema
@@ -26,7 +27,7 @@
 | Ator | Estado |
 |---|---|
 | **Clinic Admin** | Previsto pelo prompt (§9); fora do MVP. O **Clinic Manager** entrou com D17 (ver acima). |
-| **Profissional de saúde** | Aparece só como texto numa consulta ou receita; não tem conta. |
+| **Profissional de saúde** | (Marco B/legado) aparece só como texto numa consulta ou receita. **Pivô ADR-037:** o **Profissional do mercado** (`ProfessionalAccount`, MK1) tem conta própria separada de `User`, é validado pelo admin e publica serviços (ver abaixo). |
 
 ## 4. Observação
 "Dependente" cobre menores e adultos sob responsabilidade (N3); a tutela não depende da idade.

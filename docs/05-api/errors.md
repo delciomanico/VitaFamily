@@ -46,6 +46,7 @@
 | `EXPORT_NOT_READY` | 409 | Exportação ainda não está pronta. |
 | `FAMILY_NOT_EMPTY` | 409 | Só se elimina a família quando resta um único membro (R2). |
 | `INVALID_STATE_TRANSITION` | 409 | Transição de estado não permitida. |
+| `PROFESSIONAL_LOCKED` | 409 | Escrita não permitida no estado de validação atual do profissional (BR-MKT-23; MK1). |
 | `LAST_ADMIN` | 409 | Operação deixaria a família sem Family Admin. |
 | `LAST_GUARDIAN` | 409 | Operação deixaria um dependente sem tutor. |
 | `LIMIT_EXCEEDED` | 409 | Limite atingido (famílias, membros, convites, clínicas privadas) (B4). |
@@ -72,3 +73,6 @@ Sem códigos novos. Reutilizam-se `NOT_FOUND` (processo inexistente, de outro me
 
 ## Arquivo do marco B (R6, ADR-037)
 Nenhum código do catálogo era exclusivo da seguradora (todos os fluxos de seguradora reutilizavam códigos genéricos), pelo que **não se remove nenhum código**. `POST .../documents` com `resourceType=INSURANCE_POLICY` (valor retirado do contrato) devolve `422 VALIDATION_ERROR`. As secções de erros por fatia do marco B (seguradora, autorizações, vista da família) estão em `docs/_arquivo/marco-b/` e na tag `archive-marco-b-2026-11-16`.
+
+## Mercado de profissionais — MK1 (ADR-037)
+**Um código novo:** `PROFESSIONAL_LOCKED` (409): o profissional tenta alterar identidade/credenciais fora de `DRAFT`/`NEEDS_INFO`, ou qualquer escrita em `REJECTED`/`SUSPENDED` (matriz em `authorization.md` §10.2); `detail` genérico, sem revelar o motivo da decisão do admin (esse vai em `statusReason` do perfil). Reutilizam-se: `EMAIL_NOT_VERIFIED` (403, login com e-mail por verificar, só depois da palavra-passe certa), `AUTH_INVALID_CREDENTIALS`, `PASSWORD_WEAK`, `INVALID_STATE_TRANSITION` (submissão/decisão em estado errado ou já mudado), `VALIDATION_ERROR` com `errors[]` por requisito em falta (submissão, `APPROVE`/`REACTIVATE`), `CONFLICT` (nome de especialidade duplicado, oferta ativa duplicada, regra de horário sobreposta, `category` em uso, retirar especialidade com ofertas), `LIMIT_EXCEEDED` (5 especialidades, 10 credenciais, 20 ofertas ativas, 20 regras), `DOCUMENT_NOT_AVAILABLE` (credencial `PENDING`/`INFECTED`), `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `RATE_LIMITED`. **`NOT_FOUND` sem enumeração:** recurso de outro profissional, inexistente ou (para famílias, via leitor `ProfessionalDirectory`) profissional que não está `APPROVED`. Um profissional `SUSPENDED`/`REJECTED` **não** recebe `ACCOUNT_SUSPENDED`: entra em só leitura (OP-59).

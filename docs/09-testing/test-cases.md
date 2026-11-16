@@ -202,6 +202,60 @@
 | TC-AZ-PRC-05 | Tokens cruzados: token de clínica nas rotas de família e token de User em `/clinic-portal/processes/*` ⇒ 401 | S | AC-PRC-06 |
 | TC-AZ-PRC-06 | Platform Admin e utilizador sem pertença à família ⇒ 404 nas rotas de família; `TC-AZ-POLICY-CALLED` cobre as rotas novas (policy invocada) | S + I | AC-PRC-06 |
 
+## 8d. Mercado de profissionais — MK1 (TC-MKT / TC-AZ-MKT; ADR-037; `vita-marketplace` + `vita-qa-security`)
+> Ligam-se a BR-MKT-01..31 (`business-rules.md` §17) e AC-MKT-01..13. Níveis: U unidade, I integração, A API, S segurança. Relógio injetado (`Africa/Luanda`); antivírus com EICAR em testcontainers (ClamAV) ou *fake* da porta.
+| ID | Caso | Nível | Liga a |
+|---|---|---|---|
+| TC-MKT-01 | Registo: resposta `202` idêntica (corpo e tempo, tolerância) para e-mail novo e já existente; só um e-mail de código; `termsVersion` guardada; palavra-passe fraca ⇒ `PASSWORD_WEAK` | A + S | AC-MKT-01 |
+| TC-MKT-02 | Verificação: código certo + e-mail ⇒ `ACTIVE`; código errado/expirado/reutilizado ⇒ `NOT_FOUND`; o código procura-se só no âmbito do e-mail; 3.º reenvio/hora ⇒ `RATE_LIMITED` | A | AC-MKT-01 |
+| TC-MKT-03 | Login: `EMAIL_NOT_VERIFIED` só com a palavra-passe certa; credenciais erradas genérico; `SUSPENDED`/`REJECTED` entram; rate limit 5/15 min por (e-mail+IP) | A | AC-MKT-01, BR-MKT-14 |
+| TC-MKT-04 | Sessões: refresh rotativo; reutilização revoga a cadeia (`PROFESSIONAL_REFRESH_REUSE_DETECTED`); `reset` de palavra-passe revoga todas; cookie `professional_refresh_token` com `Path` e flags corretos | A + S | AC-MKT-13 |
+| TC-MKT-05 | Máquina de estados: tabela completa de `from × decisão` (válidas e todas as inválidas ⇒ `INVALID_STATE_TRANSITION`); só o profissional submete e só o admin decide | U | AC-MKT-02, AC-MKT-04 |
+| TC-MKT-06 | `deriveRequirements`: HEALTH, WELLNESS, mista; credencial `PENDING`/`INFECTED`/caducada/`valid_until` = hoje (válida) em `Africa/Luanda`; sem nome/cidade/especialidade; relógio injetado | U | AC-MKT-02, BR-MKT-16 |
+| TC-MKT-07 | Submissão: faltas ⇒ `422` com `errors[]` por requisito; completa ⇒ `PENDING_REVIEW` + `ValidationCase SUBMITTED` na mesma transação; segunda submissão ⇒ 409 | A | AC-MKT-02 |
+| TC-MKT-08 | Credenciais: PDF/JPG/PNG aceites, validação por conteúdo (extensão/`Content-Type` falsos recusados), >10 MB ⇒ 413, tipo ⇒ 415, 11.ª ⇒ `LIMIT_EXCEEDED`, 20/h ⇒ `RATE_LIMITED`; nasce `PENDING` | A | AC-MKT-03 |
+| TC-MKT-09 | Antivírus: EICAR ⇒ `INFECTED`, objeto apagado (outbox `professional_file_deletions`), linha mantida, conta como em falta (`CREDENTIAL_INFECTED`); `CLEAN` ⇒ descarregável; `PENDING`/`INFECTED` ⇒ `DOCUMENT_NOT_AVAILABLE` | I + A | AC-MKT-03 |
+| TC-MKT-10 | Download de credencial: só o próprio e o admin; cabeçalhos `no-store`/`attachment`; auditoria `PROFESSIONAL_CREDENTIAL_DOWNLOAD`/`ADMIN_PROFESSIONAL_CREDENTIAL_DOWNLOAD` em **todos**; outro profissional ⇒ 404 igual a inexistente | A + S | AC-MKT-03, AC-MKT-12 |
+| TC-MKT-11 | Admin — fila: omissão `PENDING_REVIEW` por `submittedAt` ascendente; filtros `status`/`category`/`q`; cursor estável; detalhe com credenciais e histórico; sem `paymentInstructions`, hash nem tokens (teste de chaves da resposta) | A | AC-MKT-04 |
+| TC-MKT-12 | Decisões: `APPROVE`/`REJECT`/`REQUEST_INFO`/`SUSPEND`/`REACTIVATE` com motivo onde obrigatório (`VALIDATION_ERROR` sem ele); `ValidationCase` + estado + `statusReason` atómicos; `APPROVE`/`REACTIVATE` com requisitos em falta ⇒ 422 | A | AC-MKT-04, AC-MKT-06 |
+| TC-MKT-13 | Decisões concorrentes (dois pedidos em paralelo sobre o mesmo `PENDING_REVIEW`): um sucesso, outro `INVALID_STATE_TRANSITION`; um só `ValidationCase` | I | AC-MKT-04, BR-MKT-18 |
+| TC-MKT-14 | `ValidationCase` imutável: UPDATE direto falha (trigger); `SET NULL` de `decided_by` tem sucesso; o motivo não aparece em `audit_logs` | I | BR-MKT-18/28 |
+| TC-MKT-15 | `ProfessionalDirectory`: com um profissional em cada estado, perfil e lista só devolvem o `APPROVED`; os outros ⇒ ausente (corpo igual ao de id inexistente); suspender ⇒ desaparece na leitura seguinte; ofertas inativas e horários de não-`APPROVED` nunca saem | I | AC-MKT-05, BR-MKT-19 |
+| TC-MKT-16 | Resposta do leitor: nunca contém `paymentInstructions`, e-mail, credenciais, `validationStatus` nem ids de conta/sessão (teste de chaves) | I + S | AC-MKT-05, BR-MKT-26 |
+| TC-MKT-17 | Suspensão: nada se apaga (ofertas, regras, horários, credenciais, histórico); profissional entra em só leitura; escritas ⇒ `PROFESSIONAL_LOCKED`; reativar ⇒ `APPROVED` | A + I | AC-MKT-06 |
+| TC-MKT-18 | Job `professionals.expire-credentials`: `APPROVED` com credencial caducada ⇒ `NEEDS_INFO` + `ValidationCase EXPIRED` (`SYSTEM`); credencial renovada e `CLEAN` ⇒ não muda; execução repetida idempotente; relógio injetado (virada de dia em Luanda); uma auditoria com contagem | I | AC-MKT-06, BR-MKT-21 |
+| TC-MKT-19 | Catálogo: criar (nome 2–80, único sem distinção de maiúsculas), renomear, desativar/reativar; `category` imutável com profissional ligado (`CONFLICT`); sem DELETE; inativa não se escolhe mas mantém ligações | A | AC-MKT-07 |
+| TC-MKT-20 | Categoria é dado: trocar a `category` de uma especialidade (sem profissionais) muda `deriveRequirements` sem alterar código; teste que falha se existir `if` por nome/id de especialidade (análise estática simples) | U | AC-MKT-07, BR-MKT-02 |
+| TC-MKT-21 | Perfil: limites de campos (nome 2–120, bio ≤1000, cidade 2–80, pagamento ≤500); `displayName` só em `DRAFT`/`NEEDS_INFO`; especialidades 1–5 ativas; retirar especialidade com oferta ⇒ `CONFLICT` | A | AC-MKT-08 |
+| TC-MKT-22 | Matriz estado × operação (§10.2) gerada: 6 estados × operações ⇒ permitido ou `PROFESSIONAL_LOCKED`/`INVALID_STATE_TRANSITION` | A (gerado) | AC-MKT-08, TC-AZ-MKT-02 |
+| TC-MKT-23 | Ofertas: Kz inteiro 0–100 000 000 (decimal, negativo e string ⇒ 422); duração fora de {15,20,30,45,60} ⇒ 422; especialidade de outro profissional ⇒ 422 (e a FK composta recusa por SQL); duplicado ativo ⇒ `CONFLICT`; 21.ª ativa ⇒ `LIMIT_EXCEEDED`; imutáveis; `PATCH` do preço não altera o resto | A + I | AC-MKT-09 |
+| TC-MKT-24 | Desativar uma oferta remove os horários futuros livres das suas regras e mantém os passados; reativar não os repõe sozinho (a geração diária/pedido repõe) | I | AC-MKT-09, BR-MKT-25 |
+| TC-MKT-25 | Geração de horários: regra 08:00–12:00 seg–sex, 30 min ⇒ horários corretos em UTC a partir de hora de Luanda (UTC+1) incl. virada de dia e semana; janela de 8 semanas; sem passado; idempotente (pedido, aprovação e job ⇒ `created = 0` na repetição) | U + I | AC-MKT-10 |
+| TC-MKT-26 | Sobreposição: regra ativa sobreposta do mesmo profissional (qualquer oferta) ⇒ `CONFLICT`; `EXCLUDE` da BD recusa horários sobrepostos e aceita consecutivos; conflito na geração conta `skippedOverlap` e não falha | I | AC-MKT-10 |
+| TC-MKT-27 | Bloqueios: criar remove os livres do intervalo e impede a geração (`skippedTimeOff`); remover repõe; limites (fim > início, ≤ 366 dias, não no passado); nota fora de auditoria | A + I | AC-MKT-10 |
+| TC-MKT-28 | Regras de não-`APPROVED`: guardam-se sem gerar (`generation` a zero); ao aprovar geram-se; `SUSPENDED` pára a geração (job) e os horários não saem do leitor | I | AC-MKT-10, BR-MKT-25 |
+| TC-MKT-29 | Auditoria: todas as ações de `audit.md` (MK1) geram a entrada certa (`actor_type`, `resourceType`, `metadata` mínima) na mesma transação; **teste de canário** (e-mail, nome, bio, cidade, pagamento, nº de credencial, motivo, preço) ausente de `metadata` e de logs técnicos; negações ⇒ `DENIED` | I + S | AC-MKT-12, AC-NFR-01 |
+| TC-MKT-30 | Migração `0043`: aplica-se sobre BD com dados existentes sem alterar linhas; CHECK de estados (`APPROVED` ⇒ nome/cidade/`approved_at`; estados pós-submissão ⇒ `submitted_at`; `ACTIVE` ⇒ e-mail verificado) | I | migrations.md |
+| TC-MKT-31 | Constraints únicas: `(account_id)`, `lower(name)` de especialidades, oferta ativa `(professional, specialty, method, duration)`, `(rule_id, starts_at)` | I | migrations.md |
+| TC-MKT-32 | FK composta das ofertas: especialidade que não é do profissional falha; retirar a especialidade com oferta falha; apagar o profissional apaga tudo sem violar as FKs `NO ACTION` | I | migrations.md |
+| TC-MKT-33 | `EXCLUDE` de horários e imutabilidade de `validation_cases` (ver TC-MKT-14/26 ao nível SQL) | I | migrations.md |
+| TC-MKT-34 | `actor_type` aceita `PROFESSIONAL_ACCOUNT` depois da migração; `actor_professional_account_id` preenchido só nesse caso; apagar o profissional/conta enfileira `professional_file_deletions` das credenciais na mesma transação (`documents`/`file_deletions` intactos) | I | migrations.md |
+| TC-MKT-35 | Arquitetura: `professionals` só importa `audit` e `notifications` (raiz); ninguém de saúde/`access`/`families`/`auth`/`users`/`admin` importa `professionals` nem o inverso; sem tabela com FK de MK1 para dados de família | Arquitetura | AC-MKT-11, BR-MKT-27 |
+| TC-MKT-36 | Conformidade OpenAPI das 34 operações e dos schemas novos (`pnpm gen` verde; respostas validadas contra o contrato; `additionalProperties: false` rejeita campos desconhecidos; `PROFESSIONAL_LOCKED` presente no catálogo de erros) | A | contrato |
+| TC-MKT-37 | Locale: `priceKz` fracionário/`1e3`/negativo recusado; hora local de regras interpretada em `Africa/Luanda`; instantes UTC na API; mensagens em pt-PT | U + A | BR-MKT-31 |
+
+### Autorização (gerada de `authorization.md` §10)
+| ID | Caso | Nível | Liga a |
+|---|---|---|---|
+| TC-AZ-MKT-01 | Tokens cruzados: User, ClinicAccount e Platform Admin em `/professional-portal/*` ⇒ 401; token de profissional em `/families/*`, `/clinic-portal/*`, `/admin/*` ⇒ 401; token de User nunca autoriza `/admin/professionals*` | S | AC-MKT-01 |
+| TC-AZ-MKT-02 | Matriz estado × operação (`authorization.md` §10.2) gerada: cada célula permitida/`PROFESSIONAL_LOCKED`/`INVALID_STATE_TRANSITION`; adicionar operação sem atualizar a matriz falha a CI | A (gerado) | AC-MKT-08 |
+| TC-AZ-MKT-03 | IDOR do profissional: trocar `credentialId`/`offerId`/`ruleId`/`timeOffId` por ids de outro profissional ou inexistentes ⇒ 404 idêntico (mesmo corpo/`detail`) em todas as rotas, incluindo `PATCH`/`DELETE` e download | S | AC-MKT-03, AC-MKT-09 |
+| TC-AZ-MKT-04 | Admin: User não-admin em `/admin/professionals*` e `/admin/specialties*` ⇒ 403; sem token ⇒ 401; o admin **não** tem rota para editar perfil/ofertas/horários/credenciais/palavra-passe nem para ler `paymentInstructions` (inventário de rotas) | S | AC-MKT-11 |
+| TC-AZ-MKT-05 | Visibilidade: o leitor devolve só `APPROVED`; `DRAFT`/`PENDING_REVIEW`/`NEEDS_INFO`/`REJECTED`/`SUSPENDED` ⇒ resposta igual à de inexistente (sem oráculo de estado nem de existência) | S + I | AC-MKT-05 |
+| TC-AZ-MKT-06 | Enumeração: registo, reenvio e recuperação neutros; `EMAIL_NOT_VERIFIED` só após credencial correta; e-mail existente em `users`/`clinic_accounts` indetetável pelo registo de profissional | S | AC-MKT-01 |
+| TC-AZ-MKT-07 | Admin sem saúde: nenhuma resposta de `/admin/professionals*` contém chaves de saúde/família (lista de chaves proibidas); o grafo de imports de `admin`/`professionals` não contém módulos de saúde | S + Arquitetura | AC-MKT-11 |
+| TC-AZ-MKT-08 | Download de credencial por quem não é dono nem admin (outro profissional, User, clínica) ⇒ 401/404 conforme §10.1, nunca o ficheiro; `Cache-Control: no-store`; objeto `INFECTED`/`PENDING` ⇒ 409 | S | AC-MKT-03 |
+
 ## 9. Segurança adicional (TC-SEC)
 Cabeçalhos de segurança · CORS restrito · rejeição de campos desconhecidos (whitelist) · limites de corpo · injeção em texto livre · enumeração (registo/recuperação/convites) · SSRF em endpoints push · refresh sem cabeçalho CSRF recusado · cookie com flags corretas.
 

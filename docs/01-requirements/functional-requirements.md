@@ -207,6 +207,23 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 - **[RESOLVIDO na Fase 8 — R11]** `Clinic.type` (PARTNER/PRIVATE) + `familyId`; o utilizador escolhe parceiras ao marcar consulta e **não** promove privadas a parceiras. (Pergunta original: o que distingue "parceira" de "privada" no modelo (campo/estado) e se o utilizador pode transformar uma privada numa parceira equivalente, ou apenas escolher a parceira ao marcar consulta.)
 - **R2 (A) vs. FR-FAM-03:** como só se elimina a família quando resta um membro, um Admin que quer sair com outros membros presentes precisa de transferir a administração. **[TBD Fase 7].**
 
+## 15. Mercado de profissionais — MK1 (MKT)
+
+> Acrescentada 2026-11-16 (ADR-037, contrato de MK1; **nada implementado**). Regras: `business-rules.md` §17 (BR-MKT-01..31). Casos de uso: `03-use-cases/professionals.md` (UC-MKT-01..12).
+
+| ID | Requisito | Origem |
+|---|---|---|
+| FR-MKT-01 | Um profissional **regista-se** com e-mail e palavra-passe (resposta neutra), **verifica o e-mail** com código de 6 dígitos, entra e sai, e recupera a palavra-passe, numa conta **separada** de `User` e de `ClinicAccount` (BR-MKT-13/14/29). | ADR-037 §3 |
+| FR-MKT-02 | O profissional mantém o seu **perfil** (nome de apresentação, bio, cidade, instruções de pagamento externo) e escolhe 1–5 **especialidades** do catálogo; vê em cada momento o estado de validação, o motivo da última decisão e o que falta para submeter (BR-MKT-15/16/23/26). | ADR-037 §1–2 |
+| FR-MKT-03 | O profissional carrega **credenciais** (identificação, cédula/inscrição profissional, certificação) em PDF/JPG/PNG com antivírus, e remove-as enquanto o perfil está em rascunho ou a pedir informação (BR-MKT-17). | ADR-037 §2 |
+| FR-MKT-04 | O profissional **submete** o perfil para validação; o **admin da plataforma** vê a fila, abre o detalhe e as credenciais e **aprova, rejeita (com motivo), pede mais informação ou suspende/reativa**, com histórico imutável das decisões (BR-MKT-15/16/18/20). | ADR-037 §1 |
+| FR-MKT-05 | **Só um profissional `APPROVED` é visível** a outros módulos/famílias; os restantes estados são indistinguíveis de inexistente; credencial caducada retira a visibilidade até nova validação (BR-MKT-01/19/21). | ADR-037 §1 |
+| FR-MKT-06 | O profissional publica **ofertas** (especialidade + método presencial/vídeo/chat/telefone + duração + preço em **Kz inteiro**), que ativa e desativa sem apagar (BR-MKT-24/31). | ADR-037 §4 |
+| FR-MKT-07 | O profissional define **regras de horário semanais** por oferta e **bloqueios/férias**; o sistema gera horários idempotentes numa janela de 8 semanas, sem sobreposição, em hora de Luanda (BR-MKT-25). | plan MK1 |
+| FR-MKT-08 | O admin gere o **catálogo de especialidades** e a sua categoria `HEALTH`/`WELLNESS` (BR-MKT-02/22). | ADR-037 §2 |
+| FR-MKT-09 | O admin da plataforma **nunca acede a dados de saúde** nem a campos além da identificação profissional; o módulo de profissionais não contém dados de saúde (BR-MKT-10/27). | ADR-037 §11 |
+| FR-MKT-10 | As ações sensíveis do mercado (conta, credenciais, decisões, catálogo) são **auditadas** sem PII em `metadata` (BR-MKT-28). | ADR-037 |
+
 ---
 
 *Fim da Fase 3 (v0.2). Requisitos funcionais fechados, salvo os pontos já resolvidos nas fases seguintes (ver `business-rules.md` e `README.md`). Próxima: Fase 4 — Requisitos não funcionais.*

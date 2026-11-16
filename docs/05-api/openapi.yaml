@@ -29,6 +29,7 @@ tags:
   - name: Documents
   - name: Alerts
   - name: Reports
+  - name: Professional Portal
   - name: Admin
   - name: Operations
 paths:
@@ -8173,6 +8174,1030 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/auth/register:
+    post:
+      tags: [Professional Portal]
+      operationId: professionalRegister
+      summary: "Registar conta de profissional."
+      description: "Autorização: PUBLIC. ADR-037, BR-MKT-13/14: resposta neutra mesmo que o e-mail já exista (sem enumeração); cria ProfessionalAccount PENDING_VERIFICATION + Professional DRAFT e envia o código de verificação de 6 dígitos (24 h); regista a versão dos termos do profissional. Não é possível escolher papel nem categoria no registo. 5/5 min por IP."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalRegisterRequest" }
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+        '422':
+          description: "PASSWORD_WEAK | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/auth/verify-email:
+    post:
+      tags: [Professional Portal]
+      operationId: professionalVerifyEmail
+      summary: "Verificar e-mail com código de 6 dígitos (24 h)."
+      description: "Autorização: PUBLIC. BR-MKT-14: mesmo mecanismo de /auth/verify-email (ADR-018), procurado sempre em conjunto com o e-mail; a conta passa a ACTIVE. O Professional continua DRAFT."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyEmailRequest" }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/auth/resend-verification:
+    post:
+      tags: [Professional Portal]
+      operationId: professionalResendVerification
+      summary: "Reenviar o código de verificação."
+      description: "Autorização: PUBLIC. Resposta neutra; invalida o código anterior. 3/hora por e-mail, 10/hora por IP."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResendVerificationRequest" }
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/auth/login:
+    post:
+      tags: [Professional Portal]
+      operationId: professionalLogin
+      summary: "Iniciar sessão de um profissional."
+      description: "Autorização: PUBLIC. ADR-020/ADR-037, BR-MKT-13: define o cookie professional_refresh_token (HttpOnly, Secure, SameSite=Strict, caminho /api/v1/professional-portal/auth), independente de refresh_token (User) e de clinic_refresh_token. Só contas com e-mail verificado (EMAIL_NOT_VERIFIED depois de credenciais corretas). Um profissional SUSPENDED ou REJECTED entra (acesso só leitura, OP-59). Audita sucesso e falha."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalTokenResponse" }
+        '401':
+          description: "AUTH_INVALID_CREDENTIALS"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "EMAIL_NOT_VERIFIED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/auth/refresh:
+    post:
+      tags: [Professional Portal]
+      operationId: professionalRefreshToken
+      summary: "Rodar o refresh token do profissional."
+      description: "Autorização: PUBLIC (cookie). Mesma política de rotação e deteção de reutilização de /auth/refresh, em professional_sessions (ADR-020); 30/hora por sessão."
+      security: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalTokenResponse" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/auth/logout:
+    post:
+      tags: [Professional Portal]
+      operationId: professionalLogout
+      summary: "Terminar a sessão atual."
+      description: "Autorização: PROFESSIONAL_ACCOUNT. Revoga o refresh token do profissional e limpa o cookie."
+      security:
+        - professionalBearerAuth: []
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/auth/password/forgot:
+    post:
+      tags: [Professional Portal]
+      operationId: professionalForgotPassword
+      summary: "Pedir recuperação de palavra-passe."
+      description: "Autorização: PUBLIC. Resposta neutra; envia código de 6 dígitos (1 h, uso único). 3/hora por e-mail, 10/hora por IP."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForgotPasswordRequest" }
+      responses:
+        '202':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/auth/password/reset:
+    post:
+      tags: [Professional Portal]
+      operationId: professionalResetPassword
+      summary: "Definir nova palavra-passe com código."
+      description: "Autorização: PUBLIC. Revoga todas as professional_sessions da conta (BR-MKT-29)."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "PASSWORD_WEAK | VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/me:
+    get:
+      tags: [Professional Portal]
+      operationId: getProfessionalMe
+      summary: "Ver o próprio perfil, estado de validação e o que falta para submeter."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-12, BR-MKT-15/16/23. Devolve statusReason (último motivo do admin ou do sistema) e requirements.missing (códigos estruturados; a UI traduz). Disponível em todos os estados."
+      security:
+        - professionalBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalProfile" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    patch:
+      tags: [Professional Portal]
+      operationId: updateProfessionalMe
+      summary: "Alterar o perfil (nome de apresentação, bio, cidade, instruções de pagamento)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-03, BR-MKT-23/26. displayName só em DRAFT/NEEDS_INFO (campo de identidade); bio, city e paymentInstructions em qualquer estado exceto REJECTED/SUSPENDED (PROFESSIONAL_LOCKED). paymentInstructions é texto livre e nunca é exposto na pesquisa nem no perfil público (BR-MKT-26). Auditoria PROFESSIONAL_PROFILE_UPDATE (só nomes dos campos)."
+      security:
+        - professionalBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalProfilePatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalProfile" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/me/specialties:
+    put:
+      tags: [Professional Portal]
+      operationId: setProfessionalSpecialties
+      summary: "Definir as especialidades do profissional (substitui o conjunto)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-03, BR-MKT-22/23. 1–5 especialidades ativas do catálogo; só em DRAFT/NEEDS_INFO (PROFESSIONAL_LOCKED). Retirar uma especialidade com ofertas associadas ⇒ CONFLICT. Especialidade inexistente ou inativa ⇒ VALIDATION_ERROR."
+      security:
+        - professionalBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpecialtyIdsInput" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalProfile" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/specialties:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalSpecialtyCatalog
+      summary: "Listar o catálogo de especialidades ativas."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-03, BR-MKT-22. Só as ativas; ordem: nome."
+      security:
+        - professionalBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Specialty" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/credentials:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalCredentials
+      summary: "Listar as próprias credenciais (metadados)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-04, BR-MKT-17. Só metadados e estado do antivírus; nunca o ficheiro."
+      security:
+        - professionalBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProfessionalCredential" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Professional Portal]
+      operationId: uploadProfessionalCredential
+      summary: "Carregar uma credencial (multipart)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-04, BR-MKT-17: kind (IDENTITY, PROFESSIONAL_LICENSE, CERTIFICATION), number, issuingBody e validUntil opcionais, ficheiro PDF/JPG/PNG ≤10 MB validado por conteúdo; nasce PENDING (quarentena + antivírus, como BR-DOC-01..03). Máx. 10 por profissional. Só em DRAFT/NEEDS_INFO (PROFESSIONAL_LOCKED). 20 uploads/hora por conta."
+      security:
+        - professionalBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/ProfessionalCredentialUploadRequest" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalCredential" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '413':
+          description: "FILE_TOO_LARGE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '415':
+          description: "FILE_TYPE_NOT_ALLOWED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/credentials/{credentialId}:
+    delete:
+      tags: [Professional Portal]
+      operationId: deleteProfessionalCredential
+      summary: "Remover uma credencial própria."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-04, BR-MKT-17. Só em DRAFT/NEEDS_INFO; remoção definitiva do objeto (outbox de ficheiros)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: credentialId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/credentials/{credentialId}/file:
+    get:
+      tags: [Professional Portal]
+      operationId: downloadProfessionalCredential
+      summary: "Descarregar uma credencial própria (stream mediado)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). BR-MKT-17: só o próprio profissional (e o admin, pela rota /admin); Cache-Control: private, no-store; Content-Disposition: attachment; só com scan CLEAN (DOCUMENT_NOT_AVAILABLE caso contrário)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: credentialId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOCUMENT_NOT_AVAILABLE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/submission:
+    post:
+      tags: [Professional Portal]
+      operationId: submitProfessionalForReview
+      summary: "Submeter o perfil para validação do admin."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-05, BR-MKT-15/16: DRAFT ou NEEDS_INFO → PENDING_REVIEW. Exige displayName, city, 1–5 especialidades e, por categoria das especialidades, as credenciais exigidas (todas com antivírus CLEAN e não caducadas); falha ⇒ 422 com errors[] por requisito. Cria validation_case SUBMITTED."
+      security:
+        - professionalBearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalProfile" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/offers:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalOffers
+      summary: "Listar as próprias ofertas (serviços e preços em Kz)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-08, BR-MKT-24. Filtro opcional active. Ordem: especialidade, método."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: active, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProfessionalOffer" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Professional Portal]
+      operationId: createProfessionalOffer
+      summary: "Criar uma oferta (especialidade + método + duração + preço em Kz)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-08, BR-MKT-24: a especialidade tem de ser uma das do profissional; priceKz inteiro 0–100 000 000; durationMinutes em {15,20,30,45,60}; duplicado ativo (mesma especialidade, método e duração) ⇒ CONFLICT; máx. 20 ofertas ativas (LIMIT_EXCEEDED). Não disponível em REJECTED/SUSPENDED (PROFESSIONAL_LOCKED). Só aparece a famílias com o profissional APPROVED (BR-MKT-19)."
+      security:
+        - professionalBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalOfferInput" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalOffer" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | CONFLICT | LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/offers/{offerId}:
+    patch:
+      tags: [Professional Portal]
+      operationId: updateProfessionalOffer
+      summary: "Alterar preço/nota ou ativar/desativar uma oferta."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-08, BR-MKT-24: não há DELETE (active=false). specialtyId, method e durationMinutes são imutáveis (criar outra oferta). Alterar o preço só afeta marcações futuras (BR-MKT-03). Desativar remove os horários futuros livres gerados pelas regras da oferta (BR-MKT-25). Reativar com duplicado ativo ⇒ CONFLICT."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: offerId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalOfferPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalOffer" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | CONFLICT | LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/schedule-rules:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalScheduleRules
+      summary: "Listar as regras de horário semanais."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-09, BR-MKT-25. Filtros opcionais offerId e active."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: offerId, in: query, schema: { type: string, format: uuid } }
+        - { name: active, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProfessionalScheduleRule" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Professional Portal]
+      operationId: createProfessionalScheduleRule
+      summary: "Criar uma regra de horário e gerar os horários das próximas semanas."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-09, BR-MKT-25: oferta ativa do profissional; horas locais em Africa/Luanda (UTC+1, sem DST); [startTime, endTime) tem de caber pelo menos uma duração da oferta; rejeita (CONFLICT) regra sobreposta a outra ativa do mesmo profissional (qualquer oferta). Se o profissional está APPROVED gera de imediato, de forma idempotente, os ProfessionalSlot da janela rolante de 8 semanas (sem passado nem bloqueios; sobreposições ignoradas e contadas); noutros estados só guarda a regra (a geração começa na aprovação). Máx. 20 regras."
+      security:
+        - professionalBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalScheduleRuleInput" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalScheduleRuleResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | CONFLICT | LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/schedule-rules/{ruleId}:
+    patch:
+      tags: [Professional Portal]
+      operationId: updateProfessionalScheduleRule
+      summary: "Alterar ou desativar/reativar uma regra de horário."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-09, BR-MKT-25. offerId é imutável. Reconcilia: remove os horários futuros livres que deixaram de corresponder (todos, se inativa) e gera os em falta (se APPROVED). Ocupação por marcações é tratada em MK3 (BR-MKT-25)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: ruleId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalScheduleRulePatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalScheduleRuleResult" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/time-off:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalTimeOff
+      summary: "Listar bloqueios/férias."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-09, BR-MKT-25. Por omissão só os que terminam depois de agora; filtros from/to."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProfessionalTimeOff" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Professional Portal]
+      operationId: createProfessionalTimeOff
+      summary: "Criar um bloqueio/férias."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-09, BR-MKT-25: remove os horários livres do intervalo e impede a sua geração; ends_at > starts_at, máx. 366 dias, não no passado; nota interna opcional (fora de auditoria e logs). Marcações existentes (MK3) serão listadas para tratamento pelo profissional."
+      security:
+        - professionalBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalTimeOffInput" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalTimeOff" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/time-off/{timeOffId}:
+    delete:
+      tags: [Professional Portal]
+      operationId: deleteProfessionalTimeOff
+      summary: "Remover um bloqueio/férias."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-09, BR-MKT-25: repõe (de forma idempotente) os horários que as regras ainda prevêem."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: timeOffId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204':
+          description: Sem conteúdo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/slots:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalSlots
+      summary: "Listar os próprios horários gerados num intervalo."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10). UC-MKT-09, BR-MKT-25. from e to obrigatórios (máx. 62 dias). Ocupação (marcações) só a partir de MK3."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProfessionalSlot" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/professionals:
+    get:
+      tags: [Admin]
+      operationId: adminListProfessionals
+      summary: "Fila e lista de profissionais."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-18/27: só dados de identificação profissional (conta, perfil, credenciais, histórico de validação); nunca dados de saúde (D4). UC-MKT-06. Filtros: status (omissão = PENDING_REVIEW), category (HEALTH|WELLNESS: contém especialidade dessa categoria), q (nome de apresentação ou e-mail, parcial, mín. 2 caracteres). Ordem: submittedAt ascendente (FIFO), id."
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/ProfessionalValidationStatus" } }
+        - { name: category, in: query, schema: { type: string, enum: [HEALTH, WELLNESS] } }
+        - { name: q, in: query, schema: { type: string, minLength: 2 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminProfessionalPage" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/professionals/{professionalId}:
+    get:
+      tags: [Admin]
+      operationId: adminGetProfessional
+      summary: "Detalhe de um profissional para validação."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-18/27: só dados de identificação profissional (conta, perfil, credenciais, histórico de validação); nunca dados de saúde (D4). UC-MKT-06. Inclui e-mail da conta, perfil, especialidades, metadados das credenciais e histórico de validation_cases; nunca palavra-passe, tokens nem paymentInstructions."
+      parameters:
+        - { name: professionalId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminProfessionalDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/professionals/{professionalId}/decisions:
+    post:
+      tags: [Admin]
+      operationId: adminDecideProfessional
+      summary: "Decidir sobre um profissional (aprovar, rejeitar, pedir informação, suspender, reativar)."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-18/27: só dados de identificação profissional (conta, perfil, credenciais, histórico de validação); nunca dados de saúde (D4). UC-MKT-06/10, BR-MKT-18/20: APPROVE (PENDING_REVIEW→APPROVED), REJECT (PENDING_REVIEW→REJECTED; reason obrigatório), REQUEST_INFO (PENDING_REVIEW|APPROVED|REJECTED→NEEDS_INFO; reason obrigatório), SUSPEND (APPROVED→SUSPENDED; reason obrigatório), REACTIVATE (SUSPENDED→APPROVED). Transação única com bloqueio da linha do profissional: escreve o estado, statusReason e um validation_case imutável; decisão sobre um estado que já mudou ⇒ INVALID_STATE_TRANSITION. APPROVE e REACTIVATE exigem os requisitos de submissão satisfeitos (VALIDATION_ERROR). reason ≤500 caracteres, é mostrado ao profissional (nunca dados de saúde). APPROVE gera os horários das regras existentes (BR-MKT-25); SUSPEND retira da visibilidade sem apagar nada (MK3 cancela marcações futuras)."
+      parameters:
+        - { name: professionalId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalDecisionRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminProfessionalDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/professionals/{professionalId}/credentials/{credentialId}/file:
+    get:
+      tags: [Admin]
+      operationId: adminDownloadProfessionalCredential
+      summary: "Descarregar uma credencial para validação (stream mediado)."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-18/27: só dados de identificação profissional (conta, perfil, credenciais, histórico de validação); nunca dados de saúde (D4). UC-MKT-06, BR-MKT-17: só com scan CLEAN; Cache-Control: private, no-store; Content-Disposition: attachment; cada download é auditado."
+      parameters:
+        - { name: professionalId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: credentialId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOCUMENT_NOT_AVAILABLE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/specialties:
+    get:
+      tags: [Admin]
+      operationId: adminListSpecialties
+      summary: "Listar o catálogo de especialidades (todas)."
+      description: "Autorização: PLATFORM_ADMIN. UC-MKT-07, BR-MKT-22. Inclui inativas e o número de profissionais que a usam."
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AdminSpecialty" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Admin]
+      operationId: adminCreateSpecialty
+      summary: "Criar uma especialidade do catálogo."
+      description: "Autorização: PLATFORM_ADMIN. UC-MKT-07, BR-MKT-02/22: nome 2–80 único (sem distinção de maiúsculas), category HEALTH|WELLNESS (dado do catálogo, nunca código). Auditoria ADMIN_SPECIALTY_CREATE."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpecialtyInput" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminSpecialty" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/specialties/{specialtyId}:
+    patch:
+      tags: [Admin]
+      operationId: adminUpdateSpecialty
+      summary: "Alterar nome ou ativar/desativar uma especialidade."
+      description: "Autorização: PLATFORM_ADMIN. UC-MKT-07, BR-MKT-22: não há DELETE (active=false). category é imutável assim que algum profissional usa a especialidade (CONFLICT). Desativar impede novas escolhas e ofertas; as existentes mantêm-se."
+      parameters:
+        - { name: specialtyId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpecialtyPatch" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminSpecialty" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
 components:
   securitySchemes:
     bearerAuth:
@@ -8185,6 +9210,11 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: "D17/D18, ADR-020. Token de ClinicAccount (claims clinicAccountId/clinicId/role e, em CLINIC_DOCTOR, professionalId), só para /clinic-portal/*. Papéis CLINIC_ADMIN, CLINIC_MANAGER (receção) e CLINIC_DOCTOR (M14 R): o papel restringe as rotas segundo authorization.md §6.2b (papel insuficiente ⇒ 403 FORBIDDEN mesmo que a rota não o declare; o Médico só vê marcações/pacientes do seu profissional, o resto ⇒ 404 NOT_FOUND). Nunca aceite nas restantes rotas, mesmo que a assinatura seja válida (claims distintas)."
+    professionalBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "ADR-037, ADR-020. Token de ProfessionalAccount (claims professionalAccountId/professionalId/sid), só para /professional-portal/*. O estado de validação do profissional restringe as escritas (authorization.md §10.2). Nunca aceite nas restantes rotas, mesmo que a assinatura seja válida (claims distintas); tokens de User e de ClinicAccount nunca são aceites em /professional-portal/*."
   schemas:
     Message:
       type: object
@@ -11303,3 +12333,302 @@ components:
       properties:
         status:
           type: string
+    ProfessionalValidationStatus:
+      type: string
+      enum: [DRAFT, PENDING_REVIEW, NEEDS_INFO, APPROVED, REJECTED, SUSPENDED]
+      description: "BR-MKT-15 (state-machines.md, Professional). Só APPROVED é visível a famílias (BR-MKT-19)."
+    ProfessionalRegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, termsVersion]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+        termsVersion: { type: string, description: "Versão dos termos do profissional (distintos dos da família; texto legal a fornecer pelo proprietário, OP-70)." }
+    ProfessionalTokenResponse:
+      type: object
+      required: [accessToken, expiresIn, professionalId, validationStatus]
+      description: "ADR-037, ADR-020. Access token de ProfessionalAccount (15 min); claims professionalAccountId, professionalId, sid. Nunca aceite fora de /professional-portal/*."
+      properties:
+        accessToken: { type: string }
+        expiresIn: { type: integer }
+        professionalId: { type: string, format: uuid }
+        validationStatus: { $ref: "#/components/schemas/ProfessionalValidationStatus" }
+    SpecialtyCategory:
+      type: string
+      enum: [HEALTH, WELLNESS]
+      description: "BR-MKT-02: dado do catálogo, nunca decidido por código."
+    Specialty:
+      type: object
+      required: [id, name, category]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 2, maxLength: 80 }
+        category: { $ref: "#/components/schemas/SpecialtyCategory" }
+    AdminSpecialty:
+      type: object
+      required: [id, name, category, active, professionalCount]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 2, maxLength: 80 }
+        category: { $ref: "#/components/schemas/SpecialtyCategory" }
+        active: { type: boolean }
+        professionalCount: { type: integer, minimum: 0, description: "Profissionais que a usam (qualquer estado)." }
+    SpecialtyInput:
+      type: object
+      additionalProperties: false
+      required: [name, category]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 80 }
+        category: { $ref: "#/components/schemas/SpecialtyCategory" }
+    SpecialtyPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: "category só é alterável enquanto nenhum profissional usar a especialidade (BR-MKT-22)."
+      properties:
+        name: { type: string, minLength: 2, maxLength: 80 }
+        category: { $ref: "#/components/schemas/SpecialtyCategory" }
+        active: { type: boolean }
+    SpecialtyIdsInput:
+      type: object
+      additionalProperties: false
+      required: [specialtyIds]
+      properties:
+        specialtyIds: { type: array, minItems: 1, maxItems: 5, uniqueItems: true, items: { type: string, format: uuid } }
+    ProfessionalRequirement:
+      type: string
+      enum: [DISPLAY_NAME, CITY, SPECIALTY, CREDENTIAL_IDENTITY, CREDENTIAL_PROFESSIONAL_LICENSE, CREDENTIAL_CERTIFICATION, CREDENTIAL_SCAN_PENDING, CREDENTIAL_INFECTED, CREDENTIAL_EXPIRED]
+      description: "Códigos estruturados do que falta para submeter (BR-MKT-16); a UI traduz. Conjunto aberto: clientes toleram valores desconhecidos."
+    ProfessionalProfile:
+      type: object
+      required: [id, email, validationStatus, statusChangedAt, specialties, requirements]
+      description: "Vista do próprio profissional (BR-MKT-23)."
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string, nullable: true, minLength: 2, maxLength: 120 }
+        bio: { type: string, nullable: true, maxLength: 1000 }
+        city: { type: string, nullable: true, maxLength: 80 }
+        paymentInstructions: { type: string, nullable: true, maxLength: 500, description: "Texto livre; nunca exposto em pesquisa nem perfil público (BR-MKT-26)." }
+        validationStatus: { $ref: "#/components/schemas/ProfessionalValidationStatus" }
+        statusReason: { type: string, nullable: true, maxLength: 500, description: "Último motivo do admin ou do sistema (REJECT, REQUEST_INFO, SUSPEND, caducidade)." }
+        statusChangedAt: { type: string, format: date-time }
+        submittedAt: { type: string, format: date-time, nullable: true }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        specialties:
+          type: array
+          items: { $ref: "#/components/schemas/Specialty" }
+        requirements:
+          type: object
+          required: [canSubmit, missing]
+          properties:
+            canSubmit: { type: boolean, description: "Estado DRAFT/NEEDS_INFO e missing vazio." }
+            missing:
+              type: array
+              items: { $ref: "#/components/schemas/ProfessionalRequirement" }
+    ProfessionalProfilePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: "displayName só em DRAFT/NEEDS_INFO; os restantes campos em qualquer estado exceto REJECTED/SUSPENDED (BR-MKT-23)."
+      properties:
+        displayName: { type: string, minLength: 2, maxLength: 120 }
+        bio: { type: string, nullable: true, maxLength: 1000 }
+        city: { type: string, minLength: 2, maxLength: 80 }
+        paymentInstructions: { type: string, nullable: true, maxLength: 500 }
+    CredentialKind:
+      type: string
+      enum: [IDENTITY, PROFESSIONAL_LICENSE, CERTIFICATION]
+    ProfessionalCredential:
+      type: object
+      required: [id, kind, scanStatus, contentType, sizeBytes, createdAt]
+      description: "BR-MKT-17: só metadados; o ficheiro descarrega-se por /credentials/{id}/file."
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: "#/components/schemas/CredentialKind" }
+        number: { type: string, nullable: true, maxLength: 60 }
+        issuingBody: { type: string, nullable: true, maxLength: 120 }
+        validUntil: { type: string, format: date, nullable: true }
+        scanStatus: { type: string, enum: [PENDING, CLEAN, INFECTED] }
+        contentType: { type: string, enum: [application/pdf, image/jpeg, image/png] }
+        sizeBytes: { type: integer, minimum: 1, maximum: 10485760 }
+        createdAt: { type: string, format: date-time }
+    ProfessionalCredentialUploadRequest:
+      type: object
+      required: [kind, file]
+      properties:
+        kind: { $ref: "#/components/schemas/CredentialKind" }
+        number: { type: string, maxLength: 60 }
+        issuingBody: { type: string, maxLength: 120 }
+        validUntil: { type: string, format: date }
+        file: { type: string, format: binary }
+    OfferMethod:
+      type: string
+      enum: [IN_PERSON, VIDEO, CHAT, PHONE]
+    ProfessionalOffer:
+      type: object
+      required: [id, specialtyId, method, durationMinutes, priceKz, active]
+      properties:
+        id: { type: string, format: uuid }
+        specialtyId: { type: string, format: uuid }
+        method: { $ref: "#/components/schemas/OfferMethod" }
+        durationMinutes: { type: integer, enum: [15, 20, 30, 45, 60] }
+        priceKz: { type: integer, minimum: 0, maximum: 100000000, description: "Kwanza inteiro, sem cêntimos (BR-MKT-24, BR-MKT-31)." }
+        note: { type: string, nullable: true, maxLength: 200, description: "Ex.: morada do atendimento presencial." }
+        active: { type: boolean }
+    ProfessionalOfferInput:
+      type: object
+      additionalProperties: false
+      required: [specialtyId, method, durationMinutes, priceKz]
+      properties:
+        specialtyId: { type: string, format: uuid }
+        method: { $ref: "#/components/schemas/OfferMethod" }
+        durationMinutes: { type: integer, enum: [15, 20, 30, 45, 60] }
+        priceKz: { type: integer, minimum: 0, maximum: 100000000 }
+        note: { type: string, nullable: true, maxLength: 200 }
+    ProfessionalOfferPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: "specialtyId, method e durationMinutes são imutáveis (criar outra oferta)."
+      properties:
+        priceKz: { type: integer, minimum: 0, maximum: 100000000 }
+        note: { type: string, nullable: true, maxLength: 200 }
+        active: { type: boolean }
+    ProfessionalScheduleRule:
+      type: object
+      required: [id, offerId, weekdays, startTime, endTime, validFrom, validUntil, active]
+      properties:
+        id: { type: string, format: uuid }
+        offerId: { type: string, format: uuid }
+        weekdays: { type: array, minItems: 1, maxItems: 7, uniqueItems: true, items: { type: integer, minimum: 1, maximum: 7 }, description: "ISO: 1 = segunda ... 7 = domingo." }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', description: "Hora local de Africa/Luanda (HH:mm)." }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', description: "Hora local; > startTime; o último horário termina em ou antes de endTime." }
+        validFrom: { type: string, format: date, nullable: true }
+        validUntil: { type: string, format: date, nullable: true }
+        active: { type: boolean }
+    ProfessionalScheduleRuleInput:
+      type: object
+      additionalProperties: false
+      required: [offerId, weekdays, startTime, endTime]
+      properties:
+        offerId: { type: string, format: uuid }
+        weekdays: { type: array, minItems: 1, maxItems: 7, uniqueItems: true, items: { type: integer, minimum: 1, maximum: 7 } }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        validFrom: { type: string, format: date, nullable: true }
+        validUntil: { type: string, format: date, nullable: true }
+    ProfessionalScheduleRulePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: "offerId não é alterável."
+      properties:
+        weekdays: { type: array, minItems: 1, maxItems: 7, uniqueItems: true, items: { type: integer, minimum: 1, maximum: 7 } }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        validFrom: { type: string, format: date, nullable: true }
+        validUntil: { type: string, format: date, nullable: true }
+        active: { type: boolean }
+    ProfessionalScheduleGeneration:
+      type: object
+      required: [created, unchanged, removed, skippedOverlap, skippedTimeOff]
+      description: "Resultado de uma geração/reconciliação (BR-MKT-25). Só contagens. Todas 0 se o profissional não está APPROVED."
+      properties:
+        created: { type: integer, minimum: 0 }
+        unchanged: { type: integer, minimum: 0 }
+        removed: { type: integer, minimum: 0, description: "Livres futuros removidos pela reconciliação." }
+        skippedOverlap: { type: integer, minimum: 0 }
+        skippedTimeOff: { type: integer, minimum: 0 }
+    ProfessionalScheduleRuleResult:
+      type: object
+      required: [rule, generation]
+      properties:
+        rule: { $ref: "#/components/schemas/ProfessionalScheduleRule" }
+        generation: { $ref: "#/components/schemas/ProfessionalScheduleGeneration" }
+    ProfessionalTimeOff:
+      type: object
+      required: [id, startsAt, endsAt, reason]
+      properties:
+        id: { type: string, format: uuid }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        reason: { type: string, nullable: true, maxLength: 200, description: "Nota interna; fora de auditoria e logs." }
+    ProfessionalTimeOffInput:
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt]
+      properties:
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        reason: { type: string, nullable: true, maxLength: 200 }
+    ProfessionalSlot:
+      type: object
+      required: [id, offerId, startsAt, endsAt]
+      description: "Horário gerado (BR-MKT-25). Ocupação por marcações só a partir de MK3."
+      properties:
+        id: { type: string, format: uuid }
+        offerId: { type: string, format: uuid }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+    ValidationAction:
+      type: string
+      enum: [SUBMITTED, APPROVED, REJECTED, NEEDS_INFO, SUSPENDED, REACTIVATED, EXPIRED]
+    ValidationCase:
+      type: object
+      required: [id, action, fromStatus, toStatus, actor, createdAt]
+      description: "Entrada imutável do histórico de validação (BR-MKT-18)."
+      properties:
+        id: { type: string, format: uuid }
+        action: { $ref: "#/components/schemas/ValidationAction" }
+        fromStatus: { $ref: "#/components/schemas/ProfessionalValidationStatus" }
+        toStatus: { $ref: "#/components/schemas/ProfessionalValidationStatus" }
+        actor: { type: string, enum: [PROFESSIONAL, PLATFORM_ADMIN, SYSTEM] }
+        reason: { type: string, nullable: true, maxLength: 500 }
+        createdAt: { type: string, format: date-time }
+    AdminProfessionalItem:
+      type: object
+      required: [id, validationStatus, specialties, credentialCount, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string, nullable: true }
+        email: { type: string, format: email }
+        validationStatus: { $ref: "#/components/schemas/ProfessionalValidationStatus" }
+        submittedAt: { type: string, format: date-time, nullable: true }
+        specialties: { type: array, items: { $ref: "#/components/schemas/Specialty" } }
+        credentialCount: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+    AdminProfessionalPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AdminProfessionalItem" } }
+        nextCursor: { type: string, nullable: true }
+    AdminProfessionalDetail:
+      type: object
+      required: [id, email, validationStatus, statusChangedAt, specialties, credentials, history, createdAt]
+      description: "BR-MKT-18/27: identificação profissional; nunca dados de saúde, palavra-passe, tokens nem paymentInstructions."
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        emailVerifiedAt: { type: string, format: date-time, nullable: true }
+        displayName: { type: string, nullable: true }
+        bio: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        validationStatus: { $ref: "#/components/schemas/ProfessionalValidationStatus" }
+        statusReason: { type: string, nullable: true }
+        statusChangedAt: { type: string, format: date-time }
+        submittedAt: { type: string, format: date-time, nullable: true }
+        approvedAt: { type: string, format: date-time, nullable: true }
+        specialties: { type: array, items: { $ref: "#/components/schemas/Specialty" } }
+        credentials: { type: array, items: { $ref: "#/components/schemas/ProfessionalCredential" } }
+        history: { type: array, items: { $ref: "#/components/schemas/ValidationCase" }, description: "Mais recente primeiro." }
+        createdAt: { type: string, format: date-time }
+    ProfessionalDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [APPROVE, REJECT, REQUEST_INFO, SUSPEND, REACTIVATE] }
+        reason: { type: string, minLength: 1, maxLength: 500, description: "Obrigatório em REJECT, REQUEST_INFO e SUSPEND; mostrado ao profissional; sem dados de saúde." }

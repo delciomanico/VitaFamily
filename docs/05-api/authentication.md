@@ -39,3 +39,14 @@ Contadores em memória (processo único da API, ADR-014); falha/reinício ⇒ fa
 
 ## 4. O que a autenticação **não** inclui no MVP
 Autenticação multifator (MFA) · login social · SSO · passkeys. `[NEEDS DECISION futura]` — **recomendação:** MFA opcional por TOTP é a primeira evolução de segurança (dados de saúde); não entra no MVP por não estar no âmbito aprovado.
+
+## 5. Portal do profissional (MK1, ADR-037, BR-MKT-13/14/29)
+Mecanismo **igual** ao de `User` e do portal da clínica (§1–§3), em **espaço de identidade separado** (`professional_accounts`, `professional_auth_tokens`, `professional_sessions`):
+| Elemento | Especificação |
+|---|---|
+| Registo | **Auto-registo público** `POST /professional-portal/auth/register` (e-mail, palavra-passe, `termsVersion`); resposta neutra 202; código de verificação de 6 dígitos, 24 h, de uso único, só em conjunto com o e-mail (ADR-018). Sem idade mínima nem data de nascimento (a identidade é validada pelo admin com a credencial `IDENTITY`). |
+| Login | Só `ACTIVE` (e-mail verificado; antes disso `EMAIL_NOT_VERIFIED` depois da palavra-passe certa). `SUSPENDED`/`REJECTED` (estado de **validação**, não da conta) entram em só leitura (OP-59). Palavra-passe argon2id, mín. 12 caracteres (§1). |
+| Tokens | Access JWT 15 min com claims `professionalAccountId`, `professionalId`, `sid`, `iat`, `exp` (**nunca** `userId`/`clinicAccountId`; **sem** estado de validação no token: lido da BD por pedido); `kid` e chaves como §1 (mesma chave com `aud` distinto ou chave própria: OP-73, como já acontece com o portal da clínica, ADR-020). Refresh opaco, 30 dias, rotativo, cadeia revogada na reutilização, em `professional_sessions`; cookie `professional_refresh_token` (`HttpOnly; Secure; SameSite=Strict; Path=/api/v1/professional-portal/auth`); `X-Requested-With: vita` no refresh. O token só é aceite em `/professional-portal/*`; tokens de User e de ClinicAccount ⇒ `401` aí, e o de profissional ⇒ `401` nas restantes rotas. |
+| Recuperação | `forgot` neutro → código OTP de 6 dígitos (1 h, uso único) → `reset` revoga **todas** as sessões. |
+| Limites | `POST /professional-portal/auth/login`: 5 falhas / 15 min por (e-mail + IP), 20 / 15 min por IP · `register`: 5 / 5 min por IP · `password/forgot` e `resend-verification`: 3 / hora por e-mail, 10 / hora por IP · `refresh`: 30 / hora por sessão · uploads de credenciais: 20 / hora por conta · geral autenticado: 300 / min por conta. Falha fechada nos endpoints de autenticação, como §3. |
+| Fora do MVP | Como §4 (MFA, login social, SSO). MFA opcional por TOTP é a primeira evolução, **especialmente** para contas de profissional (documentos de identificação). |

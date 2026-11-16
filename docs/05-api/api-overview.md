@@ -25,7 +25,7 @@
 | Documentação interativa | Swagger UI/Redoc **apenas** em desenvolvimento e staging, servida a partir de `openapi.yaml`. |
 
 ## Grupos de endpoints
-Auth · Users · Families · Members · Invitations · Sharing · Health records · Prescriptions · Medications · Appointments · Clinics · Examinations · Documents · Alerts · Reports · Admin · Operations (`/health`).
+Auth · Users · Families · Members · Invitations · Sharing · Health records · Prescriptions · Medications · Appointments · Clinics · Examinations · Documents · Alerts · Reports · Admin · Professional Portal (MK1, ADR-037) · Operations (`/health`).
 
 ## Processo de alteração do contrato
 1. Alterar primeiro `openapi.yaml` (e `endpoints.md`) por change control.

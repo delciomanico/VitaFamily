@@ -180,6 +180,31 @@ Documento **gerado, sem entidade nem tabela**: derivado de uma marcação `COMPL
 **Derivados em leitura (nunca persistidos, BR-PRC-02/03):** `familyStatus` (SCHEDULED | IN_PROGRESS | DONE | CANCELLED) e `nextStep { code, actor }` por `deriveFamilyStatus(facts)` (`facts` = o facto do ato; sem cobertura). `scheduledAt?` e `phase` vêm do facto do ato (`ActFact { source, phase, scheduledAt?, changedAt }`, publicado pelo módulo dono, `state-machines.md` Process).
 **Agregador, não dono:** não tem máquina de estados, não duplica estados dos atos, não guarda dados clínicos. Relações: 1 `Process` : 1 ato (`appointments.process_id`/`examinations.process_id`). Registos da clínica sem ids Vita (BR-CLN-24) não têm `Process`. Regras: BR-PRC-01..11.
 
+## Mercado de profissionais — MK1 (ADR-037; contrato 2026-11-16, **nada implementado**)
+
+> Espaço de identidade **próprio** (BR-MKT-13): nenhuma destas entidades tem FK para `users`, `family_members` nem `clinic_accounts` (exceção: `ValidationCase.decidedBy` → `users`, só para o admin). **Sem dados de saúde nem ids de famílias** (BR-MKT-27). Dados em `schema.md` §11.
+
+### ProfessionalAccount — conta do portal do profissional
+`email` (único entre contas de profissional) · `passwordHash` · `status` (PENDING_VERIFICATION | ACTIVE) · `emailVerifiedAt?` · `termsAcceptedVersion` · `termsAcceptedAt` · `lastLoginAt?`. Tem `ProfessionalSession` (refresh rotativo com cadeia) e tokens de verificação/recuperação (`auth_token_type` reutilizado). 1:1 com `Professional`.
+
+### Professional — perfil e estado de validação
+`accountId` · `displayName?` · `bio?` · `city?` · `paymentInstructions?` (nunca público, BR-MKT-26) · `validationStatus` (DRAFT | PENDING_REVIEW | NEEDS_INFO | APPROVED | REJECTED | SUSPENDED; `state-machines.md`) · `statusReason?` · `statusChangedAt` · `submittedAt?` · `approvedAt?` (primeira aprovação). **Não tem `category`**: deriva-se das especialidades (BR-MKT-16). Só `APPROVED` é visível (BR-MKT-19).
+
+### Specialty — catálogo gerido pelo admin
+`name` (2–80, único sem distinção de maiúsculas) · `category` (HEALTH | WELLNESS; **dado**, BR-MKT-02; imutável com profissionais ligados) · `active`. Liga-se ao profissional por `ProfessionalSpecialty` (1–5 por profissional).
+
+### ProfessionalCredential — credencial carregada pelo profissional
+`professionalId` · `kind` (IDENTITY | PROFESSIONAL_LICENSE | CERTIFICATION) · `number?` · `issuingBody?` · `validUntil?` (data) · ficheiro (`storageKey`, `contentType` PDF/JPG/PNG, `sizeBytes` ≤ 10 MB) · `scanStatus` (PENDING | CLEAN | INFECTED). Só o próprio e o admin descarregam (BR-MKT-17). Requisitos por categoria: BR-MKT-16.
+
+### ValidationCase — histórico imutável das decisões
+`professionalId` · `action` (SUBMITTED | APPROVED | REJECTED | NEEDS_INFO | SUSPENDED | REACTIVATED | EXPIRED) · `fromStatus` · `toStatus` · `actor` (PROFESSIONAL | PLATFORM_ADMIN | SYSTEM) · `decidedBy?` (id do admin; sem FK de domínio) · `reason?` (≤ 500; obrigatório em REJECTED, NEEDS_INFO, SUSPENDED, EXPIRED) · `createdAt`. Nunca se edita (trigger); apaga-se só com o profissional (cascata).
+
+### ProfessionalOffer — serviço com preço em Kz
+`professionalId` · `specialtyId` (do próprio profissional) · `method` (IN_PERSON | VIDEO | CHAT | PHONE) · `durationMinutes` (15|20|30|45|60) · `priceKz` (inteiro 0–100 000 000) · `note?` (≤ 200) · `active`. Imutáveis: especialidade, método, duração (BR-MKT-24).
+
+### ProfessionalScheduleRule / ProfessionalTimeOff / ProfessionalSlot — horários
+`ProfessionalScheduleRule`: `professionalId` · `offerId` · `weekdays` (ISO 1–7) · `startTime`/`endTime` (hora local de `Africa/Luanda`) · `validFrom?`/`validUntil?` · `active`. `ProfessionalTimeOff`: `professionalId` · `startsAt` · `endsAt` · `reason?` (nota interna). `ProfessionalSlot`: `professionalId` · `offerId` · `ruleId` · `startsAt` · `endsAt` (instantes UTC; gerados idempotentemente numa janela de 8 semanas, sem sobreposição por profissional; só para `APPROVED`; BR-MKT-25). Ocupação (marcações): MK3.
+
 ## Alertas
 
 ### Alert

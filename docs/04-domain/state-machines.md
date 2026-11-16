@@ -178,6 +178,37 @@ Os movimentos fazem-se pela porta `ExamOrderLinker` na mesma transação do `Exa
 Decisão por defeito: a falta (`NO_SHOW`) aparece à família como "Cancelado" com o passo "voltar a marcar" . Alterar é change control (muda só esta linha e TC-PRC-06).
 
 
+## Professional — validação (MK1, BR-MKT-15..21; contrato 2026-11-16)
+```text
+DRAFT          → PENDING_REVIEW   [profissional submete; requisitos BR-MKT-16 cumpridos]            (ValidationCase SUBMITTED)
+NEEDS_INFO     → PENDING_REVIEW   [profissional volta a submeter]                                   (SUBMITTED)
+PENDING_REVIEW → APPROVED         [admin APPROVE; BR-MKT-16 cumprido]                               (APPROVED; gera horários)
+PENDING_REVIEW → REJECTED         [admin REJECT; motivo obrigatório]                                (REJECTED)
+PENDING_REVIEW → NEEDS_INFO       [admin REQUEST_INFO; motivo obrigatório]                          (NEEDS_INFO)
+APPROVED       → NEEDS_INFO       [admin REQUEST_INFO (reabertura/mudança de identidade)  |  sistema: credencial caducada]  (NEEDS_INFO | EXPIRED)
+REJECTED       → NEEDS_INFO       [admin REQUEST_INFO (reabertura; OP-60)]                          (NEEDS_INFO)
+APPROVED       → SUSPENDED        [admin SUSPEND; motivo obrigatório]                               (SUSPENDED)
+SUSPENDED      → APPROVED         [admin REACTIVATE; BR-MKT-16 cumprido]                            (REACTIVATED)
+```
+Tabela de decisões do admin (única via de decisão; o profissional só submete; o sistema só caduca):
+
+| Decisão | De | Para | `reason` |
+|---|---|---|---|
+| `APPROVE` | PENDING_REVIEW | APPROVED | opcional |
+| `REJECT` | PENDING_REVIEW | REJECTED | obrigatório |
+| `REQUEST_INFO` | PENDING_REVIEW, APPROVED, REJECTED | NEEDS_INFO | obrigatório |
+| `SUSPEND` | APPROVED | SUSPENDED | obrigatório |
+| `REACTIVATE` | SUSPENDED | APPROVED | opcional |
+
+Transições não listadas (p. ex. `DRAFT → APPROVED`, `SUSPENDED → NEEDS_INFO`, `REJECTED → APPROVED`, `APPROVED → PENDING_REVIEW` pelo profissional) ⇒ `INVALID_STATE_TRANSITION`. Cada transição escreve um `ValidationCase` na mesma transação, com bloqueio da linha do profissional (decisões concorrentes: a segunda falha). **Visibilidade:** só `APPROVED` (BR-MKT-19). **Escrita pelo profissional** por estado: `authorization.md` §10.2.
+
+## ProfessionalCredential (scanStatus; BR-MKT-17)
+```text
+PENDING → CLEAN       [antivírus]
+PENDING → INFECTED    [antivírus] → objeto apagado (outbox próprio `professional_file_deletions`); a linha fica «INFECTED» para o profissional a ver e remover; conta como em falta
+```
+Difere de `Document` (que elimina a linha) só para o profissional perceber o que falhou. `PENDING`/`INFECTED` não se descarregam (`DOCUMENT_NOT_AVAILABLE`) nem satisfazem os requisitos de submissão.
+
 ## Alert / Notification
 ```text
 Alert: não lido → lido [destinatário]  (campo readAt; não há estados de máquina)

@@ -1,5 +1,7 @@
 # Vita Family — Mercado de profissionais de saúde e bem-estar (Angola)
 
+> **MK1 (2026-11-16): contrato fechado, a validar pelo proprietário** — as regras BR-MKT-01/02/03/10/12 (parte) e 13–31 passaram a `business-rules.md` §17; o modelo de dados de MK1 está em `schema.md` §11 (migração proposta `0043`); casos de uso em `03-use-cases/professionals.md`; plano e fatias em `plan.md` («MK1 — contrato»). **Divergências assumidas face a este documento (v0.2):** (1) acrescenta-se o estado **`DRAFT`** (§5/§7) — conta criada e ainda não submetida; (2) **não há coluna `category` em `professionals`**: a categoria deriva-se das especialidades do catálogo (um profissional pode ter as duas); (3) a tabela `professional_availability`/`professional_slots` fica como `professional_schedule_rules` + `professional_time_off` + `professional_slots`, por oferta; (4) em MK1 a «pesquisa» só existe como leitor interno `ProfessionalDirectory` (a rota para famílias é MK2). BR-MKT-04..09 e 11 continuam candidatas.
+
 > Estado: **v0.2 DECISÕES RATIFICADAS (2026-11-16)** — direção e decisões do §11 ratificadas pelo proprietário e registadas em **ADR-037 (aceite)**; o modelo e as regras BR-MKT continuam **candidatos** até ao contrato de cada marco. Sem contrato, schema nem código. **Não é parecer jurídico.** Princípios mantidos: família nunca vê vocabulário técnico; famílias gratuitas; admin da plataforma sem acesso a dados de saúde.
 
 ## 1. Em duas frases

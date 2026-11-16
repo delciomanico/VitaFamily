@@ -69,6 +69,26 @@
 | `processes (clinic_id) WHERE clinic_id IS NOT NULL` | leitura do portal da clínica e `SET NULL` da FK (BR-PRC-06) |
 | UNIQUE parcial `appointments (process_id) WHERE process_id IS NOT NULL` · idem `examinations` | 1 ato : 1 processo; resolução ato→processo |
 
+## Mercado de profissionais — MK1 (ADR-037; `schema.md` §11, migração proposta `0043`)
+Todas com justificação de consulta (nada sem consulta concreta).
+
+| Tabela | Índice | Consulta que serve |
+|---|---|---|
+| `professional_accounts` | UNIQUE `(email)` | Login, registo e verificação (e-mail sempre normalizado em minúsculas, `citext`). |
+| `professional_auth_tokens` | UNIQUE `(token_hash)` · `(account_id, type)` | Verificar/recuperar; invalidar o código anterior ao reenviar. |
+| `professional_sessions` | UNIQUE `(refresh_token_hash)` · `(token_chain_id)` · `(account_id)` | Rotação do refresh; revogar a cadeia na reutilização; revogar todas ao repor a palavra-passe. |
+| `professionals` | UNIQUE `(account_id)` · `(validation_status, submitted_at, id)` | Resolver o profissional do token; **fila do admin** (FIFO por `submitted_at`, cursor por `id`). |
+| `professionals` | `(id) WHERE validation_status = 'APPROVED'` | Leitor `ProfessionalDirectory` (só `APPROVED`, BR-MKT-19) e geração de horários do job. |
+| `specialties` | UNIQUE `(lower(name))` · `(active, name)` | Unicidade do nome; catálogo ativo ordenado. |
+| `professional_specialties` | PK `(professional_id, specialty_id)` · `(specialty_id)` | Especialidades do profissional; contagem de uso e imutabilidade da `category`. |
+| `professional_credentials` | `(professional_id, kind)` · `(valid_until) WHERE valid_until IS NOT NULL AND scan_status = 'CLEAN'` | Requisitos de submissão; **job de caducidade** (`professionals.expire-credentials`). |
+| `validation_cases` | `(professional_id, created_at DESC, id DESC)` | Histórico no detalhe do admin. |
+| `professional_offers` | UNIQUE `(professional_id, id)` · UNIQUE parcial `(professional_id, specialty_id, method, duration_minutes) WHERE active` · `(professional_id) WHERE active` | Alvo de FK; duplicados ativos; ofertas ativas (limite 20 e leitor). |
+| `professional_schedule_rules` | UNIQUE `(professional_id, id)` · `(professional_id) WHERE active` · `(offer_id)` | Validar sobreposição; geração do job; reconciliação ao desativar a oferta. |
+| `professional_time_off` | `(professional_id, ends_at)` | Bloqueios futuros do profissional; filtragem na geração. |
+| `professional_file_deletions` | `(deleted_at, created_at) WHERE deleted_at IS NULL` | Job `professionals.delete-files` (pendentes). |
+| `professional_slots` | UNIQUE `(rule_id, starts_at)` · EXCLUDE gist `(professional_id, tstzrange(starts_at, ends_at))` · UNIQUE `(professional_id, id)` · `(professional_id, starts_at)` | Idempotência da geração; sem sobreposição; horários por intervalo; remoção de livres futuros. |
+
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).
 2. Antes de M10, validar os 5 caminhos quentes: scanner, agenda do dia, lista de alertas, resolução de membership, relatório individual.

@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.14 (R6 do arquivo do marco B, ADR-037, 2026-11-16: removidas as 100 operações de seguradora/autorização/reembolso/cartão e os respetivos schemas, as tags `Insurance`/`Insurance Portal`, o esquema `insuranceBearerAuth`, `Process.coverage` e os códigos `COVERAGE_*`/`AWAIT_INSURER_DECISION`/`AWAIT_CLINIC_INFORMATION`/actor `INSURER`; `AUTHORIZATION_*` em `AlertType` mantêm-se como legado inerte).** O histórico das fatias do marco B está em `docs/_arquivo/marco-b/` e na tag `archive-marco-b-2026-11-16`.
+> Estado: **v0.15 (MK1, 2026-11-16: +34 operações do mercado de profissionais — `/professional-portal/*` e `/admin/professionals*`, `/admin/specialties*`; secção «Mercado de profissionais — MK1»; contratual, sem código)**; v0.14 (R6 do arquivo do marco B, ADR-037, 2026-11-16: removidas as 100 operações de seguradora/autorização/reembolso/cartão e os respetivos schemas, as tags `Insurance`/`Insurance Portal`, o esquema `insuranceBearerAuth`, `Process.coverage` e os códigos `COVERAGE_*`/`AWAIT_INSURER_DECISION`/`AWAIT_CLINIC_INFORMATION`/actor `INSURER`; `AUTHORIZATION_*` em `AlertType` mantêm-se como legado inerte).** O histórico das fatias do marco B está em `docs/_arquivo/marco-b/` e na tag `archive-marco-b-2026-11-16`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -18,6 +18,7 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 | READ(cat) / WRITE(cat) | Ler ou escrever na categoria de dados do membro-sujeito segundo `permissions.md` (titular, tutor, dependente com conta, ou partilha só de leitura). |
 | PLATFORM_ADMIN | `platformRole = PLATFORM_ADMIN`. Nunca acede a dados de saúde. |
 | CLINIC_ACCOUNT | Qualquer `ClinicAccount` autenticado no portal da própria clínica (`CLINIC_ADMIN`, `CLINIC_MANAGER` ou, desde M14 R, `CLINIC_DOCTOR`), token distinto do de User (ADR-020). **Atenção (M14 R):** onde a rota diz `CLINIC_ACCOUNT`, vale a coluna de papéis de `authorization.md` §6.2b (o Médico só acede às rotas marcadas "suas"; as restantes ⇒ `FORBIDDEN`); as rotas novas de M14 R indicam o papel explicitamente. |
+| PROFESSIONAL_ACCOUNT | Qualquer `ProfessionalAccount` autenticado com e-mail verificado (MK1, ADR-037), token distinto do de User e do de ClinicAccount, só em `/professional-portal/*`. **Atenção:** o estado de validação do profissional (`DRAFT`, `PENDING_REVIEW`, `NEEDS_INFO`, `APPROVED`, `REJECTED`, `SUSPENDED`) restringe as escritas segundo `authorization.md` §10.2 (`PROFESSIONAL_LOCKED`). |
 | CLINIC_ADMIN | Só `ClinicAccount` com `role=CLINIC_ADMIN` da própria clínica. |
 | CLINIC_ADMIN_MANAGER | `CLINIC_ADMIN` ou `CLINIC_MANAGER` (receção) da própria clínica; `CLINIC_DOCTOR` ⇒ `FORBIDDEN` (M14 R). |
 
@@ -1754,6 +1755,283 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** BR-CLN-05: única via do Platform Admin para o portal da clínica; não cria nem lista `CLINIC_MANAGER`. Idempotente por clínica (repor substitui a credencial da conta `CLINIC_ADMIN` existente, nunca cria uma segunda).
 
+## Mercado de profissionais — MK1 (ADR-037) — CONTRATUAL
+
+> Acrescentado 2026-11-16 (contrato de MK1; `vita-architect`). **Só contrato: nada implementado.** Tags `Professional Portal` e `Admin`. As rotas `/professional-portal/*` usam o token `professionalBearerAuth` (claims `professionalAccountId`, `professionalId`; nunca `userId`/`clinicAccountId`); o estado de validação do profissional restringe as escritas (`authorization.md` §10.2). Códigos novos: `PROFESSIONAL_LOCKED` (`errors.md`).
+
+### `POST /professional-portal/auth/register`  — professionalRegister
+- **AUTHORIZATION:** PUBLIC
+- **DESCRIPTION:** Registar conta de profissional.
+- **REQUEST:** `ProfessionalRegisterRequest` (`email`, `password`, `termsVersion`)
+- **RESPONSE:** `202` `Message`
+- **ERRORS:** `PASSWORD_WEAK`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-13/14; UC-MKT-01. Auditoria `PROFESSIONAL_REGISTER`.
+
+### `POST /professional-portal/auth/verify-email`  — professionalVerifyEmail
+- **AUTHORIZATION:** PUBLIC
+- **DESCRIPTION:** Verificar e-mail com código de 6 dígitos (24 h).
+- **REQUEST:** `VerifyEmailRequest`
+- **RESPONSE:** `204`
+- **ERRORS:** `NOT_FOUND`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-14. Auditoria `PROFESSIONAL_EMAIL_VERIFIED`.
+
+### `POST /professional-portal/auth/resend-verification`  — professionalResendVerification
+- **AUTHORIZATION:** PUBLIC
+- **DESCRIPTION:** Reenviar o código de verificação.
+- **REQUEST:** `ResendVerificationRequest`
+- **RESPONSE:** `202` `Message`
+- **ERRORS:** `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-14.
+
+### `POST /professional-portal/auth/login`  — professionalLogin
+- **AUTHORIZATION:** PUBLIC
+- **DESCRIPTION:** Iniciar sessão de um profissional.
+- **REQUEST:** `LoginRequest`
+- **RESPONSE:** `200` `ProfessionalTokenResponse`
+- **ERRORS:** `AUTH_INVALID_CREDENTIALS`, `EMAIL_NOT_VERIFIED`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-13/14. Auditoria `PROFESSIONAL_LOGIN` / `PROFESSIONAL_LOGIN_FAILED`.
+
+### `POST /professional-portal/auth/refresh`  — professionalRefreshToken
+- **AUTHORIZATION:** PUBLIC
+- **DESCRIPTION:** Rodar o refresh token do profissional.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ProfessionalTokenResponse`
+- **ERRORS:** `UNAUTHENTICATED`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-13. Reutilização ⇒ cadeia revogada; `PROFESSIONAL_REFRESH_REUSE_DETECTED`.
+
+### `POST /professional-portal/auth/logout`  — professionalLogout
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Terminar a sessão atual.
+- **REQUEST:** —
+- **RESPONSE:** `204`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-13. Auditoria `PROFESSIONAL_LOGOUT`.
+
+### `POST /professional-portal/auth/password/forgot`  — professionalForgotPassword
+- **AUTHORIZATION:** PUBLIC
+- **DESCRIPTION:** Pedir recuperação de palavra-passe.
+- **REQUEST:** `ForgotPasswordRequest`
+- **RESPONSE:** `202` `Message`
+- **ERRORS:** `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-14.
+
+### `POST /professional-portal/auth/password/reset`  — professionalResetPassword
+- **AUTHORIZATION:** PUBLIC
+- **DESCRIPTION:** Definir nova palavra-passe com código.
+- **REQUEST:** `ResetPasswordRequest`
+- **RESPONSE:** `204`
+- **ERRORS:** `NOT_FOUND`, `PASSWORD_WEAK`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-14/29. Auditoria `PROFESSIONAL_PASSWORD_RESET`.
+
+### `GET /professional-portal/me`  — getProfessionalMe
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Ver o próprio perfil, estado de validação e o que falta para submeter.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ProfessionalProfile`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-15/16/23.
+
+### `PATCH /professional-portal/me`  — updateProfessionalMe
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Alterar o perfil (nome de apresentação, bio, cidade, instruções de pagamento).
+- **REQUEST:** `ProfessionalProfilePatch`
+- **RESPONSE:** `200` `ProfessionalProfile`
+- **ERRORS:** `PROFESSIONAL_LOCKED`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-23/26.
+
+### `PUT /professional-portal/me/specialties`  — setProfessionalSpecialties
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Definir as especialidades do profissional (substitui o conjunto).
+- **REQUEST:** `SpecialtyIdsInput` (`specialtyIds` 1–5)
+- **RESPONSE:** `200` `ProfessionalProfile`
+- **ERRORS:** `PROFESSIONAL_LOCKED`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-22/23. Auditoria `PROFESSIONAL_SPECIALTIES_SET` (ids).
+
+### `GET /professional-portal/specialties`  — listProfessionalSpecialtyCatalog
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Listar o catálogo de especialidades ativas.
+- **REQUEST:** —
+- **RESPONSE:** `200` `[Specialty]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-22.
+
+### `GET /professional-portal/credentials`  — listProfessionalCredentials
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Listar as próprias credenciais (metadados).
+- **REQUEST:** —
+- **RESPONSE:** `200` `[ProfessionalCredential]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-17.
+
+### `POST /professional-portal/credentials`  — uploadProfessionalCredential
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Carregar uma credencial (multipart).
+- **REQUEST:** `ProfessionalCredentialUploadRequest` (multipart)
+- **RESPONSE:** `201` `ProfessionalCredential`
+- **ERRORS:** `PROFESSIONAL_LOCKED`, `LIMIT_EXCEEDED`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `VALIDATION_ERROR`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-17. Auditoria `PROFESSIONAL_CREDENTIAL_UPLOAD` (kind; nunca nº, entidade nem nome do ficheiro).
+
+### `DELETE /professional-portal/credentials/{credentialId}`  — deleteProfessionalCredential
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Remover uma credencial própria.
+- **REQUEST:** —
+- **RESPONSE:** `204`
+- **ERRORS:** `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-17. Auditoria `PROFESSIONAL_CREDENTIAL_DELETE`.
+
+### `GET /professional-portal/credentials/{credentialId}/file`  — downloadProfessionalCredential
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Descarregar uma credencial própria (stream mediado).
+- **REQUEST:** —
+- **RESPONSE:** `200` ficheiro (`application/octet-stream`)
+- **ERRORS:** `NOT_FOUND`, `DOCUMENT_NOT_AVAILABLE`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-17. Auditoria `PROFESSIONAL_CREDENTIAL_DOWNLOAD`.
+
+### `POST /professional-portal/submission`  — submitProfessionalForReview
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Submeter o perfil para validação do admin.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ProfessionalProfile`
+- **ERRORS:** `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR` (`errors[]`), `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-15/16. Auditoria `PROFESSIONAL_SUBMIT`.
+
+### `GET /professional-portal/offers`  — listProfessionalOffers
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Listar as próprias ofertas (serviços e preços em Kz).
+- **REQUEST:** Query `active?`
+- **RESPONSE:** `200` `[ProfessionalOffer]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-24.
+
+### `POST /professional-portal/offers`  — createProfessionalOffer
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Criar uma oferta (especialidade + método + duração + preço em Kz).
+- **REQUEST:** `ProfessionalOfferInput`
+- **RESPONSE:** `201` `ProfessionalOffer`
+- **ERRORS:** `PROFESSIONAL_LOCKED`, `CONFLICT`, `LIMIT_EXCEEDED`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-24. Auditoria `PROFESSIONAL_OFFER_CREATE`.
+
+### `PATCH /professional-portal/offers/{offerId}`  — updateProfessionalOffer
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Alterar preço/nota ou ativar/desativar uma oferta.
+- **REQUEST:** `ProfessionalOfferPatch`
+- **RESPONSE:** `200` `ProfessionalOffer`
+- **ERRORS:** `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `CONFLICT`, `LIMIT_EXCEEDED`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-03/24/25. Auditoria `PROFESSIONAL_OFFER_UPDATE` (nomes dos campos, nunca preços).
+
+### `GET /professional-portal/schedule-rules`  — listProfessionalScheduleRules
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Listar as regras de horário semanais.
+- **REQUEST:** Query `offerId?`, `active?`
+- **RESPONSE:** `200` `[ProfessionalScheduleRule]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-25.
+
+### `POST /professional-portal/schedule-rules`  — createProfessionalScheduleRule
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Criar uma regra de horário e gerar os horários das próximas semanas.
+- **REQUEST:** `ProfessionalScheduleRuleInput`
+- **RESPONSE:** `201` `ProfessionalScheduleRuleResult`
+- **ERRORS:** `NOT_FOUND` (oferta de outro profissional), `PROFESSIONAL_LOCKED`, `CONFLICT`, `LIMIT_EXCEEDED`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-25. Auditoria `PROFESSIONAL_SCHEDULE_RULE_CREATE`.
+
+### `PATCH /professional-portal/schedule-rules/{ruleId}`  — updateProfessionalScheduleRule
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Alterar ou desativar/reativar uma regra de horário.
+- **REQUEST:** `ProfessionalScheduleRulePatch`
+- **RESPONSE:** `200` `ProfessionalScheduleRuleResult`
+- **ERRORS:** `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `CONFLICT`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-25. Auditoria `PROFESSIONAL_SCHEDULE_RULE_UPDATE`.
+
+### `GET /professional-portal/time-off`  — listProfessionalTimeOff
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Listar bloqueios/férias.
+- **REQUEST:** Query `from?`, `to?`
+- **RESPONSE:** `200` `[ProfessionalTimeOff]`
+- **ERRORS:** `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-25.
+
+### `POST /professional-portal/time-off`  — createProfessionalTimeOff
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Criar um bloqueio/férias.
+- **REQUEST:** `ProfessionalTimeOffInput`
+- **RESPONSE:** `201` `ProfessionalTimeOff`
+- **ERRORS:** `PROFESSIONAL_LOCKED`, `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-25. Auditoria `PROFESSIONAL_TIME_OFF_CREATE`.
+
+### `DELETE /professional-portal/time-off/{timeOffId}`  — deleteProfessionalTimeOff
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Remover um bloqueio/férias.
+- **REQUEST:** —
+- **RESPONSE:** `204`
+- **ERRORS:** `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-25. Auditoria `PROFESSIONAL_TIME_OFF_DELETE`.
+
+### `GET /professional-portal/slots`  — listProfessionalSlots
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Listar os próprios horários gerados num intervalo.
+- **REQUEST:** Query `from`, `to`
+- **RESPONSE:** `200` `[ProfessionalSlot]`
+- **ERRORS:** `VALIDATION_ERROR`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-25.
+
+### `GET /admin/professionals`  — adminListProfessionals
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Fila e lista de profissionais.
+- **REQUEST:** Query `status?`, `category?`, `q?`, `limit?`, `cursor?`
+- **RESPONSE:** `200` `{ items: [AdminProfessionalItem], nextCursor }`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-18/27. A leitura da lista não se audita (volume; sem dados de saúde).
+
+### `GET /admin/professionals/{professionalId}`  — adminGetProfessional
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Detalhe de um profissional para validação.
+- **REQUEST:** —
+- **RESPONSE:** `200` `AdminProfessionalDetail`
+- **ERRORS:** `NOT_FOUND`, `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-18/27.
+
+### `POST /admin/professionals/{professionalId}/decisions`  — adminDecideProfessional
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Decidir sobre um profissional (aprovar, rejeitar, pedir informação, suspender, reativar).
+- **REQUEST:** `ProfessionalDecisionRequest` (`decision`, `reason?`)
+- **RESPONSE:** `200` `AdminProfessionalDetail`
+- **ERRORS:** `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`, `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-15/18/19/20. Auditoria `ADMIN_PROFESSIONAL_APPROVE|REJECT|REQUEST_INFO|SUSPEND|REACTIVATE` (`metadata.fromStatus`/`toStatus`; sem o motivo).
+
+### `GET /admin/professionals/{professionalId}/credentials/{credentialId}/file`  — adminDownloadProfessionalCredential
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Descarregar uma credencial para validação (stream mediado).
+- **REQUEST:** —
+- **RESPONSE:** `200` ficheiro (`application/octet-stream`)
+- **ERRORS:** `NOT_FOUND`, `DOCUMENT_NOT_AVAILABLE`, `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-17. Auditoria `ADMIN_PROFESSIONAL_CREDENTIAL_DOWNLOAD` (obrigatória).
+
+### `GET /admin/specialties`  — adminListSpecialties
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Listar o catálogo de especialidades (todas).
+- **REQUEST:** —
+- **RESPONSE:** `200` `[AdminSpecialty]`
+- **ERRORS:** `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-22.
+
+### `POST /admin/specialties`  — adminCreateSpecialty
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Criar uma especialidade do catálogo.
+- **REQUEST:** `SpecialtyInput` (`name`, `category`)
+- **RESPONSE:** `201` `AdminSpecialty`
+- **ERRORS:** `CONFLICT` (nome duplicado), `VALIDATION_ERROR`, `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-02/22. Auditoria `ADMIN_SPECIALTY_CREATE`.
+
+### `PATCH /admin/specialties/{specialtyId}`  — adminUpdateSpecialty
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Alterar nome ou ativar/desativar uma especialidade.
+- **REQUEST:** `SpecialtyPatch` (`name?`, `category?`, `active?`)
+- **RESPONSE:** `200` `AdminSpecialty`
+- **ERRORS:** `NOT_FOUND`, `CONFLICT`, `VALIDATION_ERROR`, `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-22. Auditoria `ADMIN_SPECIALTY_UPDATE`.
+
+
 ## Operations
 
 ### `GET /health`  — healthLive
@@ -2056,3 +2334,27 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 
 
 > Total: 212 operações e 195 schemas no `openapi.yaml` (contagem do R6, 2026-11-16; este documento descreve em prosa um subconjunto dos schemas).
+
+### Mercado de profissionais — MK1 (`/professional-portal/*`, `/admin/professionals*`, `/admin/specialties*`)
+
+**ProfessionalValidationStatus** — DRAFT|PENDING_REVIEW|NEEDS_INFO|APPROVED|REJECTED|SUSPENDED
+
+**ProfessionalRegisterRequest** — `email`: email, `password`: string, `termsVersion`: string
+
+**ProfessionalTokenResponse** — `accessToken`: string, `expiresIn`: int, `professionalId`: uuid, `validationStatus`: ProfessionalValidationStatus
+
+**Specialty** — `id`: uuid, `name`: string (2–80), `category`: HEALTH|WELLNESS · **AdminSpecialty** — Specialty + `active`: bool, `professionalCount`: int · **SpecialtyInput** — `name`, `category` · **SpecialtyPatch** — `name?`, `category?` (imutável se em uso), `active?` · **SpecialtyIdsInput** — `specialtyIds`: [uuid] (1–5)
+
+**ProfessionalProfile** — `id`: uuid, `email`: email, `displayName?`: string (2–120), `bio?`: string (≤1000), `city?`: string (2–80), `paymentInstructions?`: string (≤500; nunca público, BR-MKT-26), `validationStatus`, `statusReason?`: string, `statusChangedAt`: datetime, `submittedAt?`, `approvedAt?`, `specialties`: [Specialty], `requirements`: `{ canSubmit: bool, missing: [ProfessionalRequirement] }` · **ProfessionalRequirement** — DISPLAY_NAME|CITY|SPECIALTY|CREDENTIAL_IDENTITY|CREDENTIAL_PROFESSIONAL_LICENSE|CREDENTIAL_CERTIFICATION|CREDENTIAL_SCAN_PENDING|CREDENTIAL_INFECTED|CREDENTIAL_EXPIRED (conjunto aberto) · **ProfessionalProfilePatch** — `displayName?` (só DRAFT/NEEDS_INFO), `bio?`, `city?`, `paymentInstructions?`
+
+**ProfessionalCredential** — `id`: uuid, `kind`: IDENTITY|PROFESSIONAL_LICENSE|CERTIFICATION, `number?`, `issuingBody?`, `validUntil?`: date, `scanStatus`: PENDING|CLEAN|INFECTED, `contentType`: pdf|jpeg|png, `sizeBytes`: int, `createdAt` · **ProfessionalCredentialUploadRequest** (multipart) — `kind`, `number?`, `issuingBody?`, `validUntil?`, `file`
+
+**ProfessionalOffer** — `id`: uuid, `specialtyId`: uuid, `method`: IN_PERSON|VIDEO|CHAT|PHONE, `durationMinutes`: 15|20|30|45|60, `priceKz`: int (0–100 000 000; Kz inteiro), `note?`: string (≤200), `active`: bool · **ProfessionalOfferInput** — `specialtyId`, `method`, `durationMinutes`, `priceKz`, `note?` · **ProfessionalOfferPatch** — `priceKz?`, `note?`, `active?`
+
+**ProfessionalScheduleRule** — `id`, `offerId`, `weekdays`: [1–7], `startTime`/`endTime`: HH:mm (Africa/Luanda), `validFrom?`/`validUntil?`: date, `active` · **ProfessionalScheduleRuleInput** — `offerId`, `weekdays`, `startTime`, `endTime`, `validFrom?`, `validUntil?` · **ProfessionalScheduleRulePatch** — todos exceto `offerId`, + `active?` · **ProfessionalScheduleRuleResult** — `rule`, `generation`: `{ created, unchanged, removed, skippedOverlap, skippedTimeOff }` (só contagens)
+
+**ProfessionalTimeOff** — `id`, `startsAt`, `endsAt`, `reason?` · **ProfessionalTimeOffInput** — `startsAt`, `endsAt`, `reason?` (≤200) · **ProfessionalSlot** — `id`, `offerId`, `startsAt`, `endsAt`
+
+**ValidationCase** — `id`, `action`: SUBMITTED|APPROVED|REJECTED|NEEDS_INFO|SUSPENDED|REACTIVATED|EXPIRED, `fromStatus`, `toStatus`, `actor`: PROFESSIONAL|PLATFORM_ADMIN|SYSTEM, `reason?`, `createdAt`
+
+**AdminProfessionalItem** — `id`, `displayName?`, `email`, `validationStatus`, `submittedAt?`, `specialties`: [Specialty], `credentialCount`: int, `createdAt` · **AdminProfessionalPage** — `{ items, nextCursor? }` · **AdminProfessionalDetail** — `id`, `email`, `emailVerifiedAt?`, `displayName?`, `bio?`, `city?`, `validationStatus`, `statusReason?`, `statusChangedAt`, `submittedAt?`, `approvedAt?`, `specialties`, `credentials`: [ProfessionalCredential], `history`: [ValidationCase] (mais recente primeiro), `createdAt` (nunca dados de saúde, palavra-passe, tokens nem `paymentInstructions`, BR-MKT-18/27) · **ProfessionalDecisionRequest** — `decision`: APPROVE|REJECT|REQUEST_INFO|SUSPEND|REACTIVATE, `reason?` (≤500; obrigatório em REJECT/REQUEST_INFO/SUSPEND)

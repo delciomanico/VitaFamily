@@ -228,6 +228,7 @@ Segue §2.2: só ações `ADMIN_*`; **nunca** dados de saúde (BR-PRV-07, BR-ADM
 | Suspender/reativar utilizador | PLATFORM_ADMIN | BR-ACC-05. |
 | Repor acesso de utilizador (`reset-access`) | PLATFORM_ADMIN | Revoga sessões + e-mail de recuperação; nunca vê palavra-passe/token; não a si próprio (BR-ADM-02). |
 | Listar contas de clínica; suspender/reativar | PLATFORM_ADMIN | BR-ADM-03/04; `CLINIC_ADMIN` só reativável se não houver outro ativo. |
+| Fila, detalhe e decisões sobre profissionais; descarregar credenciais; gerir o catálogo de especialidades (MK1, §10.3) | PLATFORM_ADMIN | BR-MKT-18/22/27; só identificação profissional; **nunca** dados de saúde nem `paymentInstructions`; ações `ADMIN_PROFESSIONAL_*`/`ADMIN_SPECIALTY_*`. |
 Um token de `ClinicAccount` nunca autoriza rotas `/admin/*`.
 
 ## 8. Portal da seguradora (ARQUIVADO)
@@ -235,4 +236,42 @@ Um token de `ClinicAccount` nunca autoriza rotas `/admin/*`.
 Secção retirada no R7 do arquivo do marco B (ADR-037): o portal da seguradora, as suas matrizes (§8.1–§8.5), o papel `SUPERVISOR` e a ação `MANAGE_INSURANCE` **já não existem** no `main`. Texto verbatim em `_arquivo/marco-b/extratos/authorization-seguradora.md`.
 
 ## 9. Testes
-Os testes de autorização são **gerados a partir da matriz** acima (incl. §7: `TC-AZ-ADM-*`): para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. A matriz §6.2 (clínica) segue a mesma regra: gerada a partir da tabela, com casos próprios `TC-AZ-CLN-*`; §6.8 gera `TC-AZ-PRC-*`.
+Os testes de autorização são **gerados a partir da matriz** acima (incl. §7: `TC-AZ-ADM-*`): para cada (relação × categoria × ação) um caso positivo ou negativo (Fase 15, `TC-AZ-*`). Adicionar uma categoria ou ação sem atualizar a matriz faz falhar a CI. A matriz §6.2 (clínica) segue a mesma regra: gerada a partir da tabela, com casos próprios `TC-AZ-CLN-*`; §6.8 gera `TC-AZ-PRC-*`; §10 (mercado de profissionais, MK1) gera `TC-AZ-MKT-*` (matriz estado × operação e matriz de atores).
+
+## 10. Mercado de profissionais — portal do profissional (`ProfessionalAccount`, MK1, ADR-037)
+
+> Contrato de MK1 (2026-11-16); **nada implementado**. Espaço de identidade **separado** (BR-MKT-13), independente de §1–§5 (`AccessPolicy`) e de §6 (portal da clínica). O ator é `ProfessionalActorInfo` (segundo/terceiro `AsyncLocalStorage`, como `ClinicActorInfo`): **nunca** `AccessPolicy`, que continua a decidir só o lado família. Procedimentos de MK2+ (pesquisa, marcação, partilha) acrescentam secções próprias.
+
+### 10.1 Algoritmo (rotas `/professional-portal/*`)
+1. **Token:** só o de `ProfessionalAccount` (claims `professionalAccountId`/`professionalId`/`sid`); tokens de User, de ClinicAccount e do Platform Admin ⇒ `401 UNAUTHENTICATED`; e o de profissional é inválido em todas as outras rotas (claims distintas, segundo `security` por rota, `professionalBearerAuth`).
+2. **Conta:** `professional_accounts.status = ACTIVE` (e-mail verificado), senão `EMAIL_NOT_VERIFIED`. O estado de **validação** não bloqueia o login nem é decidido aqui (é a matriz §10.2).
+3. **Isolamento:** todo o recurso (credencial, oferta, regra, bloqueio, horário) é procurado **por `professionalId` do token**; de outro profissional ou inexistente ⇒ `NOT_FOUND` (sem enumeração, igual `errors.md` regra 2).
+4. **Estado de validação:** a operação tem de estar permitida no estado atual (§10.2), lido da BD **por pedido** (nunca do token), senão `PROFESSIONAL_LOCKED` (ou `INVALID_STATE_TRANSITION` na submissão).
+5. **Auditoria** das ações sensíveis e das negações (`ACCESS_DENIED`), com `actor_type = PROFESSIONAL_ACCOUNT` (`audit.md` §3).
+
+### 10.2 Matriz estado de validação × operação do profissional (BR-MKT-23, gerada para `TC-AZ-MKT-02`)
+| Operação | DRAFT | PENDING_REVIEW | NEEDS_INFO | APPROVED | REJECTED | SUSPENDED |
+|---|---|---|---|---|---|---|
+| Ler perfil, estado/motivo, credenciais, ofertas, regras, bloqueios, horários próprios; descarregar as suas credenciais `CLEAN` | sim | sim | sim | sim | sim | sim |
+| Alterar `displayName`, especialidades; carregar/remover credenciais | sim | `PROFESSIONAL_LOCKED` | sim | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` |
+| Alterar `bio`, `city`, `paymentInstructions` | sim | sim | sim | sim | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` |
+| Criar/alterar ofertas, regras de horário, bloqueios | sim | sim | sim | sim | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` |
+| Submeter (`POST /submission`) | sim (se BR-MKT-16) | `INVALID_STATE_TRANSITION` | sim (se BR-MKT-16) | `INVALID_STATE_TRANSITION` | `INVALID_STATE_TRANSITION` | `INVALID_STATE_TRANSITION` |
+| Geração de horários e visibilidade a famílias | não | não | não | **sim** | não | não |
+Login, refresh, logout e recuperação de palavra-passe funcionam em todos os estados (OP-59). Operações dependentes de marcações (MK3) acrescentam colunas na matriz do respetivo marco.
+
+### 10.3 Platform Admin (`/admin/professionals*`, `/admin/specialties*`) — complementa §7
+| Ação | PLATFORM_ADMIN | Outros atores |
+|---|---|---|
+| Listar a fila e ver o detalhe (e-mail, perfil, especialidades, metadados das credenciais, histórico) | sim | `FORBIDDEN` (User) · `401` (profissional/clínica) |
+| Descarregar uma credencial (`CLEAN`; **auditado**) | sim | idem |
+| Decidir (`APPROVE`, `REJECT`, `REQUEST_INFO`, `SUSPEND`, `REACTIVATE`; tabela de `state-machines.md`) | sim, com motivo onde é obrigatório | idem |
+| Criar/alterar/desativar especialidades | sim | idem |
+| Editar perfil, ofertas, horários, credenciais ou palavra-passe de um profissional; ler `paymentInstructions`; criar contas de profissional | **não** (não há rota) | — |
+| Ler qualquer dado de saúde ou de família | **não** (BR-MKT-27; `admin`/`professionals` não importam módulos de saúde) | — |
+Um token de `ProfessionalAccount` nunca autoriza `/admin/*`.
+
+### 10.4 Lado família (User) em MK1
+Sem rotas. O único leitor é a **raiz** de `professionals` (`ProfessionalDirectory`, BR-MKT-19), a consumir por MK2/MK3: devolve **só** `APPROVED`, só dados públicos; estados não `APPROVED` ⇒ ausente/`NOT_FOUND` (indistinguível de inexistente); **nunca** `paymentInstructions`, e-mail, credenciais nem estado de validação. A decisão de «pode esta família ver este profissional» é só a de visibilidade (não há dados de saúde em causa, logo **não** há `AccessPolicy`); a autorização de **ações** da família sobre o mercado (marcar, partilhar) fica para MK3/MK4.
+
+Testes gerados desta secção: `TC-AZ-MKT-01..08`.
