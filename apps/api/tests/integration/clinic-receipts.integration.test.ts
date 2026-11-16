@@ -208,7 +208,7 @@ describe("integração: recibos, perfil, papel Médico e auditoria da clínica (
       await audit.record(trx, { ...common, actorType: "CLINIC_ACCOUNT", actorClinicAccountId: accountA, actorClinicId: clinicA, action: "CLINIC_ACCOUNT_LOGIN" });
       // 3) outra clínica, um utilizador Vita e o sistema: nunca aparecem na vista da clínica A.
       await audit.record(trx, { ...common, actorType: "CLINIC_ACCOUNT", actorClinicAccountId: accountB, actorClinicId: clinicB, action: "CLINIC_RECEIPT_ISSUE" });
-      await audit.record(trx, { ...common, actorType: "USER", actorUserId: randomUUID(), action: "CLAIM_SUBMIT" });
+      await audit.record(trx, { ...common, actorType: "USER", actorUserId: randomUUID(), action: "USER_UPDATE" });
       await audit.record(trx, { ...common, actorType: "SYSTEM", action: "CLINIC_SCHEDULE_GENERATE" });
       // 4) conta cujo ator tem outra clínica no contexto: o contexto só vale se coincidir com a conta do evento.
       await runWithClinicActor({ clinicAccountId: accountB, clinicId: clinicB, role: "CLINIC_MANAGER", sessionId: "s" }, () => audit.record(trx, { ...common, actorType: "CLINIC_ACCOUNT", actorClinicAccountId: accountA, action: "CLINIC_STAFF_REMOVE" }));

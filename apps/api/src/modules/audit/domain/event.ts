@@ -182,96 +182,11 @@ export type AuditAction =
   | "EXAM_ORDER_VIEWED"
   | "EXAM_ORDER_LINKED"
   | "ATTENDANCE_STATEMENT_ISSUED"
-  // Seguradoras e portal da seguradora (ADR-021/ADR-023, BR-ADM-05/06, BR-INS-06): sem PII no metadata.
-  | "ADMIN_INSURER_CREATE"
-  | "ADMIN_INSURER_UPDATE"
-  | "ADMIN_INSURER_STATUS"
-  | "ADMIN_INSURER_ROOT_ACCOUNT"
-  // ADR-025 (audit.md §3): moeda e módulo operacional da seguradora (só Platform Admin).
-  | "ADMIN_INSURER_CURRENCY_UPDATE"
-  | "ADMIN_INSURER_MODULE_ENABLE"
-  | "ADMIN_INSURER_MODULE_DISABLE"
-  | "INSURANCE_ACCOUNT_LOGIN"
-  | "INSURANCE_ACCOUNT_LOGIN_FAILED"
-  | "INSURANCE_ACCOUNT_LOGOUT"
-  | "INSURANCE_ACCOUNT_REFRESH_REUSE_DETECTED"
-  | "INSURANCE_AGENT_CREATE"
-  | "INSURANCE_AGENT_REMOVE"
-  // Apólices e pedidos de reembolso (Fase 4b, ADR-021): `metadata` nunca com valores/identificadores de apólice (BR-HLT-05).
-  | "INSURANCE_POLICY_CREATE"
-  | "INSURANCE_POLICY_UPDATE"
-  | "INSURANCE_POLICY_DELETE"
-  | "CLAIM_SUBMIT"
-  | "CLAIM_DECIDE"
-  | "CLAIM_PAID"
-  // Módulo operacional de seguradoras, Fase A/S1 (ADR-025, BR-SEG-15, audit.md §3): `metadata.insurerId` sempre; NUNCA nomes,
-  // documentos de identificação, nº de cartão, códigos nem e-mails — só ids internos, estados (enum) e contagens.
-  | "INSURER_ACCOUNT_CREATE"
-  | "INSURER_ACCOUNT_REMOVE"
-  | "INSURER_COMPANY_CREATE"
-  | "INSURER_COMPANY_UPDATE"
-  | "INSURER_BENEFICIARY_CREATE"
-  | "INSURER_BENEFICIARY_UPDATE"
-  | "INSURER_BENEFICIARY_STATUS"
-  | "INSURER_IMPORT_PREVIEW"
-  | "INSURER_IMPORT_COMMIT"
-  | "INSURER_IMPORT_CANCEL"
-  | "INSURER_LINK_REQUEST"
-  | "INSURER_LINK_DECIDE"
-  | "INSURER_POLICY_CREATE"
-  | "INSURER_POLICY_UPDATE"
-  | "INSURER_POLICY_STATUS"
-  // S2 mínimo/S3 parcial (ADR-025, audit.md §3): `metadata` só com `insurerId`, ids internos, enums e contagens. `ELIGIBILITY_CHECK`
-  // (`actor_type=CLINIC_ACCOUNT`) regista `result` (ELIGIBLE|NOT_ELIGIBLE) e `serviceCode` só se for da lista — NUNCA cartão, QR,
-  // documento nem nome pesquisados; `DENIED` com `metadata.reason=RATE_LIMITED`.
-  | "INSURER_SERVICE_CREATE"
-  | "INSURER_SERVICE_UPDATE"
-  // Marco B fatia 2 (ADR-033, BR-SEG-39/40): `metadata` só com `insurerId`, ids, `key`, valores e contagens; nunca a categoria.
-  | "INSURER_SERVICE_KIND_CREATE"
-  | "INSURER_SERVICE_KIND_UPDATE"
-  | "INSURER_SERVICE_CLASSIFY"
-  | "INSURER_POLICY_SETTING_UPDATE"
-  | "INSURER_POLICY_SETTING_RESET"
-  | "INSURER_PLAN_CREATE"
-  | "INSURER_PLAN_STATUS"
-  | "INSURER_PLAN_NEW_VERSION"
-  | "INSURER_COVERAGE_UPDATE"
-  | "INSURER_PROVIDER_CREATE"
-  | "INSURER_PROVIDER_STATUS"
-  | "ELIGIBILITY_CHECK"
-  // S6 parcial (app do paciente, audit.md §3): ator `USER` com `familyId`/`subjectMemberId`; `metadata` só `insurerId` (+`step`/`reason`);
-  // NUNCA o código de reclamação, o nº de apólice, o nº de cartão nem o token do QR.
-  | "INSURER_LINK_REVOKE"
-  | "CARD_QR_ISSUE"
-  | "COVERAGE_VIEW"
   // Processos (marco B fatia 1, ADR-032, BR-PRC-11, audit.md §3): `metadata` só com `originType`/`kind`/contagens — NUNCA
   // `familyStatus`, `nextStep`, fase do ato, nome da clínica nem datas.
   | "PROCESS_OPEN"
   | "PROCESS_DISCARD"
-  | "PROCESS_VIEW"
-  // Pedido de autorização pelo prestador (marco B fatia 3, ADR-034, audit.md §3): `resourceType=AuthorizationRequest`;
-  // `metadata` só com `insurerId`, ids, enums e contagens — NUNCA justificação, mensagens, valores, nome/nº do beneficiário,
-  // código de autorização, identificação pesquisada nem o nome dos ficheiros.
-  | "AUTHORIZATION_SUBMIT"
-  | "AUTHORIZATION_INFO_RESPOND"
-  | "AUTHORIZATION_CANCEL"
-  | "AUTHORIZATION_ATTACHMENT_ADD"
-  | "AUTHORIZATION_ATTACHMENT_REMOVE"
-  | "AUTHORIZATION_INFO_TIMEOUT"
-  // Decisão pela seguradora, auto-aprovação e SLA (marco B fatia 4, ADR-035, audit.md §3): `metadata` só com `insurerId`, ids, enums,
-  // booleanos e contagens — NUNCA `reason`/`note`/`overrideReason`, valores, nome da regra, código de autorização nem nome de ficheiro.
-  | "AUTHORIZATION_APPROVE"
-  | "AUTHORIZATION_REJECT"
-  | "AUTHORIZATION_REQUEST_INFO"
-  | "AUTHORIZATION_REVERT"
-  | "AUTHORIZATION_REOPEN"
-  | "AUTHORIZATION_ASSIGN"
-  | "AUTHORIZATION_AUTO_APPROVE"
-  | "AUTHORIZATION_SLA_BREACH"
-  | "AUTHORIZATION_ATTACHMENT_DOWNLOAD"
-  | "AUTO_APPROVAL_RULE_CREATE"
-  | "AUTO_APPROVAL_RULE_UPDATE"
-  | "AUTO_APPROVAL_RULE_DELETE";
+  | "PROCESS_VIEW";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT";
 
