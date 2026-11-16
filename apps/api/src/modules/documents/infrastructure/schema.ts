@@ -10,7 +10,6 @@ export interface DocumentsTable {
   prescription_id: string | null;
   examination_id: string | null;
   /** ADR-021 (`0025`), inerte desde o arquivo do marco B (ADR-037): nunca escrita nem lida como recurso. */
-  insurance_policy_id: string | null;
   storage_key: string;
   original_name: string;
   mime_type: string;

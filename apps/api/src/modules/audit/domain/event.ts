@@ -210,8 +210,6 @@ export interface AuditEvent {
    * ator do pedido (token) quando coincide com `actorClinicAccountId`; os eventos sem sessão (login) passam-no explicitamente.
    */
   actorClinicId?: string;
-  /** ADR-021: preenchido só quando `actorType==='INSURANCE_ACCOUNT'` (schema.md §5). */
-  actorInsuranceAccountId?: string;
   action: AuditAction;
   resourceType: string;
   resourceId?: string;

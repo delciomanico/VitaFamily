@@ -46,7 +46,7 @@ const DOCUMENT_COLUMNS = [
   "created_at",
 ] as const;
 
-/** `prescription_id`/`examination_id` (schema.md §3; `insurance_policy_id` ficou inerte, ADR-037) <-> `resourceType`/`resourceId`. */
+/** `prescription_id`/`examination_id` (schema.md §3) <-> `resourceType`/`resourceId`. */
 function toDocument(row: DocumentRow): Document {
   const resourceType: ResourceType = row.prescription_id !== null ? "PRESCRIPTION" : "EXAMINATION";
   const resourceId = row.prescription_id ?? row.examination_id;
@@ -123,7 +123,6 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
     const row = await trx
       .selectFrom("documents")
       .select(DOCUMENT_COLUMNS)
-      .where("insurance_policy_id", "is", null) // linhas do marco B (ADR-037): inertes, nunca lidas
       .where("family_id", "=", familyId)
       .where("member_id", "=", memberId)
       .where("id", "=", documentId)
@@ -157,7 +156,6 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
     const row = await trx
       .selectFrom("documents")
       .select(DOCUMENT_COLUMNS)
-      .where("insurance_policy_id", "is", null) // linhas do marco B (ADR-037): inertes, nunca lidas
       .where("family_id", "=", familyId)
       .where("id", "=", documentId)
       .executeTakeFirst();

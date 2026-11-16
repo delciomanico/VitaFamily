@@ -10,7 +10,6 @@ export interface AuditLogsTable {
   actor_clinic_account_id: string | null;
   /** M14 R (`0030`): clínica da conta do portal, para `GET /clinic-portal/audit` (BR-CLN-40). */
   actor_clinic_id: string | null;
-  actor_insurance_account_id: string | null;
   action: string;
   resource_type: string;
   resource_id: string | null;
