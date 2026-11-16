@@ -5,11 +5,13 @@ import type { ColumnType, Generated } from "kysely";
 export interface AuditLogsTable {
   id: Generated<string>;
   occurred_at: ColumnType<Date, Date | string, never>;
-  actor_type: "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT";
+  actor_type: "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT" | "PROFESSIONAL_ACCOUNT";
   actor_user_id: string | null;
   actor_clinic_account_id: string | null;
   /** M14 R (`0030`): clínica da conta do portal, para `GET /clinic-portal/audit` (BR-CLN-40). */
   actor_clinic_id: string | null;
+  /** MK1 (`0043`): conta do portal do profissional (sem FK). */
+  actor_professional_account_id: string | null;
   action: string;
   resource_type: string;
   resource_id: string | null;

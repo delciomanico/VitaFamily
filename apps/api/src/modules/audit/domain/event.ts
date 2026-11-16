@@ -186,9 +186,40 @@ export type AuditAction =
   // `familyStatus`, `nextStep`, fase do ato, nome da clínica nem datas.
   | "PROCESS_OPEN"
   | "PROCESS_DISCARD"
-  | "PROCESS_VIEW";
+  | "PROCESS_VIEW"
+  // Mercado de profissionais (MK1, ADR-037, audit.md §3): `metadata` só com ids, estados, nomes de campos, `kind` e contagens —
+  // NUNCA e-mail, nome, bio, cidade, instruções de pagamento, nº/entidade da credencial, nome do ficheiro, motivos, preços nem notas.
+  | "PROFESSIONAL_REGISTER"
+  | "PROFESSIONAL_EMAIL_VERIFIED"
+  | "PROFESSIONAL_LOGIN"
+  | "PROFESSIONAL_LOGIN_FAILED"
+  | "PROFESSIONAL_LOGOUT"
+  | "PROFESSIONAL_REFRESH_REUSE_DETECTED"
+  | "PROFESSIONAL_PASSWORD_RESET"
+  | "PROFESSIONAL_PROFILE_UPDATE"
+  | "PROFESSIONAL_SPECIALTIES_SET"
+  | "PROFESSIONAL_CREDENTIAL_UPLOAD"
+  | "PROFESSIONAL_CREDENTIAL_DELETE"
+  | "PROFESSIONAL_CREDENTIAL_DOWNLOAD"
+  | "PROFESSIONAL_CREDENTIAL_EXPIRED"
+  | "PROFESSIONAL_SUBMIT"
+  | "PROFESSIONAL_OFFER_CREATE"
+  | "PROFESSIONAL_OFFER_UPDATE"
+  | "PROFESSIONAL_SCHEDULE_RULE_CREATE"
+  | "PROFESSIONAL_SCHEDULE_RULE_UPDATE"
+  | "PROFESSIONAL_SCHEDULE_GENERATE"
+  | "PROFESSIONAL_TIME_OFF_CREATE"
+  | "PROFESSIONAL_TIME_OFF_DELETE"
+  | "ADMIN_PROFESSIONAL_APPROVE"
+  | "ADMIN_PROFESSIONAL_REJECT"
+  | "ADMIN_PROFESSIONAL_REQUEST_INFO"
+  | "ADMIN_PROFESSIONAL_SUSPEND"
+  | "ADMIN_PROFESSIONAL_REACTIVATE"
+  | "ADMIN_PROFESSIONAL_CREDENTIAL_DOWNLOAD"
+  | "ADMIN_SPECIALTY_CREATE"
+  | "ADMIN_SPECIALTY_UPDATE";
 
-export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT";
+export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT" | "PROFESSIONAL_ACCOUNT";
 
 export type AuditResult = "SUCCESS" | "DENIED" | "FAILURE";
 
@@ -210,6 +241,8 @@ export interface AuditEvent {
    * ator do pedido (token) quando coincide com `actorClinicAccountId`; os eventos sem sessão (login) passam-no explicitamente.
    */
   actorClinicId?: string;
+  /** MK1: preenchido só quando `actorType==='PROFESSIONAL_ACCOUNT'` (`actor_professional_account_id`, sem FK). */
+  actorProfessionalAccountId?: string;
   action: AuditAction;
   resourceType: string;
   resourceId?: string;

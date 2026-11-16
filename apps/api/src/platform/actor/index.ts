@@ -59,3 +59,24 @@ export function runWithClinicActor<T>(actor: ClinicActorInfo, fn: () => T): T {
 export function getClinicActor(): ClinicActorInfo | undefined {
   return clinicActorStorage.getStore();
 }
+
+/**
+ * Terceiro ator, do portal do profissional (MK1, ADR-037, BR-MKT-13): `ProfessionalAccount`, identidade separada de `User` e de
+ * `ClinicAccount`; `AsyncLocalStorage` próprio. O estado de validação NÃO está aqui (lê-se da BD por pedido, BR-MKT-29).
+ */
+export interface ProfessionalActorInfo {
+  professionalAccountId: string;
+  professionalId: string;
+  sessionId: string;
+}
+
+const professionalActorStorage = new AsyncLocalStorage<ProfessionalActorInfo>();
+
+export function runWithProfessionalActor<T>(actor: ProfessionalActorInfo, fn: () => T): T {
+  return professionalActorStorage.run(actor, fn);
+}
+
+/** Ator do portal do profissional do pedido atual, ou `undefined` fora de `/professional-portal/*`. */
+export function getProfessionalActor(): ProfessionalActorInfo | undefined {
+  return professionalActorStorage.getStore();
+}

@@ -1,0 +1,117 @@
+// Portas do módulo `professionals` (conventions.md §3.2): definidas aqui, implementadas em `infrastructure`. Genéricas em `Trx` para que
+// esta camada nunca importe "kysely" (§3.9). Não há portas para `argon2`/`jose`/`node:crypto` (computação pura).
+import type { Clock } from "../../../platform/clock/index.js";
+import type { Logger } from "../../../platform/logger/index.js";
+import type { AuditEvent } from "../../audit/index.js";
+import type { ProfessionalAccount, ProfessionalRef } from "../domain/account.js";
+import type { ProfessionalSigningKey } from "../domain/jwt.js";
+import type { ProfessionalInMemoryRateLimiter } from "../domain/rate-limiter.js";
+import type { ProfessionalSession } from "../domain/session.js";
+
+export interface AuditPort<Trx> {
+  record(trx: Trx, event: AuditEvent): Promise<void>;
+}
+
+export type WithTransaction<Trx> = <T>(fn: (trx: Trx) => Promise<T>) => Promise<T>;
+
+export interface RequestContext {
+  requestId: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+export interface ProfessionalSentEmail {
+  to: string;
+  subject: string;
+  text: string;
+}
+
+/** Envio de e-mail (SMTP na `infrastructure`, fake nos testes); falhas são «best effort» (send-mail.ts). */
+export interface ProfessionalMailer {
+  send(email: ProfessionalSentEmail): Promise<void>;
+}
+
+export interface NewProfessionalAccountRecord {
+  id: string;
+  professionalId: string;
+  email: string;
+  passwordHash: string;
+  termsAcceptedVersion: string;
+  createdAt: Date;
+}
+
+export type ProfessionalAuthTokenType = "EMAIL_VERIFICATION" | "PASSWORD_RESET";
+
+export interface ProfessionalAuthToken {
+  id: string;
+  accountId: string;
+  type: ProfessionalAuthTokenType;
+  tokenHash: string;
+  expiresAt: Date;
+}
+
+export interface NewProfessionalAuthTokenRecord {
+  id: string;
+  accountId: string;
+  type: ProfessionalAuthTokenType;
+  tokenHash: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface ProfessionalAccountRepository<Trx> {
+  /** Cria a conta + o `Professional` em `DRAFT` (BR-MKT-14); `null` se o e-mail já existe (corrida incluída: `ON CONFLICT DO NOTHING`). */
+  insertWithProfessional(trx: Trx, record: NewProfessionalAccountRecord): Promise<ProfessionalAccount | null>;
+  findByEmail(trx: Trx, email: string): Promise<ProfessionalAccount | null>;
+  findById(trx: Trx, id: string): Promise<ProfessionalAccount | null>;
+  findProfessionalByAccountId(trx: Trx, accountId: string): Promise<ProfessionalRef | null>;
+  markEmailVerified(trx: Trx, id: string, now: Date): Promise<void>;
+  setPasswordHash(trx: Trx, id: string, passwordHash: string, now: Date): Promise<void>;
+  touchLastLogin(trx: Trx, id: string, now: Date): Promise<void>;
+}
+
+export interface ProfessionalAuthTokenRepository<Trx> {
+  insert(trx: Trx, record: NewProfessionalAuthTokenRecord): Promise<void>;
+  /** Procura SEMPRE no âmbito da conta (o código só tem 10^6 valores). */
+  findValidForAccount(trx: Trx, accountId: string, type: ProfessionalAuthTokenType, tokenHash: string, now: Date): Promise<ProfessionalAuthToken | null>;
+  markUsed(trx: Trx, id: string, usedAt: Date): Promise<void>;
+  invalidateAllForAccount(trx: Trx, accountId: string, type: ProfessionalAuthTokenType, now: Date): Promise<void>;
+}
+
+export interface NewProfessionalSessionRecord {
+  id: string;
+  accountId: string;
+  refreshTokenHash: string;
+  tokenChainId: string;
+  userAgent?: string;
+  ip?: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface ProfessionalSessionRepository<Trx> {
+  insert(trx: Trx, record: NewProfessionalSessionRecord): Promise<ProfessionalSession>;
+  findByRefreshTokenHash(trx: Trx, refreshTokenHash: string): Promise<ProfessionalSession | null>;
+  /** `true` se a sessão estava ativa e foi revogada agora; `false` se já estava revogada (rotação concorrente/reutilização). */
+  revoke(trx: Trx, id: string, revokedAt: Date): Promise<boolean>;
+  revokeChain(trx: Trx, tokenChainId: string, revokedAt: Date): Promise<void>;
+  revokeAllForAccount(trx: Trx, accountId: string, revokedAt: Date): Promise<void>;
+}
+
+/** Tudo o que os casos de uso precisam (ligado em `index.ts`); `db` é a ligação para leituras fora de transação. */
+export interface ProfessionalsDeps<Trx> {
+  db: Trx;
+  withTransaction: WithTransaction<Trx>;
+  clock: Clock;
+  logger: Logger;
+  audit: AuditPort<Trx>;
+  mailer: ProfessionalMailer;
+  accountRepo: ProfessionalAccountRepository<Trx>;
+  authTokenRepo: ProfessionalAuthTokenRepository<Trx>;
+  sessionRepo: ProfessionalSessionRepository<Trx>;
+  rateLimiter: ProfessionalInMemoryRateLimiter;
+  signingKeys: ProfessionalSigningKey[];
+  accessTtlSeconds: number;
+  refreshTtlMs: number;
+  appBaseUrl: string;
+}

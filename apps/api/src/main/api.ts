@@ -37,6 +37,7 @@ import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPu
 import { createAlertsModule, type AlertsModule } from "../modules/alerts/index.js";
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
+import { ProfessionalSmtpMailer, createProfessionalsModule, parseProfessionalSigningKeys } from "../modules/professionals/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
 /**
@@ -209,6 +210,20 @@ export function main(): void {
         ...(await required(late.clinicPatients, "clinicPatients").directory.countActiveVisitsBySlot(trx, slotIds)).map(({ slotId, count }) => ({ slotId, requested: 0, scheduled: count })),
       ],
     },
+  });
+  // MK1 (ADR-037): identidade do portal do profissional (`ProfessionalAccount`) separada de `auth` e de `clinics`; mesma configuração de
+  // chaves/TTLs (OP-73), parser e tipos próprios. Não depende de nenhum outro módulo de negócio (só `audit`).
+  const professionals = createProfessionalsModule({
+    db,
+    audit,
+    clock,
+    logger,
+    mailer: new ProfessionalSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
+    signingKeys: parseProfessionalSigningKeys(config.JWT_SIGNING_KEYS),
+    accessTtlSeconds: Math.round(parseDurationMs(config.JWT_ACCESS_TTL) / 1000),
+    refreshTtlMs: parseDurationMs(config.REFRESH_TTL),
+    cookieDomain: config.COOKIE_DOMAIN,
+    appBaseUrl: config.APP_BASE_URL,
   });
   // M8 (plan.md §4): `notifications` antes de `alerts` — `alerts` depende de `notifications`
   // pela raiz (modules.md §3 nota 15), nunca o inverso. D19: ambos vêm antes de `examinations`,
@@ -632,7 +647,8 @@ export function main(): void {
           next(clinicErr);
           return;
         }
-        next();
+        // MK1: terceiro ator (`/professional-portal/*`); cada pedido só preenche um dos três `*AuthSubject`.
+        professionals.actorContextMiddleware(req, res, next);
       });
     });
   };
@@ -641,7 +657,7 @@ export function main(): void {
     openApiSpecPath: OPENAPI_SPEC_PATH,
     logger,
     trustProxy: config.TRUST_PROXY,
-    securityHandlers: { ...auth.securityHandlers, ...clinics.clinicSecurityHandlers },
+    securityHandlers: { ...auth.securityHandlers, ...clinics.clinicSecurityHandlers, ...professionals.securityHandlers },
     actorContextMiddleware,
     metrics: { middleware: metrics.httpMiddleware, handler: metrics.handler },
     registerHealthRoutes,
@@ -657,6 +673,7 @@ export function main(): void {
       router.use(clinics.router);
       router.use(clinics.adminRouter);
       router.use(clinics.clinicPortalRouter);
+      router.use(professionals.router);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);
