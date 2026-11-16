@@ -1,6 +1,6 @@
 # Vita Family — Mercado de profissionais de saúde e bem-estar (Angola)
 
-> Estado: **v0.1 PROPOSTO (2026-11-16)** — direção decidida pelo proprietário e registada em **ADR-037**; tudo o que segue (modelo, regras, marcos) é **proposta a ratificar** (§10). Sem contrato, schema nem código. **Não é parecer jurídico.** Princípios mantidos: família nunca vê vocabulário técnico; famílias gratuitas; admin da plataforma sem acesso a dados de saúde.
+> Estado: **v0.2 DECISÕES RATIFICADAS (2026-11-16)** — direção e decisões do §11 ratificadas pelo proprietário e registadas em **ADR-037 (aceite)**; o modelo e as regras BR-MKT continuam **candidatos** até ao contrato de cada marco. Sem contrato, schema nem código. **Não é parecer jurídico.** Princípios mantidos: família nunca vê vocabulário técnico; famílias gratuitas; admin da plataforma sem acesso a dados de saúde.
 
 ## 1. Em duas frases
 O Vita guarda a saúde da família **e** deixa-a encontrar profissionais de saúde e bem-estar: ver preços, comparar, conversar, marcar, atender (presencial, vídeo, chat…), pagar **fora da app** com comprovativo controlado, avaliar e, se quiser, partilhar registos com prazo. Só Angola; preços em Kz.
@@ -15,22 +15,23 @@ O Vita guarda a saúde da família **e** deixa-a encontrar profissionais de saú
 ## 3. Categorias e avisos
 | | `HEALTH` (saúde: medicina, enfermagem, psicologia, fisioterapia, nutrição clínica…) | `WELLNESS` (bem-estar: personal trainer, coaching, nutrição desportiva…) |
 |---|---|---|
-| Validação (admin) | Identidade + comprovativo de inscrição/cédula profissional na entidade competente (**a confirmar no parecer**) | Identidade + certificação, se existir |
+| Validação (admin) | Identidade + comprovativo de inscrição/cédula profissional na entidade competente (**a confirmar no parecer**); **nutrição = HEALTH: cédula/ordem validada pelo admin** | Identidade + certificação (validação mais leve; personal trainers e afins) |
 | Selo no perfil | «Profissional de saúde validado» | «Profissional de bem-estar validado» |
 | Aviso à família | «Não substitui atendimento de urgência.» | «Serviço de bem-estar; não é um ato de saúde nem substitui o seu médico.» |
-| Partilha de registos | Permitida (categorias escolhidas) | Por omissão só medidas simples (peso, altura, medicação ativa a pedido); ratificar |
+| Partilha de registos | Permitida (categorias escolhidas) | Só medidas simples (peso, altura, medicação ativa a pedido) |
+| Receita digital | Só em vídeo/consulta concluída, **ativada no lançamento após parecer jurídico** (ADR-037 §9) | Nunca |
 
-A categoria de cada especialidade é **dado do catálogo** (admin), nunca `if` no código. A nutrição pode estar em qualquer das duas (decisão do catálogo, §11).
+A categoria de cada especialidade é **dado do catálogo** (admin), nunca `if` no código. **Decidido:** nutrição = `HEALTH`; personal trainers e afins = `WELLNESS` (nutrição desportiva sem ato clínico pode ser entrada `WELLNESS` do catálogo, se o parecer o aceitar).
 
 ## 4. Jornadas
 1. **Cadastro e validação:** profissional regista-se → verifica e-mail → escolhe especialidade(s) → carrega credenciais (antivírus, como os anexos existentes) → estado `PENDING_REVIEW` → admin aprova/rejeita com motivo (ou pede mais documentos) → `APPROVED` publica o perfil; `SUSPENDED` retira-o da pesquisa sem apagar histórico. Credencial caducada → nova validação.
-2. **Descoberta e comparação:** família pesquisa por especialidade, cidade, método e preço; vê perfil (selo, aviso, métodos, preços, avaliações verificadas, nº de consultas); seleciona 2–3 e **compara preços lado a lado**; ordena por «Melhor avaliados» (ranking §6), preço ou disponibilidade.
+2. **Descoberta e comparação:** família pesquisa (**só com login**) por especialidade, cidade, método e preço; vê perfil (selo, aviso, métodos, preços, avaliações verificadas, nº de consultas); seleciona 2–3 e **compara preços lado a lado**; ordena por «Melhor avaliados» (ranking §6), preço ou disponibilidade.
 3. **Chat:** a família pode escrever **antes** de marcar (dúvidas, preço, método); depois da marcação o chat continua ligado à marcação. Aviso fixo: «Não envie dados de saúde sensíveis por aqui; use a partilha com prazo.» Sem anexos no MVP; denunciar mensagem.
 4. **Marcação:** escolhe serviço (método+preço) e horário livre → `REQUESTED` → profissional confirma (`CONFIRMED`) ou recusa; cancelamento com antecedência mostrada; lembretes pelos `alerts` existentes; cria um `Process` (episódio de cuidado) e, ao confirmar, uma `Appointment` no registo da família (privada ao membro).
-5. **Consulta:** pelo método marcado (presencial, vídeo/chamada por ligação externa no MVP — sem vídeo embebido —, chat). Profissional marca `COMPLETED` ou `NO_SHOW`.
+5. **Consulta:** pelo método marcado (presencial, vídeo/chamada por ligação externa — sem vídeo embebido —, chat). Profissional marca `COMPLETED` ou `NO_SHOW`. **Receita digital (ADR-037 §9):** depois de `COMPLETED`, um profissional `HEALTH` pode emitir uma receita (reaproveita `prescriptions`: medicamentos em texto livre, dosagem, frequência, duração); a família recebe-a como receita no membro da marcação, com plano de toma; só ativa no lançamento depois do parecer jurídico.
 6. **Comprovativo de pagamento (fora da app):** o profissional mostra os dados de pagamento do perfil; a família paga fora e **carrega o comprovativo** (PDF/imagem, antivírus) → `PROOF_SUBMITTED` → profissional **confirma** (`CONFIRMED`) ou rejeita com motivo; disputa → admin vê **só o comprovativo e a marcação**. O app regista estado, quem e quando; **não valida o dinheiro**.
 7. **Avaliação:** só depois de `COMPLETED` **e** pagamento `CONFIRMED` (por defeito); 1–5 + comentário curto; uma por marcação; o profissional pode responder uma vez; denúncia → admin.
-8. **Partilha com prazo:** na marcação (ou depois), a família escolhe **categorias** (alergias/tipo sanguíneo, medicação, exames, consultas…), **prazo** (24 h · 7 dias · 30 dias · até 24 h após a consulta) ou **visualização única**; o profissional vê só isso; a família vê «quem viu o quê e quando» e pode **revogar**. Texto honesto: «Não conseguimos impedir capturas de ecrã. Partilhe só o que quer que o profissional veja. Todos os acessos ficam registados.»
+8. **Partilha com prazo:** na marcação (ou depois), a família escolhe **categorias** (alergias/tipo sanguíneo, medicação, exames, consultas…), **prazo** (24 h · 7 dias · 30 dias · até ao fim da consulta + 24 h) ou **visualização única** (máx. 30 dias, com marca de água); o profissional vê só isso; a família vê «quem viu o quê e quando» e pode **revogar**. Texto honesto: «Não conseguimos impedir capturas de ecrã. Partilhe só o que quer que o profissional veja. Todos os acessos ficam registados.»
 
 ## 5. Modelo de dados proposto (nomes provisórios; contrato e migração por marco)
 | Tabela | Conteúdo essencial |
@@ -75,11 +76,11 @@ Preços em Kz inteiros (sem centavos); fuso por omissão `Africa/Luanda`; texto 
 | **Ranking** (viés, avaliações falsas, queixas de profissionais) | Só avaliações verificadas; suavização; mínimo de N; denúncia; função pura e pública na descrição («como ordenamos»); nunca por pagamento |
 | **Chat com dados de saúde** | Aviso, sem anexos, rate limit, retenção curta, admin só lê o denunciado; AIPD cobre o chat |
 | **Visualização única** | Impossível impedir capturas; texto honesto; registo e marca de água; **não** vender como proteção forte |
-| **Parecer jurídico** (Lei 22/11 e autoridade de proteção de dados, RGPD como referência, telemedicina, receita/prescrição digital, publicidade em saúde, consentimento do tutor) | Gate de lançamento; **sem prescrição digital no MVP** (a receita continua a ser registada pela família); consulta por vídeo = ferramenta externa |
+| **Parecer jurídico** (Lei 22/11 e autoridade de proteção de dados, RGPD como referência, telemedicina, **receita digital**, publicidade em saúde, consentimento do tutor) | **Gate de lançamento, a contratar pelo proprietário.** **Receita digital decidida pelo proprietário (difere da recomendação anterior, que era sem prescrição digital): risco regulatório alto e não verificado; só é ativada no lançamento, depois do parecer** (flag desligada até lá); consulta por vídeo = ferramenta externa |
 | **Pagamentos** (comprovativos falsos, disputas; comissão/assinatura no futuro; fiscalidade) | O Vita não custodia; confirmação pelo profissional + disputa ao admin; comissão/assinatura só por ADR futuro com parecer fiscal |
 | **Qualidade e fraude** (falso profissional) | Validação manual + credenciais com validade + suspensão rápida |
 | **Menores** (tutela) | Marcação/partilha só por titular adulto ou tutor |
-| **Dois mundos no mesmo produto** | Marco B desligado por interruptor; módulos novos isolados por portas |
+| **Dois mundos no mesmo produto** | Resolvido: marco B arquivado em ramo/tag e removido do `main` (`11-implementation/arquivo-marco-b.md`); módulos novos isolados por portas |
 
 ## 9. O que cada módulo existente reaproveita
 | Existente | Papel no mercado |
@@ -93,33 +94,34 @@ Preços em Kz inteiros (sem centavos); fuso por omissão `Africa/Luanda`; texto 
 | `alerts`/`notifications` | Lembretes, nova mensagem, estado do comprovativo (`raise*Event`) |
 | `access` | `AccessPolicy` para o lado família (nova ação de partilha, só `SELF`/`TUTOR_OF`) |
 | `lifecycle`/`audit`/`admin` | Exportação/apagamento (partilhas, conversas), auditoria, fila de validação (admin sem dados de saúde) |
-| `insurance*`/`insurer-ops` (marco B fatias 2–5) | **Desligados**, não reaproveitados |
+| `prescriptions` | Receita digital emitida pelo profissional (padrão `issue-for-clinic`), só após parecer jurídico |
+| `insurance*`/`insurer-ops` (marco B) | **Removidos do `main`** (arquivo `archive-marco-b-2026-11-16`), não reaproveitados |
 
 ## 10. Plano de marcos novos (prefixo **MK** para não colidir com M0–M15)
 Ordem: **MK0 → MK1 → MK2 → MK3 → MK4**. Cada marco: contrato primeiro (`vita-architect`), gates `pnpm gen && lint && test && build`, isolamento e matriz de autorização, auditoria, revisão do proprietário. Sem datas (capacidade TBD).
 
 | Marco | Conteúdo | Depende de | Donos (agentes) | Critério de aceitação resumido |
 |---|---|---|---|---|
-| **MK0 — Preparação** | Interruptor `INSURANCE_FEATURES_ENABLED` (e teste de que desligado = rotas/jobs ausentes, dados intactos); `ADR-037` ratificado; parecer jurídico encomendado; fuso/locale Angola; contratos de MK1 | ADR-037 | `vita-platform`, `vita-architect`, `vita-devops` | Com o interruptor desligado, nenhuma rota/job de seguradora está ativa e a suite existente passa; docs de MK1 fechados |
+| **MK0 — Preparação** | **Remoção do marco B do `main`** (passos R1–R6 de `arquivo-marco-b.md`); agente `vita-marketplace`; parecer jurídico encomendado pelo proprietário; fuso/locale Angola; contratos de MK1 | ADR-037 (aceite) | `vita-platform`, `vita-architect`, `vita-devops`, `vita-marketplace` | `main` sem código/rotas/jobs/contrato de seguradora e suite verde; docs de MK1 fechados |
 | **MK1 — Profissionais + validação** | `professionals`: conta/sessões próprias, perfil, especialidades/categorias, credenciais, fila e decisões do admin, ofertas e preços Kz, horários; portal do profissional (mínimo) | MK0 | `vita-identity` (conta/sessões), `vita-health` (perfil/ofertas/horários), `vita-documents` (credenciais), `vita-platform` (admin/fila) | Profissional regista-se, carrega credenciais, admin aprova/rejeita com motivo; só `APPROVED` é visível; admin não acede a nada de saúde; testes de isolamento e auditoria |
 | **MK2 — Descoberta + chat** | Pesquisa/filtros por especialidade/cidade/método/preço, perfil público, comparação de preços, ranking (função pura, inicialmente sem avaliações → «Novo»), `messaging` (chat pré/pós marcação, denúncia), alertas de nova mensagem | MK1 | `vita-health` (descoberta), `vita-alerts` (notificações), `vita-qa-security` (chat/dados) | Família compara ≥2 profissionais por preço e conversa antes de marcar; só participantes leem; limites e avisos presentes; ranking não depende de pagamento (teste) |
 | **MK3 — Marcação + comprovativo + avaliações** | `consultations`: marcação por horário/método, estados, `Process` de origem `BOOKING`, consulta no registo da família, comprovativo e confirmação, avaliações verificadas e ranking real, denúncias | MK2, `processes` | `vita-health`, `vita-documents` (comprovativos), `vita-alerts`, `vita-qa-security` | Fluxo ponta a ponta (marcar → atender → comprovativo confirmado → avaliar); só quem consultou avalia; ranking só com avaliações verificadas; disputa visível ao admin só com o comprovativo |
-| **MK4 — Partilha com prazo e visualização única** | `record-sharing`: concessão por categoria/prazo, leitura pelo profissional via portas, registo e vista de acessos para a família, revogação, visualização única, textos honestos; exportação/apagamento | MK3, `access`, módulos de saúde (portas) | `vita-family` (`access`/ações), `vita-health` (leitores), `vita-qa-security`, `vita-architect` | Profissional vê só categorias e prazo concedidos; expirado/revogado → 403; visualização única só abre uma vez; família vê cada acesso; sem capturas garantidas e dito |
+| **MK4 — Partilha com prazo e visualização única** (e receita digital, desligada até ao parecer) | `record-sharing`: concessão por categoria/prazo, leitura pelo profissional via portas, registo e vista de acessos para a família, revogação, visualização única, textos honestos; exportação/apagamento | MK3, `access`, módulos de saúde (portas) | `vita-family` (`access`/ações), `vita-health` (leitores), `vita-qa-security`, `vita-architect` | Profissional vê só categorias e prazo concedidos; expirado/revogado → 403; visualização única só abre uma vez; família vê cada acesso; sem capturas garantidas e dito |
 | **Transversal (antes do lançamento)** | AIPD/DPA alargados (M10), parecer jurídico, textos legais, carga, backups, monitorização | MK1–MK4 | `vita-qa-security`, `vita-devops` | Gate de lançamento do ADR-037 cumprido |
 
-## 11. Decisões que o proprietário tem de ratificar
-1. **Conta do profissional separada de `User`** (ator `ProfessionalAccount`, padrão ADR-020) vs. `User` com papel extra. Recomendado: separada.
-2. **Categorias:** onde cai a nutrição (HEALTH/WELLNESS, ou por especialidade no catálogo) e que credenciais exige cada categoria (parecer jurídico).
-3. **Visibilidade da pesquisa:** só para utilizadores autenticados no MVP (recomendado) ou página pública.
-4. **Avaliação exige `COMPLETED` e pagamento `CONFIRMED`** (recomendado) ou só `COMPLETED`.
-5. **Ranking:** média suavizada, N mínimo = 3, nenhum destaque pago (nunca), regra pública.
-6. **Chat:** sem anexos no MVP, retenção 24 meses, admin só lê o denunciado.
-7. **Partilha:** prazos 24 h/7 d/30 d/até fim da consulta (+24 h), máximo 30 dias, visualização única com marca de água (candidata) e texto honesto sobre capturas; WELLNESS só com medidas simples.
-8. **Vídeo:** ligação externa (sem vídeo embebido) no MVP; **sem prescrição digital** no MVP.
-9. **Marco B:** interruptor global desligado por omissão, fatias 2b e 6 canceladas por adiamento; portal da clínica mantido ativo e congelado.
-10. **Angola:** fuso `Africa/Luanda`, Kz inteiro, textos pt-PT (a rever para vocabulário angolano); `scope.md` ainda diz «família em Portugal».
-11. **Agente novo** para o mercado (`vita-marketplace`) em vez de partilhar `vita-health`/`vita-identity`.
-12. **Parecer jurídico como gate** (Lei 22/11, telemedicina, publicidade em saúde, prescrição) e responsável pela contratação.
+## 11. Decisões (RATIFICADAS pelo proprietário em 2026-11-16; ADR-037)
+1. **Conta do profissional separada de `User`** (`ProfessionalAccount`, padrão ADR-020). **Decidido.**
+2. **Categorias:** nutrição = **`HEALTH`** (cédula/ordem validada pelo admin); personal trainers e afins = **`WELLNESS`** (validação mais leve e aviso próprio). **Decidido.**
+3. **Pesquisa:** **só com login** no MVP. **Decidido.**
+4. **Avaliação:** exige consulta `COMPLETED` **e** pagamento `CONFIRMED`. **Decidido.**
+5. **Ranking:** média suavizada, N mínimo = 3, nenhum destaque pago (nunca), regra pública. **Aceite (default).**
+6. **Chat:** sem anexos, retenção 24 meses, admin só lê o denunciado. **Decidido.**
+7. **Partilha:** prazos 24 h / 7 d / 30 d / fim da consulta + 24 h; visualização única (máx. 30 dias); marca de água e texto honesto sobre capturas; WELLNESS só com medidas simples. **Decidido.**
+8. **Vídeo:** ligação externa **com receita digital** (reaproveita `prescriptions`; o profissional `HEALTH` emite após consulta concluída, a família recebe-a no registo). **Difere da recomendação anterior**; risco regulatório documentado (§8); **ativada só no lançamento, depois do parecer jurídico.** **Decidido.**
+9. **Marco B:** **arquivado** (ramo `archive/marco-b-seguradoras`, tag `archive-marco-b-2026-11-16`, commit `b6ff812`) e **removido do `main`; sem interruptor**; fatias 2b e 6 canceladas; portal da clínica mantido (sem as ligações de seguradora). Plano: `11-implementation/arquivo-marco-b.md`. **Decidido.**
+10. **Angola:** fuso `Africa/Luanda`, Kz inteiro, pt-PT (a rever para vocabulário angolano); `scope.md` corrigido («Portugal» → Angola). **Aceite (default).**
+11. **Agente novo** `vita-marketplace` (módulos `professionals`, `consultations`, `messaging`, `record-sharing`). **Aceite (default); a criar em `.claude/agents/` no MK0.**
+12. **Parecer jurídico = gate de lançamento**, a contratar pelo proprietário (Lei 22/11, telemedicina, receita digital, publicidade em saúde). **Decidido.**
 
 ## 12. Lacunas
 Sem pesquisa de mercado nem validação com utilizadores (D16); regulação angolana de telemedicina/publicidade em saúde não verificada (hipótese); modelo de comissão/assinatura não desenhado; moderação de conteúdo e SLA do admin por definir; cadastro de clínicas como organização no mercado fora do âmbito; carteira/pagamentos em Kz e fiscalidade por validar.

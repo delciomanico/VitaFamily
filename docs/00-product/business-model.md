@@ -1,6 +1,6 @@
 # Vita Family — Modelo de negócio, partes e acessos
 
-> **ADIADO (pivô 2026-11-16, ADR-037):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve fica desligado atrás do interruptor `INSURANCE_FEATURES_ENABLED` e só se retoma por change control. Migrações aplicadas ficam.
+> **ARQUIVADO (pivô 2026-11-16, ADR-037; removido do `main`, sem interruptor):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve está preservado no ramo `archive/marco-b-seguradoras` / tag `archive-marco-b-2026-11-16` (plano de remoção: `11-implementation/arquivo-marco-b.md`). Migrações aplicadas ficam.
 
 > Estado: **v0.1 PROPOSTO (2026-11-14)** — direção de produto indicada pelo proprietário; formalização em ADR-029/030/031 (todos "Proposto — aguarda aprovação"). O **modelo comercial é HIPÓTESE não validada** (D16: sem validação com utilizadores). Não é parecer jurídico.
 

@@ -1,6 +1,6 @@
 # ADR-033 — Catálogo `service_kind`, política da seguradora em dados, `evaluateCoverage` única e moeda de fonte única (marco B, fatia 2)
 
-> **ADIADO (pivô 2026-11-16, ADR-037):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve fica desligado atrás do interruptor `INSURANCE_FEATURES_ENABLED` e só se retoma por change control. Migrações aplicadas ficam.
+> **ARQUIVADO (pivô 2026-11-16, ADR-037; removido do `main`, sem interruptor):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve está preservado no ramo `archive/marco-b-seguradoras` / tag `archive-marco-b-2026-11-16` (plano de remoção: `11-implementation/arquivo-marco-b.md`). Migrações aplicadas ficam.
 
 **Estado:** **Aceite com âmbito de construção da fatia 2 do marco B** (decisão do proprietário de 2026-11-14: direção e valores por omissão; «seguir o recomendado» para o desenho abaixo). Os pontos marcados **PROPOSTO** são defaults do `vita-architect` que o proprietário ratifica (ou altera) sem refazer a fatia. Não supera nenhum ADR; completa ADR-025 (módulo operacional), ADR-032 (`processes`, prazos) e BR-SEG-19.
 

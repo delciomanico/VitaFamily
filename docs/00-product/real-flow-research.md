@@ -1,6 +1,6 @@
 # Vita Family — Pesquisa de fluxos reais (seguradora, prestador, família)
 
-> **ADIADO (pivô 2026-11-16, ADR-037):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve fica desligado atrás do interruptor `INSURANCE_FEATURES_ENABLED` e só se retoma por change control. Migrações aplicadas ficam.
+> **ARQUIVADO (pivô 2026-11-16, ADR-037; removido do `main`, sem interruptor):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve está preservado no ramo `archive/marco-b-seguradoras` / tag `archive-marco-b-2026-11-16` (plano de remoção: `11-implementation/arquivo-marco-b.md`). Migrações aplicadas ficam.
 
 > Estado: **v0.1 PESQUISA (2026-11-14)** — insumo para `process-flows.md` v0.2 e `digital-card.md`. Não é decisão, contrato nem parecer jurídico.
 > **Legenda de confiança:** **[V]** verificado em fonte primária citada; **[V-sec]** verificado em fonte secundária/comercial (menor fiabilidade); **[I]** inferido (não confirmado em fonte); **[C]** por confirmar com seguradora/regulador/proprietário. Onde a fonte é o PDF/site, a referência é o nome do documento tal como entregue pelo proprietário/consultado; não há citações de página porque este ficheiro não reproduz os PDFs.

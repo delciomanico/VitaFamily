@@ -1,6 +1,6 @@
 # Marco B — plano de construção (S4 Autorizações, com `Process` e Despesa unificada)
 
-> **ADIADO (pivô 2026-11-16, ADR-037):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve fica desligado atrás do interruptor `INSURANCE_FEATURES_ENABLED` e só se retoma por change control. Migrações aplicadas ficam.
+> **ARQUIVADO (pivô 2026-11-16, ADR-037; removido do `main`, sem interruptor):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve está preservado no ramo `archive/marco-b-seguradoras` / tag `archive-marco-b-2026-11-16` (plano de remoção: `11-implementation/arquivo-marco-b.md`). Migrações aplicadas ficam.
 
 > **Revisão 2026-11-14 (decisões do proprietário após parecer de revisor independente de clareza/complexidade):** (1) módulo `processes` próprio com tabela própria (vista derivada rejeitada; salvaguardas adotadas); (2) **Despesa unificada e migração do `ReimbursementClaim` sobem do marco C para o B** (fatia 2b); (3) papel `SUPERVISOR` criado já; (4) estados simplificados (§6); (5) requisitos de engenharia (§7); (6) donos provisórios (§3); (7) roteiro de usabilidade (Anexo A). O texto anterior mantém-se onde não foi explicitamente alterado; onde há conflito, vale esta revisão (§6–§7).
 
