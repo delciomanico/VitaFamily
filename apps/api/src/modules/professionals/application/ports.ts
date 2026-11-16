@@ -4,10 +4,12 @@ import type { Clock } from "../../../platform/clock/index.js";
 import type { Logger } from "../../../platform/logger/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { ProfessionalAccount, ProfessionalRef } from "../domain/account.js";
+import type { ProfilePatch } from "../domain/profile.js";
+import type { CredentialKind, ScanStatus, SpecialtyCategory } from "../domain/requirements.js";
+import type { ProfessionalValidationStatus, ValidationAction, ValidationActor } from "../domain/validation-status.js";
 import type { ProfessionalSigningKey } from "../domain/jwt.js";
 import type { ProfessionalInMemoryRateLimiter } from "../domain/rate-limiter.js";
 import type { ProfessionalSession } from "../domain/session.js";
-import type { SpecialtyCategory } from "../domain/specialty.js";
 
 export interface AuditPort<Trx> {
   record(trx: Trx, event: AuditEvent): Promise<void>;
@@ -142,6 +144,78 @@ export interface SpecialtyRepository<Trx> {
   existsByNameLower(trx: Trx, name: string, excludeId?: string): Promise<boolean>;
 }
 
+/** Linha completa do profissional (perfil + estado de validação). */
+export interface ProfessionalRecord {
+  id: string;
+  accountId: string;
+  displayName: string | null;
+  bio: string | null;
+  city: string | null;
+  paymentInstructions: string | null;
+  validationStatus: ProfessionalValidationStatus;
+  statusReason: string | null;
+  statusChangedAt: Date;
+  submittedAt: Date | null;
+  approvedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface LinkedSpecialty {
+  id: string;
+  name: string;
+  category: SpecialtyCategory;
+  active: boolean;
+}
+
+export interface CredentialSummary {
+  kind: CredentialKind;
+  scanStatus: ScanStatus;
+  /** `AAAA-MM-DD` ou `null`. */
+  validUntil: string | null;
+}
+
+export interface StatusChange {
+  validationStatus: ProfessionalValidationStatus;
+  statusReason: string | null;
+  statusChangedAt: Date;
+  /** Preenchidos só nas transições que o exigem (submissão/aprovação). */
+  submittedAt?: Date;
+  approvedAt?: Date | null;
+}
+
+export interface ProfessionalProfileRepository<Trx> {
+  /** Leitura sem bloqueio (GET /me). */
+  findById(trx: Trx, professionalId: string): Promise<ProfessionalRecord | null>;
+  /** `SELECT ... FOR UPDATE`: serializa escritas por profissional e decisões do admin; o estado lê-se SEMPRE daqui (BR-MKT-29). */
+  findByIdForUpdate(trx: Trx, professionalId: string): Promise<ProfessionalRecord | null>;
+  updateFields(trx: Trx, professionalId: string, changes: ProfilePatch, now: Date): Promise<void>;
+  updateStatus(trx: Trx, professionalId: string, change: StatusChange, now: Date): Promise<void>;
+  listSpecialties(trx: Trx, professionalId: string): Promise<LinkedSpecialty[]>;
+  /** Especialidades pelos ids com `FOR SHARE` (uma desativação/alteração de categoria concorrente espera); devolve só as que existem. */
+  lockSpecialtiesByIds(trx: Trx, ids: string[]): Promise<LinkedSpecialty[]>;
+  /** Substitui o conjunto (apaga as que saem, insere as novas). */
+  replaceSpecialties(trx: Trx, professionalId: string, specialtyIds: string[]): Promise<void>;
+  /** Alguma das `specialtyIds` tem ofertas (qualquer estado) deste profissional? (a FK composta impede retirar a ligação). */
+  hasOffersForSpecialties(trx: Trx, professionalId: string, specialtyIds: string[]): Promise<boolean>;
+  listCredentialSummaries(trx: Trx, professionalId: string): Promise<CredentialSummary[]>;
+}
+
+export interface NewValidationCase {
+  id: string;
+  professionalId: string;
+  action: ValidationAction;
+  fromStatus: ProfessionalValidationStatus;
+  toStatus: ProfessionalValidationStatus;
+  actor: ValidationActor;
+  decidedBy?: string;
+  reason: string | null;
+  createdAt: Date;
+}
+
+export interface ValidationCaseRepository<Trx> {
+  insert(trx: Trx, record: NewValidationCase): Promise<void>;
+}
+
 /** Tudo o que os casos de uso precisam (ligado em `index.ts`); `db` é a ligação para leituras fora de transação. */
 export interface ProfessionalsDeps<Trx> {
   db: Trx;
@@ -154,6 +228,8 @@ export interface ProfessionalsDeps<Trx> {
   authTokenRepo: ProfessionalAuthTokenRepository<Trx>;
   sessionRepo: ProfessionalSessionRepository<Trx>;
   specialtyRepo: SpecialtyRepository<Trx>;
+  profileRepo: ProfessionalProfileRepository<Trx>;
+  validationCaseRepo: ValidationCaseRepository<Trx>;
   rateLimiter: ProfessionalInMemoryRateLimiter;
   signingKeys: ProfessionalSigningKey[];
   accessTtlSeconds: number;

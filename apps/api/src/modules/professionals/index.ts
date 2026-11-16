@@ -26,6 +26,9 @@ import type { ProfessionalSigningKey } from "./domain/jwt.js";
 import { ProfessionalInMemoryRateLimiter } from "./domain/rate-limiter.js";
 import { ProfessionalTtlCache } from "./domain/ttl-cache.js";
 import { KyselyProfessionalAccountRepository, KyselyProfessionalAuthTokenRepository, KyselyProfessionalSessionRepository } from "./infrastructure/account-repo.js";
+import { createGetMeUseCase, createSetSpecialtiesUseCase, createSubmitUseCase, createUpdateMeUseCase } from "./application/profile.js";
+import { KyselyProfessionalProfileRepository, KyselyValidationCaseRepository } from "./infrastructure/profile-repo.js";
+import { createProfileRouter } from "./interface/profile-router.js";
 import { KyselySpecialtyRepository } from "./infrastructure/specialty-repo.js";
 import { createProfessionalActorContextMiddleware, createProfessionalBearerAuthSecurityHandler } from "./interface/middleware.js";
 import { createProfessionalAuthRouter } from "./interface/router.js";
@@ -80,6 +83,8 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     authTokenRepo: new KyselyProfessionalAuthTokenRepository(),
     sessionRepo: new KyselyProfessionalSessionRepository(),
     specialtyRepo: new KyselySpecialtyRepository(),
+    profileRepo: new KyselyProfessionalProfileRepository(),
+    validationCaseRepo: new KyselyValidationCaseRepository(),
     rateLimiter,
     signingKeys: deps.signingKeys,
     accessTtlSeconds: deps.accessTtlSeconds,
@@ -110,6 +115,15 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
       adminListSpecialties: createAdminListSpecialtiesUseCase(useCaseDeps),
       adminCreateSpecialty: createAdminCreateSpecialtyUseCase(useCaseDeps),
       adminUpdateSpecialty: createAdminUpdateSpecialtyUseCase(useCaseDeps),
+    }),
+  );
+
+  router.use(
+    createProfileRouter({
+      getMe: createGetMeUseCase(useCaseDeps),
+      updateMe: createUpdateMeUseCase(useCaseDeps),
+      setSpecialties: createSetSpecialtiesUseCase(useCaseDeps),
+      submit: createSubmitUseCase(useCaseDeps),
     }),
   );
 

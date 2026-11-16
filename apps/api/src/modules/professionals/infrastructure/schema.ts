@@ -76,6 +76,34 @@ export interface ProfessionalSpecialtiesTable {
   created_at: Timestamp;
 }
 
+export interface ProfessionalCredentialsTable {
+  id: string;
+  professional_id: string;
+  kind: "IDENTITY" | "PROFESSIONAL_LICENSE" | "CERTIFICATION";
+  number: Nullable<string>;
+  issuing_body: Nullable<string>;
+  valid_until: Nullable<string>;
+  storage_key: string;
+  content_type: string;
+  size_bytes: number;
+  scan_status: ColumnType<"PENDING" | "CLEAN" | "INFECTED", "PENDING" | "CLEAN" | "INFECTED" | undefined, "PENDING" | "CLEAN" | "INFECTED">;
+  scanned_at: Nullable<Date>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface ValidationCasesTable {
+  id: string;
+  professional_id: string;
+  action: "SUBMITTED" | "APPROVED" | "REJECTED" | "NEEDS_INFO" | "SUSPENDED" | "REACTIVATED" | "EXPIRED";
+  from_status: ProfessionalStatus;
+  to_status: ProfessionalStatus;
+  actor: "PROFESSIONAL" | "PLATFORM_ADMIN" | "SYSTEM";
+  decided_by: string | null;
+  reason: string | null;
+  created_at: Timestamp;
+}
+
 declare module "../../../platform/db/index.js" {
   interface Database {
     professional_accounts: ProfessionalAccountsTable;
@@ -84,6 +112,8 @@ declare module "../../../platform/db/index.js" {
     professionals: ProfessionalsTable;
     specialties: SpecialtiesTable;
     professional_specialties: ProfessionalSpecialtiesTable;
+    professional_credentials: ProfessionalCredentialsTable;
+    validation_cases: ValidationCasesTable;
   }
 }
 
