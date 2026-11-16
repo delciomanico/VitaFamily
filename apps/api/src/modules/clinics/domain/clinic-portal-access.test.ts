@@ -59,8 +59,6 @@ const ROUTERS = [
 describe("matriz papel × rota do portal da clínica (TC-AZ-CLN-V5)", () => {
   const matrix = new Set(CLINIC_PORTAL_ACCESS.map((r) => `${r.method} ${r.path}`));
 
-  // R5 (arquivo do marco B): FALHA ATÉ AO R6 — o contrato ainda lista /clinic-portal/insurers* e /clinic-portal/authorizations*,
-  // já sem handler nem regra na matriz. O R6 remove-as de openapi.yaml e este teste volta a passar sem alterações.
   it("tem exatamente as operações /clinic-portal/* do openapi.yaml", () => {
     expect([...contractOperations()].sort()).toEqual([...matrix].sort());
   });

@@ -91,7 +91,7 @@
   - Teste de integração obrigatório (`test-cases.md`, TC-CLN-25/26): CHECKs; apagar o membro/consulta apaga a ligação e **não** o pedido; apagar a clínica apaga pedidos e ligações; apagar o exame ligado põe `examination_id` a nulo; UNIQUE parcial de `examination_id`; 6.º pedido ativo concorrente ⇒ `LIMIT_EXCEEDED` (advisory lock); o valor `EXAM_ORDER_ADDED` aceita-se depois da migração.
 
 ## `0036_processes.sql` — Processos (marco B fatia 1, ADR-032; **implementada**, commit aefe606)
-Número seguinte a `0035_insurer_review_fixes.sql`. Expand + backfill numa só migração pequena (princípio 4; sem "contrair"):
+*(Texto histórico da proposta original, sucedida a `0035_insurer_review_fixes.sql`; a numeração corrente está no fim deste ficheiro.)* Expand + backfill numa só migração pequena (princípio 4; sem "contrair"):
 1. `CREATE TYPE process_kind AS ENUM ('ROUTINE')`; `CREATE TYPE process_origin_type AS ENUM ('APPOINTMENT','EXAMINATION')` (sem `ADD VALUE`).
 2. `CREATE TABLE processes` (`schema.md` §4b) com FK composta `(family_id, member_id) → family_members` `CASCADE`, `clinic_id` `SET NULL`, UNIQUE `(origin_type, origin_id)` e os índices de §4b. Sem coluna `family_status`.
 3. `ALTER TABLE appointments ADD COLUMN process_id uuid REFERENCES processes(id) ON DELETE SET NULL` e o mesmo em `examinations`; UNIQUE parcial `(process_id) WHERE process_id IS NOT NULL` em ambas.

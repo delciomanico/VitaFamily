@@ -53,5 +53,5 @@ POST /alerts/{id}/read → application/mark-alert-read.ts → notifications.skip
 - `domain/rule.ts`: `appointment.confirm48h` (48 h antes, consulta `SCHEDULED` de clínica parceira ainda `PENDING`; só se o instante dos 48 h é recente — tolerância de 30 min — para não avisar marcações feitas com menos de 48 h) e `followup.due` (meia-noite local de `followUpDueOn - 7 dias`). O lembrete de 24 h existente cobre a 2.ª oportunidade, sem alerta duplicado.
 - `application/scan-job.ts` alarga a janela futura para 48 h e percorre `appointments.listFollowUpCandidates`; idempotente por `dedupeKey` (inclui `triggerAt`). Tipos novos seguem o interruptor `appointmentReminder`.
 
-## Pedido de autorização à família (REMOVIDO — arquivo do marco B, ADR-037, R2)
-- Já não há regras, destinatários, `raise-authorization-event`, ramo do scanner nem porta `insurerOps`/`processes`. Os 5 valores `AUTHORIZATION_*` ficam no enum do Postgres (migração `0041`) e nos tipos/contrato (alertas históricos; `list-alerts.ts` mantém a mensagem fixa) até ao R6.
+## Pedido de autorização à família (REMOVIDO — arquivo do marco B, ADR-037, R2; histórico)
+- Já não há regras, destinatários, `raise-authorization-event`, ramo do scanner nem porta `insurerOps`/`processes`. Os 5 valores `AUTHORIZATION_*` ficam no enum do Postgres (migração `0041`) e nos tipos (alertas históricos; `list-alerts.ts` mantém a mensagem fixa); já saíram do contrato (R6).

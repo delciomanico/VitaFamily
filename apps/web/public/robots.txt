@@ -4,6 +4,5 @@ Disallow: /app/
 Disallow: /admin/
 Disallow: /backoffice
 Disallow: /clinic/
-Disallow: /insurance/
 Disallow: /setup/
 Sitemap: https://vitafamily.cassfrei.com/sitemap.xml
