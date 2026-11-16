@@ -1,5 +1,7 @@
 # ADR-030 — Rede de prestadores: catálogo único verificado, Convenção seguradora↔prestador e prestador sem seguradora
 
+> **Nota (pivô 2026-11-16, ADR-037):** ADR-029/030/031 e o âmbito de seguradoras (ADR-021/025, marco B) ficam **adiados**; ver ADR-037.
+
 **Estado:** **Proposto — aguarda aprovação do proprietário** (change control **D26**, proposto em 2026-11-14). Adenda a ADR-020/ADR-025/ADR-026; **proporia emendas** a `BR-SEG-22` e ao desenho de `insurer_providers` (ver Consequências) — **só se aprovado**. Funde a decisão "prestador sem seguradora" (originalmente item d) por serem a mesma entidade. Não substitui nenhum ADR.
 
 > **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `11-implementation/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".

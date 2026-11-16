@@ -76,7 +76,20 @@ sem essas duas condições. Contrato (`openapi.yaml`), schema de consentimento e
 
 **S1–S6 (ADR-025, acrescentado 2026-11-05):** módulo operacional de seguradoras; aprovado depois de M11/M13. Cada marco fecha com `pnpm gen && lint && test && build`, **conformidade OpenAPI**, teste de arquitetura (`modules.md` §3 nota 23), **testes de isolamento entre seguradoras** (BR-SEG-14, `vita-qa-security`) e revisão ao proprietário. **Fase A (2026-11-11):** recorte `insurer-phase-a.md` dentro de S1 + S2 (mínimo) + S3 (validação) + S6 (parcial); **contrato da Fase A redigido e validado em `openapi.yaml`/`endpoints.md` (45 operações, incl. `/insurance-portal/me`, 2026-11-12)**; migração proposta `0033_insurer_phase_a.sql`; critérios de aceitação/testes `TC-AZ-SEG-*` e `TC-SEG-*` em `09-testing`. **Gates e pendências antes de S1:** (1) ~~redigir e validar o contrato `openapi.yaml`~~ **feito para a Fase A (2026-11-11)**; S4–S5 continuam sem contrato; (2) ~~decisão do proprietário sobre **Q4**~~ **decidida 2026-11-11: seguradora do cartão apresentado**; D-A2: Fase A sem saldo «usado»; (3) ratificar arredondamento (BR-SEG-08); (4) desenho de anexos (`documents` vs. `insurer_attachments`); (5) confirmar com o proprietário a vista de auditoria da seguradora face a P7 (`audit.md` §2); (6) pendência jurídica (Lei 22/11, AIPD, alojamento — Q1) antes do lançamento, juntamente com os gates de M10, que devem cobrir também o módulo operacional (dados de terceiros).
 
-### Propostos pós-M15 (2026-11-14) — **PROPOSTOS, não aprovados** (ADR-029/030/031; `00-product/business-model.md`)
+### Pivô 2026-11-16 (ADR-037) — marcos do mercado de profissionais (MK; prefixo para não colidir com M0–M15)
+**Ordem: MK0 → MK1 → MK2 → MK3 → MK4.** Cada um: contrato primeiro (`vita-architect`), gates `pnpm gen && lint && test && build`, isolamento/matriz de autorização, auditoria, revisão do proprietário; sem datas.
+
+| Marco | Conteúdo | Depende de | Donos | Aceitação resumida |
+|---|---|---|---|---|
+| **MK0** | Interruptor `INSURANCE_FEATURES_ENABLED` (desligado = rotas/jobs de seguradora ausentes, dados e migrações `0037`–`0041` intactos); ratificar ADR-037; parecer jurídico; fuso/locale Angola; contrato de MK1 | ADR-037 | `vita-platform`, `vita-architect`, `vita-devops` | Suite existente verde com interruptor desligado e numa suite dedicada com ele ligado |
+| **MK1** | `professionals`: conta/sessões próprias, perfil, especialidades/categorias, credenciais, validação pelo admin, ofertas/preços Kz, horários | MK0 | `vita-identity`, `vita-health`, `vita-documents`, `vita-platform` | Só `APPROVED` é visível; admin sem acesso a dados de saúde |
+| **MK2** | Descoberta, comparação de preços, ranking (função pura), `messaging` (chat) | MK1 | `vita-health`, `vita-alerts`, `vita-qa-security` | Comparar ≥2 profissionais e conversar antes de marcar; ranking não depende de pagamento |
+| **MK3** | `consultations`: marcação, `Process` `BOOKING`, comprovativo de pagamento, avaliações verificadas | MK2, `processes` | `vita-health`, `vita-documents`, `vita-alerts` | Fluxo ponta a ponta; só quem consultou avalia |
+| **MK4** | `record-sharing`: partilha com prazo e visualização única, registo de acessos, revogação | MK3, `access` | `vita-family`, `vita-health`, `vita-qa-security` | Expirado/revogado/consumido → negado; família vê cada acesso |
+
+Detalhe, modelo de dados, regras BR-MKT candidatas, riscos e a lista de decisões a ratificar: `00-product/marketplace-profissionais.md`. **Gate de lançamento:** AIPD/DPA (M10) alargados a profissionais/chat/partilha e parecer jurídico (Lei 22/11, telemedicina, prescrição digital). **Marco B fatias 2–5 e marcos A–C/Empresa: ADIADOS (desligados atrás de interruptor, nada apagado); fatias 2b e 6 canceladas por adiamento; `processes` e o portal da clínica reaproveitados.**
+
+### Propostos pós-M15 (2026-11-14) — **PROPOSTOS, não aprovados; ADIADOS pelo pivô de 2026-11-16** (ADR-029/030/031; `00-product/business-model.md`)
 > Direção de produto indicada pelo proprietário; formalização por aprovar. **Sem datas** (capacidade TBD). Cada milestone só arranca depois de aprovação do ADR respetivo e de contrato (`openapi.yaml`) validado. Nenhum altera o âmbito existente até aprovação.
 
 | Marco | Conteúdo proposto | Depende de | Bloqueios / conflitos |

@@ -1,5 +1,7 @@
 # Vita Family — Cartão digital e comunicação seguradora↔clínica
 
+> **ADIADO (pivô 2026-11-16, ADR-037):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve fica desligado atrás do interruptor `INSURANCE_FEATURES_ENABLED` e só se retoma por change control. Migrações aplicadas ficam.
+
 > Estado: **v0.1 PROPOSTO (2026-11-14)** — nada aqui está decidido em ADR, contratado em `openapi.yaml` nem implementado. Origem: `real-flow-research.md` (§5 cartão, §2/§4 canais) e `process-flows.md`. Complementa o cartão/QR já contratado na Fase A (`insurer-phase-a.md`, BR-SEG-18/20). **Critérios do proprietário: pendente** (ver `real-flow-research.md`). Tudo o que depende de Apple/Google está **por verificar** (§7).
 
 ## 1. Canais de comunicação (por ordem de entrega)

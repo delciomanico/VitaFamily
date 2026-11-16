@@ -1,5 +1,7 @@
 # ADR-036 — Vista da família e notificações sobre o pedido de autorização (marco B, fatia 5)
 
+> **ADIADO (pivô 2026-11-16, ADR-037):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve fica desligado atrás do interruptor `INSURANCE_FEATURES_ENABLED` e só se retoma por change control. Migrações aplicadas ficam.
+
 **Estado:** **Aceite com âmbito de construção da fatia 5 do marco B** (decisões do proprietário já tomadas: a família nunca vê vocabulário técnico; vê só estado simples e próximo passo no `Process`; nunca vê dados internos da seguradora; a clínica não vê que a aprovação foi automática; famílias são gratuitas; só o titular/quem tem `MANAGE_INSURANCE` vê o pedido; sem dados clínicos, C2 — ver `11-implementation/marco-b-construcao.md` §1.2/§4/§6 e ADR-034/ADR-035). Os pontos marcados **PROPOSTO** são defaults do `vita-architect` que o proprietário ratifica (ou altera) sem refazer a fatia. Completa ADR-032 (`Process`), ADR-034 e ADR-035; reutiliza ADR-009 (alertas por scanner/evento idempotente) e ADR-028 (precedente de alerta por evento na mesma transação). **Não supera** nenhum ADR. Não aceita: urgência (fatia 6), despesa e saldo consumido (2b), pré-cálculo de copagamento (proposta §11a pendente), notificações ao prestador, canal novo.
 
 ## Contexto

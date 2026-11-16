@@ -5,6 +5,8 @@
 > Legenda: **[IN]** dentro do MVP · **[OUT]** fora · **[NEEDS DECISION]** pendente.
 > Nota: isto define **âmbito**, não requisitos detalhados (Fase 3).
 
+> **PIVÔ 2026-11-16 (ADR-037):** além do registo de saúde familiar descrito abaixo, o produto inclui um **mercado de profissionais de saúde e bem-estar** (cadastro e validação pelo admin, preços Kz visíveis, comparação, ranking por avaliações verificadas, chat, marcação, pagamento **fora da app** com comprovativo, partilha de registos com prazo/visualização única), **lançamento só em Angola**. Âmbito, marcos MK0–MK4 e decisões a ratificar em `marketplace-profissionais.md`. **Emenda a §3:** marketplace e telemedicina deixam de estar «fora»; **pagamentos dentro da app, prescrição digital, vídeo embebido e seguros continuam fora** (seguradoras/autorizações: adiado, ADR-033..036). Onde este documento diz «Portugal», lê-se Angola (fuso `Africa/Luanda`, Kz) — a ratificar.
+
 ## 1. Objetivo do MVP
 Permitir que uma família em Portugal registe a saúde dos seus membros (incluindo dependentes sem conta), gira receitas, medicação, consultas e exames, receba lembretes por push e e-mail, e veja históricos e uma visão familiar básica — com privacidade controlada pelos adultos e sem qualquer diagnóstico. **Exceção estrita, por change control (ADR-022, 2026-10-17):** um "Resumo com IA", opt-in, que contextualiza tendências nos dados já existentes em linguagem simples, sem sugerir ação clínica nem diagnóstico (ver §2/§3).
 

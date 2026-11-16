@@ -1,5 +1,7 @@
 # ADR-034 — Pedido de autorização pelo prestador: S4 simplificado, semáforo, `Process` aberto por autorização e anexos administrativos (marco B, fatia 3)
 
+> **ADIADO (pivô 2026-11-16, ADR-037):** o foco do produto passou para o registo de saúde da família + mercado de profissionais (`00-product/marketplace-profissionais.md`). Este documento **mantém-se, não foi apagado**; o que descreve fica desligado atrás do interruptor `INSURANCE_FEATURES_ENABLED` e só se retoma por change control. Migrações aplicadas ficam.
+
 **Estado:** **Aceite com âmbito de construção da fatia 3 do marco B** (ordem do proprietário de 2026-11-14: «pode avançar para construção» + critérios facilidade de uso, complexidade oculta no código, flexibilidade/legibilidade e expansão; defaults conservadores de `11-implementation/marco-b-construcao.md` §1.2). Os pontos marcados **PROPOSTO** são defaults do `vita-architect` que o proprietário ratifica (ou altera) sem refazer a fatia. Completa ADR-025 (autorizações), ADR-032 (`Process`) e ADR-033 (catálogo, política, `evaluateCoverage`); **não supera** nenhum ADR. Não aceita: decisão pela seguradora (fatia 4), urgência (fatia 6), D29/diagnóstico, despesa unificada (2b).
 
 ## Contexto

@@ -1,5 +1,8 @@
 # ADR-032 — Entidade `Process` (módulo próprio `processes`) e Despesa unificada (origem prestador ou família)
 
+> **Nota (pivô 2026-11-16, ADR-037):** ADR-029/030/031 e o âmbito de seguradoras (ADR-021/025, marco B) ficam **adiados**; ver ADR-037.
+> **Nota:** o módulo `processes` e o `Process` **continuam ativos** e passam a ser o episódio de cuidado do mercado de profissionais (`originType=BOOKING`, ADR-037); a Despesa unificada (fatia 2b) fica adiada.
+
 **Estado:** **Proposto — aguarda aprovação do proprietário** (change control **D28**, proposto em 2026-11-14). As quatro **decisões de direção** abaixo foram tomadas pelo proprietário em 2026-11-14 (registadas em `00-product/process-flows.md` §10.1); o **desenho, a migração e as emendas a regras aprovadas** são propostas e só entram em vigor com aprovação. **Supera parcialmente ADR-021** (apenas o pedido de reembolso, `ReimbursementClaim`) **se aprovado**; adenda a ADR-025/ADR-030. Nenhum contrato (`openapi.yaml`), `schema.md`, `entities.md`, `modules.md` §3 ou código foi alterado por este ADR.
 
 > **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `11-implementation/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".
