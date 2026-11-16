@@ -12,6 +12,7 @@ import { createAuditModule } from "../modules/audit/index.js";
 import { createUsersModule } from "../modules/users/index.js";
 import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modules/families/index.js";
 import { createAccessModule } from "../modules/access/index.js";
+import { CredentialClamAvScanner, createProfessionalsWorkerModule } from "../modules/professionals/index.js";
 import { ClamAvScanner, createDocumentsWorkerModule } from "../modules/documents/index.js";
 import { createMedicationsWorkerModule } from "../modules/medications/index.js";
 import { createAppointmentsReminderQueries } from "../modules/appointments/index.js";
@@ -125,6 +126,15 @@ export function main(): void {
   // M14 P (BR-CLN-20): limpeza diária dos códigos de ligação expirados/usados.
   const clinicPatientsWorker = createClinicPatientsWorkerModule({ db, audit, clock, boss });
 
+  // MK1 (OP-58): antivírus das credenciais dos profissionais e outbox própria de ficheiros (não usa `documents`).
+  const professionalsWorker = createProfessionalsWorkerModule({
+    db,
+    clock,
+    storage,
+    scanner: new CredentialClamAvScanner({ host: config.CLAMAV_HOST, port: config.CLAMAV_PORT }),
+    boss,
+  });
+
   boss
     .start()
     .then(async () => {
@@ -135,6 +145,7 @@ export function main(): void {
       await lifecycleWorker.registerWorkers();
       await clinicsWorker.registerWorkers();
       await clinicPatientsWorker.registerWorkers();
+      await professionalsWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

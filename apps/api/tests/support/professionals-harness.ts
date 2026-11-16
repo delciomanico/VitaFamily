@@ -20,7 +20,8 @@ import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createBearerAuthSecurityHandler } from "../../src/modules/auth/interface/middleware.js";
 import { signClinicAccessToken } from "../../src/modules/clinics/domain/clinic-jwt.js";
 import { createClinicActorContextMiddleware, createClinicBearerAuthSecurityHandler } from "../../src/modules/clinics/interface/clinic-portal-middleware.js";
-import { createProfessionalsModule, ProfessionalFakeMailer, type ProfessionalsModule } from "../../src/modules/professionals/index.js";
+import { InMemoryStorage } from "../../src/platform/storage/index.js";
+import { createProfessionalsJobs, createProfessionalsModule, ProfessionalFakeMailer, type CredentialScanQueue, type CredentialScanner, type ProfessionalsJobs, type ProfessionalsModule } from "../../src/modules/professionals/index.js";
 import { openApiSpecPath } from "./openapi-spec.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -32,7 +33,29 @@ export const ADMIN_USER_ID = "99999999-9999-4999-8999-999999999999";
 export const PLAIN_USER_ID = "77777777-7777-4777-8777-777777777777";
 export const START = new Date("2026-11-16T10:00:00.000Z");
 
+/** Antivírus de teste: marca INFECTED qualquer ficheiro que contenha a assinatura de teste. */
+export const INFECTED_MARKER = "EICAR-TEST-SIGNATURE";
+class FakeScanner implements CredentialScanner {
+  scan(buffer: Buffer): Promise<"CLEAN" | "INFECTED"> {
+    return Promise.resolve(buffer.includes(INFECTED_MARKER) ? "INFECTED" : "CLEAN");
+  }
+}
+class RecordingQueue implements CredentialScanQueue {
+  readonly jobs: { credentialId: string }[] = [];
+  enqueueScan(job: { credentialId: string }): Promise<void> {
+    this.jobs.push(job);
+    return Promise.resolve();
+  }
+}
+
 export interface ProfessionalsHarness {
+  storage: InMemoryStorage;
+  /** Casos de uso dos jobs (antivírus, outbox de ficheiros). */
+  jobs: ProfessionalsJobs;
+  /** Trabalhos de antivírus enfileirados pela API e ainda não executados. */
+  scanQueue: { credentialId: string }[];
+  /** Executa (e esvazia) a fila de antivírus como o worker faria. */
+  runScans(): Promise<void>;
   container: StartedTestContainer;
   pool: Pool;
   db: Kysely<Database>;
@@ -76,6 +99,9 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
   const logger = createLogger({ level: "silent" });
   const audit = createAuditModule({ db, clock });
   const mailer = new ProfessionalFakeMailer();
+  const storage = new InMemoryStorage();
+  const queue = new RecordingQueue();
+  const jobs = createProfessionalsJobs({ db, clock, storage, scanner: new FakeScanner() });
   const module = createProfessionalsModule({
     db,
     audit,
@@ -87,6 +113,8 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
     refreshTtlMs: 30 * 24 * 3600 * 1000,
     cookieDomain: "",
     appBaseUrl: "https://vitafamily.cassfrei.com",
+    storage,
+    scanQueue: queue,
     ...overrides,
   });
 
@@ -124,6 +152,7 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
     openApiSpecPath: openApiSpecPath(REPO_ROOT),
     logger,
     validateResponses: true,
+    maxUploadBytes: 10 * 1024 * 1024,
     securityHandlers: {
       bearerAuth: createBearerAuthSecurityHandler({ signingKeys: SIGNING_KEYS, clock }),
       clinicBearerAuth: createClinicBearerAuthSecurityHandler({ signingKeys: SIGNING_KEYS, clock }),
@@ -146,6 +175,12 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
 
   const harness: ProfessionalsHarness = {
     container,
+    storage,
+    jobs,
+    scanQueue: queue.jobs,
+    async runScans() {
+      for (const job of queue.jobs.splice(0)) await jobs.scanCredential(job);
+    },
     pool,
     db,
     clock,

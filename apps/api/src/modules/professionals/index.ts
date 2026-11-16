@@ -2,14 +2,17 @@
 // Identidade PRÓPRIA (BR-MKT-13): não importa `auth`, `access`, `families`, `users` nem módulos de saúde (BR-MKT-27); só `audit`.
 import { Router } from "express";
 import type { Kysely } from "kysely";
+import type PgBoss from "pg-boss";
 import type { Clock } from "../../platform/clock/index.js";
 import { withTransaction, type Database } from "../../platform/db/index.js";
 import type { Logger } from "../../platform/logger/index.js";
+import type { Storage } from "../../platform/storage/index.js";
+import { MAX_FILE_BYTES } from "./domain/credential.js";
 import type { AuditModule } from "../audit/index.js";
 import { createForgotPasswordUseCase } from "./application/forgot-password.js";
 import { createLoginUseCase } from "./application/login.js";
 import { createLogoutUseCase } from "./application/logout.js";
-import type { ProfessionalMailer, ProfessionalsDeps } from "./application/ports.js";
+import type { CredentialScanQueue, CredentialScanner, ProfessionalMailer, ProfessionalsDeps } from "./application/ports.js";
 import { createRefreshUseCase } from "./application/refresh.js";
 import { createRegisterUseCase } from "./application/register.js";
 import { createResendVerificationUseCase } from "./application/resend-verification.js";
@@ -28,6 +31,12 @@ import { ProfessionalTtlCache } from "./domain/ttl-cache.js";
 import { KyselyProfessionalAccountRepository, KyselyProfessionalAuthTokenRepository, KyselyProfessionalSessionRepository } from "./infrastructure/account-repo.js";
 import { createGetMeUseCase, createSetSpecialtiesUseCase, createSubmitUseCase, createUpdateMeUseCase } from "./application/profile.js";
 import { KyselyProfessionalProfileRepository, KyselyValidationCaseRepository } from "./infrastructure/profile-repo.js";
+import { createDeleteCredentialUseCase, createDownloadCredentialUseCase, createListCredentialsUseCase, createUploadCredentialUseCase } from "./application/credentials.js";
+import { createDeleteFilesUseCase, createScanCredentialUseCase } from "./application/credential-jobs.js";
+import { KyselyCredentialRepository, KyselyFileDeletionRepository } from "./infrastructure/credential-repo.js";
+import { registerDeleteFilesWorker, registerScanCredentialWorker } from "./infrastructure/jobs.js";
+import { StorageCredentialFileStore } from "./infrastructure/storage-file-store.js";
+import { createCredentialsRouter } from "./interface/credentials-router.js";
 import { createProfileRouter } from "./interface/profile-router.js";
 import { KyselySpecialtyRepository } from "./infrastructure/specialty-repo.js";
 import { createProfessionalActorContextMiddleware, createProfessionalBearerAuthSecurityHandler } from "./interface/middleware.js";
@@ -37,7 +46,9 @@ import { createSpecialtiesRouter } from "./interface/specialties-router.js";
 export { parseProfessionalSigningKeys, type ProfessionalSigningKey } from "./domain/jwt.js";
 export { ProfessionalSmtpMailer } from "./infrastructure/mailer-smtp.js";
 export { ProfessionalFakeMailer } from "./infrastructure/mailer-fake.js";
-export type { ProfessionalMailer } from "./application/ports.js";
+export type { ProfessionalMailer, CredentialScanner, CredentialScanQueue } from "./application/ports.js";
+export { CredentialClamAvScanner } from "./infrastructure/clamav-client.js";
+export { PgBossCredentialScanQueue } from "./infrastructure/jobs.js";
 
 /** Estado da conta do portal por pedido, cache ≤60 s (BR-MKT-29). */
 const ACCOUNT_STATE_CACHE_TTL_MS = 60_000;
@@ -53,6 +64,12 @@ export interface ProfessionalsModuleDeps {
   refreshTtlMs: number;
   cookieDomain: string;
   appBaseUrl: string;
+  /** Armazenamento de objetos (MinIO; `InMemoryStorage` nos testes) — usado só pela porta `CredentialFileStore`. */
+  storage: Storage;
+  /** Fila do antivírus das credenciais (pg-boss em produção). */
+  scanQueue: CredentialScanQueue;
+  /** `UPLOAD_MAX_BYTES` (omissão 10 MB; BR-MKT-17). */
+  maxFileSizeBytes?: number;
 }
 
 export interface ProfessionalsModule {
@@ -85,6 +102,11 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     specialtyRepo: new KyselySpecialtyRepository(),
     profileRepo: new KyselyProfessionalProfileRepository(),
     validationCaseRepo: new KyselyValidationCaseRepository(),
+    credentialRepo: new KyselyCredentialRepository(),
+    fileDeletionRepo: new KyselyFileDeletionRepository(),
+    fileStore: new StorageCredentialFileStore(deps.storage),
+    scanQueue: deps.scanQueue,
+    maxFileSizeBytes: deps.maxFileSizeBytes ?? MAX_FILE_BYTES,
     rateLimiter,
     signingKeys: deps.signingKeys,
     accessTtlSeconds: deps.accessTtlSeconds,
@@ -119,6 +141,14 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
   );
 
   router.use(
+    createCredentialsRouter({
+      listCredentials: createListCredentialsUseCase(useCaseDeps),
+      uploadCredential: createUploadCredentialUseCase(useCaseDeps),
+      deleteCredential: createDeleteCredentialUseCase(useCaseDeps),
+      downloadCredential: createDownloadCredentialUseCase(useCaseDeps),
+    }),
+  );
+  router.use(
     createProfileRouter({
       getMe: createGetMeUseCase(useCaseDeps),
       updateMe: createUpdateMeUseCase(useCaseDeps),
@@ -131,5 +161,49 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     router,
     securityHandlers: { professionalBearerAuth: createProfessionalBearerAuthSecurityHandler({ signingKeys: deps.signingKeys, clock: deps.clock }) },
     actorContextMiddleware: createProfessionalActorContextMiddleware({ resolveActorState }),
+  };
+}
+
+export interface ProfessionalsWorkerModuleDeps {
+  db: Kysely<Database>;
+  clock: Clock;
+  storage: Storage;
+  scanner: CredentialScanner;
+}
+
+export interface ProfessionalsJobs {
+  /** `professionals.scan-credential` (antivírus). */
+  scanCredential: (job: { credentialId: string }) => Promise<void>;
+  /** `professionals.delete-files` (outbox própria). */
+  deleteFiles: () => Promise<{ deleted: number; failed: number }>;
+}
+
+/** Casos de uso dos jobs, sem pg-boss (testáveis diretamente). */
+export function createProfessionalsJobs(deps: ProfessionalsWorkerModuleDeps): ProfessionalsJobs {
+  const jobDeps = {
+    withTransaction: <T>(fn: (trx: Kysely<Database>) => Promise<T>) => withTransaction(deps.db, fn),
+    clock: deps.clock,
+    credentialRepo: new KyselyCredentialRepository(),
+    fileDeletionRepo: new KyselyFileDeletionRepository(),
+    fileStore: new StorageCredentialFileStore(deps.storage),
+    scanner: deps.scanner,
+  };
+  return { scanCredential: createScanCredentialUseCase(jobDeps), deleteFiles: createDeleteFilesUseCase(jobDeps) };
+}
+
+export interface ProfessionalsWorkerModule {
+  jobs: ProfessionalsJobs;
+  registerWorkers: () => Promise<void>;
+}
+
+/** Composition root do processo "worker" (main/worker.ts). */
+export function createProfessionalsWorkerModule(deps: ProfessionalsWorkerModuleDeps & { boss: PgBoss }): ProfessionalsWorkerModule {
+  const jobs = createProfessionalsJobs(deps);
+  return {
+    jobs,
+    registerWorkers: async () => {
+      await registerScanCredentialWorker(deps.boss, jobs.scanCredential);
+      await registerDeleteFilesWorker(deps.boss, jobs.deleteFiles);
+    },
   };
 }

@@ -37,7 +37,7 @@ import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPu
 import { createAlertsModule, type AlertsModule } from "../modules/alerts/index.js";
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
-import { ProfessionalSmtpMailer, createProfessionalsModule, parseProfessionalSigningKeys } from "../modules/professionals/index.js";
+import { PgBossCredentialScanQueue, ProfessionalSmtpMailer, createProfessionalsModule, parseProfessionalSigningKeys } from "../modules/professionals/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
 /**
@@ -224,6 +224,10 @@ export function main(): void {
     refreshTtlMs: parseDurationMs(config.REFRESH_TTL),
     cookieDomain: config.COOKIE_DOMAIN,
     appBaseUrl: config.APP_BASE_URL,
+    // OP-58: credenciais com armazenamento/antivírus próprios (mesmo bucket e mesmo MinIO, chaves `professional-credentials/*`).
+    storage,
+    scanQueue: new PgBossCredentialScanQueue(boss),
+    maxFileSizeBytes: config.UPLOAD_MAX_BYTES,
   });
   // M8 (plan.md §4): `notifications` antes de `alerts` — `alerts` depende de `notifications`
   // pela raiz (modules.md §3 nota 15), nunca o inverso. D19: ambos vêm antes de `examinations`,
@@ -657,6 +661,7 @@ export function main(): void {
     openApiSpecPath: OPENAPI_SPEC_PATH,
     logger,
     trustProxy: config.TRUST_PROXY,
+    maxUploadBytes: config.UPLOAD_MAX_BYTES,
     securityHandlers: { ...auth.securityHandlers, ...clinics.clinicSecurityHandlers, ...professionals.securityHandlers },
     actorContextMiddleware,
     metrics: { middleware: metrics.httpMiddleware, handler: metrics.handler },

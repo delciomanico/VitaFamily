@@ -1,5 +1,6 @@
 // Portas do módulo `professionals` (conventions.md §3.2): definidas aqui, implementadas em `infrastructure`. Genéricas em `Trx` para que
 // esta camada nunca importe "kysely" (§3.9). Não há portas para `argon2`/`jose`/`node:crypto` (computação pura).
+import type { Readable } from "node:stream";
 import type { Clock } from "../../../platform/clock/index.js";
 import type { Logger } from "../../../platform/logger/index.js";
 import type { AuditEvent } from "../../audit/index.js";
@@ -216,6 +217,73 @@ export interface ValidationCaseRepository<Trx> {
   insert(trx: Trx, record: NewValidationCase): Promise<void>;
 }
 
+/** Credencial (metadados). `storageKey` é interna: nunca sai nas respostas. */
+export interface CredentialRecord {
+  id: string;
+  professionalId: string;
+  kind: CredentialKind;
+  number: string | null;
+  issuingBody: string | null;
+  validUntil: string | null;
+  storageKey: string;
+  contentType: "application/pdf" | "image/jpeg" | "image/png";
+  sizeBytes: number;
+  scanStatus: ScanStatus;
+  createdAt: Date;
+}
+
+export interface NewCredentialRecord {
+  id: string;
+  professionalId: string;
+  kind: CredentialKind;
+  number: string | null;
+  issuingBody: string | null;
+  validUntil: string | null;
+  storageKey: string;
+  contentType: CredentialRecord["contentType"];
+  sizeBytes: number;
+  createdAt: Date;
+}
+
+/** Isolamento: TODAS as leituras/escritas por credencial levam o `professionalId` (do token ou do caso de uso do admin). */
+export interface CredentialRepository<Trx> {
+  insert(trx: Trx, record: NewCredentialRecord): Promise<CredentialRecord>;
+  listByProfessional(trx: Trx, professionalId: string): Promise<CredentialRecord[]>;
+  countByProfessional(trx: Trx, professionalId: string): Promise<number>;
+  findOwned(trx: Trx, professionalId: string, credentialId: string, options?: { forUpdate?: boolean }): Promise<CredentialRecord | null>;
+  /** Só para o job de antivírus (sem dono): `FOR UPDATE`. */
+  findByIdForScan(trx: Trx, credentialId: string): Promise<CredentialRecord | null>;
+  delete(trx: Trx, professionalId: string, credentialId: string): Promise<void>;
+  markClean(trx: Trx, credentialId: string, storageKey: string, now: Date): Promise<void>;
+  markInfected(trx: Trx, credentialId: string, now: Date): Promise<void>;
+}
+
+/** Outbox própria de ficheiros (`professional_file_deletions`, OP-58): sobrevive à eliminação do profissional. */
+export interface FileDeletionRepository<Trx> {
+  enqueue(trx: Trx, storageKey: string): Promise<void>;
+  listPending(trx: Trx, limit: number, maxAttempts: number): Promise<{ id: string; storageKey: string }[]>;
+  markDeleted(trx: Trx, id: string, now: Date): Promise<void>;
+  recordFailure(trx: Trx, id: string): Promise<void>;
+}
+
+/** Armazenamento dos ficheiros das credenciais (quarentena → final); implementada sobre `platform/storage`. */
+export interface CredentialFileStore {
+  put(key: string, body: Buffer, contentType: string): Promise<void>;
+  get(key: string): Promise<Readable>;
+  copy(sourceKey: string, destKey: string): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+
+/** Antivírus (ClamAV INSTREAM na `infrastructure`). */
+export interface CredentialScanner {
+  scan(buffer: Buffer): Promise<"CLEAN" | "INFECTED">;
+}
+
+/** Fila `professionals.scan-credential` (pg-boss na `infrastructure`). */
+export interface CredentialScanQueue {
+  enqueueScan(job: { credentialId: string }): Promise<void>;
+}
+
 /** Tudo o que os casos de uso precisam (ligado em `index.ts`); `db` é a ligação para leituras fora de transação. */
 export interface ProfessionalsDeps<Trx> {
   db: Trx;
@@ -230,6 +298,12 @@ export interface ProfessionalsDeps<Trx> {
   specialtyRepo: SpecialtyRepository<Trx>;
   profileRepo: ProfessionalProfileRepository<Trx>;
   validationCaseRepo: ValidationCaseRepository<Trx>;
+  credentialRepo: CredentialRepository<Trx>;
+  fileDeletionRepo: FileDeletionRepository<Trx>;
+  fileStore: CredentialFileStore;
+  scanQueue: CredentialScanQueue;
+  /** `UPLOAD_MAX_BYTES` (≤ 10 MB, BR-MKT-17). */
+  maxFileSizeBytes: number;
   rateLimiter: ProfessionalInMemoryRateLimiter;
   signingKeys: ProfessionalSigningKey[];
   accessTtlSeconds: number;

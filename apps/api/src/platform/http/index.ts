@@ -35,6 +35,12 @@ export interface CreateAppOptions {
    * `runWithActor` e aplica o gate de termos (B6); sem isto, pedidos autenticados não têm ator.
    */
   actorContextMiddleware?: RequestHandler;
+  /**
+   * Limite de tamanho por ficheiro no parse multipart (bytes). O multer do validador guarda o ficheiro em memória; sem limite um
+   * pedido enorme esgotaria a RAM antes de qualquer regra de negócio. Excesso ⇒ `413 FILE_TOO_LARGE`. Os casos de uso continuam a
+   * validar o seu próprio limite (`UPLOAD_MAX_BYTES`); aqui põe-se `+1` para que esses casos de uso respondam no limite exato.
+   */
+  maxUploadBytes?: number;
   /** Regista as rotas de operações (`/health`, `/health/ready`); sem validação OpenAPI. */
   registerHealthRoutes: (router: Router) => void;
   /** Regista as rotas de negócio dos módulos, já sob `API_BASE_PATH` e com o validador aplicado. */
@@ -88,6 +94,7 @@ export function createApp(options: CreateAppOptions): Express {
       apiSpec: options.openApiSpecPath,
       validateRequests: true,
       validateResponses: options.validateResponses ?? false,
+      ...(options.maxUploadBytes !== undefined ? { fileUploader: { limits: { fileSize: options.maxUploadBytes + 1, files: 5 } } } : {}),
       validateSecurity: {
         handlers: options.securityHandlers ?? { bearerAuth: denyAllSecurityHandler },
       },

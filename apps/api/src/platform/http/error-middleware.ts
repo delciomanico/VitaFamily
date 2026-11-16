@@ -62,6 +62,10 @@ function mapOpenApiValidatorError(err: OpenApiValidatorError): DomainError {
   if (err.status === 405) {
     return new DomainError("MALFORMED_REQUEST", { detail: "Método não permitido." });
   }
+  // Limite do parse multipart (`maxUploadBytes`, multer do validador): 413 ⇒ FILE_TOO_LARGE.
+  if (err.status === 413) {
+    return new DomainError("FILE_TOO_LARGE", { detail: "Ficheiro acima do limite permitido." });
+  }
   if (err.status === 401) {
     return new UnauthenticatedError({ detail: "Sem sessão válida." });
   }
