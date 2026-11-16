@@ -26,6 +26,7 @@ export type ErrorCode =
   | "LAST_ADMIN"
   | "LAST_GUARDIAN"
   | "LIMIT_EXCEEDED"
+  | "PROFESSIONAL_LOCKED"
   | "STORAGE_QUOTA_EXCEEDED"
   | "INVITATION_EXPIRED"
   | "FILE_TOO_LARGE"
@@ -74,6 +75,7 @@ export const errorCatalog: Record<ErrorCode, CatalogEntry> = {
   LAST_ADMIN: { status: 409, title: "Último administrador da família" },
   LAST_GUARDIAN: { status: 409, title: "Último tutor do dependente" },
   LIMIT_EXCEEDED: { status: 409, title: "Limite atingido" },
+  PROFESSIONAL_LOCKED: { status: 409, title: "Perfil bloqueado à edição" },
   STORAGE_QUOTA_EXCEEDED: { status: 409, title: "Quota de armazenamento excedida" },
   INVITATION_EXPIRED: { status: 410, title: "Convite expirado" },
   FILE_TOO_LARGE: { status: 413, title: "Ficheiro demasiado grande" },

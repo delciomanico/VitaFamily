@@ -57,6 +57,8 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   // `audit`. NENHUM módulo o importa (não aparece em nenhuma outra lista): `appointments`/`examinations` abrem/apagam o
   // processo pela porta `ProcessLinker` e publicam factos pela `ProcessFacts`, ligadas em `main/api.ts`.
   processes: ["access", "audit"],
+  // MK1 (ADR-037, modules.md nota 35): identidade própria; NÃO importa auth/access/families/users nem saúde (BR-MKT-27).
+  professionals: ["audit", "notifications"],
   // ADR-023 (modules.md §2): lê a origem (consulta/exame) pelas raízes de `appointments`/`examinations`.
   recommendations: ["access", "appointments", "examinations", "audit"],
   documents: ["access", "audit"],
