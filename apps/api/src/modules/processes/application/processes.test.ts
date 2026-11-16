@@ -192,12 +192,6 @@ describe("getProcess (UC-PRC-04, AC-PRC-06)", () => {
     expect(JSON.stringify(view)).not.toMatch(/NO_SHOW|ARRIVED|REQUESTED/);
   });
 
-  it("origem AUTHORIZATION (arquivada, ADR-037) nunca é legível: 404 e fora da lista", async () => {
-    fx.addProcess({ id: "auth", openedAt: NOW, originType: "AUTHORIZATION", originId: "auth-1" });
-    await expect(get("auth")).rejects.toBeInstanceOf(NotFoundError);
-    expect((await createListProcessesUseCase(fx.deps)(USER, FAMILY, MEMBER, {}, CONTEXT)).items).toEqual([]);
-  });
-
   it("scheduledAt é null quando o ato não tem hora", async () => {
     fx.addProcess({ id: "p1", openedAt: NOW, originType: "EXAMINATION", phase: "DONE" });
     expect((await get("p1")).scheduledAt).toBeNull();

@@ -63,8 +63,6 @@ export interface DocumentsRepository<Trx> {
   /** Só por `familyId` — usado pelo worker `documents.scan`, que não recebe `memberId` no job. */
   findByIdForFamily(trx: Trx, familyId: string, documentId: string): Promise<Document | null>;
   listByResource(trx: Trx, familyId: string, memberId: string, resourceType: ResourceType, resourceId: string): Promise<Document[]>;
-  /** Só os do membro indicado (um id de outro membro/família simplesmente não aparece). */
-  listByIds(trx: Trx, familyId: string, memberId: string, documentIds: string[]): Promise<Document[]>;
   /** Não conta o laudo gerado pelo servidor (BR-CLN-49: fora do limite de 5 PDF por exame). */
   countByResource(trx: Trx, familyId: string, memberId: string, resourceType: ResourceType, resourceId: string): Promise<number>;
   /** M15 T: o laudo gerado do exame (um por exame, UNIQUE parcial); `null` se não existe ou foi apagado. */

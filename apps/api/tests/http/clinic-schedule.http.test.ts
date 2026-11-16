@@ -1,7 +1,7 @@
 // HTTP (supertest + express-openapi-validator contra docs/05-api/openapi.yaml, SEM base de dados): catálogo,
 // regras de horário, bloqueios e `/slots` com profissional (M14 a1/a2, TC-CLN-04/05/06, AC-CLN-07..11).
-// Os casos de uso reais correm sobre os fakes das fixtures. Cobre: ambos os papéis, tokens de User e de
-// seguradora rejeitados, isolamento entre clínicas (404/lista vazia), validação do contrato e canários sem PII.
+// Os casos de uso reais correm sobre os fakes das fixtures. Cobre: ambos os papéis, token de User
+// rejeitado, isolamento entre clínicas (404/lista vazia), validação do contrato e canários sem PII.
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import request from "supertest";
@@ -19,7 +19,6 @@ import { createClinicsFixtures } from "../../src/modules/clinics/application/fix
 import { signClinicAccessToken } from "../../src/modules/clinics/domain/clinic-jwt.js";
 import { createClinicActorContextMiddleware, createClinicBearerAuthSecurityHandler } from "../../src/modules/clinics/interface/clinic-portal-middleware.js";
 import { createClinicPortalRouter, type ClinicPortalController } from "../../src/modules/clinics/interface/clinic-portal-router.js";
-import { signInsuranceAccessToken } from "../../src/modules/insurance/domain/insurance-jwt.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
@@ -93,7 +92,6 @@ async function buildHarness() {
     app,
     fx,
     userToken: (await signAccessToken({ subject: { userId: USER, sessionId: SESSION }, now: NOW, ttlSeconds: 900, signingKeys: KEYS })).token,
-    insuranceToken: (await signInsuranceAccessToken({ subject: { insuranceAccountId: ACCOUNT_ADMIN, sessionId: SESSION }, now: NOW, ttlSeconds: 900, signingKeys: KEYS })).token,
     admin: await clinicToken(ACCOUNT_ADMIN),
     manager: await clinicToken(ACCOUNT_MANAGER),
     other: await clinicToken(ACCOUNT_B),
@@ -123,10 +121,9 @@ describe("autenticação e papéis (authorization.md §6.2)", () => {
     ["get", "/services"],
     ["get", "/schedule-rules"],
     ["get", "/time-off"],
-  ] as const)("%s %s: 401 sem token; token de User e de seguradora rejeitados; ambos os papéis 200", async (method, path) => {
+  ] as const)("%s %s: 401 sem token; token de User rejeitados; ambos os papéis 200", async (method, path) => {
     expect((await request(h.app)[method](`${API}${path}`)).status).toBe(401);
     expect((await call(h, method, path, h.userToken)).status).toBe(401);
-    expect((await call(h, method, path, h.insuranceToken)).status).toBe(401);
     expect((await call(h, method, path, h.admin)).status).toBe(200);
     expect((await call(h, method, path, h.manager)).status).toBe(200);
   });
@@ -345,7 +342,7 @@ describe("GET /clinic-portal/exam-service-types (M15 U, BR-CLN-51, authorization
     h = await buildHarness();
   });
 
-  it("só serviços EXAM ativos, por nome, projeção mínima sem preço; 401 sem token/User/seguradora; Admin e Gestor 200", async () => {
+  it("só serviços EXAM ativos, por nome, projeção mínima sem preço; 401 sem token/User; Admin e Gestor 200", async () => {
     await call(h, "post", "/services", h.admin, { name: "Zeta eco", kind: "EXAM", durationMinutes: 30, priceMinor: 5000 });
     await call(h, "post", "/services", h.admin, { name: "Alfa análises", kind: "EXAM", durationMinutes: 15, priceMinor: 100 });
     await call(h, "post", "/services", h.admin, { name: "Consulta", kind: "APPOINTMENT", durationMinutes: 30 });
@@ -353,7 +350,6 @@ describe("GET /clinic-portal/exam-service-types (M15 U, BR-CLN-51, authorization
     await call(h, "patch", `/services/${off.id}`, h.admin, { active: false });
     expect((await request(h.app).get(`${API}/exam-service-types`)).status).toBe(401);
     expect((await call(h, "get", "/exam-service-types", h.userToken)).status).toBe(401);
-    expect((await call(h, "get", "/exam-service-types", h.insuranceToken)).status).toBe(401);
     for (const token of [h.admin, h.manager]) {
       const res = await call(h, "get", "/exam-service-types", token);
       expect(res.status).toBe(200);

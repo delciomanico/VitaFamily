@@ -7,7 +7,6 @@ export type ProcessFamilyStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'DONE' | 'CANCEL
 export interface ProcessNextStep {
   code: string
   actor: 'FAMILY' | 'CLINIC' | 'NONE'
-  dueAt?: string | null
 }
 
 export interface FamilyProcess {

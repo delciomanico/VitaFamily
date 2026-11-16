@@ -90,7 +90,7 @@ Preços em Kz inteiros (sem centavos); fuso por omissão `Africa/Luanda`; texto 
 | `clinic-patients` (consentimento por categoria/prazo, `SharedHistoryReader`) | Modelo e portas da partilha com prazo (`record-sharing`) |
 | `clinic-reports`/`recommendations` | Relatório da consulta e pedido de exame do profissional (fase posterior; não no MVP do mercado) |
 | `appointments` | A marcação confirmada gera a consulta no registo da família |
-| `documents` + antivírus | Credenciais e comprovativos (via porta, como anexos da seguradora) |
+| `documents` + antivírus | Credenciais e comprovativos (via porta) |
 | `alerts`/`notifications` | Lembretes, nova mensagem, estado do comprovativo (`raise*Event`) |
 | `access` | `AccessPolicy` para o lado família (nova ação de partilha, só `SELF`/`TUTOR_OF`) |
 | `lifecycle`/`audit`/`admin` | Exportação/apagamento (partilhas, conversas), auditoria, fila de validação (admin sem dados de saúde) |

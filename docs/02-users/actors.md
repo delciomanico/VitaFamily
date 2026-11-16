@@ -12,10 +12,8 @@
 | **Dependente sem conta** | FamilyMember gerido pelos seus tutores. Não interage com o sistema. | Não | Sim |
 | **Dependente com conta (acesso limitado)** | FamilyMember sob tutela com conta própria. Vê os seus medicamentos e consultas e confirma tomas (N2). | Sim | Sim |
 | **Tutor / Responsável** | FamilyMember adulto responsável por um ou mais dependentes (relação por dependente, N1). Não é um papel da família. | Sim | Sim |
-| **Platform Admin** | Staff Vita. Gere contas (incl. pesquisa e reposição de acesso), clínicas e seguradoras parceiras e as contas do portal da clínica (listar/suspender); **sem acesso a dados de saúde** (D4, R10). | Sim (conta de plataforma) | Sim |
+| **Platform Admin** | Staff Vita. Gere contas (incl. pesquisa e reposição de acesso), clínicas parceiras e as contas do portal da clínica (listar/suspender); **sem acesso a dados de saúde** (D4, R10). | Sim (conta de plataforma) | Sim |
 | **Gestor da clínica (Clinic Manager)** | Conta de uma clínica **parceira** (D17). Publica horários, confirma/recusa pedidos de consulta e vê a agenda da clínica — só dados mínimos da marcação, **nunca dados de saúde**. | Sim | Sim |
-| **Conta da seguradora (Insurance Admin/Agent)** | Conta de uma seguradora **parceira** (ADR-021). Vê e decide os pedidos de reembolso (`ReimbursementClaim`) da própria seguradora e os documentos que o titular escolheu anexar a cada pedido — **nunca** mais nada do perfil de saúde do membro. | Sim | Sim |
-| **Contas operacionais da seguradora (ADR-025)** | `BENEFICIARY_MANAGER`, `AUTHORIZATION_ANALYST`, `CLAIMS_MANAGER`, `FINANCE_MANAGER` e `SUPERVISOR` (fatia 4, ADR-035: atribui, decide recursos, reabre, gere regras de auto-aprovação) de uma seguradora com módulo operacional ativo: gerem beneficiários/apólices/planos, decidem autorizações e despesas e veem o dashboard, sempre limitados ao `insurerId` — **nunca** dados de saúde do paciente. | Sim | Sim (S1–S6) |
 
 ## 2. Atores do sistema
 

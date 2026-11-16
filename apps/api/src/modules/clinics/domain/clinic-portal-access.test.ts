@@ -10,8 +10,6 @@ import { createAppointmentsClinicPortalRouter } from "../../appointments/interfa
 import { createClinicPatientsPortalRouter } from "../../clinic-patients/interface/portal-router.js";
 import { createClinicReceiptsPortalRouter } from "../../clinic-receipts/interface/portal-router.js";
 import { createClinicReportsPortalRouter } from "../../clinic-reports/interface/portal-router.js";
-import { createClinicAuthorizationsRouter } from "../../insurer-ops/interface/clinic-authorizations-router.js";
-import { createInsurerClinicRouter } from "../../insurer-ops/interface/clinic-router.js";
 import { createExaminationsClinicPortalRouter } from "../../examinations/interface/clinic-portal-router.js";
 import { createProcessesClinicPortalRouter } from "../../processes/interface/clinic-portal-router.js";
 import { createRecommendationsClinicPortalRouter } from "../../recommendations/interface/clinic-portal-router.js";
@@ -56,13 +54,13 @@ const ROUTERS = [
   createClinicReceiptsPortalRouter(stub),
   createClinicReportsPortalRouter(stub),
   createClinicAuditRouter(stub),
-  createInsurerClinicRouter(stub),
-  createClinicAuthorizationsRouter(stub),
 ];
 
 describe("matriz papel × rota do portal da clínica (TC-AZ-CLN-V5)", () => {
   const matrix = new Set(CLINIC_PORTAL_ACCESS.map((r) => `${r.method} ${r.path}`));
 
+  // R5 (arquivo do marco B): FALHA ATÉ AO R6 — o contrato ainda lista /clinic-portal/insurers* e /clinic-portal/authorizations*,
+  // já sem handler nem regra na matriz. O R6 remove-as de openapi.yaml e este teste volta a passar sem alterações.
   it("tem exatamente as operações /clinic-portal/* do openapi.yaml", () => {
     expect([...contractOperations()].sort()).toEqual([...matrix].sort());
   });
@@ -81,9 +79,6 @@ describe("matriz papel × rota do portal da clínica (TC-AZ-CLN-V5)", () => {
     ["POST", "/clinic-portal/staff", "yes", "no", "no"],
     ["GET", "/clinic-portal/reports/summary", "yes", "yes", "no"],
     ["GET", "/clinic-portal/search", "yes", "yes", "no"],
-    ["GET", "/clinic-portal/insurers", "yes", "yes", "no"],
-    ["POST", "/clinic-portal/insurers/abc/eligibility", "yes", "yes", "no"],
-    ["GET", "/clinic-portal/insurers/abc/services", "yes", "yes", "no"],
     ["PUT", "/clinic-portal/agenda/abc/start", "yes", "yes", "own"],
     ["PUT", "/clinic-portal/agenda/abc/arrive", "yes", "yes", "no"],
     ["GET", "/clinic-portal/calendar", "yes", "yes", "own"],
@@ -103,15 +98,6 @@ describe("matriz papel × rota do portal da clínica (TC-AZ-CLN-V5)", () => {
     ["PUT", "/clinic-portal/exam-agenda/abc/results-draft", "yes", "yes", "own"],
     ["DELETE", "/clinic-portal/exam-agenda/abc/results-draft", "yes", "yes", "own"],
     ["GET", "/clinic-portal/exam-agenda/abc/report/pdf", "yes", "yes", "own"],
-    // TC-AZ-AUT-01 (authorization.md §6.2b/§8.4): as 8 rotas de pedidos de autorização — Admin e Gestor; o Médico ⇒ FORBIDDEN.
-    ["POST", "/clinic-portal/authorizations", "yes", "yes", "no"],
-    ["GET", "/clinic-portal/authorizations", "yes", "yes", "no"],
-    ["GET", "/clinic-portal/authorizations/abc", "yes", "yes", "no"],
-    ["POST", "/clinic-portal/authorizations/abc/respond", "yes", "yes", "no"],
-    ["POST", "/clinic-portal/authorizations/abc/cancel", "yes", "yes", "no"],
-    ["POST", "/clinic-portal/authorizations/abc/appeals", "yes", "yes", "no"],
-    ["POST", "/clinic-portal/authorizations/abc/attachments", "yes", "yes", "no"],
-    ["DELETE", "/clinic-portal/authorizations/abc/attachments/def", "yes", "yes", "no"],
   ];
   it.each(expected)("%s %s => Admin %s · Gestor %s · Médico %s", (method, path, admin, manager, doctor) => {
     const rule = findPortalRule(method, `/api/v1${path}`);

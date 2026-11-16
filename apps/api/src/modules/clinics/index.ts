@@ -154,11 +154,6 @@ export interface ClinicsModule {
   listProfessionalSlotsOverlapping: (trx: Kysely<Database>, professionalId: string, from: Date, to: Date, excludeSlotId: string) => Promise<string[]>;
   /** M14 P (BR-CLN-19, `clinic-patients`): clínica PARCEIRA pelo id (qualquer estado); `null` se não existe ou é privada. */
   getPartnerClinic: (trx: Kysely<Database>, clinicId: string) => Promise<{ id: string; name: string; active: boolean } | null>;
-  /** ADR-025 (S3, `insurer-ops`, modules.md §2 nota 23b): clínicas PARTNER+ACTIVE (`id` e nome de apresentação) para a seguradora as ligar; sem dados internos. */
-  partnerClinicDirectory: {
-    list: (trx: Kysely<Database>, query: { q?: string; limit: number; after?: { name: string; id: string } }) => Promise<{ id: string; name: string }[]>;
-    find: (trx: Kysely<Database>, clinicId: string) => Promise<{ id: string; name: string } | null>;
-  };
   /** M14 R (BR-CLN-31/38, `clinic-receipts`): cabeçalho (nome de apresentação ?? nome, morada, contactos) e moeda da clínica. */
   getReceiptProfile: (trx: Kysely<Database>, clinicId: string) => Promise<{ issuer: { name: string; address: string | null; phone: string | null; email: string | null }; currency: string }>;
   /** M14 R (BR-CLN-31, `clinic-receipts`): serviço do catálogo da clínica (nome e preço); `null` se de outra clínica/inexistente. */
@@ -296,10 +291,6 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     findServiceTypeForExamOrder: async (trx, clinicId, serviceTypeId) => {
       const service = await catalogRepo.findServiceType(trx, clinicId, serviceTypeId);
       return service ? { id: service.id, name: service.name, kind: service.kind, active: service.active } : null;
-    },
-    partnerClinicDirectory: {
-      list: (trx, query) => clinicsRepo.listPartnerDirectory(trx, query),
-      find: (trx, clinicId) => clinicsRepo.findPartnerDirectoryEntry(trx, clinicId),
     },
     getPartnerClinic: async (trx, clinicId) => {
       const clinic = await clinicsRepo.findById(trx, clinicId);

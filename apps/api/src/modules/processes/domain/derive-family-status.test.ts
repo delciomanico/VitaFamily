@@ -25,8 +25,8 @@ describe("deriveFamilyStatus — tabela de verdade (state-machines.md, Process)"
     expect(asDomain).toHaveLength(6);
 
     const statuses: Contract["ProcessFamilyStatus"][] = ["SCHEDULED", "IN_PROGRESS", "DONE", "CANCELLED"];
-    const codes: Contract["ProcessNextStepCode"][] = ["AWAIT_CLINIC_RESPONSE", "ATTEND", "BEING_ATTENDED", "RESCHEDULE", "NOTHING_PENDING", "AWAIT_INSURER_DECISION", "AWAIT_CLINIC_INFORMATION", "COVERAGE_NOT_APPROVED", "COVERAGE_EXPIRED", "COVERAGE_WITHDRAWN"];
-    const actors: Contract["ProcessNextStepActor"][] = ["FAMILY", "CLINIC", "INSURER", "NONE"];
+    const codes: Contract["ProcessNextStepCode"][] = ["AWAIT_CLINIC_RESPONSE", "ATTEND", "BEING_ATTENDED", "RESCHEDULE", "NOTHING_PENDING"];
+    const actors: Contract["ProcessNextStepActor"][] = ["FAMILY", "CLINIC", "NONE"];
     for (const phase of contractPhases) {
       const view = deriveFamilyStatus({ act: { phase } });
       expect(statuses).toContain(view.familyStatus);

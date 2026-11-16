@@ -1,5 +1,5 @@
 // Fusão de declaração das tabelas de recibos (schema.md §3f, `0030`) no `Database` partilhado — só a infrastructure deste
-// módulo acede a elas (conventions.md §3.5). `reimbursement_claim_receipts` pertence a `insurance`.
+// módulo acede a elas (conventions.md §3.5).
 import type { ColumnType, Generated } from "kysely";
 
 export interface ClinicReceiptCountersTable {

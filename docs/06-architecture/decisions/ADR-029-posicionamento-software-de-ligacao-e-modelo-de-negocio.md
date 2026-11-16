@@ -2,17 +2,17 @@
 
 > **Nota (pivô 2026-11-16, ADR-037):** ADR-029/030/031 e o âmbito de seguradoras (ADR-021/025, marco B) ficam **adiados**; ver ADR-037.
 
-**Estado:** **Proposto — aguarda aprovação do proprietário** (change control **D25**, proposto em 2026-11-14). Em termos de **direção de produto**, o proprietário já decidiu o posicionamento (conversa de 2026-11-14); este ADR formaliza-o e lista o que dele decorre. Os preços e o modelo comercial são **hipótese não validada**. Adenda a ADR-021/ADR-025; **não substitui** nenhum ADR. Conflitos com regras existentes estão em `00-product/business-model.md` §7 e **não** são resolvidos aqui.
+**Estado:** **Proposto — aguarda aprovação do proprietário** (change control **D25**, proposto em 2026-11-14). Em termos de **direção de produto**, o proprietário já decidiu o posicionamento (conversa de 2026-11-14); este ADR formaliza-o e lista o que dele decorre. Os preços e o modelo comercial são **hipótese não validada**. Adenda a ADR-021/ADR-025; **não substitui** nenhum ADR. Conflitos com regras existentes estão em `_arquivo/marco-b/business-model.md` §7 e **não** são resolvidos aqui.
 
-> **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `11-implementation/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".
-> Âmbito aceite: posicionamento software de ligação (não TPA), seguradora decide e paga, copagamento no balcão. **Não aceite:** preços/modelo comercial (hipótese), medição/faturação por transação (C9), emendas de BR/ADR conflituantes de `business-model.md` §7.
+> **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `_arquivo/marco-b/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `_arquivo/marco-b/marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".
+> Âmbito aceite: posicionamento software de ligação (não TPA), seguradora decide e paga, copagamento no balcão. **Não aceite:** preços/modelo comercial (hipótese), medição/faturação por transação (C9), emendas de BR/ADR conflituantes de `_arquivo/marco-b/business-model.md` §7.
 
 ## Contexto
 O Vita nasceu como app de saúde familiar (`vision.md`) e ganhou portais de clínica (ADR-020/026) e de seguradora (ADR-021/025). Falta fixar **o que o Vita é** perante o mercado (e perante o regulador) e **como se financia**, porque isso condiciona partes, acessos, faturação e riscos legais.
 
 ## Decisão (proposta)
 1. **Posicionamento:** o Vita é **software de ligação** entre famílias, prestadores, seguradoras e empresas. **Não é um TPA** (administrador de terceiros). A **seguradora continua a pagar** e a decidir; o Vita **processa autorizações e despesas** (fluxos, regras configuradas pela seguradora, rasto) mas não detém risco, não paga prestadores em nome da seguradora e não gere fundos. Tornar-se TPA só **mais tarde**, com **parceiro licenciado** (novo ADR e parecer jurídico).
-2. **Partes e acessos:** família, prestador, seguradora, empresa (e backoffice Vita) com o modelo de acessos de `00-product/business-model.md` §2–§3. Princípio estrutural: **a família é soberana dos dados clínicos**; cada outra parte vê o **mínimo necessário** à sua função.
+2. **Partes e acessos:** família, prestador, seguradora, empresa (e backoffice Vita) com o modelo de acessos de `_arquivo/marco-b/business-model.md` §2–§3. Princípio estrutural: **a família é soberana dos dados clínicos**; cada outra parte vê o **mínimo necessário** à sua função.
 3. **Modelo comercial (HIPÓTESE, preços por validar):** famílias **grátis**; seguradoras e empresas pagam **por vida ativa/mês + taxa por transação** (autorização/despesa); prestadores **grátis** com **nível pago opcional** (agenda avançada, visibilidade, relatórios). Sem preços nesta documentação até validação com clientes.
 4. **Prestador sem seguradora** como porta de entrada: ver ADR-030.
 5. **Empresa** como quarta parte: ver ADR-031.
@@ -25,10 +25,10 @@ O Vita nasceu como app de saúde familiar (`vision.md`) e ganhou portais de clí
 - **Sem alteração a código, contrato ou BD** por este ADR.
 
 ## Decisão do proprietário de 2026-11-14 (Q-C1) — copagamento
-**DECIDIDO:** o copagamento é pago no **balcão do prestador**; o Vita **só calcula e mostra** (antes, como estimativa, e depois, valor final) e **não processa pagamentos**, mantendo-se software e não TPA. Alternativa rejeitada: pagamento do copagamento dentro do Vita. Este ADR continua **Proposto** (aprovação formal pendente); a decisão passa a ser pressuposto firme do fluxo (`00-product/process-flows.md` §10). Alteração proposta a BR-SEG-06/08 em `process-flows.md` §11a, pendente.
+**DECIDIDO:** o copagamento é pago no **balcão do prestador**; o Vita **só calcula e mostra** (antes, como estimativa, e depois, valor final) e **não processa pagamentos**, mantendo-se software e não TPA. Alternativa rejeitada: pagamento do copagamento dentro do Vita. Este ADR continua **Proposto** (aprovação formal pendente); a decisão passa a ser pressuposto firme do fluxo (`_arquivo/marco-b/process-flows.md` §10). Alteração proposta a BR-SEG-06/08 em `_arquivo/marco-b/process-flows.md` §11a, pendente.
 
 ## Conflitos identificados (a decidir pelo proprietário)
-Ver `00-product/business-model.md` §7 (C1–C10). Os de maior impacto: princípio "dados do app não alimentam prémio/cobertura" (`privacy.md`, `insurer-phase-a.md` §3.4) versus incentivos/wearables; BR-SEG-18/BR-INS-08 versus "mínimo do ato autorizado"; BR-HLT-03/BR-RPT-03/ADR-022 versus segurança medicamentosa e assistente de sintomas.
+Ver `_arquivo/marco-b/business-model.md` §7 (C1–C10). Os de maior impacto: princípio "dados do app não alimentam prémio/cobertura" (`privacy.md`, `_arquivo/marco-b/insurer-phase-a.md` §3.4) versus incentivos/wearables; BR-SEG-18/BR-INS-08 versus "mínimo do ato autorizado"; BR-HLT-03/BR-RPT-03/ADR-022 versus segurança medicamentosa e assistente de sintomas.
 
 ## Alternativas consideradas
 | Alternativa | Porque não (proposta) |

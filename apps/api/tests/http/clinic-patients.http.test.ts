@@ -33,7 +33,6 @@ import { createClinicPatientsFamilyRouter } from "../../src/modules/clinic-patie
 import { createClinicPatientsPortalRouter } from "../../src/modules/clinic-patients/interface/portal-router.js";
 import { signClinicAccessToken } from "../../src/modules/clinics/domain/clinic-jwt.js";
 import { createClinicActorContextMiddleware, createClinicBearerAuthSecurityHandler } from "../../src/modules/clinics/interface/clinic-portal-middleware.js";
-import { signInsuranceAccessToken } from "../../src/modules/insurance/domain/insurance-jwt.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
@@ -225,7 +224,6 @@ async function buildHarness() {
     other: await userToken(USER_OTHER),
     dep: await userToken(USER_DEP),
     stranger: await userToken(USER_STRANGER),
-    insuranceToken: (await signInsuranceAccessToken({ subject: { insuranceAccountId: ACCOUNT_ADMIN, sessionId: SESSION }, now: NOW, ttlSeconds: 900, signingKeys: KEYS })).token,
     admin: await clinicToken(ACCOUNT_ADMIN),
     manager: await clinicToken(ACCOUNT_MANAGER),
     otherClinic: await clinicToken(ACCOUNT_B),
@@ -265,10 +263,10 @@ describe("autenticação e separação de atores (TC-AZ-CLN-V3)", () => {
   ];
   const body = { name: "X", code: "ABCDEFGH" };
 
-  it.each(portalRoutes)("%s %s: sem token, token de User e de seguradora => 401", async (method, path) => {
-    for (const token of [undefined, "user", "insurance"] as const) {
+  it.each(portalRoutes)("%s %s: sem token, token de User => 401", async (method, path) => {
+    for (const token of [undefined, "user"] as const) {
       const req = request(h.app)[method as "get"](`${API}${path}`);
-      if (token) req.set(auth(token === "user" ? h.self : h.insuranceToken));
+      if (token) req.set(auth(h.self));
       const res = await req.send(method === "get" ? undefined : body);
       expect(res.status).toBe(401);
     }
@@ -281,8 +279,8 @@ describe("autenticação e separação de atores (TC-AZ-CLN-V3)", () => {
     ["delete", famPath(MEMBER, `clinic-consents/${CLINIC_A}`)],
     ["post", famPath(MEMBER, "clinic-link-codes")],
   ];
-  it.each(familyRoutes)("%s %s: sem token e token de clínica/seguradora => 401", async (method, path) => {
-    for (const token of [undefined, h.admin, h.insuranceToken]) {
+  it.each(familyRoutes)("%s %s: sem token e token de clínica => 401", async (method, path) => {
+    for (const token of [undefined, h.admin]) {
       const req = request(h.app)[method as "get"](`${API}${path}`);
       if (token) req.set(auth(token));
       expect((await req.send(method === "put" ? { level: "BOOKINGS" } : undefined)).status).toBe(401);

@@ -39,7 +39,7 @@
 | `clinic_visits` | `(clinic_id, scheduled_at)` · `(clinic_patient_id, scheduled_at DESC)` · UNIQUE parcial `(slot_id) WHERE status='SCHEDULED' AND slot_id IS NOT NULL` | Calendário, ficha e ocupação do horário (M14 P). |
 | `clinic_visits` (M14 Q) | `(clinic_id, followup_due_on) WHERE followup_due_on IS NOT NULL` | Lista de retornos por tratar (as visitas já têm `(clinic_id, scheduled_at)` para Hoje e relatórios). |
 | `clinic_receipts` (M14 R) | UNIQUE `(clinic_id, number)` · UNIQUE parcial `(clinic_id, booking_kind, booking_id) WHERE status='ISSUED'` · `(clinic_id, issued_at DESC, id DESC)` | Numeração sem repetições, um recibo ativo por marcação (BR-CLN-31/32); Financeiro por período com cursor (BR-CLN-37); o total do período usa o mesmo índice. |
-| `clinic_receipt_lines` / `clinic_receipt_links` / `reimbursement_claim_receipts` (M14 R) | UNIQUE `(receipt_id, position)` · `clinic_receipt_links (member_id, created_at DESC)` · `reimbursement_claim_receipts (receipt_id)` | Linhas por recibo; lista de recibos do membro na app; verificar anexos ativos de um recibo. |
+| `clinic_receipt_lines` / `clinic_receipt_links` (M14 R) | UNIQUE `(receipt_id, position)` · `clinic_receipt_links (member_id, created_at DESC)` | Linhas por recibo; lista de recibos do membro na app. |
 | `clinic_accounts` (M14 R) | UNIQUE parcial `(professional_id) WHERE professional_id IS NOT NULL` | Uma conta Médico por profissional (BR-CLN-39). |
 | `audit_logs` (M14 R) | `(actor_clinic_id, occurred_at DESC, id DESC) WHERE actor_clinic_id IS NOT NULL` | `GET /clinic-portal/audit` (BR-CLN-40); sem custo para as restantes entradas (índice parcial). |
 | `clinic_slots` / `appointments` / `clinic_visits` (M14 R, filtro do Médico) | reutiliza `clinic_slots (professional_id, starts_at)` (a2) e o UNIQUE parcial `clinic_visits (slot_id)`; acrescenta `appointments (slot_id) WHERE slot_id IS NOT NULL` (`CREATE INDEX IF NOT EXISTS`) | Filtrar marcações e pacientes por `slot.professional_id` (BR-CLN-39) sem varrimento. |
@@ -69,42 +69,9 @@
 | `processes (clinic_id) WHERE clinic_id IS NOT NULL` | leitura do portal da clínica e `SET NULL` da FK (BR-PRC-06) |
 | UNIQUE parcial `appointments (process_id) WHERE process_id IS NOT NULL` · idem `examinations` | 1 ato : 1 processo; resolução ato→processo |
 
-## Catálogo e política da seguradora (marco B fatia 2; `schema.md` §3c, migração `0037`)
-| Índice | Para quê |
-|---|---|
-| UNIQUE `insurer_service_kinds (insurer_id, code)` e `(insurer_id, id)` | código único por seguradora; alvo da FK composta (BR-SEG-39) |
-| `insurer_services (insurer_id, service_kind_id)` | contagem por tipo, `classify`, inativação de tipo com serviços ativos |
-| UNIQUE parcial `insurer_policy_settings (insurer_id, setting_key) WHERE service_id IS NULL` · `(insurer_id, setting_key, service_id) WHERE service_id IS NOT NULL` | upsert idempotente; resolução serviço > seguradora (BR-SEG-40) |
-
-## Autorizações do prestador (marco B fatia 3; `schema.md` §3c, migração `0039`)
-| Índice | Para quê |
-|---|---|
-| UNIQUE `insurer_authorizations (insurer_id, id)` | alvo das FKs compostas (eventos, anexos, recurso) |
-| UNIQUE parcial `(insurer_id, code) WHERE code IS NOT NULL` | código de autorização único (BR-SEG-05) |
-| UNIQUE parcial `(insurer_id, beneficiary_id, provider_id, service_id, expected_on) WHERE status IN ('SUBMITTED','IN_REVIEW','INFO_REQUESTED')` | duplicado em curso, também sob concorrência (BR-AUT-09) |
-| UNIQUE parcial `(parent_request_id) WHERE parent_request_id IS NOT NULL AND status <> 'CANCELLED'` | um recurso não cancelado por recusa (BR-AUT-08) |
-| `insurer_authorizations (provider_id, created_at DESC, id DESC)` | lista da clínica, cursor por (`created_at`, `id`) |
-| `insurer_authorizations (process_id) WHERE process_id IS NOT NULL` | factos de cobertura do `Process` (porta `ProcessFacts`) e `SET NULL` da FK |
-| `insurer_authorizations (info_expires_at) WHERE status = 'INFO_REQUESTED'` | job `insurer.expire-info-requests` |
-| `insurer_authorization_events (authorization_id, id)` | `timeline` do pedido |
-| `insurer_attachments (authorization_id)` · UNIQUE `(storage_key)` | anexos do pedido (máx. 5) |
-
-## Decisão pela seguradora (marco B fatia 4; `schema.md` §3c, migração `0040`)
-| Índice | Para quê |
-|---|---|
-| `insurer_authorizations (insurer_id, status, decision_due_at, id)` | fila por prazo, cursor por (`decision_due_at`, `id`) (BR-AUT-19) |
-| `insurer_authorizations (insurer_id, updated_at DESC, id DESC)` | histórico (`sort=RECENT`) |
-| `insurer_authorizations (assigned_to_insurance_account_id) WHERE assigned_to_insurance_account_id IS NOT NULL` | filtro «meus» e `SET NULL` ao remover a conta |
-| `insurer_authorizations (decision_due_at) WHERE status = 'IN_REVIEW' AND escalated_at IS NULL` | job `insurer.flag-sla-breaches` (BR-AUT-20) |
-| UNIQUE parcial `insurer_authorizations (insurer_id, beneficiary_id, provider_id, service_id, expected_on) WHERE status IN ('SUBMITTED','IN_REVIEW','INFO_REQUESTED','APPROVED')` (**recria o da `0039`**) | duplicado em curso **ou já aprovado**, também sob concorrência (BR-AUT-09) |
-| UNIQUE parcial `insurer_auto_approval_rules (insurer_id, service_kind_id) WHERE active AND service_kind_id IS NOT NULL` · `(insurer_id, service_id) WHERE active AND service_id IS NOT NULL` · UNIQUE `(insurer_id, id)` | uma regra ativa por alvo; alvo das FKs (BR-AUT-23) |
-| `insurer_auto_approval_rules (insurer_id, active)` | carregar as regras ativas na criação do pedido |
-
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).
 2. Antes de M10, validar os 5 caminhos quentes: scanner, agenda do dia, lista de alertas, resolução de membership, relatório individual.
 
-## Alertas do pedido de autorização (marco B fatia 5; migração `0041`, ADR-036)
-| Índice | Consulta |
-|---|---|
-| `insurer_authorizations (valid_until) WHERE status = 'APPROVED' AND process_id IS NOT NULL` (`0041`, ADR-036) | candidatas de `AUTHORIZATION_EXPIRING` no `alerts.scan` (BR-ALR-10) |
+## Índices das tabelas inertes (arquivo do marco B, ADR-037)
+Os índices das tabelas `insurer_*`, `insurance_*`, `reimbursement_*` e do alerta de expiração (`0024`–`0041`) mantêm-se na base de dados, sem uso; ver `schema.md` §10 e o arquivo `_arquivo/marco-b/extratos/migrations-indexes-seguradora.md`.

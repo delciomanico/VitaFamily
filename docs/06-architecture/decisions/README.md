@@ -20,11 +20,11 @@
 - ADR-018 — Código de verificação de e-mail de 6 dígitos (substitui, só nessa rota, o token/link de UC-ACC-01)
 - ADR-019 — API sem domínio próprio no Dokploy; `/api` é um proxy interno feito pelo `web` (decisão do proprietário; refina a linha "Domínio" de ADR-017)
 - ADR-020 — Contas e sessões do portal da clínica separadas de `User` (D17/D18, decisão do proprietário)
-- ADR-021 — Acesso de seguradoras: cartão de apólice, pedidos de reembolso e portal (`InsuranceAccount`) (decisão do proprietário)
+- ADR-021 — **ARQUIVADO (pivô 2026-11-16, ADR-037; removido do `main`)**; antes: Acesso de seguradoras: cartão de apólice, pedidos de reembolso e portal (`InsuranceAccount`) (decisão do proprietário)
 - ADR-022 — Resumo de tendências com IA em relatórios, exceção estrita a BR-RPT-03 (decisão do proprietário; gate de lançamento ligado à AIPD/DPA)
 - ADR-023 — Portal da clínica: exames (marcação direta com vagas, revisto 2026-11-04; antes espelho de consultas), resultados emitidos pela clínica, recomendações; admin de contas; fecho de lacunas de M11 (decisão do proprietário; adenda a ADR-020/ADR-021)
 - ADR-024 — Portal da clínica: marcação presencial (walk-in) para um utilizador registado, pesquisa por e-mail exato, emenda estreita a BR-CLN-03 (decisão do proprietário, D20)
-- ADR-025 — Módulo operacional de seguradoras (multi-seguradora): beneficiários, apólices, planos, elegibilidade, autorizações, despesas e rede; Kz por seguradora; emenda a BR-INS-08 (decisão do proprietário, D21; Q4 pendente)
+- ADR-025 — **ARQUIVADO (pivô 2026-11-16, ADR-037; removido do `main`)**; antes: Módulo operacional de seguradoras (multi-seguradora): beneficiários, apólices, planos, elegibilidade, autorizações, despesas e rede; Kz por seguradora; emenda a BR-INS-08 (decisão do proprietário, D21; Q4 pendente)
 
 - ADR-026 — Portal da clínica como ferramenta independente (registo próprio de pacientes) ligada ao Vita por consentimento do paciente; emendas estreitas a BR-CLN-03/BR-CLN-10 (decisão do proprietário, D22, aceite)
 - ADR-027 — Relatório da consulta estruturado e laudo de exame gerado pelo sistema (portal da clínica, M15): relatório 1:1 com a marcação, `DRAFT → FINAL` + adendas, só o Médico escreve, visível ao titular/tutor sem consentimento (com `sharedWithPatient`); rascunho de resultados e laudo PDF com realce aritmético "Fora da referência"; emendas estreitas a BR-CLN-03/08 e BR-EXM-02 (decisão do proprietário, D23, aceite)

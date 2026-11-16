@@ -2,7 +2,7 @@
 // fiscais da clínica (`ClinicReceipt`, linhas, ligação ao paciente, contador sequencial); rotas `/clinic-portal/receipts*`
 // (ator `ClinicAccount`, matriz de authorization.md §6.2b) e `/families/{f}/members/{m}/clinic-receipts*` (ator `User`,
 // `AccessPolicy.can(VIEW_CLINIC_RECEIPTS)`). Depende só de `access` e `audit` (e de `clinics` apenas via portas ligadas no
-// composition root); NÃO importa módulos de saúde, `families`, `auth`, `insurance` nem `documents`. Sem PDF no servidor.
+// composition root); NÃO importa módulos de saúde, `families`, `auth` nem `documents`. Sem PDF no servidor.
 import type { Router } from "express";
 import type { Kysely } from "kysely";
 import type { Clock } from "../../platform/clock/index.js";
@@ -10,12 +10,7 @@ import { withTransaction, type Database } from "../../platform/db/index.js";
 import { InMemoryRateLimiter } from "../../platform/rate-limit/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
-import {
-  createFindIssuedReceiptIdsUseCase,
-  createLockVisibleReceiptsUseCase,
-  createReceiptInsurerSummariesUseCase,
-  createReceiptRefsUseCase,
-} from "./application/claim-lookup.js";
+import { createFindIssuedReceiptIdsUseCase } from "./application/issued-receipts.js";
 import { createGetFamilyReceiptUseCase, createListFamilyReceiptsUseCase } from "./application/family-receipts.js";
 import { createIssueReceiptUseCase, createIssueReceiptWithCompleteUseCase } from "./application/issue-receipt.js";
 import { createGetReceiptUseCase, createListReceiptsUseCase } from "./application/list-receipts.js";
@@ -28,7 +23,6 @@ import type {
 } from "./application/ports.js";
 import { createVoidReceiptUseCase } from "./application/void-receipt.js";
 import { KyselyReceiptsRepository } from "./infrastructure/repo.js";
-import { createClinicReceiptLookup } from "./interface/claim-lookup.js";
 import { createClinicReceiptsFamilyRouter } from "./interface/family-router.js";
 import { createClinicReceiptsPortalRouter } from "./interface/portal-router.js";
 
@@ -59,8 +53,6 @@ export interface ClinicReceiptsModule {
   findIssuedReceiptIds: ReturnType<typeof createFindIssuedReceiptIdsUseCase<Kysely<Database>>>;
   /** Porta `CompletionReceiptIssuer` de `appointments` («Concluir ato», BR-CLN-57): emite o recibo na transação da conclusão. */
   issueWithComplete: ReturnType<typeof createIssueReceiptWithCompleteUseCase<Kysely<Database>>>;
-  /** Porta `ClinicReceiptLookup` de `insurance` (BR-CLN-36), ligada em `main/api.ts`. */
-  claimLookup: ReturnType<typeof createClinicReceiptLookup<Kysely<Database>>>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -91,10 +83,5 @@ export function createClinicReceiptsModule(deps: ClinicReceiptsModuleDeps): Clin
     }),
     findIssuedReceiptIds: createFindIssuedReceiptIdsUseCase(receiptsDeps),
     issueWithComplete: createIssueReceiptWithCompleteUseCase(receiptsDeps),
-    claimLookup: createClinicReceiptLookup({
-      lockVisibleReceipts: createLockVisibleReceiptsUseCase(receiptsDeps),
-      receiptRefs: createReceiptRefsUseCase(receiptsDeps),
-      receiptInsurerSummaries: createReceiptInsurerSummariesUseCase(receiptsDeps),
-    }),
   };
 }

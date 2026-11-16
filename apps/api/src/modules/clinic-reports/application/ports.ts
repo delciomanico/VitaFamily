@@ -1,6 +1,6 @@
 // Portas do módulo `clinic-reports` (conventions.md §3.2, modules.md §2 nota 27): definidas aqui, implementadas em
 // `infrastructure` (Kysely, pdfkit) ou ligadas no composition root às APIs públicas de `appointments`, `clinic-patients`,
-// `clinics` e `access`. O módulo NÃO importa `auth`, `access`, `families`, `insurance`, `insurer-ops`, `clinic-receipts`
+// `clinics` e `access`. O módulo NÃO importa `auth`, `access`, `families`, `clinic-receipts`
 // nem módulos de saúde. Genéricas em `Trx` para esta camada nunca importar "kysely" (conventions.md §3.9).
 import type { Clock } from "../../../platform/clock/index.js";
 import type { RateLimiter } from "../../../platform/rate-limit/index.js";

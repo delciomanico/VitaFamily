@@ -7,6 +7,7 @@ import type { Process } from "../domain/process.js";
 import "./schema.js";
 import type { ProcessesTable } from "./schema.js";
 
+const ACT_ORIGINS = ["APPOINTMENT", "EXAMINATION"] as const;
 const PROCESS_COLUMNS = ["id", "family_id", "member_id", "kind", "origin_type", "origin_id", "clinic_id", "opened_at"] as const;
 
 function toProcess(row: Selectable<ProcessesTable>): Process {
@@ -58,7 +59,7 @@ export class KyselyProcessesRepository implements ProcessesRepository<Kysely<Dat
   }
 
   async findOfMember(trx: Kysely<Database>, familyId: string, memberId: string, processId: string): Promise<Process | null> {
-    const row = await trx.selectFrom("processes").select(PROCESS_COLUMNS).where("family_id", "=", familyId).where("member_id", "=", memberId).where("id", "=", processId).executeTakeFirst();
+    const row = await trx.selectFrom("processes").select(PROCESS_COLUMNS).where("family_id", "=", familyId).where("member_id", "=", memberId).where("id", "=", processId).where("origin_type", "in", ACT_ORIGINS).executeTakeFirst();
     return row ? toProcess(row) : null;
   }
 
@@ -74,7 +75,7 @@ export class KyselyProcessesRepository implements ProcessesRepository<Kysely<Dat
   }
 
   async findOfClinic(trx: Kysely<Database>, clinicId: string, processId: string): Promise<Process | null> {
-    const row = await trx.selectFrom("processes").select(PROCESS_COLUMNS).where("clinic_id", "=", clinicId).where("id", "=", processId).executeTakeFirst();
+    const row = await trx.selectFrom("processes").select(PROCESS_COLUMNS).where("clinic_id", "=", clinicId).where("id", "=", processId).where("origin_type", "in", ACT_ORIGINS).executeTakeFirst();
     return row ? toProcess(row) : null;
   }
 }

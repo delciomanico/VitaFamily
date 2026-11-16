@@ -52,13 +52,6 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   // (CLINIC_*/ADMIN_CLINIC_*) precisa de auditoria na mesma transação (conventions.md §2), mesmo
   // critério já usado em "access -> audit" (nota 8).
   clinics: ["access", "audit"],
-  // ADR-021 (modules.md §2): `insurance` depende de `access`, `documents`, `audit`. O portal vive no
-  // mesmo módulo mas a identidade do portal nunca importa auth/families/clinics (`insurance/application`
-  // só usa `access`/`documents` por portas no lado do titular).
-  insurance: ["access", "documents", "audit"],
-  // ADR-025 (modules.md §2 nota 23, S1): `insurer-ops` só importa `audit`; o estado da seguradora (módulo ligado/moeda) e a
-  // porta `InsurerOperationalData` ligam-se em `main/api.ts` (nenhuma aresta com `insurance`; não importa módulos de saúde).
-  "insurer-ops": ["audit"],
   examinations: ["access", "clinics", "documents", "audit"],
   // ADR-032 (modules.md §3 nota 29, marco B fatia 1): `processes` só importa `access` (decisão de leitura por categoria) e
   // `audit`. NENHUM módulo o importa (não aparece em nenhuma outra lista): `appointments`/`examinations` abrem/apagam o
@@ -72,11 +65,11 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   // `application`, ligadas no composition root. `access` (política/nome do membro), `clinics` (horários, profissionais,
   // clínica parceira) e `audit`.
   "clinic-patients": ["access", "clinics", "audit"],
-  // ADR-026 (modules.md §2 nota 26, M14 R): `clinic-receipts` NÃO importa módulos de saúde, `families`, `auth`, `insurance`
+  // ADR-026 (modules.md §2 nota 26, M14 R): `clinic-receipts` NÃO importa módulos de saúde, `families`, `auth`
   // nem `documents`: marcação concluída, consentimento, perfil, catálogo e pedidos anexados entram por portas da sua
-  // `application`, ligadas no composition root. `insurance` não importa `clinic-receipts` (só a porta `ClinicReceiptLookup`).
+  // `application`, ligadas no composition root.
   "clinic-receipts": ["access", "clinics", "audit"],
-  // ADR-027 (modules.md §2 nota 27, M15 S/T): `clinic-reports` NÃO importa `auth`, `access`, `families`, `insurance`, `insurer-ops`,
+  // ADR-027 (modules.md §2 nota 27, M15 S/T): `clinic-reports` NÃO importa `auth`, `access`, `families`,
   // `clinic-receipts` nem módulos de saúde: marcação, perfil, profissionais e autorização do paciente entram por portas da sua
   // `application`, ligadas no composition root (`appointments`/`examinations` chamam-no só por portas, sem aresta).
   "clinic-reports": ["clinics", "audit"],

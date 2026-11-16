@@ -259,25 +259,4 @@ export class KyselyReceiptsRepository implements ReceiptsRepository<Kysely<Datab
     if (lock) query = query.forUpdate("r");
     return this.hydrateOne(trx, await query.executeTakeFirst());
   }
-
-  async lockLinkedByMember(trx: Kysely<Database>, familyId: string, memberId: string, receiptIds: string[]): Promise<ClinicReceipt[]> {
-    if (receiptIds.length === 0) return [];
-    const rows = await trx
-      .selectFrom("clinic_receipts as r")
-      .innerJoin("clinic_receipt_links as l", "l.receipt_id", "r.id")
-      .select(RECEIPT_COLUMNS.map((c) => `r.${c}` as const))
-      .where("l.family_id", "=", familyId)
-      .where("l.member_id", "=", memberId)
-      .where("r.id", "in", receiptIds)
-      .orderBy("r.id", "asc")
-      .forUpdate("r")
-      .execute();
-    return this.hydrate(trx, rows);
-  }
-
-  async findManyByIds(trx: Kysely<Database>, receiptIds: string[]): Promise<ClinicReceipt[]> {
-    if (receiptIds.length === 0) return [];
-    const rows = await trx.selectFrom("clinic_receipts").select(RECEIPT_COLUMNS).where("id", "in", receiptIds).execute();
-    return this.hydrate(trx, rows);
-  }
 }

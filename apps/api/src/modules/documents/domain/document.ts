@@ -1,6 +1,5 @@
 // Entidade pura `Document` (entities.md DM7, schema.md §3) — sem I/O.
-/** ADR-021: `INSURANCE_POLICY` = foto do cartão da apólice (autoriza por `MANAGE_INSURANCE`, não por categoria). */
-export type ResourceType = "PRESCRIPTION" | "EXAMINATION" | "INSURANCE_POLICY";
+export type ResourceType = "PRESCRIPTION" | "EXAMINATION";
 export type ScanStatus = "PENDING" | "CLEAN" | "INFECTED";
 
 export interface Document {

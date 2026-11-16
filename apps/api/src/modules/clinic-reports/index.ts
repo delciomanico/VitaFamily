@@ -3,7 +3,7 @@
 // (`ConsultationReport`, adendas), PDF do relatório e layout do laudo de exame (realce aritmético puro); rotas
 // `/clinic-portal/agenda/{id}/report*` (ator `ClinicAccount`, matriz de authorization.md §6.2b) e
 // `/families/{f}/members/{m}/appointments/{id}/report*` (ator `User`, §6.6). Depende só de `clinics` (via portas) e `audit`;
-// NÃO importa `auth`, `access`, `families`, `insurance`, `insurer-ops`, `clinic-receipts` nem módulos de saúde: marcação, perfil,
+// NÃO importa `auth`, `access`, `families`, `clinic-receipts` nem módulos de saúde: marcação, perfil,
 // profissionais e autorização do paciente entram por portas ligadas no composition root.
 import type { Router } from "express";
 import type { Kysely } from "kysely";

@@ -7,8 +7,9 @@ export interface ProcessesTable {
   id: string;
   family_id: string;
   member_id: string;
-  kind: "ROUTINE" | "AUTHORIZED";
-  origin_type: "APPOINTMENT" | "EXAMINATION" | "AUTHORIZATION";
+  // `AUTHORIZED`/`AUTHORIZATION` existem no enum da BD (0036/0039) mas ficam inertes: o repositório nunca os lê (ADR-037).
+  kind: "ROUTINE";
+  origin_type: "APPOINTMENT" | "EXAMINATION";
   origin_id: string;
   clinic_id: ColumnType<string | null, string | null | undefined, string | null>;
   opened_at: Date;

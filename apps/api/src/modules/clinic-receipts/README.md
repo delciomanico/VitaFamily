@@ -15,10 +15,9 @@ POST /clinic-portal/receipts
       → audit.record            # CLINIC_RECEIPT_ISSUE sem PII
 ```
 Lado família: `GET /families/{f}/members/{m}/clinic-receipts[/{id}]` → `application/family-receipts.ts` → `AccessPolicy.can(VIEW_CLINIC_RECEIPTS)` (só `SELF`/`TUTOR_OF`).
-`insurance` consome `interface/claim-lookup.ts` (porta `ClinicReceiptLookup`) para anexar recibos a pedidos de reembolso; `clinic-receipts` nunca importa `insurance`.
 
 ## Camadas
 - `domain/` — estados, linhas, total, numeração `R-000123`, validação do corpo (puro, testado).
-- `application/` — emitir, anular, listar/total (Financeiro), ver, lado família, leituras para reembolso; portas em `ports.ts`.
+- `application/` — emitir, anular, listar/total (Financeiro), ver, lado família; portas em `ports.ts`.
 - `infrastructure/` — Kysely: contador, recibos imutáveis (só `status`/`voided_*` mudam), ligações.
-- `interface/` — routers do portal e da família, adaptador `ClinicReceiptLookup`.
+- `interface/` — routers do portal e da família.

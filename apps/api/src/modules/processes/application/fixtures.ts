@@ -4,7 +4,7 @@ import { ForbiddenError } from "../../../platform/errors/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput, Relation } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
-import { kindOfOrigin, type ActFact, type Process, type ProcessOriginType } from "../domain/process.js";
+import { type ActFact, type Process, type ProcessOriginType } from "../domain/process.js";
 import type {
   AccessPolicyPort,
   ActFactEntry,
@@ -52,7 +52,7 @@ export class FakeProcessFacts implements ProcessFacts<FakeTrx> {
   private readonly facts = new Map<string, ActFact>();
   readonly requests: ActFactRef[][] = [];
 
-  seed(originType: Exclude<ProcessOriginType, "AUTHORIZATION">, originId: string, fact: Omit<ActFact, "source" | "changedAt"> & { changedAt?: Date }): void {
+  seed(originType: ProcessOriginType, originId: string, fact: Omit<ActFact, "source" | "changedAt"> & { changedAt?: Date }): void {
     this.facts.set(`${originType}:${originId}`, { source: originType, changedAt: new Date("2026-01-01T00:00:00Z"), ...fact });
   }
 
@@ -147,15 +147,14 @@ export function createProcessesFixtures(clock: Clock): ProcessesFixtures {
       id: input.id,
       familyId: input.familyId ?? "family-1",
       memberId: input.memberId ?? "member-1",
-      kind: kindOfOrigin(originType),
+      kind: "ROUTINE",
       originType,
       originId,
       openedAt: input.openedAt,
       ...(input.clinicId ? { clinicId: input.clinicId } : {}),
     };
     repo.rows.push(process);
-    // Origem `AUTHORIZATION` (arquivada) não tem ato.
-    if (input.phase !== null && originType !== "AUTHORIZATION") facts.seed(originType, originId, { phase: input.phase ?? "SCHEDULED" });
+    if (input.phase !== null) facts.seed(originType, originId, { phase: input.phase ?? "SCHEDULED" });
     return process;
   };
   return { deps, repo, facts, policy, audit, inconsistencies, addProcess };

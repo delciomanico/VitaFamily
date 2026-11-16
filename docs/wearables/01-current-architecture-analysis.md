@@ -28,7 +28,7 @@
 - **[F]** Monólito modular Clean Architecture (ADR-015/016), 19 módulos em `src/modules/<m>/{domain,application,infrastructure,interface}`, ligação manual em `main/api.ts` (+ `worker.ts` para jobs).
 - **[F]** Migrações SQL numeradas, próxima `0025`; Kysely com `declare module` por módulo; pg-boss para jobs.
 - **[F]** Autorização única: `AccessPolicy.can()` (ADR-008). Relações `SELF`, `TUTOR_OF`, `DEPENDENT_SELF`, `OTHER`; categoria `data_category` (ALLERGIES, CONDITIONS, MEDICATION, APPOINTMENTS, EXAMS). Admin de plataforma é sempre negado a dados de saúde.
-- **[F]** Auth: JWT HS256 15 min + refresh opaco em `sessions` (ADR-007). **Não existe** credencial de dispositivo/máquina. Existem identidades separadas para clínicas e seguradoras (ADR-020/021), com cookies e middleware próprios — precedente de isolamento.
+- **[F]** Auth: JWT HS256 15 min + refresh opaco em `sessions` (ADR-007). **Não existe** credencial de dispositivo/máquina. Existe identidade separada para as clínicas (ADR-020), com cookies e middleware próprios — precedente de isolamento.
 - **[F]** `health-records` só tem alergias, condições e tipo sanguíneo; não há medições contínuas nem campos `source/external_id/device_id` em nenhuma tabela.
 - **[F]** Padrões de idempotência existentes: `alerts.dedupe_key UNIQUE` (ADR-009), `dose_occurrences UNIQUE(plan_id, scheduled_at)`. `Idempotency-Key` está fora do MVP.
 - **[F]** Tabelas por membro usam FK composta `(family_id, member_id) → family_members(family_id, id) ON DELETE CASCADE` → eliminação de membro/família/conta cobre as tabelas novas automaticamente.

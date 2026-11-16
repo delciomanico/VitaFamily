@@ -21,7 +21,6 @@ import { createAlertsWorkerModule } from "../modules/alerts/index.js";
 import { createLifecycleWorkerModule } from "../modules/lifecycle/index.js";
 import { createClinicsWorkerModule } from "../modules/clinics/index.js";
 import { createClinicPatientsWorkerModule } from "../modules/clinic-patients/index.js";
-import { createInsurerOpsWorkerModule } from "../modules/insurer-ops/index.js";
 
 export function main(): void {
   const config = loadConfig();
@@ -85,8 +84,6 @@ export function main(): void {
     pushSender: new WebPushSender({ publicKey: config.VAPID_PUBLIC_KEY, privateKey: config.VAPID_PRIVATE_KEY, subject: config.VAPID_SUBJECT }),
     boss,
   });
-  // ADR-025 (S1): jobs diários da seguradora (saem no R5).
-  const insurerOpsWorker = createInsurerOpsWorkerModule({ db, audit, clock, boss });
   const alertsWorker = createAlertsWorkerModule({
     db,
     families,
@@ -138,7 +135,6 @@ export function main(): void {
       await lifecycleWorker.registerWorkers();
       await clinicsWorker.registerWorkers();
       await clinicPatientsWorker.registerWorkers();
-      await insurerOpsWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

@@ -165,11 +165,11 @@
 - **Alternativos:** janela inválida ou > 366 dias ⇒ `VALIDATION_ERROR`; Médico ⇒ `FORBIDDEN`; excesso de pedidos ⇒ `RATE_LIMITED`.
 - **Pós-condição:** só leitura.
 
-### UC-CLN-28 Ver o recibo na app e anexá-lo a um reembolso (M14 R)
-- **Atores:** titular/tutor · **FR:** CLN-16 · **BR:** CLN-35, CLN-36, BR-INS-03/04
-- **Fluxo:** na ficha do membro (**Seguro → Recibos das clínicas**, ou no detalhe da consulta/exame) vê a lista de recibos recebidos → abre um → **Imprimir / Guardar PDF**. Ao criar um **pedido de reembolso** (UC-INS-03), escolhe também os recibos a anexar ("Anexar recibo da clínica"): a app sugere o total como `amount`.
-- **Alternativos:** recibo anulado, de outra moeda ou já em outro pedido ativo ⇒ `CONFLICT`/`VALIDATION_ERROR` (a UI esconde-os); dependente com conta ou `OTHER` ⇒ `FORBIDDEN`; sem consentimento na emissão ou visita manual ⇒ o recibo não aparece (a clínica entrega impresso).
-- **Pós-condição:** `reimbursement_claim_receipts` criado; a seguradora vê o resumo mínimo do recibo (BR-CLN-36); sem `Document`/`Encounter` novos.
+### UC-CLN-28 Ver o recibo na app (M14 R)
+- **Atores:** titular/tutor · **FR:** CLN-16 · **BR:** CLN-35
+- **Fluxo:** na ficha do membro (ou no detalhe da consulta/exame) vê a lista de recibos recebidos → abre um → **Imprimir / Guardar PDF**.
+- **Alternativos:** dependente com conta ou `OTHER` ⇒ `FORBIDDEN`; sem consentimento na emissão ou visita manual ⇒ o recibo não aparece (a clínica entrega impresso).
+- **Pós-condição:** só leitura. (O anexo do recibo a pedidos de reembolso foi retirado no arquivo do marco B, ADR-037; texto original em `_arquivo/marco-b/extratos/use-cases-seguradora.md`.)
 
 ### UC-CLN-29 Editar o perfil da clínica (M14 R)
 - **Atores:** `CLINIC_ADMIN` (edita); `CLINIC_MANAGER` (lê); paciente (vê na app) · **FR:** CLN-18 · **BR:** CLN-38
@@ -310,7 +310,3 @@
 ### UC-ADM-06 Gerir contas do portal de uma clínica (ADR-023)
 - **Ator:** Platform Admin · **FR:** ADM-03 · **BR:** BR-ADM-03/04
 - **Fluxo:** abre a clínica → lista as contas (`CLINIC_ADMIN` + `CLINIC_MANAGER`) → suspende (motivo) ou reativa uma conta; suspender revoga `clinic_sessions`. Não cria nem remove Gestores (BR-CLN-05); reposição da raiz por UC-ADM-03/`root-account`.
-
-### UC-ADM-07 Gerir seguradoras parceiras (ADR-021/ADR-023)
-- **Ator:** Platform Admin · **FR:** ADM-04 · **BR:** BR-ADM-05/06, BR-INS-06/10
-- **Fluxo:** lista, cria (nome, NIF único), edita, suspende/reativa; cria/repõe a conta `INSURANCE_ADMIN` raiz. Sem eliminação.

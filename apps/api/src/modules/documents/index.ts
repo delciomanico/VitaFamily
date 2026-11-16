@@ -24,7 +24,7 @@ import type { AuditModule } from "../audit/index.js";
 import { createDeleteClinicExamDocumentUseCase, createUploadClinicExamDocumentUseCase } from "./application/clinic-documents.js";
 import { createDeleteDocumentUseCase } from "./application/delete-document.js";
 import { createDownloadDocumentUseCase } from "./application/download-document.js";
-import { createDeleteAllForResourceUseCase, createListAttachableUseCase, createListForResourceUseCase } from "./application/for-resource.js";
+import { createDeleteAllForResourceUseCase, createListForResourceUseCase } from "./application/for-resource.js";
 import { createGetDocumentUseCase } from "./application/get-document.js";
 import { createDiscardStoredUseCase, createReadGeneratedExamReportUseCase, createStoreGeneratedUseCase } from "./application/generated-documents.js";
 import { createPurgeFilesUseCases } from "./application/purge-files.js";
@@ -75,8 +75,6 @@ export interface DocumentsModule {
   /** API pública para M6/M7 (ver README.md: documentos de receitas/exames). */
   listForResource: ReturnType<typeof createListForResourceUseCase<Kysely<Database>>>;
   deleteAllForResource: ReturnType<typeof createDeleteAllForResourceUseCase<Kysely<Database>>>;
-  /** ADR-021 (`insurance`): documentos do membro que podem acompanhar um pedido de reembolso (CLEAN e visíveis ao paciente). */
-  listAttachable: ReturnType<typeof createListAttachableUseCase<Kysely<Database>>>;
   /** Para `families`/`lifecycle` (R2/R4/BR-ACC-07): enfileiram os ficheiros na MESMA transação do apagamento dos dados. */
   /** BR-CLN-08 (D19): upload/remoção de PDF pelo portal da clínica — autorização do portal (não
    * `AccessPolicy`), com `resolveTarget` a verificar o exame dentro da transação (ver `application/clinic-documents.ts`). */
@@ -135,7 +133,6 @@ export function createDocumentsModule(deps: DocumentsModuleDeps): DocumentsModul
     },
     listForResource: createListForResourceUseCase(documentsDeps),
     deleteAllForResource: createDeleteAllForResourceUseCase(documentsDeps),
-    listAttachable: createListAttachableUseCase(documentsDeps),
     uploadClinicExamDocument: createUploadClinicExamDocumentUseCase(documentsDeps),
     deleteClinicExamDocument: createDeleteClinicExamDocumentUseCase(documentsDeps),
     storeGenerated: createStoreGeneratedUseCase(documentsDeps),

@@ -156,7 +156,6 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-ADM-01 | O Platform Admin pode listar, suspender e reativar contas, e gerir o cadastro de clínicas parceiras (R8), sem acesso a dados de saúde. | D4 |
 | FR-ADM-02 | O Platform Admin pesquisa utilizadores e vê o detalhe operacional, e repõe o acesso (e-mail de recuperação + sessões revogadas), sem dados de saúde. | D19, ADR-023 |
 | FR-ADM-03 | O Platform Admin lista, suspende e reativa as contas do portal de cada clínica parceira (sem criar/remover Gestores). | D19, ADR-023 |
-| FR-ADM-04 | O Platform Admin gere seguradoras parceiras (listar, criar, editar, suspender/reativar) e a conta raiz `INSURANCE_ADMIN`. | ADR-021, ADR-023 |
 | FR-CLN-01 | Existe um cadastro `Clinic`. Clínicas parceiras são criadas pelo Platform Admin; os utilizadores criam entradas privadas para clínicas não parceiras (R8). **D17:** clínicas parceiras têm contas de Gestor da clínica (criadas pelo Platform Admin) com acesso apenas às marcações na própria clínica; nenhuma clínica acede a dados de saúde. | D3, D17 |
 | FR-CLN-03 | A clínica parceira pode marcar uma consulta presencial a um utilizador registado, identificado por e-mail exato, sem obter identificadores (BR-CLN-10). | D20, ADR-024 |
 | FR-CLN-02 | A clínica parceira publica horários de consulta ou de exame (`kind`); os de exame têm um número de vagas (`capacity`, 1–50). | D19, ADR-023 |
@@ -172,7 +171,7 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-CLN-13 | A clínica consulta **indicadores simples** (ocupação, consultas realizadas, faltas e taxa, cancelamentos, novos pacientes; por profissional opcional), só contagens e sem dados pessoais (BR-CLN-29). | D22, ADR-026 (M14 Q) |
 | FR-CLN-14 | A clínica propõe **"voltar em N semanas/meses"** ao concluir; o paciente Vita recebe um lembrete de retorno e a clínica vê os retornos por tratar (BR-CLN-30). | D22, ADR-026 (M14 Q) |
 | FR-CLN-15 | Ao concluir uma consulta, exame ou visita, a clínica emite um **recibo interno não fiscal** (linhas do catálogo ou livres, total em cêntimos, numeração sequencial sem falhas por clínica, método de pagamento informativo), que se imprime/guarda como PDF, e pode **anular** com motivo (nunca apagar) (BR-CLN-31..34). | D22, ADR-026 (M14 R) |
-| FR-CLN-16 | O paciente Vita ligado com consentimento vê o recibo na app como comprovativo e pode **anexá-lo a um pedido de reembolso**; visitas manuais só ficam na clínica (BR-CLN-35/36, BR-INS-04). | D22, ADR-026 (M14 R) |
+| FR-CLN-16 | O paciente Vita ligado com consentimento vê o recibo na app como comprovativo; visitas manuais só ficam na clínica (BR-CLN-35). | D22, ADR-026 (M14 R) |
 | FR-CLN-17 | A página **Financeiro** lista os recibos por período com o total emitido do período (BR-CLN-37). | D22, ADR-026 (M14 R) |
 | FR-CLN-18 | A clínica mantém o seu **perfil** (nome de apresentação, morada, telefone, e-mail, horário em texto, descrição curta), visível ao paciente ao escolher clínica (BR-CLN-38). | D22, ADR-026 (M14 R) |
 | FR-CLN-19 | O `CLINIC_ADMIN` cria contas de **Médico** (`CLINIC_DOCTOR`) ligadas a um profissional, com acesso restrito à sua agenda e pacientes, e as permissões de cada papel estão definidas endpoint a endpoint (BR-CLN-39, `authorization.md` §6.2). | D22, ADR-026 (M14 R) |

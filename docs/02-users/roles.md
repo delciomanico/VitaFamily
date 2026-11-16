@@ -1,6 +1,6 @@
 # Vita Family — Papéis e relações (Fase 5)
 
-> Estado: **RASCUNHO v0.2 (+ papéis do módulo operacional de seguradoras, ADR-025)** — depende das decisões P1–P8 em `permissions.md`.
+> Estado: **RASCUNHO v0.3 (R7 do arquivo do marco B, 2026-11-16, ADR-037: retirados os papéis de seguradora, no extrato `_arquivo/marco-b/extratos/roles-actors-glossary-seguradora.md`)** — depende das decisões P1–P8 em `permissions.md`.
 
 ## 1. Modelo de autorização: quatro conceitos
 
@@ -35,18 +35,10 @@ Um User pode ter papéis diferentes em famílias diferentes (D2).
 
 | Papel | Âmbito |
 |---|---|
-| **PLATFORM_ADMIN** | Listar/pesquisar contas, ver o detalhe operacional, suspender, reativar e repor o acesso; gerir clínicas e seguradoras parceiras (incl. editar), criar a conta raiz de cada uma e listar/suspender/reativar as contas do portal de cada clínica (R8, R10, D17/D18, ADR-021, ADR-023). Nenhum endpoint de saúde (NFR-SEC-10). |
+| **PLATFORM_ADMIN** | Listar/pesquisar contas, ver o detalhe operacional, suspender, reativar e repor o acesso; gerir clínicas parceiras (incl. editar), criar a conta raiz de cada uma e listar/suspender/reativar as contas do portal de cada clínica (R8, R10, D17/D18, ADR-021, ADR-023). Nenhum endpoint de saúde (NFR-SEC-10). |
 | **CLINIC_ADMIN** | Conta raiz de cada clínica parceira (D18, BR-CLN-05), criada só pelo Platform Admin. Mesmas permissões operacionais que `CLINIC_MANAGER` (ver `authorization.md` §6.2) e, além disso, cria/lista/remove as contas `CLINIC_MANAGER` e `CLINIC_DOCTOR` da própria clínica (self-service), edita o perfil e vê a auditoria da clínica (M14 R). |
 | **CLINIC_MANAGER** | Por clínica parceira (D17), criada pelo `CLINIC_ADMIN` da sua clínica: gerir horários (consulta e exame, com vagas nos de exame), confirmar/recusar pedidos de consulta, ver a ocupação e cancelar marcações de exame com motivo, completar consultas (resultado + receita) e exames (resultados + PDF), emitir recomendações e ver a agenda da clínica com dados mínimos (BR-CLN-03/06/07/08/09; ADR-023). Nenhum endpoint de família ou de saúde. |
 | **CLINIC_DOCTOR** (M14 R, BR-CLN-39) | Médico da clínica parceira, criado pelo `CLINIC_ADMIN` e ligado a **um** profissional do catálogo: vê a sua agenda e os pacientes marcados com o seu profissional, inicia e conclui consultas/visitas/exames (resultado, receita), emite recomendações e propõe retornos; **M15:** escreve o relatório da consulta e **pede exames** (ADR-027/028), e emite a declaração de presença. **Não** vê Financeiro, relatórios, equipa, perfil, catálogo, auditoria nem faz pesquisa global. A receção é o `CLINIC_MANAGER` (sem papel novo). Matriz em `authorization.md` §6.2b. |
-| **INSURANCE_ADMIN** | Conta raiz de cada seguradora parceira (ADR-021, mirror de `CLINIC_ADMIN`), criada só pelo Platform Admin. Mesmas permissões operacionais que `INSURANCE_AGENT` (ver `authorization.md` §8.2) e, além disso, cria/lista/remove as contas `INSURANCE_AGENT` da própria seguradora (self-service). **ADR-025:** nas seguradoras com módulo operacional gere também as contas dos papéis `BENEFICIARY_MANAGER`, `AUTHORIZATION_ANALYST`, `CLAIMS_MANAGER` e `FINANCE_MANAGER` e tem acesso total ao módulo (matriz §8.2b); **a partir da fatia 4** cria também contas `SUPERVISOR` e, nas autorizações, **só lê** (separação de funções). |
-| **INSURANCE_AGENT** | Por seguradora parceira (ADR-021), criada pelo `INSURANCE_ADMIN` da sua seguradora: ver/abrir os pedidos de reembolso (`ReimbursementClaim`) da própria seguradora e os documentos anexados a cada pedido, aprovar/rejeitar com motivo. Nenhum endpoint de família ou de resto do perfil de saúde. |
-| **BENEFICIARY_MANAGER** | Por seguradora com módulo operacional (ADR-025), criada pelo `INSURANCE_ADMIN`: gere empresas, beneficiários, apólices e importações; confirma ligações paciente ↔ beneficiário. Leitura de planos, rede, autorizações e despesas conforme `authorization.md` §8.2b. |
-| **AUTHORIZATION_ANALYST** | Por seguradora com módulo operacional (ADR-025; rotas e contas desde a fatia 4, ADR-035): toma da fila e decide os pedidos de autorização **que não são recurso** (aprovar/recusar/pedir informação) e reverte as aprovações que ele próprio tomou. Leitura de beneficiários, planos, despesas e regras de auto-aprovação; descarrega anexos administrativos. |
-| **SUPERVISOR** | Por seguradora com módulo operacional (ADR-035, fatia 4), criado pelo `INSURANCE_ADMIN` (vários por seguradora): vê a fila e as métricas de SLA, **atribui/reatribui**, **decide os recursos**, **reabre** recusas, **reverte** qualquer aprovação (a automática só ele), gere as **regras de auto-aprovação** e a política de prazos. **Não** decide pedidos normais nem recursos de recusas que decidiu; sem acesso a contas/papéis nem a reembolsos. Matriz em `authorization.md` §8.2b–§8.2d. |
-| **CLAIMS_MANAGER** | Por seguradora com módulo operacional (ADR-025): analisa despesas das clínicas (aprovar/rejeitar/devolver). Leitura de beneficiários, planos e autorizações. |
-| **FINANCE_MANAGER** | Por seguradora com módulo operacional (ADR-025): vê despesas, autorizações e o dashboard financeiro; pagamentos e preços de prestadores só na fase 2. |
-| **CLINIC_ADMIN / CLINIC_MANAGER (extensão ADR-025)** | Sem novo papel de médico no módulo de seguradoras (Q6; o `CLINIC_DOCTOR` de M14 R **não** tem permissões do módulo operacional): ambos validam elegibilidade, registam atendimentos, pedem autorizações e submetem despesas **só** para seguradoras a que a clínica está ligada como prestador (`Provider`). |
 
 ## 5. Regras estruturais
 

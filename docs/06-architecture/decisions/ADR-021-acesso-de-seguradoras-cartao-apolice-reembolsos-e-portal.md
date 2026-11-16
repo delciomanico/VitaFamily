@@ -1,6 +1,6 @@
 # ADR-021 — Acesso de seguradoras: cartão de apólice, pedidos de reembolso e portal da seguradora (`InsuranceAccount`)
 
-**Estado:** Aceite — decisão **do proprietário** (2026-10-16, change control), aprovada explicitamente ("sim")
+**Estado:** **ARQUIVADO (pivô 2026-11-16, ADR-037; removido do `main`, sem interruptor; histórico preservado na tag `archive-marco-b-2026-11-16`)**; antes: Aceite — decisão **do proprietário** (2026-10-16, change control), aprovada explicitamente ("sim")
 a uma proposta detalhada em conversa. Mirror de ADR-020 (D17/D18) para um segundo ator parceiro.
 
 ## Contexto
@@ -80,7 +80,7 @@ seguradora decide ao rever o pedido, sem integração externa.
   - Detalhe fino de tarefas do milestone (ver `plan.md`), a decidir no arranque.
 
 ## Adenda (ADR-023, 2026-11-04, decisão do proprietário)
-Lacunas de contrato fechadas: `PATCH /admin/insurers/{insurerId}`; `InsurancePolicy.insurerId?` (ligação opcional a seguradora parceira) + `GET /families/{familyId}/insurers`; CHECK corrigida de `reimbursement_claims`; seguradora suspensa revoga sessões e bloqueia novos pedidos (BR-INS-09/10); casos de uso em `03-use-cases/insurance.md`. Ver ADR-023.
+Lacunas de contrato fechadas: `PATCH /admin/insurers/{insurerId}`; `InsurancePolicy.insurerId?` (ligação opcional a seguradora parceira) + `GET /families/{familyId}/insurers`; CHECK corrigida de `reimbursement_claims`; seguradora suspensa revoga sessões e bloqueia novos pedidos (BR-INS-09/10); casos de uso em `_arquivo/marco-b/insurance.md`. Ver ADR-023.
 
 ## Adenda (ADR-025, 2026-11-05, decisão do proprietário)
 `BR-INS-08` emendada: as exclusões de pré-autorização, verificação de apólice e consulta de cobertura deixam de se aplicar às seguradoras com módulo operacional ativo (beneficiários, planos, elegibilidade, autorizações, despesas; papéis alargados em `authorization.md` §8.2b; moeda por seguradora). O fluxo de reembolso deste ADR mantém-se inalterado. Catálogo de auditoria do portal da seguradora fechado em `audit.md` §3. Ver ADR-025.

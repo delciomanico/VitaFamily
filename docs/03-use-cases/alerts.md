@@ -32,7 +32,6 @@ NOTIFICAÇÃO         entrega por canal (push/e-mail) conforme preferências
 | Resposta da clínica parceira a um pedido (D17): confirmada, recusada, cancelada (inclui pedido sem resposta até à hora, BR-APT-08) | no momento da resposta | idem |
 | Consulta AGENDADA de clínica parceira ainda sem resposta (M14 Q, BR-ALR-09, `APPOINTMENT_CONFIRM_REQUEST`) | 48 h antes (o lembrete de 24 h passa a mostrar "Vou / Não posso" enquanto `PENDING`) | idem |
 | Retorno proposto pela clínica (M14 Q, BR-CLN-30, `FOLLOWUP_REMINDER`) | 7 dias antes de `followUpDueOn` | idem |
-| **Pedido de autorização** (marco B fatia 5, BR-ALR-10, `AUTHORIZATION_*`): aprovado, não aprovado, a seguradora pediu informação, aprovação cancelada pela seguradora (por transição, mesma transação); aprovação a expirar (scanner) | no momento da transição; **3 dias antes** de `validUntil` | só **titular adulto e tutores** (`MANAGE_INSURANCE`; nunca o dependente com conta) |
 
 - **Regras:** cada ocorrência gera **no máximo um** alerta por regra (idempotência, NFR-AVL-02); cancelar/editar o recurso cancela ou recalcula alertas futuros.
 - **Pós-condição:** alerta criado; notificações pedidas para os canais ativos do destinatário.
@@ -45,13 +44,6 @@ NOTIFICAÇÃO         entrega por canal (push/e-mail) conforme preferências
 ### UC-ALR-03 Ver alertas
 - **Ator:** User · **FR:** ALR-06
 - **Resultado:** lista de alertas **dos quais é destinatário**, não lidos primeiro.
-
-### UC-ALR-07 Avisar a família do pedido de autorização (marco B fatia 5, ADR-036)
-- **Ator:** sistema (`insurer-ops` por porta `FamilyNotifier` na transição; `alerts.scan` para «a expirar») · **Regras:** BR-ALR-10/11/12, BR-PRC-12. Sem rota nova: o utilizador usa `GET /alerts`, `POST /alerts/{id}/read` e as preferências existentes.
-- **Fluxo (transição):** `insurer-ops` aprova/recusa/pede informação/reverte (UC-SEG-07/20, UC-SEG-06 na auto-aprovação) → na **mesma transação** chama `FamilyNotifier.notify` (ligada em `main/api.ts` a `alerts.raiseAuthorizationEvent`) → `alerts` resolve dono e destinatários do `processId` (titular adulto; tutores se dependente) → por destinatário: `insertIfNew` (dedupe) → `notifications.enqueueForAlert` (um por canal ativo) → texto externo genérico, in-app fixo por tipo.
-- **Fluxo (a expirar):** `alerts.scan` lê `insurer-ops.listExpiringApprovals` (aprovações `APPROVED` com `validUntil − 3 dias ≤ agora < validUntil`, decisão anterior a esse instante, `process_id` não nulo) → pergunta ao `processes` se o processo está aberto (`SCHEDULED`/`IN_PROGRESS`) → emite como acima.
-- **Alternativos:** pedido sem processo ou sem destinatário com conta ⇒ nada; sem canal ativo ⇒ alerta só na app (UC-ALR-02 alternativo); falhar o alerta numa transição ⇒ a transição reverte; repetir ⇒ idempotente. **Não gera:** «expirada», reabertura, `INFO_TIMEOUT`, cancelamento da clínica, escalada, aviso ao prestador.
-- **Resultado:** o alerta abre o `Process` (`sourceType=PROCESS`, `sourceId`); a família vê o estado simples (`process-flows.md` §14).
 
 ### UC-ALR-04 Marcar alerta como lido
 - **Ator:** User (destinatário).

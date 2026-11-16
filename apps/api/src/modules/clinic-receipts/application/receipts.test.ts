@@ -2,7 +2,6 @@
 // anulação, retrato, ligação ao paciente só com consentimento, Financeiro (total do período, anulados não somam), lado família.
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
-import { createReceiptInsurerSummariesUseCase, createLockVisibleReceiptsUseCase } from "./claim-lookup.js";
 import { createGetFamilyReceiptUseCase, createListFamilyReceiptsUseCase } from "./family-receipts.js";
 import { createClinicReceiptsFixtures } from "./fixtures.js";
 import { createIssueReceiptUseCase, createIssueReceiptWithCompleteUseCase } from "./issue-receipt.js";
@@ -234,19 +233,6 @@ describe("lado família (UC-CLN-28, BR-CLN-35, authorization.md §6.5)", () => {
     const { s, receipt } = await linked();
     s.policy.relations.set("u-self:mem-9", "SELF");
     expect(await codeOf(createGetFamilyReceiptUseCase(s.deps)(actor("u-self"), "fam-1", "mem-9", receipt.id))).toBe("NOT_FOUND");
-  });
-});
-
-describe("leitura para pedidos de reembolso (BR-CLN-36)", () => {
-  it("só devolve recibos visíveis ao membro e o resumo mínimo para a seguradora", async () => {
-    const s = setup();
-    s.consents.consents.add(`${CLINIC_A}:mem-1`);
-    const visible = await s.issue(ADMIN, { bookingKind: "APPOINTMENT", bookingId: "apt-1", paymentMethod: "CASH" }, CTX);
-    const hidden = await s.issue(ADMIN, { bookingKind: "APPOINTMENT", bookingId: "apt-2", paymentMethod: "CASH" }, CTX);
-    const locked = await createLockVisibleReceiptsUseCase(s.deps)(undefined as never, "fam-1", "mem-1", [visible.id, hidden.id]);
-    expect(locked.map((r) => r.id)).toEqual([visible.id]);
-    const [summary] = await createReceiptInsurerSummariesUseCase(s.deps)(undefined as never, [visible.id]);
-    expect(Object.keys(summary ?? {}).sort()).toEqual(["clinicName", "currency", "id", "issuedAt", "lines", "number", "status", "totalMinor"]);
   });
 });
 

@@ -50,49 +50,19 @@ describe("arquitetura do código real (src/)", () => {
     expect(processPorts).not.toMatch(/export interface ProcessLinkerPort</);
   });
 
-  it("TC-AUT-19 (modules.md nota 31): insurer-ops e processes não se importam; portas onde o contrato manda; ficheiros puros só importam domain/", async () => {
-    const files = await collectImports(SRC_ROOT);
-    const cross = files.filter(
-      (f) =>
-        (f.file.startsWith("modules/insurer-ops/") && f.relativeImports.some((t) => t.startsWith("modules/processes/"))) ||
-        (f.file.startsWith("modules/processes/") && f.relativeImports.some((t) => t.startsWith("modules/insurer-ops/"))),
-    );
-    expect(cross.map((f) => f.file)).toEqual([]);
-    expect(MODULE_DEPENDENCIES["insurer-ops"]).toEqual(["audit"]);
+  it("TC-AUT-19 (modules.md nota 31, R5): `processes` só depende de access/audit; portas onde o contrato manda", async () => {
     expect(MODULE_DEPENDENCIES.processes).toEqual(["access", "audit"]);
     const read = (m: string, f: string) => readFile(join(SRC_ROOT, "modules", m, "application", f), "utf8");
-    expect(await read("insurer-ops", "ports.ts")).toMatch(/export interface ProcessLinker</);
-    expect(await read("insurer-ops", "ports.ts")).toMatch(/export interface AttachmentFiles</);
     expect(await read("processes", "ports.ts")).not.toMatch(/getCoverageFacts\(/);
     expect(await read("processes", "ports.ts")).not.toMatch(/export interface ProcessLinker</);
     expect(await read("appointments", "ports.ts")).toMatch(/export interface CompletionReceiptIssuer</);
-    // Fatia 4 (TC-DEC-20): `auto-approval`, `authorization-actions`, `sla` e `authorization-decision` também só importam `domain/`.
-    for (const name of ["authorization-machine", "deadline", "coverage-phase", "auto-approval", "authorization-actions", "sla", "authorization-decision", "authorization-code"]) {
-      const file = files.find((f) => f.file === `modules/insurer-ops/domain/${name}`);
-      expect(file, name).toBeDefined();
-      expect(file?.bareImports, name).toEqual([]);
-      for (const target of file?.relativeImports ?? []) expect(target.startsWith("modules/insurer-ops/domain/"), `${name} -> ${target}`).toBe(true);
-    }
   });
 
-  it("TC-PRC-32 (R2, arquivo do marco B): `alerts` não depende de `insurer-ops` nem de `processes`; `insurer-ops`/`processes` não importam `alerts`; coverage-phase puro", async () => {
+  it("TC-PRC-32 (R2, arquivo do marco B): `alerts` não depende de `processes`; `processes` não importa `alerts`", async () => {
     const files = await collectImports(SRC_ROOT);
-    expect(files.filter((f) => (f.file.startsWith("modules/insurer-ops/") || f.file.startsWith("modules/processes/")) && f.relativeImports.some((t) => t.startsWith("modules/alerts/"))).map((f) => f.file)).toEqual([]);
-    expect(files.filter((f) => f.file.startsWith("modules/alerts/") && f.relativeImports.some((t) => t.startsWith("modules/insurer-ops/") || t.startsWith("modules/processes/"))).map((f) => f.file)).toEqual([]);
-    expect(MODULE_DEPENDENCIES.alerts).not.toContain("insurer-ops");
+    expect(files.filter((f) => f.file.startsWith("modules/processes/") && f.relativeImports.some((t) => t.startsWith("modules/alerts/"))).map((f) => f.file)).toEqual([]);
+    expect(files.filter((f) => f.file.startsWith("modules/alerts/") && f.relativeImports.some((t) => t.startsWith("modules/processes/"))).map((f) => f.file)).toEqual([]);
     expect(MODULE_DEPENDENCIES.alerts).not.toContain("processes");
-    const found = files.find((f) => f.file === "modules/insurer-ops/domain/coverage-phase");
-    expect(found).toBeDefined();
-    expect(found?.bareImports).toEqual([]);
-    for (const target of found?.relativeImports ?? []) expect(target.startsWith("modules/insurer-ops/domain/"), `coverage-phase -> ${target}`).toBe(true);
-  });
-
-  it("TC-AUT-18: sem literais de prazo (48, 72, 15, 7) nos ficheiros do pedido de autorização", async () => {
-    const targets = ["domain/authorization.ts", "domain/authorization-machine.ts", "domain/deadline.ts", "domain/coverage-phase.ts", "application/authorization-support.ts", "application/create-authorization.ts", "application/appeal-authorization.ts", "application/respond-authorization.ts", "application/submit-authorization.ts", "application/expire-info-requests.ts", "domain/auto-approval.ts", "domain/authorization-actions.ts", "domain/authorization-decision.ts", "domain/sla.ts", "application/insurer-authorization-support.ts", "application/approve-authorization.ts", "application/reopen-authorization.ts", "application/flag-sla-breaches.ts"];
-    for (const target of targets) {
-      const text = (await readFile(join(SRC_ROOT, "modules", "insurer-ops", target), "utf8")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""');
-      expect(text, target).not.toMatch(/\b(48|72|15|7)\b/);
-    }
   });
 
   it("platform nunca importa de main ou de modules/*", async () => {
@@ -318,16 +288,12 @@ describe("clinic-patients (ADR-026, modules.md §2 nota 24)", () => {
 describe("clinic-receipts (ADR-026, modules.md §2 nota 26)", () => {
   const files = (target: string, from = "modules/clinic-receipts/application/x"): FileImports[] => [{ file: from, relativeImports: [target], bareImports: [] }];
 
-  it.each(["medications", "examinations", "appointments", "recommendations", "clinic-patients", "families", "auth", "insurance", "documents"])("não pode importar modules/%s (só por portas no composition root)", (module) => {
+  it.each(["medications", "examinations", "appointments", "recommendations", "clinic-patients", "families", "auth", "documents"])("não pode importar modules/%s (só por portas no composition root)", (module) => {
     expect(checkArchitecture(files(`modules/${module}/index`)).join("\n")).toContain(`não pode depender de modules/${module}`);
   });
 
   it.each(["access", "audit"])("pode importar a raiz de modules/%s", (module) => {
     expect(checkArchitecture(files(`modules/${module}/index`))).toEqual([]);
-  });
-
-  it("insurance não pode importar clinic-receipts (só a porta ClinicReceiptLookup)", () => {
-    expect(checkArchitecture(files("modules/clinic-receipts/index", "modules/insurance/application/x")).join("\n")).toContain("não pode depender de modules/clinic-receipts");
   });
 
   it("audit continua sem importar módulos de negócio (a auditoria da clínica é só uma consulta)", () => {
@@ -338,7 +304,7 @@ describe("clinic-receipts (ADR-026, modules.md §2 nota 26)", () => {
 describe("clinic-reports (ADR-027/ADR-028, modules.md §2 notas 27/28)", () => {
   const files = (target: string, from = "modules/clinic-reports/application/x"): FileImports[] => [{ file: from, relativeImports: [target], bareImports: [] }];
 
-  it.each(["auth", "access", "families", "insurance", "clinic-receipts", "clinic-patients", "medications", "examinations", "appointments", "recommendations", "documents"])("não pode importar modules/%s (só por portas no composition root)", (module) => {
+  it.each(["auth", "access", "families", "clinic-receipts", "clinic-patients", "medications", "examinations", "appointments", "recommendations", "documents"])("não pode importar modules/%s (só por portas no composition root)", (module) => {
     expect(checkArchitecture(files(`modules/${module}/index`)).join("\n")).toContain(`não pode depender de modules/${module}`);
   });
 

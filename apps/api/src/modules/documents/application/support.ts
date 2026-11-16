@@ -16,15 +16,8 @@ export async function isVisibleToPatient<Trx>(deps: DocumentsDeps<Trx>, trx: Trx
   return deps.releaseGate ? deps.releaseGate.isReleased(trx, document) : false;
 }
 
-/**
- * Entrada de `AccessPolicy.can()` para uma operação sobre um documento de `resourceType`:
- * `PRESCRIPTION`/`EXAMINATION` autorizam por categoria; `INSURANCE_POLICY` (foto do cartão, ADR-021/
- * BR-INS-02) não é categoria — só `SELF`/`TUTOR_OF`, via `MANAGE_INSURANCE` (leitura e escrita).
- */
-export function accessInputFor(resourceType: ResourceType, operation: "READ" | "CREATE" | "DELETE"): { action: "MANAGE_INSURANCE" } | { action: "READ" | "CREATE" | "DELETE"; category: DataCategory } {
-  if (resourceType === "INSURANCE_POLICY") {
-    return { action: "MANAGE_INSURANCE" };
-  }
+/** Entrada de `AccessPolicy.can()` para uma operação sobre um documento: autoriza sempre por categoria de dados. */
+export function accessInputFor(resourceType: ResourceType, operation: "READ" | "CREATE" | "DELETE"): { action: "READ" | "CREATE" | "DELETE"; category: DataCategory } {
   return { action: operation, category: categoryForResourceType(resourceType) };
 }
 

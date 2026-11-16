@@ -1,7 +1,7 @@
 // HTTP (supertest + express-openapi-validator contra docs/05-api/openapi.yaml, SEM base de dados): marcação
 // presencial pela clínica (D20, ADR-024, BR-CLN-10, AC-CLN-05/06, TC-CLN-03). Os casos de uso reais correm
 // sobre os fakes das fixtures. Cobre: oráculo uniforme, ausência de ids, 422/429+Retry-After, ordem de
-// validação, isolamento entre clínicas, ambos os papéis, tokens de User/seguradora rejeitados, e a consulta
+// validação, isolamento entre clínicas, ambos os papéis, tokens de Userrejeitado, e a consulta
 // no SELF do paciente e na agenda da clínica, com cancelar/completar pelos fluxos existentes.
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,7 +23,6 @@ import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createBearerAuthSecurityHandler } from "../../src/modules/auth/interface/middleware.js";
 import { signClinicAccessToken } from "../../src/modules/clinics/domain/clinic-jwt.js";
 import { createClinicActorContextMiddleware, createClinicBearerAuthSecurityHandler } from "../../src/modules/clinics/interface/clinic-portal-middleware.js";
-import { signInsuranceAccessToken } from "../../src/modules/insurance/domain/insurance-jwt.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
@@ -126,9 +125,8 @@ async function buildHarness() {
   });
 
   const userToken = (await signAccessToken({ subject: { userId: USER, sessionId: SESSION }, now: NOW, ttlSeconds: 900, signingKeys: KEYS })).token;
-  const insuranceToken = (await signInsuranceAccessToken({ subject: { insuranceAccountId: ACCOUNT_ADMIN, sessionId: SESSION }, now: NOW, ttlSeconds: 900, signingKeys: KEYS })).token;
   const clinicToken = async (account: string) => (await signClinicAccessToken({ subject: { clinicAccountId: account, sessionId: SESSION }, now: NOW, ttlSeconds: 900, signingKeys: KEYS })).token;
-  return { app, fx, clock, userToken, insuranceToken, admin: await clinicToken(ACCOUNT_ADMIN), manager: await clinicToken(ACCOUNT_MANAGER), otherClinic: await clinicToken(ACCOUNT_B) };
+  return { app, fx, clock, userToken, admin: await clinicToken(ACCOUNT_ADMIN), manager: await clinicToken(ACCOUNT_MANAGER), otherClinic: await clinicToken(ACCOUNT_B) };
 }
 
 type Harness = Awaited<ReturnType<typeof buildHarness>>;
@@ -173,9 +171,8 @@ describe("POST /clinic-portal/patient-lookup", () => {
     expect((await request(h.app).post(`${API}/clinic-portal/patient-lookup`).send({ email: EMAIL })).status).toBe(401);
   });
 
-  it("token de User e de seguradora rejeitados (401)", async () => {
+  it("token de User rejeitados (401)", async () => {
     expect((await lookup(h, h.userToken, EMAIL)).status).toBe(401);
-    expect((await lookup(h, h.insuranceToken, EMAIL)).status).toBe(401);
   });
 
   it("429 com Retry-After ao exceder 10 respostas 404 em 15 min", async () => {
@@ -293,9 +290,8 @@ describe("POST /clinic-portal/walk-in-appointments", () => {
     expect((await request(h.app).post(`${API}/clinic-portal/walk-in-appointments`).send({ patientEmail: EMAIL, slotId: SLOT })).status).toBe(401);
   });
 
-  it("token de User e de seguradora rejeitados (401)", async () => {
+  it("token de User rejeitados (401)", async () => {
     expect((await walkIn(h, h.userToken, { patientEmail: EMAIL, slotId: SLOT })).status).toBe(401);
-    expect((await walkIn(h, h.insuranceToken, { patientEmail: EMAIL, slotId: SLOT })).status).toBe(401);
     expect(h.fx.appointmentsRepo.byId.size).toBe(0);
   });
 

@@ -101,12 +101,6 @@ export class FakeReceiptsRepository implements ReceiptsRepository<FakeTrx> {
     const link = this.links.get(receiptId);
     return Promise.resolve(link?.familyId === familyId && link.memberId === memberId ? (this.byId.get(receiptId) ?? null) : null);
   }
-  async lockLinkedByMember(_trx: FakeTrx, familyId: string, memberId: string, receiptIds: string[]): Promise<ClinicReceipt[]> {
-    return Promise.resolve([...this.byId.values()].filter((r) => receiptIds.includes(r.id) && this.links.get(r.id)?.familyId === familyId && this.links.get(r.id)?.memberId === memberId));
-  }
-  async findManyByIds(_trx: FakeTrx, receiptIds: string[]): Promise<ClinicReceipt[]> {
-    return Promise.resolve([...this.byId.values()].filter((r) => receiptIds.includes(r.id)));
-  }
 }
 
 export class FakeBookingSource implements BookingSourcePort<FakeTrx> {

@@ -188,10 +188,8 @@ export const bloodTypeOptions: SelectOption[] = BLOOD_TYPES.map((value) => ({
  * «O que falta e de quem» (`Process.nextStep`, BR-PRC-03) na linguagem da FAMÍLIA: em linguagem simples.
  * Códigos desconhecidos caem numa frase neutra.
  */
-export function nextStepSentence(step: { code: string; actor: string; dueAt?: string | null }): string {
+export function nextStepSentence(step: { code: string; actor: string }): string {
   switch (step.code) {
-    case 'AWAIT_CLINIC_INFORMATION':
-      return 'A clínica vai enviar um documento que falta.'
     case 'AWAIT_CLINIC_RESPONSE':
       return 'A clínica ainda tem de responder.'
     case 'ATTEND':

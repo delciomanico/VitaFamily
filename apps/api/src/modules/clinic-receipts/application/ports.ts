@@ -1,6 +1,6 @@
 // Portas do módulo `clinic-receipts` (conventions.md §3.2, modules.md §2 nota 26): definidas aqui, implementadas em
 // `infrastructure` (Kysely) ou ligadas no composition root às APIs públicas de `appointments`/`examinations`/
-// `clinic-patients`/`clinics`. O módulo NÃO importa módulos de saúde, `families`, `auth`, `insurance` nem `documents`.
+// `clinic-patients`/`clinics`. O módulo NÃO importa módulos de saúde, `families`, `auth` nem `documents`.
 // Genéricas em `Trx` para esta camada nunca importar "kysely" (conventions.md §3.9).
 import type { Clock } from "../../../platform/clock/index.js";
 import type { RateLimiter } from "../../../platform/rate-limit/index.js";
@@ -123,8 +123,6 @@ export interface ReceiptsRepository<Trx> {
   listLinkedByMember(trx: Trx, familyId: string, memberId: string, after: { issuedAt: Date; id: string } | undefined, limit: number): Promise<ClinicReceipt[]>;
   findLinkedByMember(trx: Trx, familyId: string, memberId: string, receiptId: string, lock?: boolean): Promise<ClinicReceipt | null>;
   /** BR-CLN-36: recibos visíveis ao membro entre `receiptIds`, bloqueados (`FOR UPDATE`) para a anexação. */
-  lockLinkedByMember(trx: Trx, familyId: string, memberId: string, receiptIds: string[]): Promise<ClinicReceipt[]>;
-  findManyByIds(trx: Trx, receiptIds: string[]): Promise<ClinicReceipt[]>;
 }
 
 export interface ClinicReceiptsDeps<Trx> {

@@ -15,7 +15,6 @@ import { runWithClinicActor } from "../../src/platform/actor/index.js";
 import { createDb, withTransaction, type Database } from "../../src/platform/db/index.js";
 import { KyselyAuditRepository, KyselyClinicAuditReader } from "../../src/modules/audit/infrastructure/repo.js";
 import { KyselyReceiptsRepository } from "../../src/modules/clinic-receipts/infrastructure/repo.js";
-import { KyselyReimbursementClaimsRepository } from "../../src/modules/insurance/infrastructure/repo.js";
 
 describe("integração: recibos, perfil, papel Médico e auditoria da clínica (migração 0030)", () => {
   let container: StartedTestContainer;
@@ -196,27 +195,6 @@ describe("integração: recibos, perfil, papel Médico e auditoria da clínica (
     for (const table of ["clinic_receipts", "clinic_receipt_lines", "clinic_receipt_counters"]) {
       expect((await pool.query(`SELECT count(*)::int AS n FROM ${table} WHERE clinic_id=$1`, [clinic])).rows[0]).toEqual({ n: 0 });
     }
-  });
-
-  it("anexos a pedidos de reembolso: associação simples; só pedidos ativos contam; REJECTED liberta; apagar o recibo apaga a associação", async () => {
-    const m = await newMember();
-    const insurer = randomUUID();
-    const policy = randomUUID();
-    const claim1 = randomUUID();
-    const claim2 = randomUUID();
-    await pool.query("INSERT INTO insurer_accounts (id, name, tax_id) VALUES ($1,'Seg','500')", [insurer]);
-    await pool.query("INSERT INTO insurance_policies (id, family_id, member_id, insurer_name, policy_number, holder_name) VALUES ($1,$2,$3,'Seg','P','Ana')", [policy, m.familyId, m.memberId]);
-    for (const id of [claim1, claim2]) await pool.query("INSERT INTO reimbursement_claims (id, policy_id, insurer_id, amount, currency) VALUES ($1,$2,$3,10,'AOA')", [id, policy, insurer]);
-    const receipt = await issue(clinicA);
-    await pool.query("INSERT INTO reimbursement_claim_receipts (claim_id, receipt_id) VALUES ($1,$2)", [claim1, receipt.id]);
-    const claims = new KyselyReimbursementClaimsRepository();
-    expect((await withTransaction(db, (trx) => claims.activeClaimIdsByReceipts(trx, [receipt.id]))).get(receipt.id)).toEqual([claim1]);
-    expect((await withTransaction(db, (trx) => claims.findForPolicy(trx, policy, claim1)))?.receiptIds).toEqual([receipt.id]);
-    await pool.query("UPDATE reimbursement_claims SET status='REJECTED', decision_note='n' WHERE id=$1", [claim1]);
-    expect((await withTransaction(db, (trx) => claims.activeClaimIdsByReceipts(trx, [receipt.id]))).size).toBe(0);
-    await expect(pool.query("INSERT INTO reimbursement_claim_receipts (claim_id, receipt_id) VALUES ($1,$2), ($1,$2)", [claim2, receipt.id])).rejects.toThrow();
-    await pool.query("DELETE FROM clinic_receipts WHERE id=$1", [receipt.id]);
-    expect((await pool.query("SELECT count(*)::int AS n FROM reimbursement_claim_receipts")).rows[0]).toEqual({ n: 0 });
   });
 
   it("auditoria da clínica: actor_clinic_id vem do token; leitura só da própria clínica e só contas do portal, sem PII", async () => {

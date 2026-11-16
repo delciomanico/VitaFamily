@@ -4,7 +4,7 @@
 
 **Estado:** **Proposto — aguarda aprovação do proprietário** (change control **D27**, proposto em 2026-11-14). Adenda a ADR-021/ADR-025 (que já têm `insurer_companies`, geridas pela seguradora). Não substitui nenhum ADR. Quarto ator parceiro (mirror de ADR-020/021).
 
-> **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `11-implementation/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".
+> **Estado (atualizado 2026-11-14, fonte: ordem do proprietário): ACEITE COM ÂMBITO DE CONSTRUÇÃO LIMITADO.** O proprietário ordenou "pode avançar para construção" (marco B, `_arquivo/marco-b/marco-b-construcao.md`). A aceitação cobre **só** o que a construção das fatias 0–6 do marco B exige; tudo o que está listado como pendente neste ADR e em `_arquivo/marco-b/marco-b-construcao.md` §1 **continua Proposto/não aceite** e aplica-se o **default conservador** aí documentado. Onde o texto abaixo diz "Proposto", lê-se "aceite dentro deste âmbito".
 > Âmbito aceite: **nenhum de construção no marco B** (direção reconhecida). Empresa fica na fase 2; C1/C10, k mínimo e entidade por decidir.
 
 ## Contexto
@@ -32,7 +32,7 @@
 | Empresa vê colaboradores individualmente | Viola minimização; risco de discriminação laboral. |
 
 ## Nota de 2026-11-14
-As decisões Q-U1/Q-C1/Q-P1/Q-S1 (`00-product/process-flows.md` §10) não alteram este ADR: a Empresa continua fora do fluxo individual; os indicadores agregados poderão usar `Process` (contagens), sempre com k mínimo.
+As decisões Q-U1/Q-C1/Q-P1/Q-S1 (`_arquivo/marco-b/process-flows.md` §10) não alteram este ADR: a Empresa continua fora do fluxo individual; os indicadores agregados poderão usar `Process` (contagens), sempre com k mínimo.
 
 ## Pendências para o proprietário
 Aprovar; k mínimo; entidade global vs por seguradora; quem paga a empresa quando há várias seguradoras; âmbito exato dos indicadores.

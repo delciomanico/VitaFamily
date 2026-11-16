@@ -49,7 +49,6 @@ import { createBookVisitUseCase, createCancelVisitUseCase, createCompleteVisitUs
 import { createClinicPatientsPortalRouter } from "../../src/modules/clinic-patients/interface/portal-router.js";
 import { signClinicAccessToken } from "../../src/modules/clinics/domain/clinic-jwt.js";
 import { createClinicActorContextMiddleware, createClinicBearerAuthSecurityHandler } from "../../src/modules/clinics/interface/clinic-portal-middleware.js";
-import { signInsuranceAccessToken } from "../../src/modules/insurance/domain/insurance-jwt.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const OPENAPI_SPEC_PATH = join(REPO_ROOT, "docs/05-api/openapi.yaml");
@@ -198,7 +197,6 @@ async function buildHarness() {
   return {
     app, ap, cp, clock,
     userToken: (await signAccessToken({ subject: { userId: USER, sessionId: SESSION }, now: NOW, ttlSeconds: 900, signingKeys: KEYS })).token,
-    insuranceToken: (await signInsuranceAccessToken({ subject: { insuranceAccountId: ACCOUNT_ADMIN, sessionId: SESSION }, now: NOW, ttlSeconds: 900, signingKeys: KEYS })).token,
     admin: await clinicToken(ACCOUNT_ADMIN),
     manager: await clinicToken(ACCOUNT_MANAGER),
     otherClinic: await clinicToken(ACCOUNT_B),
@@ -303,13 +301,12 @@ describe("PUT /clinic-portal/agenda/{id}/confirm|arrive|start|no-show (AC-CLN-22
     expect((await act(h, h.otherClinic, uuid, "arrive")).status).toBe(404);
   });
 
-  it("isolamento: outra clínica => 404 em todas as ações; id desconhecido => 404; id não-UUID => 400 (validação do contrato); token de User/seguradora ou sem token => 401", async () => {
+  it("isolamento: outra clínica => 404 em todas as ações; id desconhecido => 404; id não-UUID => 400 (validação do contrato); token de User ou sem token => 401", async () => {
     for (const action of ["confirm", "arrive", "start", "no-show"]) {
       expect((await act(h, h.otherClinic, APT, action)).status).toBe(404);
       expect((await act(h, h.admin, UNKNOWN, action)).status).toBe(404);
       expect((await act(h, h.admin, "nao-e-uuid", action)).status).toBe(400);
       expect((await act(h, h.userToken, APT, action)).status).toBe(401);
-      expect((await act(h, h.insuranceToken, APT, action)).status).toBe(401);
       expect((await request(h.app).put(`${API}/clinic-portal/agenda/${APT}/${action}`)).status).toBe(401);
     }
     expect((await h.ap.appointmentsRepo.findByClinicId({}, CLINIC_A, APT))?.arrivedAt).toBeUndefined();
@@ -391,7 +388,6 @@ describe("GET /clinic-portal/reports/summary (AC-CLN-23)", () => {
     expect((await summary(h, h.admin, { from: "2025-01-01", to: "2026-01-31" })).status).toBe(422);
     expect((await summary(h, h.admin, { from: "2026-01-01", to: "2026-01-31", professionalId: PROFESSIONAL_B })).status).toBe(404);
     expect((await summary(h, h.userToken, { from: "2026-01-01", to: "2026-01-31" })).status).toBe(401);
-    expect((await summary(h, h.insuranceToken, { from: "2026-01-01", to: "2026-01-31" })).status).toBe(401);
     expect((await request(h.app).get(`${API}/clinic-portal/reports/summary`).query({ from: "2026-01-01", to: "2026-01-31" })).status).toBe(401);
   });
 

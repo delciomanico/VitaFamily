@@ -111,10 +111,6 @@ export class FakeDocumentsRepository implements DocumentsRepository<FakeTrx> {
     );
   }
 
-  async listByIds(_trx: FakeTrx, familyId: string, memberId: string, documentIds: string[]): Promise<Document[]> {
-    return Promise.resolve([...this.byId.values()].filter((d) => d.familyId === familyId && d.memberId === memberId && documentIds.includes(d.id)));
-  }
-
   async countByResource(
     trx: FakeTrx,
     familyId: string,

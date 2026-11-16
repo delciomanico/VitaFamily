@@ -32,7 +32,7 @@ Verificado: BR-INS-01..08, entidades, estados, `authorization.md` §8, `schema.m
 2. **Faltava ligar a apólice a uma seguradora parceira**: BR-INS-03 exige "apólice de seguradora parceira" mas `InsurancePolicy` só tinha `insurerName` livre e `reimbursement_claims.insurer_id` não tinha de onde vir. Passa a existir `InsurancePolicy.insurerId?` (FK `insurer_accounts`, opcional; `insurerName` continua texto livre/obrigatório e é preenchido com o nome da seguradora quando se escolhe uma parceira) e **`GET /families/{familyId}/insurers`** (`FAM_MEMBER`, lista id+nome das seguradoras parceiras `ACTIVE`) para o titular escolher. `reimbursement_claims.insurer_id` = `insurance_policies.insurer_id` (nunca nulo ao criar o pedido; `INSURER_NOT_PARTNER` não é necessário: usa-se `VALIDATION_ERROR`).
 3. **CHECK errada** em `reimbursement_claims` (`(status='REJECTED') = (decision_note IS NOT NULL OR decided_by… IS NULL)` falha em todas as linhas `SUBMITTED`) → `CHECK (status <> 'REJECTED' OR decision_note IS NOT NULL)`.
 4. **Seguradora suspensa** (BR-INS-09): sessões revogadas; não aceita novos pedidos (`CONFLICT`).
-5. Casos de uso de M11 inexistentes → novo `03-use-cases/insurance.md` (UC-INS-01..07, UC-ADM-07).
+5. Casos de uso de M11 inexistentes → novo `_arquivo/marco-b/insurance.md` (UC-INS-01..07, UC-ADM-07).
 6. Contratos: `UploadDocumentRequest`/`Document` em `openapi.yaml` não incluíam `INSURANCE_POLICY` (já em `endpoints.md`).
 
 ## Consequências

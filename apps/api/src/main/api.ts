@@ -35,9 +35,6 @@ import { createAdminModule } from "../modules/admin/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsModule, type AlertsModule } from "../modules/alerts/index.js";
-import { createInsurerSettingsReader, createInsuranceModule, parseInsuranceSigningKeys } from "../modules/insurance/index.js";
-import { createInsurerOpsModule } from "../modules/insurer-ops/index.js";
-import { createAttachmentFiles } from "./attachment-files.js";
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
@@ -211,54 +208,6 @@ export function main(): void {
         // M14 P (BR-APT-06/BR-CLN-18): as visitas manuais `SCHEDULED` também ocupam o horário (remover, bloqueios, vagas).
         ...(await required(late.clinicPatients, "clinicPatients").directory.countActiveVisitsBySlot(trx, slotIds)).map(({ slotId, count }) => ({ slotId, requested: 0, scheduled: count })),
       ],
-    },
-  });
-  // M11 (ADR-021, Fase 4a): seguradoras + identidade do portal da seguradora (terceiro ator),
-  // separada de `User`/`ClinicAccount`; reutiliza o mesmo SMTP, com porta e parser de chaves próprios.
-  // ADR-025 (S1, modules.md §2 nota 23): `insurer-ops` e `insurance` não se importam; ligam-se por portas aqui.
-  const insurerOps = createInsurerOpsModule({
-    db,
-    audit,
-    clock,
-    insurers: createInsurerSettingsReader(),
-    claimCodeSecret: config.CLINIC_LINK_CODE_SECRET,
-    // S3 (nota 23b): lista de clínicas parceiras de `clinics`, por porta (insurer-ops não importa clinics).
-    partnerClinics: clinics.partnerClinicDirectory,
-    // S6 (nota 23a): rotas do paciente autorizadas por `access.policy` (MANAGE_INSURANCE) através de uma porta.
-    patientAccess: {
-      authorize: async (trx, { actor, familyId, memberId }) => {
-        const ctx = await access.policy.can(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, action: "MANAGE_INSURANCE", subjectMemberId: memberId });
-        return { relation: ctx.relation ?? "OTHER" };
-      },
-    },
-    // Marco B fatia 3 (ADR-034, modules.md nota 31): `ProcessLinker` implementada por `processes` (resolvida tardiamente: `processes`
-    // precisa dos factos de `insurer-ops`) e ficheiros dos anexos sobre `Storage` + antivírus + outbox. Nenhum módulo importa o outro.
-    processes: {
-      open: (trx, input) => required(late.processes, "processes").linker.open(trx, input),
-      findForClinic: (trx, input) => required(late.processes, "processes").linker.findForClinic(trx, input),
-    },
-    // Arquivo do marco B (ADR-037, R2): sem alertas de autorização; a porta fica a no-op até `insurer-ops` sair (R5).
-    familyNotifier: { notify: () => Promise.resolve() },
-    files: createAttachmentFiles({ storage, virusScanner }),
-  });
-  const insurance = createInsuranceModule({
-    operationalData: insurerOps.operationalData,
-    db,
-    audit,
-    access,
-    documents,
-    clock,
-    logger,
-    insuranceMailer: new ClinicSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
-    insuranceSigningKeys: parseInsuranceSigningKeys(config.JWT_SIGNING_KEYS),
-    insuranceAccessTtlSeconds: Math.round(parseDurationMs(config.JWT_ACCESS_TTL) / 1000),
-    insuranceRefreshTtlMs: parseDurationMs(config.REFRESH_TTL),
-    cookieDomain: config.COOKIE_DOMAIN,
-    // M14 R (BR-CLN-36, modules.md §2 nota 26): `ClinicReceiptLookup` implementada por `clinic-receipts` (criado mais abaixo).
-    receipts: {
-      lockVisible: (trx, familyId, memberId, receiptIds) => required(late.clinicReceipts, "clinicReceipts").claimLookup.lockVisible(trx, familyId, memberId, receiptIds),
-      refs: (trx, receiptIds) => required(late.clinicReceipts, "clinicReceipts").claimLookup.refs(trx, receiptIds),
-      summaries: (trx, receiptIds) => required(late.clinicReceipts, "clinicReceipts").claimLookup.summaries(trx, receiptIds),
     },
   });
   // M8 (plan.md §4): `notifications` antes de `alerts` — `alerts` depende de `notifications`
@@ -461,8 +410,8 @@ export function main(): void {
   });
   late.clinicPatients = clinicPatients;
 
-  // M14 R (ADR-026, modules.md §2 nota 26): `clinic-receipts` não importa módulos de saúde, `insurance` nem `families`: a marcação
-  // concluída, o consentimento, o perfil/catálogo e os pedidos de reembolso anexados entram por portas ligadas só aqui.
+  // M14 R (ADR-026, modules.md §2 nota 26): `clinic-receipts` não importa módulos de saúde nem `families`: a marcação
+  // concluída, o consentimento e o perfil/catálogo entram por portas ligadas só aqui.
   const serviceTypeOfSlot = async (trx: Kysely<Database>, clinicId: string, slotId: string | undefined): Promise<{ serviceTypeId?: string }> => {
     const slot = slotId ? (await clinics.findClinicSlotsByIds(trx, clinicId, [slotId]))[0] : undefined;
     return slot?.serviceTypeId ? { serviceTypeId: slot.serviceTypeId } : {};
@@ -490,7 +439,7 @@ export function main(): void {
   });
   late.clinicReceipts = clinicReceipts;
 
-  // M15 S/T (ADR-027, modules.md §2 nota 27): `clinic-reports` não importa `auth`, `access`, `families`, `insurance`, módulos de saúde
+  // M15 S/T (ADR-027, modules.md §2 nota 27): `clinic-reports` não importa `auth`, `access`, `families`, módulos de saúde
   // nem `clinic-receipts`: marcação, perfil, profissionais e autorização do paciente entram por portas ligadas só aqui.
   const clinicReports = createClinicReportsModule({
     db,
@@ -683,7 +632,7 @@ export function main(): void {
           next(clinicErr);
           return;
         }
-        insurance.insuranceActorContextMiddleware(req, res, next);
+        next();
       });
     });
   };
@@ -692,7 +641,7 @@ export function main(): void {
     openApiSpecPath: OPENAPI_SPEC_PATH,
     logger,
     trustProxy: config.TRUST_PROXY,
-    securityHandlers: { ...auth.securityHandlers, ...clinics.clinicSecurityHandlers, ...insurance.insuranceSecurityHandlers },
+    securityHandlers: { ...auth.securityHandlers, ...clinics.clinicSecurityHandlers },
     actorContextMiddleware,
     metrics: { middleware: metrics.httpMiddleware, handler: metrics.handler },
     registerHealthRoutes,
@@ -708,10 +657,6 @@ export function main(): void {
       router.use(clinics.router);
       router.use(clinics.adminRouter);
       router.use(clinics.clinicPortalRouter);
-      router.use(insurance.router);
-      router.use(insurance.adminRouter);
-      router.use(insurance.insurancePortalRouter);
-      router.use(insurerOps.router);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);

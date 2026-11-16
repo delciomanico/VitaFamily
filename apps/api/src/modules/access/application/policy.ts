@@ -16,7 +16,7 @@ import type { DataCategory } from "../domain/sharing-grant.js";
 import type { AccessDeps, MemberFacts } from "./ports.js";
 
 /** authorization.md §1 (ações sobre dados de saúde) + §4 (partilha) + VIEW_SHARED_WITH_ME (UC-PRV-02). */
-export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_INSURANCE" | "MANAGE_CLINIC_CONSENT" | "VIEW_CLINIC_RECEIPTS" | "VIEW_CONSULTATION_REPORT" | "VIEW_EXAM_ORDERS" | "VIEW_SHARED_WITH_ME";
+export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_CLINIC_CONSENT" | "VIEW_CLINIC_RECEIPTS" | "VIEW_CONSULTATION_REPORT" | "VIEW_EXAM_ORDERS" | "VIEW_SHARED_WITH_ME";
 
 export interface CanInput {
   userId: string;
@@ -40,7 +40,7 @@ export interface AccessContext {
 }
 
 function isHealthAction(action: Action): action is HealthAction {
-  return action !== "MANAGE_SHARING" && action !== "MANAGE_INSURANCE" && action !== "MANAGE_CLINIC_CONSENT" && action !== "VIEW_CLINIC_RECEIPTS" && action !== "VIEW_CONSULTATION_REPORT" && action !== "VIEW_EXAM_ORDERS" && action !== "VIEW_SHARED_WITH_ME";
+  return action !== "MANAGE_SHARING" && action !== "MANAGE_CLINIC_CONSENT" && action !== "VIEW_CLINIC_RECEIPTS" && action !== "VIEW_CONSULTATION_REPORT" && action !== "VIEW_EXAM_ORDERS" && action !== "VIEW_SHARED_WITH_ME";
 }
 
 export interface AccessPolicy<Trx> {
@@ -100,15 +100,6 @@ export function createAccessPolicy<Trx>(deps: Pick<AccessDeps<Trx>, "familiesPor
         return { actor, subject, relation };
       }
       throw new ForbiddenError({ detail: "Sem permissão para gerir a partilha deste membro." });
-    }
-
-    if (input.action === "MANAGE_INSURANCE") {
-      // ADR-021/BR-INS-02, authorization.md §3 (nota) e §4: apólices/reembolsos NÃO são categoria
-      // (sem SharingGrant): só SELF (adulto) ou TUTOR_OF, para ler E escrever; nunca OTHER nem DEPENDENT_SELF.
-      if (relation === "SELF" || relation === "TUTOR_OF") {
-        return { actor, subject, relation };
-      }
-      throw new ForbiddenError({ detail: "Sem permissão sobre os seguros deste membro." });
     }
 
     if (input.action === "VIEW_CLINIC_RECEIPTS") {

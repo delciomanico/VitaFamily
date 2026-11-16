@@ -4,7 +4,6 @@
 // conventions.md §3.4).
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
-import { NotFoundError } from "../../../platform/errors/index.js";
 import type { Document, ResourceType, ScanStatus } from "../domain/document.js";
 import type { DocumentsRepository, FileDeletionsRepository, NewDocumentRecord, PendingFileDeletion } from "../application/ports.js";
 import "./schema.js";
@@ -15,7 +14,6 @@ interface DocumentRow {
   member_id: string;
   prescription_id: string | null;
   examination_id: string | null;
-  insurance_policy_id: string | null;
   storage_key: string;
   original_name: string;
   mime_type: string;
@@ -35,7 +33,6 @@ const DOCUMENT_COLUMNS = [
   "member_id",
   "prescription_id",
   "examination_id",
-  "insurance_policy_id",
   "storage_key",
   "original_name",
   "mime_type",
@@ -49,10 +46,10 @@ const DOCUMENT_COLUMNS = [
   "created_at",
 ] as const;
 
-/** `prescription_id`/`examination_id`/`insurance_policy_id` (schema.md §3: `num_nonnulls = 1`) <-> `resourceType`/`resourceId`. */
+/** `prescription_id`/`examination_id` (schema.md §3; `insurance_policy_id` ficou inerte, ADR-037) <-> `resourceType`/`resourceId`. */
 function toDocument(row: DocumentRow): Document {
-  const resourceType: ResourceType = row.prescription_id !== null ? "PRESCRIPTION" : row.insurance_policy_id !== null ? "INSURANCE_POLICY" : "EXAMINATION";
-  const resourceId = row.prescription_id ?? row.insurance_policy_id ?? row.examination_id;
+  const resourceType: ResourceType = row.prescription_id !== null ? "PRESCRIPTION" : "EXAMINATION";
+  const resourceId = row.prescription_id ?? row.examination_id;
   if (resourceId === null) {
     throw new Error(`documento sem recurso associado (CHECK num_nonnulls violado?): ${row.id}`);
   }
@@ -81,30 +78,20 @@ function toDocument(row: DocumentRow): Document {
   return document;
 }
 
-type ResourceColumn = "prescription_id" | "examination_id" | "insurance_policy_id";
+type ResourceColumn = "prescription_id" | "examination_id";
 
 const RESOURCE_COLUMN: Record<ResourceType, ResourceColumn> = {
   PRESCRIPTION: "prescription_id",
   EXAMINATION: "examination_id",
-  INSURANCE_POLICY: "insurance_policy_id",
 };
 
-function resourceColumns(resourceType: ResourceType, resourceId: string): { prescription_id: string | null; examination_id: string | null; insurance_policy_id: string | null } {
-  return { prescription_id: null, examination_id: null, insurance_policy_id: null, [RESOURCE_COLUMN[resourceType]]: resourceId };
+function resourceColumns(resourceType: ResourceType, resourceId: string): { prescription_id: string | null; examination_id: string | null } {
+  return { prescription_id: null, examination_id: null, [RESOURCE_COLUMN[resourceType]]: resourceId };
 }
 
 export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Database>> {
   async insert(trx: Kysely<Database>, record: NewDocumentRecord): Promise<Document> {
-    try {
-      return await this.insertRow(trx, record);
-    } catch (error) {
-      // FK composta `documents_insurance_policy_fk` (0025): apólice inexistente OU de outro membro/família.
-      const pg = error as { code?: string; constraint?: string } | null;
-      if (pg?.code === "23503" && pg.constraint === "documents_insurance_policy_fk") {
-        throw new NotFoundError({ detail: "Apólice não encontrada." });
-      }
-      throw error;
-    }
+    return this.insertRow(trx, record);
   }
 
   private async insertRow(trx: Kysely<Database>, record: NewDocumentRecord): Promise<Document> {
@@ -136,6 +123,7 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
     const row = await trx
       .selectFrom("documents")
       .select(DOCUMENT_COLUMNS)
+      .where("insurance_policy_id", "is", null) // linhas do marco B (ADR-037): inertes, nunca lidas
       .where("family_id", "=", familyId)
       .where("member_id", "=", memberId)
       .where("id", "=", documentId)
@@ -165,24 +153,11 @@ export class KyselyDocumentsRepository implements DocumentsRepository<Kysely<Dat
     return rows.map((r) => r.storage_key);
   }
 
-  async listByIds(trx: Kysely<Database>, familyId: string, memberId: string, documentIds: string[]): Promise<Document[]> {
-    if (documentIds.length === 0) {
-      return [];
-    }
-    const rows = await trx
-      .selectFrom("documents")
-      .select(DOCUMENT_COLUMNS)
-      .where("family_id", "=", familyId)
-      .where("member_id", "=", memberId)
-      .where("id", "in", documentIds)
-      .execute();
-    return rows.map(toDocument);
-  }
-
   async findByIdForFamily(trx: Kysely<Database>, familyId: string, documentId: string): Promise<Document | null> {
     const row = await trx
       .selectFrom("documents")
       .select(DOCUMENT_COLUMNS)
+      .where("insurance_policy_id", "is", null) // linhas do marco B (ADR-037): inertes, nunca lidas
       .where("family_id", "=", familyId)
       .where("id", "=", documentId)
       .executeTakeFirst();

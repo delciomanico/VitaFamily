@@ -388,9 +388,9 @@ Cada decisão segue o formato: contexto → opções → recomendação → impa
 | Como se marcam exames na clínica? | **Revisto 2026-11-04 (ver ADR-023):** `ClinicSlot.kind` (`APPOINTMENT`\|`EXAM`) com `capacity` (vagas) nos de exame; a família agenda diretamente e, havendo vaga, o exame nasce `SCHEDULED`; a clínica cancela com motivo (vaga libertada) e completa. *(Versão inicial: pedido `REQUESTED` + confirmar/recusar — substituída.)* |
 | Como emite a clínica resultados? | **Parâmetros estruturados** (sem interpretação, D11) e/ou **PDF** pelo módulo `documents` (quarentena + antivírus; download mediado só pelo paciente); `issuedByClinicAccountId` rastreável (espelho de BR-RX-07). |
 | Recomendações? | Nova entidade `Recommendation` (nota de texto ligada a consulta ou exame da própria clínica), sem interpretação nem alertas automáticos; notifica o paciente; auditada; lida pelo paciente/tutor conforme a categoria. |
-| Admin? | Detalhe/pesquisa de utilizadores e reposição de acesso (sem dados de saúde); listar/suspender/reativar contas do portal de clínica; CRUD de seguradoras + conta `INSURANCE_ADMIN` raiz. |
+| Admin? | Detalhe/pesquisa de utilizadores e reposição de acesso (sem dados de saúde); listar/suspender/reativar contas do portal de clínica; *(CRUD de seguradoras: retirado no arquivo do marco B, ADR-037)*. |
 
-**Consequências:** BR-CLN-07/08/09, BR-EXM-05..08, BR-APT-10, BR-INS-09/10, BR-ADM-01..07; `openapi.yaml`/`endpoints.md`/`schema.md`/`authorization.md` atualizados; BR-CLN-03 (minimização) mantida; plano M7b/M13 (`plan.md`).
+**Consequências:** BR-CLN-07/08/09, BR-EXM-05..08, BR-APT-10, BR-ADM-01..04 e 07; `openapi.yaml`/`endpoints.md`/`schema.md`/`authorization.md` atualizados; BR-CLN-03 (minimização) mantida; plano M7b/M13 (`plan.md`).
 
 ### Pontos que ficam em aberto (derivados das decisões)
 

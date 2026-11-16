@@ -1,5 +1,5 @@
 // Decisão de leitura por categoria da origem (authorization.md §6.8, BR-PRC-05): `AccessPolicy.can(READ, categoria)`
-// uma vez por pedido e categoria. A origem `AUTHORIZATION` (arquivo do marco B) não tem categoria: nunca é legível.
+// uma vez por pedido e categoria.
 // Única fonte de autorização: nada de ifs de permissão fora de `access`.
 import { ForbiddenError, NotFoundError } from "../../../platform/errors/index.js";
 import type { Relation } from "../../access/index.js";
@@ -33,7 +33,7 @@ export async function resolveReadAccess<Trx>(deps: ProcessesDeps<Trx>, trx: Trx,
       throw error;
     }
   }
-  return { readableOrigins: PROCESS_ORIGIN_TYPES.filter((type) => { const category = categoryOfOrigin(type); return category !== undefined && allowed.has(category); }), relation };
+  return { readableOrigins: PROCESS_ORIGIN_TYPES.filter((type) => allowed.has(categoryOfOrigin(type))), relation };
 }
 
 /** audit.md §3 / BR-PRC-11: só a leitura por quem não é o titular (tutor ou `OTHER` com partilha) é auditada. */
