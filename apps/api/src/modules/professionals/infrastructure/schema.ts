@@ -2,6 +2,7 @@
 // deste módulo acede a estas tabelas.
 import type { ColumnType } from "kysely";
 
+type SpecialtyCategoryValue = "HEALTH" | "WELLNESS";
 type ProfessionalStatus = "DRAFT" | "PENDING_REVIEW" | "NEEDS_INFO" | "APPROVED" | "REJECTED" | "SUSPENDED";
 type Timestamp = ColumnType<Date, Date | undefined, Date>;
 type Nullable<T> = ColumnType<T | null, T | null | undefined, T | null>;
@@ -60,12 +61,29 @@ export interface ProfessionalsTable {
   updated_at: Timestamp;
 }
 
+export interface SpecialtiesTable {
+  id: string;
+  name: string;
+  category: SpecialtyCategoryValue;
+  active: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface ProfessionalSpecialtiesTable {
+  professional_id: string;
+  specialty_id: string;
+  created_at: Timestamp;
+}
+
 declare module "../../../platform/db/index.js" {
   interface Database {
     professional_accounts: ProfessionalAccountsTable;
     professional_auth_tokens: ProfessionalAuthTokensTable;
     professional_sessions: ProfessionalSessionsTable;
     professionals: ProfessionalsTable;
+    specialties: SpecialtiesTable;
+    professional_specialties: ProfessionalSpecialtiesTable;
   }
 }
 

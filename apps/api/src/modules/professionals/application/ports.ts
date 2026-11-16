@@ -7,6 +7,7 @@ import type { ProfessionalAccount, ProfessionalRef } from "../domain/account.js"
 import type { ProfessionalSigningKey } from "../domain/jwt.js";
 import type { ProfessionalInMemoryRateLimiter } from "../domain/rate-limiter.js";
 import type { ProfessionalSession } from "../domain/session.js";
+import type { SpecialtyCategory } from "../domain/specialty.js";
 
 export interface AuditPort<Trx> {
   record(trx: Trx, event: AuditEvent): Promise<void>;
@@ -98,6 +99,49 @@ export interface ProfessionalSessionRepository<Trx> {
   revokeAllForAccount(trx: Trx, accountId: string, revokedAt: Date): Promise<void>;
 }
 
+/** Especialidade do catálogo (`specialties`); `professionalCount` = nº de ligações em `professional_specialties` (qualquer estado). */
+export interface SpecialtyListRow {
+  id: string;
+  name: string;
+  category: SpecialtyCategory;
+  active: boolean;
+  professionalCount: number;
+}
+
+export interface SpecialtyRecord {
+  id: string;
+  name: string;
+  category: SpecialtyCategory;
+  active: boolean;
+}
+
+export interface NewSpecialtyRecord {
+  id: string;
+  name: string;
+  category: SpecialtyCategory;
+  createdAt: Date;
+}
+
+export interface SpecialtyChanges {
+  name?: string;
+  category?: SpecialtyCategory;
+  active?: boolean;
+  updatedAt: Date;
+}
+
+export interface SpecialtyRepository<Trx> {
+  /** Ordenadas por nome; `activeOnly` filtra as inativas. */
+  list(trx: Trx, options: { activeOnly: boolean }): Promise<SpecialtyListRow[]>;
+  /** `SELECT ... FOR UPDATE`: serializa alterações concorrentes da mesma especialidade (categoria vs. primeira ligação). */
+  findByIdForUpdate(trx: Trx, id: string): Promise<SpecialtyRecord | null>;
+  /** `null` se o nome (sem distinção de maiúsculas) já existe: `ON CONFLICT DO NOTHING` sobre `specialties_name_lower_uq`. */
+  insert(trx: Trx, record: NewSpecialtyRecord): Promise<SpecialtyRecord | null>;
+  update(trx: Trx, id: string, changes: SpecialtyChanges): Promise<void>;
+  countProfessionals(trx: Trx, id: string): Promise<number>;
+  /** Existe outra especialidade (diferente de `excludeId`) com o mesmo nome sem distinção de maiúsculas. */
+  existsByNameLower(trx: Trx, name: string, excludeId?: string): Promise<boolean>;
+}
+
 /** Tudo o que os casos de uso precisam (ligado em `index.ts`); `db` é a ligação para leituras fora de transação. */
 export interface ProfessionalsDeps<Trx> {
   db: Trx;
@@ -109,6 +153,7 @@ export interface ProfessionalsDeps<Trx> {
   accountRepo: ProfessionalAccountRepository<Trx>;
   authTokenRepo: ProfessionalAuthTokenRepository<Trx>;
   sessionRepo: ProfessionalSessionRepository<Trx>;
+  specialtyRepo: SpecialtyRepository<Trx>;
   rateLimiter: ProfessionalInMemoryRateLimiter;
   signingKeys: ProfessionalSigningKey[];
   accessTtlSeconds: number;

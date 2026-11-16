@@ -1,6 +1,6 @@
 // Raiz do módulo `professionals` (MK1, ADR-037, ADR-015): única API pública importável por outros módulos e composition root do módulo.
 // Identidade PRÓPRIA (BR-MKT-13): não importa `auth`, `access`, `families`, `users` nem módulos de saúde (BR-MKT-27); só `audit`.
-import type { Router } from "express";
+import { Router } from "express";
 import type { Kysely } from "kysely";
 import type { Clock } from "../../platform/clock/index.js";
 import { withTransaction, type Database } from "../../platform/db/index.js";
@@ -15,13 +15,21 @@ import { createRegisterUseCase } from "./application/register.js";
 import { createResendVerificationUseCase } from "./application/resend-verification.js";
 import { createResetPasswordUseCase } from "./application/reset-password.js";
 import { createResolveActorStateUseCase } from "./application/resolve-actor-state.js";
+import {
+  createAdminCreateSpecialtyUseCase,
+  createAdminListSpecialtiesUseCase,
+  createAdminUpdateSpecialtyUseCase,
+  createListPortalSpecialtiesUseCase,
+} from "./application/specialties.js";
 import { createVerifyEmailUseCase } from "./application/verify-email.js";
 import type { ProfessionalSigningKey } from "./domain/jwt.js";
 import { ProfessionalInMemoryRateLimiter } from "./domain/rate-limiter.js";
 import { ProfessionalTtlCache } from "./domain/ttl-cache.js";
 import { KyselyProfessionalAccountRepository, KyselyProfessionalAuthTokenRepository, KyselyProfessionalSessionRepository } from "./infrastructure/account-repo.js";
+import { KyselySpecialtyRepository } from "./infrastructure/specialty-repo.js";
 import { createProfessionalActorContextMiddleware, createProfessionalBearerAuthSecurityHandler } from "./interface/middleware.js";
 import { createProfessionalAuthRouter } from "./interface/router.js";
+import { createSpecialtiesRouter } from "./interface/specialties-router.js";
 
 export { parseProfessionalSigningKeys, type ProfessionalSigningKey } from "./domain/jwt.js";
 export { ProfessionalSmtpMailer } from "./infrastructure/mailer-smtp.js";
@@ -45,7 +53,7 @@ export interface ProfessionalsModuleDeps {
 }
 
 export interface ProfessionalsModule {
-  /** `/professional-portal/auth/*` (e, nas fatias seguintes, as restantes rotas do portal). */
+  /** `/professional-portal/auth/*` e `/professional-portal/specialties`, `/admin/specialties*` (MK1 S4). */
   router: Router;
   /** Handler de segurança `professionalBearerAuth` (`createApp({ securityHandlers })`). */
   securityHandlers: { professionalBearerAuth: ReturnType<typeof createProfessionalBearerAuthSecurityHandler> };
@@ -71,6 +79,7 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     accountRepo: new KyselyProfessionalAccountRepository(),
     authTokenRepo: new KyselyProfessionalAuthTokenRepository(),
     sessionRepo: new KyselyProfessionalSessionRepository(),
+    specialtyRepo: new KyselySpecialtyRepository(),
     rateLimiter,
     signingKeys: deps.signingKeys,
     accessTtlSeconds: deps.accessTtlSeconds,
@@ -79,8 +88,9 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
   };
   const resolveActorState = createResolveActorStateUseCase(useCaseDeps, stateCache);
 
-  return {
-    router: createProfessionalAuthRouter(
+  const router = Router();
+  router.use(
+    createProfessionalAuthRouter(
       {
         register: createRegisterUseCase(useCaseDeps),
         verifyEmail: createVerifyEmailUseCase(useCaseDeps),
@@ -93,6 +103,18 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
       },
       deps.cookieDomain,
     ),
+  );
+  router.use(
+    createSpecialtiesRouter({
+      listPortalSpecialties: createListPortalSpecialtiesUseCase(useCaseDeps),
+      adminListSpecialties: createAdminListSpecialtiesUseCase(useCaseDeps),
+      adminCreateSpecialty: createAdminCreateSpecialtyUseCase(useCaseDeps),
+      adminUpdateSpecialty: createAdminUpdateSpecialtyUseCase(useCaseDeps),
+    }),
+  );
+
+  return {
+    router,
     securityHandlers: { professionalBearerAuth: createProfessionalBearerAuthSecurityHandler({ signingKeys: deps.signingKeys, clock: deps.clock }) },
     actorContextMiddleware: createProfessionalActorContextMiddleware({ resolveActorState }),
   };

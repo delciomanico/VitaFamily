@@ -11,6 +11,7 @@ import request from "supertest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { defaultMigrationsDir, runMigrations } from "../../db/migrate-runner.js";
 import { FixedClock } from "../../src/platform/clock/index.js";
+import { runWithActor } from "../../src/platform/actor/index.js";
 import { createDb, type Database } from "../../src/platform/db/index.js";
 import { createApp } from "../../src/platform/http/index.js";
 import { createLogger } from "../../src/platform/logger/index.js";
@@ -27,6 +28,8 @@ export const API = "/api/v1";
 export const PROFESSIONAL_API = `${API}/professional-portal`;
 export const SIGNING_KEYS = [{ kid: "k1", secret: new TextEncoder().encode("0123456789abcdef0123456789abcdef") }];
 export const STRONG_PASSWORD = "uma-palavra-passe-forte-123";
+export const ADMIN_USER_ID = "99999999-9999-4999-8999-999999999999";
+export const PLAIN_USER_ID = "77777777-7777-4777-8777-777777777777";
 export const START = new Date("2026-11-16T10:00:00.000Z");
 
 export interface ProfessionalsHarness {
@@ -48,6 +51,8 @@ export interface ProfessionalsHarness {
   lastCode(email: string): string;
   /** Tokens de outros atores, para os testes de tokens cruzados. */
   userToken(): Promise<string>;
+  /** Token de User que o actor de teste trata como Platform Admin (existe a linha em `users`, para `decided_by`). */
+  adminToken(): Promise<string>;
   clinicToken(): Promise<string>;
   stop(): Promise<void>;
 }
@@ -89,13 +94,30 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
   const clinicMiddleware = createClinicActorContextMiddleware({
     resolveClinicActorState: () => Promise.reject(new Error("não usado: nenhuma rota de clínica montada")),
   });
+  // Ator de User simplificado (sem `auth`): o admin é o `ADMIN_USER_ID`; qualquer outro User não é admin.
+  const userActorMiddleware: RequestHandler = (req: Request, _res: Response, next: NextFunction) => {
+    const subject = req.authSubject;
+    if (!subject) {
+      next();
+      return;
+    }
+    runWithActor({ userId: subject.userId, sessionId: subject.sessionId, platformAdmin: subject.userId === ADMIN_USER_ID }, () => {
+      next();
+    });
+  };
   const actorContextMiddleware: RequestHandler = (req: Request, res: Response, next: NextFunction) => {
-    clinicMiddleware(req, res, (err?: unknown) => {
-      if (err) {
-        next(err);
+    userActorMiddleware(req, res, (userErr?: unknown) => {
+      if (userErr) {
+        next(userErr);
         return;
       }
-      module.actorContextMiddleware(req, res, next);
+      clinicMiddleware(req, res, (err?: unknown) => {
+        if (err) {
+          next(err);
+          return;
+        }
+        module.actorContextMiddleware(req, res, next);
+      });
     });
   };
   const app = createApp({
@@ -151,8 +173,12 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
       const { token } = await harness.login(email);
       return { ...registered, token };
     },
+    async adminToken() {
+      await pool.query("INSERT INTO users (id, email, password_hash, name, birth_date, timezone, status, terms_accepted_version, terms_accepted_at) VALUES ($1,'admin@exemplo.ao','x','Admin','1980-01-01','Africa/Luanda','ACTIVE','1',now()) ON CONFLICT (id) DO NOTHING", [ADMIN_USER_ID]);
+      return (await signAccessToken({ subject: { userId: ADMIN_USER_ID, sessionId: "88888888-8888-4888-8888-888888888888" }, now: clock.now(), ttlSeconds: 900, signingKeys: SIGNING_KEYS })).token;
+    },
     async userToken() {
-      return (await signAccessToken({ subject: { userId: "77777777-7777-4777-8777-777777777777", sessionId: "88888888-8888-4888-8888-888888888888" }, now: clock.now(), ttlSeconds: 900, signingKeys: SIGNING_KEYS })).token;
+      return (await signAccessToken({ subject: { userId: PLAIN_USER_ID, sessionId: "88888888-8888-4888-8888-888888888888" }, now: clock.now(), ttlSeconds: 900, signingKeys: SIGNING_KEYS })).token;
     },
     async clinicToken() {
       return (await signClinicAccessToken({ subject: { clinicAccountId: "55555555-5555-4555-8555-555555555555", sessionId: "88888888-8888-4888-8888-888888888888" }, now: clock.now(), ttlSeconds: 900, signingKeys: SIGNING_KEYS })).token;
