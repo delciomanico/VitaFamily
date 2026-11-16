@@ -20,7 +20,6 @@ import { createGetFamilyReceiptUseCase, createListFamilyReceiptsUseCase } from "
 import { createIssueReceiptUseCase, createIssueReceiptWithCompleteUseCase } from "./application/issue-receipt.js";
 import { createGetReceiptUseCase, createListReceiptsUseCase } from "./application/list-receipts.js";
 import type {
-  AttachedClaimsPort,
   BookingSourcePort,
   ClinicProfileReaderPort,
   ClinicReceiptsDeps,
@@ -33,7 +32,7 @@ import { createClinicReceiptLookup } from "./interface/claim-lookup.js";
 import { createClinicReceiptsFamilyRouter } from "./interface/family-router.js";
 import { createClinicReceiptsPortalRouter } from "./interface/portal-router.js";
 
-export type { BookingFacts, BookingSourcePort, ClinicProfileSnapshot, ClinicProfileReaderPort, ConsentLookupPort, ServiceCatalogReaderPort, AttachedClaimsPort } from "./application/ports.js";
+export type { BookingFacts, BookingSourcePort, ClinicProfileSnapshot, ClinicProfileReaderPort, ConsentLookupPort, ServiceCatalogReaderPort } from "./application/ports.js";
 export type { ReceiptBookingKind } from "./domain/receipt.js";
 
 export interface ClinicReceiptsModuleDeps {
@@ -49,8 +48,6 @@ export interface ClinicReceiptsModuleDeps {
   profile: ClinicProfileReaderPort<Kysely<Database>>;
   /** Preço do serviço do catálogo (implementada por `clinics`). */
   services: ServiceCatalogReaderPort<Kysely<Database>>;
-  /** Pedidos de reembolso a que cada recibo está anexado (implementada por `insurance`). */
-  attachedClaims: AttachedClaimsPort<Kysely<Database>>;
 }
 
 export interface ClinicReceiptsModule {
@@ -74,7 +71,6 @@ export function createClinicReceiptsModule(deps: ClinicReceiptsModuleDeps): Clin
     consents: deps.consents,
     profile: deps.profile,
     services: deps.services,
-    attachedClaims: deps.attachedClaims,
     policy: deps.access.policy,
     audit: deps.audit,
     withTransaction: (fn) => withTransaction(deps.db, fn),

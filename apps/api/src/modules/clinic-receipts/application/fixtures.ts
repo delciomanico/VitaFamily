@@ -7,7 +7,6 @@ import type { AuditEvent } from "../../audit/index.js";
 import type { CatalogService, ClinicReceipt, ReceiptBookingKind } from "../domain/receipt.js";
 import type {
   AccessPolicyPort,
-  AttachedClaimsPort,
   AuditPort,
   BookingFacts,
   BookingSourcePort,
@@ -144,13 +143,6 @@ export class FakeServiceCatalog implements ServiceCatalogReaderPort<FakeTrx> {
   }
 }
 
-export class FakeAttachedClaims implements AttachedClaimsPort<FakeTrx> {
-  readonly byReceipt = new Map<string, string[]>();
-  async claimIdsByReceipt(_trx: FakeTrx, receiptIds: string[]): Promise<Map<string, string[]>> {
-    return Promise.resolve(new Map([...this.byReceipt].filter(([id]) => receiptIds.includes(id))));
-  }
-}
-
 /** `VIEW_CLINIC_RECEIPTS`: `relations` mapeia `userId:memberId` -> relação; sem entrada => NOT_FOUND. */
 export class FakeAccessPolicy implements AccessPolicyPort<FakeTrx> {
   readonly relations = new Map<string, "SELF" | "TUTOR_OF" | "OTHER" | "DEPENDENT_SELF">();
@@ -168,7 +160,6 @@ export function createClinicReceiptsFixtures(clock: Clock) {
   const consents = new FakeConsentLookup();
   const profile = new FakeProfileReader();
   const services = new FakeServiceCatalog();
-  const attachedClaims = new FakeAttachedClaims();
   const policy = new FakeAccessPolicy();
   const audit = new FakeAuditPort();
   const deps: ClinicReceiptsDeps<FakeTrx> = {
@@ -177,12 +168,11 @@ export function createClinicReceiptsFixtures(clock: Clock) {
     consents,
     profile,
     services,
-    attachedClaims,
     policy,
     audit,
     withTransaction: (fn) => fn(FAKE_TRX),
     listLimiter: new InMemoryRateLimiter(clock),
     clock,
   };
-  return { deps, receiptsRepo, bookings, consents, profile, services, attachedClaims, policy, audit };
+  return { deps, receiptsRepo, bookings, consents, profile, services, policy, audit };
 }

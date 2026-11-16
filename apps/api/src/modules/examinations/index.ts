@@ -262,8 +262,6 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
 
 export interface ExaminationsReminderQueries {
   listReminderCandidates: (trx: Kysely<Database>, from: string, to: string, limit: number) => Promise<Examination[]>;
-  /** Fatia 5 (ADR-036): facto do ato para `processes.describeForAlerts` no worker (só leitura, sem ator). */
-  getActFacts: (trx: Kysely<Database>, familyId: string, examinationIds: string[]) => Promise<{ originId: string; fact: ActFactOfExamination }[]>;
 }
 
 /**
@@ -275,6 +273,5 @@ export function createExaminationsReminderQueries(_deps: { db: Kysely<Database> 
   const examinationsRepo = new KyselyExaminationsRepository();
   return {
     listReminderCandidates: (trx, from, to, limit) => examinationsRepo.listReminderCandidates(trx, from, to, limit),
-    getActFacts: createGetActFactsUseCase(new KyselyExaminationActFactsSource()),
   };
 }

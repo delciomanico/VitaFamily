@@ -12,7 +12,7 @@ import { KyselyProcessesRepository } from "../../src/modules/processes/infrastru
 export function createRealProcessLinker(db: Kysely<Database>) {
   const deps: ProcessesDeps<Kysely<Database>> = {
     repo: new KyselyProcessesRepository(),
-    facts: { getActFacts: () => Promise.resolve([]), getCoverageFacts: () => Promise.resolve([]) },
+    facts: { getActFacts: () => Promise.resolve([]) },
     policy: { can: () => Promise.reject(new Error("não usado")) },
     audit: new KyselyAuditRepository(),
     withTransaction: (fn) => withTransaction(db, fn),

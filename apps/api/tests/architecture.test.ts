@@ -19,19 +19,18 @@ describe("arquitetura do código real (src/)", () => {
     expect(violations).toEqual([]);
   });
 
-  it("TC-PRC-20 / AC-PRC-07: só main e `alerts` (fatia 5, nota 33, pela raiz) importam `processes`, e `processes` só importa `access` e `audit`", async () => {
+  it("TC-PRC-20 / AC-PRC-07: só `main/api` importa `processes` (R2: `alerts` já não o lê), e `processes` só importa `access` e `audit`", async () => {
     const files = await collectImports(SRC_ROOT);
     const processesFiles = files.filter((f) => f.file.startsWith("modules/processes/"));
     expect(processesFiles.length).toBeGreaterThan(0);
 
     const importers = files.filter((f) => !f.file.startsWith("modules/processes/") && f.relativeImports.some((target) => target.startsWith("modules/processes/")));
-    expect(importers.map((f) => f.file)).toEqual(["main/api", "main/worker", "modules/alerts/index"]);
+    expect(importers.map((f) => f.file)).toEqual(["main/api"]);
 
     const importedModules = new Set(processesFiles.flatMap((f) => f.relativeImports).filter((t) => t.startsWith("modules/") && !t.startsWith("modules/processes/")).map((t) => t.split("/")[1]));
     expect([...importedModules].sort()).toEqual([...(MODULE_DEPENDENCIES.processes ?? [])].sort());
     for (const [name, dependencies] of Object.entries(MODULE_DEPENDENCIES)) {
-      // Fatia 5 (ADR-036, modules.md nota 33): `alerts` lê o dono/«aberto» do processo pela raiz; mais nenhum módulo.
-      expect(dependencies.includes("processes"), `${name} não pode depender de processes`).toBe(name === "alerts");
+      expect(dependencies.includes("processes"), `${name} não pode depender de processes`).toBe(false);
     }
   });
 
@@ -64,7 +63,7 @@ describe("arquitetura do código real (src/)", () => {
     const read = (m: string, f: string) => readFile(join(SRC_ROOT, "modules", m, "application", f), "utf8");
     expect(await read("insurer-ops", "ports.ts")).toMatch(/export interface ProcessLinker</);
     expect(await read("insurer-ops", "ports.ts")).toMatch(/export interface AttachmentFiles</);
-    expect(await read("processes", "ports.ts")).toMatch(/getCoverageFacts\(/);
+    expect(await read("processes", "ports.ts")).not.toMatch(/getCoverageFacts\(/);
     expect(await read("processes", "ports.ts")).not.toMatch(/export interface ProcessLinker</);
     expect(await read("appointments", "ports.ts")).toMatch(/export interface CompletionReceiptIssuer</);
     // Fatia 4 (TC-DEC-20): `auto-approval`, `authorization-actions`, `sla` e `authorization-decision` também só importam `domain/`.
@@ -76,32 +75,16 @@ describe("arquitetura do código real (src/)", () => {
     }
   });
 
-  it("TC-PRC-32 (ADR-036, modules.md nota 33): `insurer-ops` não importa `alerts` (só a porta FamilyNotifier); `alerts` importa `insurer-ops`/`processes` só pela raiz; sem ciclos; coverage-phase/deriveCoverageView puros; o «3 dias» só em alerts/domain/rule.ts", async () => {
+  it("TC-PRC-32 (R2, arquivo do marco B): `alerts` não depende de `insurer-ops` nem de `processes`; `insurer-ops`/`processes` não importam `alerts`; coverage-phase puro", async () => {
     const files = await collectImports(SRC_ROOT);
-    expect(files.filter((f) => f.file.startsWith("modules/insurer-ops/") && f.relativeImports.some((t) => t.startsWith("modules/alerts/"))).map((f) => f.file)).toEqual([]);
-    expect(files.filter((f) => f.file.startsWith("modules/processes/") && f.relativeImports.some((t) => t.startsWith("modules/alerts/"))).map((f) => f.file)).toEqual([]);
-    expect(MODULE_DEPENDENCIES["insurer-ops"]).toEqual(["audit"]);
-    expect(MODULE_DEPENDENCIES.processes).toEqual(["access", "audit"]);
-    expect(MODULE_DEPENDENCIES.alerts).toEqual(expect.arrayContaining(["insurer-ops", "processes"]));
-    const alertImports = files.filter((f) => f.file.startsWith("modules/alerts/")).flatMap((f) => f.relativeImports.map((target) => [f.file, target] as const));
-    for (const [file, target] of alertImports.filter(([, t]) => t.startsWith("modules/insurer-ops/") || t.startsWith("modules/processes/"))) {
-      expect(target, `${file} só pela raiz`).toMatch(/^modules\/(insurer-ops|processes)\/index$/);
-    }
-    const read = (m: string, layer: string, f: string) => readFile(join(SRC_ROOT, "modules", m, layer, f), "utf8");
-    expect(await read("insurer-ops", "application", "ports.ts")).toMatch(/export interface FamilyNotifier</);
-    expect(await read("alerts", "application", "ports.ts")).toMatch(/export interface ProcessTargetsPort</);
-    for (const [m, file] of [["processes", "derive-coverage-view"], ["insurer-ops", "coverage-phase"]] as const) {
-      const found = files.find((f) => f.file === `modules/${m}/domain/${file}`);
-      expect(found, file).toBeDefined();
-      expect(found?.bareImports, file).toEqual([]);
-      for (const target of found?.relativeImports ?? []) expect(target.startsWith(`modules/${m}/domain/`), `${file} -> ${target}`).toBe(true);
-    }
-    // R9: o aviso a 3 dias é uma constante de domínio num único sítio (sem literal `3` nos restantes ficheiros de `alerts`).
-    const alertSources = ["application/scan-job.ts", "application/raise-authorization-event.ts", "application/list-alerts.ts", "domain/recipients.ts"];
-    for (const target of alertSources) {
-      const text = (await read("alerts", target.split("/")[0] ?? "", target.split("/")[1] ?? "")).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""');
-      expect(text, target).not.toMatch(/\b3\b/);
-    }
+    expect(files.filter((f) => (f.file.startsWith("modules/insurer-ops/") || f.file.startsWith("modules/processes/")) && f.relativeImports.some((t) => t.startsWith("modules/alerts/"))).map((f) => f.file)).toEqual([]);
+    expect(files.filter((f) => f.file.startsWith("modules/alerts/") && f.relativeImports.some((t) => t.startsWith("modules/insurer-ops/") || t.startsWith("modules/processes/"))).map((f) => f.file)).toEqual([]);
+    expect(MODULE_DEPENDENCIES.alerts).not.toContain("insurer-ops");
+    expect(MODULE_DEPENDENCIES.alerts).not.toContain("processes");
+    const found = files.find((f) => f.file === "modules/insurer-ops/domain/coverage-phase");
+    expect(found).toBeDefined();
+    expect(found?.bareImports).toEqual([]);
+    for (const target of found?.relativeImports ?? []) expect(target.startsWith("modules/insurer-ops/domain/"), `coverage-phase -> ${target}`).toBe(true);
   });
 
   it("TC-AUT-18: sem literais de prazo (48, 72, 15, 7) nos ficheiros do pedido de autorização", async () => {

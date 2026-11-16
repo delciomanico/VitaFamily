@@ -306,8 +306,6 @@ export interface AppointmentsReminderQueries {
   /** BR-CLN-30: consultas `COMPLETED` com retorno em `[from, to]` (AAAA-MM-DD). */
   listFollowUpCandidates: (trx: Kysely<Database>, from: string, to: string, limit: number) => Promise<Appointment[]>;
   setOutcomeRequested: (trx: Kysely<Database>, appointmentId: string, requestedAt: Date) => Promise<void>;
-  /** Fatia 5 (ADR-036): facto do ato para `processes.describeForAlerts` no worker (só leitura, sem ator). */
-  getActFacts: (trx: Kysely<Database>, familyId: string, appointmentIds: string[]) => Promise<{ originId: string; fact: ActFactOfAppointment }[]>;
 }
 
 /**
@@ -321,6 +319,5 @@ export function createAppointmentsReminderQueries(_deps: { db: Kysely<Database> 
     listReminderCandidates: (trx, now, windows, limit) => appointmentsRepo.listReminderCandidates(trx, now, windows, limit),
     listFollowUpCandidates: (trx, from, to, limit) => appointmentsRepo.listFollowUpCandidates(trx, from, to, limit),
     setOutcomeRequested: (trx, appointmentId, requestedAt) => appointmentsRepo.setOutcomeRequested(trx, appointmentId, requestedAt),
-    getActFacts: createGetActFactsUseCase(new KyselyAppointmentActFactsSource()),
   };
 }

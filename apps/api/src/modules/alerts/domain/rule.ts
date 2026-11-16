@@ -18,7 +18,8 @@ export type AlertType =
   | "FOLLOWUP_REMINDER"
   // M15 U (ADR-028, BR-CLN-53): novo pedido de exame de uma clínica (texto sempre genérico, nunca o nome do exame).
   | "EXAM_ORDER_ADDED"
-  // Fatia 5 (ADR-036, BR-ALR-10): pedido de autorização à seguradora (texto sempre genérico/fixo, sem dados do pedido).
+  // Arquivo do marco B (ADR-037): os 5 tipos `AUTHORIZATION_*` já não são gerados; ficam no tipo só porque existem no enum do Postgres
+  // e no contrato (alertas históricos) — saem no R6.
   | "AUTHORIZATION_APPROVED"
   | "AUTHORIZATION_NOT_APPROVED"
   | "AUTHORIZATION_INFO_REQUESTED"
@@ -39,12 +40,7 @@ export type RuleKey =
   | "recommendation.added"
   | "appointment.confirm48h"
   | "followup.due"
-  | "exam_order.added"
-  | "authorization.approved"
-  | "authorization.not_approved"
-  | "authorization.info_requested"
-  | "authorization.expiring"
-  | "authorization.withdrawn";
+  | "exam_order.added";
 
 /** Alertas de evento de exame (D19): disparados no momento da resposta/emissão, não por relógio. */
 export type ExamEventAlertType = "EXAM_CANCELLED" | "EXAM_RESULTS_AVAILABLE";
@@ -67,21 +63,6 @@ export function recommendationAddedRule(occurredAt: Date): Rule {
 /** ADR-028 (BR-CLN-53): a regra de um pedido de exame novo vence no próprio instante da emissão. */
 export function examOrderAddedRule(occurredAt: Date): Rule {
   return { ruleKey: "exam_order.added", type: "EXAM_ORDER_ADDED", triggerAt: occurredAt };
-}
-
-/** Fatia 5 (BR-ALR-10): alertas de evento do pedido de autorização, um por transição (`→ APPROVED`, `→ REJECTED`, `→ INFO_REQUESTED`, reversão). */
-export type AuthorizationEventKind = "APPROVED" | "NOT_APPROVED" | "INFO_REQUESTED" | "WITHDRAWN";
-
-const AUTHORIZATION_EVENT_RULES: Record<AuthorizationEventKind, { ruleKey: RuleKey; type: AlertType }> = {
-  APPROVED: { ruleKey: "authorization.approved", type: "AUTHORIZATION_APPROVED" },
-  NOT_APPROVED: { ruleKey: "authorization.not_approved", type: "AUTHORIZATION_NOT_APPROVED" },
-  INFO_REQUESTED: { ruleKey: "authorization.info_requested", type: "AUTHORIZATION_INFO_REQUESTED" },
-  WITHDRAWN: { ruleKey: "authorization.withdrawn", type: "AUTHORIZATION_WITHDRAWN" },
-};
-
-/** ADR-036: a regra de um evento do pedido vence no instante da transição (`occurredAt`). */
-export function authorizationEventRule(kind: AuthorizationEventKind, occurredAt: Date): Rule {
-  return { ...AUTHORIZATION_EVENT_RULES[kind], triggerAt: occurredAt };
 }
 
 export interface Rule {
@@ -111,20 +92,6 @@ export const APPOINTMENT_CONFIRM_REQUEST_LEAD_MS = 48 * HOUR_MS;
  * quem entra na janela depois disso nunca recebe um pedido tardio. Valor de implementação (não definido na doc).
  */
 export const APPOINTMENT_CONFIRM_REQUEST_GRACE_MS = 30 * MINUTE_MS;
-/** BR-ALR-10 (ADR-036, R9): aviso de aprovação a expirar, 3 dias antes de `validUntil` — o ÚNICO sítio do valor fixo. */
-export const AUTHORIZATION_EXPIRING_LEAD_MS = 3 * 24 * HOUR_MS;
-
-/**
- * BR-ALR-10: `authorization.expiring` a `validUntil − 3 dias`; vazio se a decisão foi tomada depois desse instante (aprovação com menos
- * de 3 dias de validade) ou se a aprovação já expirou. Quem chama já filtrou `APPROVED` e o processo aberto.
- */
-export function authorizationExpiringRules(approval: { validUntil: Date; decidedAt: Date | null }, now: Date): Rule[] {
-  const triggerAt = new Date(approval.validUntil.getTime() - AUTHORIZATION_EXPIRING_LEAD_MS);
-  if (approval.decidedAt === null || approval.decidedAt.getTime() >= triggerAt.getTime()) return [];
-  if (now.getTime() >= approval.validUntil.getTime()) return [];
-  return [{ ruleKey: "authorization.expiring", type: "AUTHORIZATION_EXPIRING", triggerAt }];
-}
-
 /** BR-CLN-30: lembrete de retorno 7 dias antes de `followUpDueOn`. */
 export const FOLLOW_UP_REMINDER_LEAD_DAYS = 7;
 

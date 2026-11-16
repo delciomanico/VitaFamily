@@ -15,12 +15,9 @@ import type {
   EnqueueForAlertInput,
   ExaminationsPort,
   FamiliesPort,
-  InsurerOpsPort,
   MedicationsPort,
   NewAlertRecord,
   NotificationsPort,
-  ProcessTarget,
-  ProcessTargetsPort,
 } from "./ports.js";
 
 export type FakeTrx = Record<string, never>;
@@ -185,27 +182,6 @@ export class FakeNotificationsPort implements NotificationsPort<FakeTrx> {
   }
 }
 
-/** Aprovações candidatas a expirar (fatia 5): o fake filtra como o repositório real (`APPROVED` com processo, `validUntil` em `(from, to]`). */
-export class FakeInsurerOpsPort implements InsurerOpsPort<FakeTrx> {
-  approvals: { requestId: string; processId: string; decidedAt: Date | null; validUntil: Date }[] = [];
-
-  async listExpiringApprovals(_trx: FakeTrx, from: Date, to: Date, limit: number): Promise<{ requestId: string; processId: string; decidedAt: Date | null; validUntil: Date }[]> {
-    return Promise.resolve(this.approvals.filter((a) => a.validUntil.getTime() > from.getTime() && a.validUntil.getTime() <= to.getTime()).slice(0, limit));
-  }
-}
-
-export class FakeProcessTargetsPort implements ProcessTargetsPort<FakeTrx> {
-  readonly targets = new Map<string, ProcessTarget>();
-
-  async describe(_trx: FakeTrx, processIds: string[]): Promise<ProcessTarget[]> {
-    return Promise.resolve(processIds.flatMap((id) => this.targets.get(id) ?? []));
-  }
-
-  seed(target: ProcessTarget): void {
-    this.targets.set(target.processId, target);
-  }
-}
-
 export interface AlertsFixtures {
   deps: AlertsDeps<FakeTrx>;
   alertsRepo: FakeAlertsRepository;
@@ -214,8 +190,6 @@ export interface AlertsFixtures {
   examinations: FakeExaminationsPort;
   families: FakeFamiliesPort;
   notifications: FakeNotificationsPort;
-  insurerOps: FakeInsurerOpsPort;
-  processes: FakeProcessTargetsPort;
 }
 
 export function createAlertsFixtures(clock: { now(): Date }): AlertsFixtures {
@@ -225,8 +199,6 @@ export function createAlertsFixtures(clock: { now(): Date }): AlertsFixtures {
   const examinations = new FakeExaminationsPort();
   const families = new FakeFamiliesPort();
   const notifications = new FakeNotificationsPort();
-  const insurerOps = new FakeInsurerOpsPort();
-  const processes = new FakeProcessTargetsPort();
   const deps: AlertsDeps<FakeTrx> = {
     alertsRepo,
     medications,
@@ -234,11 +206,9 @@ export function createAlertsFixtures(clock: { now(): Date }): AlertsFixtures {
     examinations,
     families,
     notifications,
-    insurerOps,
-    processes,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, alertsRepo, medications, appointments, examinations, families, notifications, insurerOps, processes };
+  return { deps, alertsRepo, medications, appointments, examinations, families, notifications };
 }

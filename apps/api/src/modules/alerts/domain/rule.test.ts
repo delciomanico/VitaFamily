@@ -5,8 +5,6 @@ import {
   followUpReminderRule,
   appointmentOutcomeRule,
   appointmentReminderRules,
-  authorizationEventRule,
-  authorizationExpiringRules,
   buildDedupeKey,
   doseRules,
   examReminderRule,
@@ -101,47 +99,5 @@ describe("followUpReminderRule (BR-CLN-30)", () => {
     expect(followUpReminderRule("2026-11-20")).toEqual({ ruleKey: "followup.due", type: "FOLLOWUP_REMINDER", triggerAt: new Date("2026-11-13T00:00:00.000Z") });
     // verão: UTC+1
     expect(followUpReminderRule("2026-07-20").triggerAt.toISOString()).toBe("2026-07-12T23:00:00.000Z");
-  });
-});
-
-describe("regras do pedido de autorização (fatia 5, BR-ALR-10/12)", () => {
-  const AT = new Date("2026-11-15T10:00:00Z");
-
-  it.each([
-    ["APPROVED", "authorization.approved", "AUTHORIZATION_APPROVED"],
-    ["NOT_APPROVED", "authorization.not_approved", "AUTHORIZATION_NOT_APPROVED"],
-    ["INFO_REQUESTED", "authorization.info_requested", "AUTHORIZATION_INFO_REQUESTED"],
-    ["WITHDRAWN", "authorization.withdrawn", "AUTHORIZATION_WITHDRAWN"],
-  ] as const)("%s vence no instante da transição (%s)", (kind, ruleKey, type) => {
-    expect(authorizationEventRule(kind, AT)).toEqual({ ruleKey, type, triggerAt: AT });
-  });
-
-  it("dedupeKey = ruleKey:processId:recipient:triggerAt (aprovar, reverter e voltar a aprovar ⇒ chaves distintas)", () => {
-    const first = buildDedupeKey("authorization.approved", "proc-1", "u1", AT);
-    expect(first).toBe("authorization.approved:proc-1:u1:2026-11-15T10:00:00.000Z");
-    expect(buildDedupeKey("authorization.approved", "proc-1", "u1", new Date(AT.getTime() + 1000))).not.toBe(first);
-  });
-
-  describe("authorizationExpiringRules (3 dias antes de validUntil)", () => {
-    const VALID_UNTIL = new Date("2026-12-10T12:00:00Z");
-    const NOW = new Date("2026-12-07T12:00:00Z");
-
-    it("vence a validUntil − 3 dias", () => {
-      expect(authorizationExpiringRules({ validUntil: VALID_UNTIL, decidedAt: new Date("2026-11-20T09:00:00Z") }, NOW)).toEqual([
-        { ruleKey: "authorization.expiring", type: "AUTHORIZATION_EXPIRING", triggerAt: new Date("2026-12-07T12:00:00Z") },
-      ]);
-    });
-
-    it.each([
-      ["decisão com menos de 3 dias de validade", new Date("2026-12-08T09:00:00Z")],
-      ["decisão exatamente a validUntil − 3 dias", new Date("2026-12-07T12:00:00Z")],
-      ["sem data de decisão", null],
-    ])("não emite: %s", (_name, decidedAt) => {
-      expect(authorizationExpiringRules({ validUntil: VALID_UNTIL, decidedAt }, NOW)).toEqual([]);
-    });
-
-    it("não emite se já expirou (nunca avisa «expirada»)", () => {
-      expect(authorizationExpiringRules({ validUntil: VALID_UNTIL, decidedAt: new Date("2026-11-20T09:00:00Z") }, VALID_UNTIL)).toEqual([]);
-    });
   });
 });

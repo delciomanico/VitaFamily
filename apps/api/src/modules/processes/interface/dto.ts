@@ -9,11 +9,7 @@ export function toProcessResponse(view: ProcessView) {
     memberId: view.memberId,
     kind: view.kind,
     familyStatus: view.familyStatus,
-    nextStep: { code: view.nextStep.code, actor: view.nextStep.actor, ...(view.nextStep.dueAt ? { dueAt: view.nextStep.dueAt.toISOString() } : {}) },
-    // Contrato: `dueAt`/`validUntil` anuláveis (null fora do estado em que existem); só estado, sem valores nem motivos (BR-PRC-12).
-    coverage: view.coverage
-      ? { state: view.coverage.state, appeal: view.coverage.appeal, partial: view.coverage.partial, dueAt: view.coverage.dueAt?.toISOString() ?? null, validUntil: view.coverage.validUntil?.toISOString() ?? null }
-      : null,
+    nextStep: { code: view.nextStep.code, actor: view.nextStep.actor },
     origin: { type: view.origin.type, id: view.origin.id },
     scheduledAt: view.scheduledAt,
     openedAt: view.openedAt,

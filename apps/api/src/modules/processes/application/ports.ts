@@ -6,7 +6,7 @@ import type { Clock } from "../../../platform/clock/index.js";
 import type { KeysetCursor } from "../../../platform/page/index.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
-import type { ActFact, CoverageFact, OriginCategory, Process, ProcessKind, ProcessOriginType } from "../domain/process.js";
+import type { ActFact, OriginCategory, Process, ProcessKind, ProcessOriginType } from "../domain/process.js";
 
 export interface ActorIdentity {
   userId: string;
@@ -73,11 +73,6 @@ export interface ActFactEntry extends ActFactRef {
   fact: ActFact;
 }
 
-export interface CoverageFactEntry {
-  processId: string;
-  fact: CoverageFact;
-}
-
 /**
  * Porta de leitura (BR-PRC-04): o estado dos atos como `ActFact`. Atos inexistentes (ou com estado
  * inválido) não aparecem no resultado — `processes` trata-os como "sem ato legível" (BR-PRC-09).
@@ -85,11 +80,6 @@ export interface CoverageFactEntry {
 export interface ProcessFacts<Trx> {
   /** Só para origens com ato (`APPOINTMENT`/`EXAMINATION`). */
   getActFacts(trx: Trx, familyId: string, refs: ActFactRef[]): Promise<ActFactEntry[]>;
-  /**
-   * Fatia 3 (ADR-034): facto de cobertura dos pedidos de autorização ligados aos processos (`insurer_authorizations.process_id`),
-   * em lote (sem N+1). Processo sem pedidos não aparece no resultado.
-   */
-  getCoverageFacts(trx: Trx, familyId: string, processIds: string[]): Promise<CoverageFactEntry[]>;
 }
 
 export interface NewProcessRecord {
@@ -119,8 +109,6 @@ export interface ProcessesRepository<Trx> {
   findOfMember(trx: Trx, familyId: string, memberId: string, processId: string): Promise<Process | null>;
   /** `openedAt` desc, `id` desc; até `limit` linhas e se há mais (busca `limit + 1`). */
   listOfMember(trx: Trx, familyId: string, memberId: string, filter: ProcessListFilter, limit: number): Promise<{ rows: Process[]; hasMore: boolean }>;
-  /** Fatia 5 (ADR-036): leitura de sistema (job `alerts.scan` e alertas por evento) pelos ids; sem ator, só dono e ids. */
-  findByIds(trx: Trx, processIds: string[]): Promise<Process[]>;
   /** BR-PRC-06: só se `clinic_id` é a clínica do token. */
   findOfClinic(trx: Trx, clinicId: string, processId: string): Promise<Process | null>;
 }

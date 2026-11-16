@@ -25,8 +25,6 @@ interface Row {
   platformAdmin?: boolean;
   /** Origem legível? (consulta, exame) */
   reads: [appointment: boolean, exam: boolean];
-  /** Fatia 5 (BR-PRC-13, TC-AZ-PRC-09): `coverage` preenchida? Só com `MANAGE_INSURANCE` (SELF adulto, TUTOR_OF). */
-  coverage?: boolean;
   /** `PROCESS_VIEW` auditado (leitura por quem não é o titular). */
   audited?: boolean;
   /** Falha total (NOT_FOUND) em vez de lista filtrada. */
@@ -34,8 +32,8 @@ interface Row {
 }
 
 const GOLDEN: Row[] = [
-  { name: "SELF (adulto)", setup: "SELF_ADULT", reads: [true, true], coverage: true },
-  { name: "TUTOR_OF", setup: "TUTOR_OF", reads: [true, true], audited: true, coverage: true },
+  { name: "SELF (adulto)", setup: "SELF_ADULT", reads: [true, true] },
+  { name: "TUTOR_OF", setup: "TUTOR_OF", reads: [true, true], audited: true },
   { name: "DEPENDENT_SELF (N2: só consultas)", setup: "DEPENDENT_SELF", reads: [true, false] },
   { name: "OTHER sem partilha", setup: "OTHER", reads: [false, false] },
   { name: "Family Admin como OTHER sem partilha", setup: "OTHER_ADMIN_NO_GRANT", reads: [false, false] },
@@ -98,16 +96,5 @@ describe("TC-AZ-PRC-01: leitura de processos por relação × origem (authorizat
     }
     const readable = row.reads.filter(Boolean).length;
     expect(fx.audit.events).toHaveLength(row.audited ? readable : 0);
-  });
-});
-
-describe("TC-AZ-PRC-09: coluna `coverage` da matriz §6.8 (fatia 5, BR-PRC-13)", () => {
-  it.each(GOLDEN.filter((row) => !row.notFound && row.reads[0]))("$name: coverage %#", async (row) => {
-    const { fx, deps, actor, subject } = build(row);
-    fx.facts.seedCoverage("p-appt", { phase: "NEEDS_INFO" });
-    const view = await createGetProcessUseCase(deps)(actor, FAMILY, subject, "p-appt", CTX);
-    expect(view.coverage !== null).toBe(row.coverage ?? false);
-    // Sem `MANAGE_INSURANCE` a derivação usa só o ato (sem erro): SCHEDULED/ATTEND ou PENDING consoante a fase do ato.
-    if (!(row.coverage ?? false)) expect(view.nextStep.code).not.toBe("AWAIT_CLINIC_INFORMATION");
   });
 });

@@ -237,13 +237,8 @@ export function main(): void {
       open: (trx, input) => required(late.processes, "processes").linker.open(trx, input),
       findForClinic: (trx, input) => required(late.processes, "processes").linker.findForClinic(trx, input),
     },
-    // Fatia 5 (ADR-036, modules.md nota 33b): `FamilyNotifier` → `alerts.raiseAuthorizationEvent`, na transação da transição
-    // (resolvida tardiamente: `alerts` é criado depois); `insurer-ops` nunca importa `alerts`.
-    familyNotifier: {
-      notify: async (trx, input) => {
-        await required(late.alerts, "alerts").raiseAuthorizationEvent(trx, input);
-      },
-    },
+    // Arquivo do marco B (ADR-037, R2): sem alertas de autorização; a porta fica a no-op até `insurer-ops` sair (R5).
+    familyNotifier: { notify: () => Promise.resolve() },
     files: createAttachmentFiles({ storage, virusScanner }),
   });
   const insurance = createInsuranceModule({
@@ -277,8 +272,7 @@ export function main(): void {
     mailer: new NotificationsSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
     pushSender: new WebPushSender({ publicKey: config.VAPID_PUBLIC_KEY, privateKey: config.VAPID_PRIVATE_KEY, subject: config.VAPID_SUBJECT }),
   });
-  // Fatia 5 (ADR-036, modules.md nota 33c): `alerts` lê o dono/«aberto» do processo pela raiz de `processes` (criado mais abaixo).
-  const alerts = createAlertsModule({ db, families, notifications, clock, processes: { describeForAlerts: (trx, processIds) => required(late.processes, "processes").describeForAlerts(trx, processIds) } });
+  const alerts = createAlertsModule({ db, families, notifications, clock });
   late.alerts = alerts;
 
   const examinations = createExaminationsModule({ db, audit, access, clinics, documents, alerts: { raiseExamEvent: alerts.raiseExamEvent },
@@ -400,8 +394,6 @@ export function main(): void {
     access,
     clock,
     facts: {
-      // Fatia 3 (ADR-034): o facto de cobertura sai de `insurer-ops` (projeção pura dos pedidos ligados ao processo).
-      getCoverageFacts: (trx, familyId, processIds) => insurerOps.getCoverageFacts(trx, familyId, processIds),
       getActFacts: async (trx, familyId, refs) => {
         const idsOf = (type: "APPOINTMENT" | "EXAMINATION") => refs.filter((ref) => ref.originType === type).map((ref) => ref.originId);
         const [appointmentFacts, examinationFacts] = await Promise.all([appointments.getActFacts(trx, familyId, idsOf("APPOINTMENT")), examinations.getActFacts(trx, familyId, idsOf("EXAMINATION"))]);
@@ -495,7 +487,6 @@ export function main(): void {
     consents: { hasConsent: (trx, clinicId, memberId) => clinicPatients.receiptSource.hasConsent(trx, clinicId, memberId) },
     profile: { get: (trx, clinicId) => clinics.getReceiptProfile(trx, clinicId) },
     services: { find: (trx, clinicId, serviceTypeId) => clinics.findServiceTypeForReceipt(trx, clinicId, serviceTypeId) },
-    attachedClaims: { claimIdsByReceipt: (trx, receiptIds) => insurance.claimIdsByReceipts(trx, receiptIds) },
   });
   late.clinicReceipts = clinicReceipts;
 

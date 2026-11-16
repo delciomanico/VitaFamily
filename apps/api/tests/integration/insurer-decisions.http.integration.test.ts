@@ -248,7 +248,6 @@ describe("integração: decisão pela seguradora, auto-aprovação, SLA e SUPERV
       repo: new KyselyProcessesRepository(),
       facts: {
         getActFacts: async (trx, familyId, refs) => (await createAppointmentFacts(new KyselyAppointmentActFactsSource())(trx, familyId, refs.map((r) => r.originId))).map((e) => ({ originType: "APPOINTMENT" as const, originId: e.originId, fact: e.fact })),
-        getCoverageFacts: (trx, familyId, processIds) => ops.getCoverageFacts(trx, familyId, processIds),
       },
       policy: new FakeAccessPolicy(),
       audit: new KyselyAuditRepository(),

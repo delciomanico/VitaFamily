@@ -224,9 +224,8 @@ describe("lado família (UC-CLN-28, BR-CLN-35, authorization.md §6.5)", () => {
     const { s, receipt } = await linked();
     await s.voidReceipt(ADMIN, receipt.id, { reason: "MOTIVO-INTERNO" }, CTX);
     s.consents.consents.clear(); // revogação: a ligação sobrevive (comprovativo recebido)
-    s.attachedClaims.byReceipt.set(receipt.id, ["claim-1"]);
     const view = await createGetFamilyReceiptUseCase(s.deps)(actor("u-self"), "fam-1", "mem-1", receipt.id);
-    expect(view).toMatchObject({ status: "VOIDED", clinicName: "Clínica Sol", attachedToClaimIds: ["claim-1"], notice: "Documento não fiscal — não substitui fatura" });
+    expect(view).toMatchObject({ status: "VOIDED", clinicName: "Clínica Sol", notice: "Documento não fiscal — não substitui fatura" });
     const dump = JSON.stringify(view);
     for (const forbidden of ["MOTIVO-INTERNO", "voidReason", "clinicId", "clinic-a", "admin-a", "issuedBy"]) expect(dump).not.toContain(forbidden);
   });

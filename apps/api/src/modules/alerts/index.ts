@@ -19,9 +19,7 @@ import { withTransaction } from "../../platform/db/index.js";
 import type { AppointmentsReminderQueries } from "../appointments/index.js";
 import type { ExaminationsReminderQueries } from "../examinations/index.js";
 import type { FamiliesModule } from "../families/index.js";
-import type { InsurerOpsModule } from "../insurer-ops/index.js";
 import type { MedicationsWorkerModule } from "../medications/index.js";
-import type { ProcessesModule } from "../processes/index.js";
 import type { NotificationsModule, NotificationsWorkerModule } from "../notifications/index.js";
 import { createListAlertsUseCase } from "./application/list-alerts.js";
 import { createMarkAlertReadUseCase } from "./application/mark-alert-read.js";
@@ -30,7 +28,6 @@ import type { AlertsApiDeps, AlertsWorkerDeps } from "./application/ports.js";
 import { createRaiseExamEventUseCase, type RaiseExamEventInput } from "./application/raise-exam-event.js";
 import { createRaiseRecommendationEventUseCase, type RaiseRecommendationEventInput } from "./application/raise-recommendation-event.js";
 import { createRaiseExamOrderEventUseCase, type RaiseExamOrderEventInput } from "./application/raise-exam-order-event.js";
-import { createRaiseAuthorizationEventUseCase, type RaiseAuthorizationEventInput } from "./application/raise-authorization-event.js";
 import { createScanJobUseCase } from "./application/scan-job.js";
 import { registerScanWorker } from "./infrastructure/jobs.js";
 import { KyselyAlertsRepository } from "./infrastructure/repo.js";
@@ -42,8 +39,6 @@ export interface AlertsModuleDeps {
   db: Kysely<Database>;
   families: FamiliesModule;
   notifications: NotificationsModule;
-  /** Fatia 5 (ADR-036, modules.md nota 33): dono/«aberto» do processo (só leitura, pela raiz de `processes`). */
-  processes: Pick<ProcessesModule, "describeForAlerts">;
   clock: Clock;
 }
 
@@ -55,11 +50,8 @@ export interface AlertsModule {
   raiseRecommendationEvent: (trx: Kysely<Database>, input: RaiseRecommendationEventInput) => Promise<number>;
   /** M15 U (ADR-028, BR-CLN-53): alerta `exam_order.added` na transação do chamador (ligado no composition root a `clinic-reports`). */
   raiseExamOrderEvent: (trx: Kysely<Database>, input: RaiseExamOrderEventInput) => Promise<number>;
-  /** Fatia 5 (ADR-036, BR-ALR-10): alerta `authorization.*` na transação do chamador (ligado no composition root à porta `FamilyNotifier` de `insurer-ops`). */
-  raiseAuthorizationEvent: (trx: Kysely<Database>, input: RaiseAuthorizationEventInput) => Promise<number>;
 }
 
-export type { RaiseAuthorizationEventInput } from "./application/raise-authorization-event.js";
 export type { RaiseExamOrderEventInput } from "./application/raise-exam-order-event.js";
 export type { RaiseRecommendationEventInput } from "./application/raise-recommendation-event.js";
 export type { RaiseExamEventInput } from "./application/raise-exam-event.js";
@@ -79,7 +71,6 @@ export function createAlertsModule(deps: AlertsModuleDeps): AlertsModule {
       enqueueForAlert: deps.notifications.enqueueForAlert,
       skipPendingForAlert: deps.notifications.skipPendingForAlert,
     },
-    processes: { describe: (trx, processIds) => deps.processes.describeForAlerts(trx, processIds) },
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
@@ -96,7 +87,6 @@ export function createAlertsModule(deps: AlertsModuleDeps): AlertsModule {
     raiseExamEvent: createRaiseExamEventUseCase(alertsDeps),
     raiseRecommendationEvent: createRaiseRecommendationEventUseCase(alertsDeps),
     raiseExamOrderEvent: createRaiseExamOrderEventUseCase(alertsDeps),
-    raiseAuthorizationEvent: createRaiseAuthorizationEventUseCase(alertsDeps),
   };
 }
 
@@ -107,10 +97,6 @@ export interface AlertsWorkerModuleDeps {
   appointments: AppointmentsReminderQueries;
   examinations: ExaminationsReminderQueries;
   notifications: NotificationsWorkerModule;
-  /** Fatia 5 (ADR-036): candidatas de `AUTHORIZATION_EXPIRING` (só leitura, pela raiz de `insurer-ops`). */
-  insurerOps: Pick<InsurerOpsModule, "listExpiringApprovals">;
-  /** Fatia 5 (ADR-036): dono/«aberto» do processo (só leitura, pela raiz de `processes`). */
-  processes: Pick<ProcessesModule, "describeForAlerts">;
   clock: Clock;
   boss: PgBoss;
 }
@@ -140,8 +126,6 @@ export function createAlertsWorkerModule(deps: AlertsWorkerModuleDeps): AlertsWo
       enqueueForAlert: deps.notifications.enqueueForAlert,
       skipPendingForAlert: deps.notifications.skipPendingForAlert,
     },
-    insurerOps: { listExpiringApprovals: (trx, from, to, limit) => deps.insurerOps.listExpiringApprovals(trx, from, to, limit) },
-    processes: { describe: (trx, processIds) => deps.processes.describeForAlerts(trx, processIds) },
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
   };

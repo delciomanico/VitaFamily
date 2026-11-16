@@ -22,7 +22,6 @@ import { createLifecycleWorkerModule } from "../modules/lifecycle/index.js";
 import { createClinicsWorkerModule } from "../modules/clinics/index.js";
 import { createClinicPatientsWorkerModule } from "../modules/clinic-patients/index.js";
 import { createInsurerOpsWorkerModule } from "../modules/insurer-ops/index.js";
-import { createProcessesModule } from "../modules/processes/index.js";
 
 export function main(): void {
   const config = loadConfig();
@@ -86,30 +85,8 @@ export function main(): void {
     pushSender: new WebPushSender({ publicKey: config.VAPID_PUBLIC_KEY, privateKey: config.VAPID_PRIVATE_KEY, subject: config.VAPID_SUBJECT }),
     boss,
   });
-  // ADR-025 (S1): jobs diários da seguradora; fatia 5 (ADR-036): também a leitura das candidatas de `AUTHORIZATION_EXPIRING`.
+  // ADR-025 (S1): jobs diários da seguradora (saem no R5).
   const insurerOpsWorker = createInsurerOpsWorkerModule({ db, audit, clock, boss });
-  // Fatia 5 (ADR-036): `alerts.scan` pergunta a `processes` se o processo continua aberto; os factos vêm das mesmas raízes mínimas
-  // de leitura (sem ator a autorizar; só `describeForAlerts` é usado neste processo).
-  const processes = createProcessesModule({
-    db,
-    audit,
-    access,
-    clock,
-    facts: {
-      getCoverageFacts: (trx, familyId, processIds) => insurerOpsWorker.getCoverageFacts(trx, familyId, processIds),
-      getActFacts: async (trx, familyId, refs) => {
-        const idsOf = (type: "APPOINTMENT" | "EXAMINATION") => refs.filter((ref) => ref.originType === type).map((ref) => ref.originId);
-        const [appointmentFacts, examinationFacts] = await Promise.all([appointmentsQueries.getActFacts(trx, familyId, idsOf("APPOINTMENT")), examinationsQueries.getActFacts(trx, familyId, idsOf("EXAMINATION"))]);
-        return [
-          ...appointmentFacts.map((entry) => ({ originType: "APPOINTMENT" as const, originId: entry.originId, fact: entry.fact })),
-          ...examinationFacts.map((entry) => ({ originType: "EXAMINATION" as const, originId: entry.originId, fact: entry.fact })),
-        ];
-      },
-    },
-    onInconsistency: (info) => {
-      logger.warn({ processId: info.processId, originType: info.originType }, "process_without_readable_act");
-    },
-  });
   const alertsWorker = createAlertsWorkerModule({
     db,
     families,
@@ -117,8 +94,6 @@ export function main(): void {
     appointments: appointmentsQueries,
     examinations: examinationsQueries,
     notifications: notificationsWorker,
-    insurerOps: insurerOpsWorker,
-    processes,
     clock,
     boss,
   });

@@ -58,7 +58,6 @@ describe("integração: migração 0036 e adaptadores de processes", () => {
     repo: processes,
     // Factos REAIS dos módulos donos, unidos como em `main/api.ts`.
     facts: {
-      getCoverageFacts: () => Promise.resolve([]),
       getActFacts: async (trx, familyId, refs): Promise<ActFactEntry[]> => {
         const idsOf = (type: "APPOINTMENT" | "EXAMINATION") => refs.filter((r) => r.originType === type).map((r) => r.originId);
         const appointmentFacts = await createAppointmentFacts(new KyselyAppointmentActFactsSource())(trx, familyId, idsOf("APPOINTMENT"));

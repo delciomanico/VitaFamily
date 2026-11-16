@@ -4,13 +4,12 @@ import { ForbiddenError } from "../../../platform/errors/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput, Relation } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
-import { kindOfOrigin, type ActFact, type CoverageFact, type Process, type ProcessOriginType } from "../domain/process.js";
+import { kindOfOrigin, type ActFact, type Process, type ProcessOriginType } from "../domain/process.js";
 import type {
   AccessPolicyPort,
   ActFactEntry,
   ActFactRef,
   AuditPort,
-  CoverageFactEntry,
   NewProcessRecord,
   ProcessFacts,
   ProcessListFilter,
@@ -26,14 +25,12 @@ export class FakeAccessPolicy implements AccessPolicyPort<FakeTrx> {
   readonly calls: CanInput[] = [];
   relation: Relation = "SELF";
   readonly deniedCategories = new Set<string>();
-  /** Ações sem categoria (`MANAGE_INSURANCE`, origem `AUTHORIZATION`) negadas. */
-  readonly deniedActions = new Set<string>();
   denyWith?: Error;
 
   async can(_trx: FakeTrx, input: CanInput): Promise<AccessContext> {
     this.calls.push(input);
     if (this.denyWith) throw this.denyWith;
-    if (input.platformAdmin || (input.category && this.deniedCategories.has(input.category)) || this.deniedActions.has(input.action)) throw new ForbiddenError({ detail: "negado" });
+    if (input.platformAdmin || (input.category && this.deniedCategories.has(input.category))) throw new ForbiddenError({ detail: "negado" });
     return Promise.resolve({
       actor: { id: "actor-1", familyId: input.familyId, name: "Actor", isDependent: false, status: "ACTIVE" },
       subject: { id: input.subjectMemberId ?? "subject-1", familyId: input.familyId, name: "Subject", isDependent: false, status: "ACTIVE" },
@@ -53,22 +50,7 @@ export class FakeAuditPort implements AuditPort<FakeTrx> {
 /** Factos por `tipo:id`; um ato sem facto semeado conta como "inexistente" (BR-PRC-09). */
 export class FakeProcessFacts implements ProcessFacts<FakeTrx> {
   private readonly facts = new Map<string, ActFact>();
-  private readonly coverage = new Map<string, CoverageFact>();
   readonly requests: ActFactRef[][] = [];
-  readonly coverageRequests: string[][] = [];
-
-  /** Facto de cobertura de um processo (fatia 3). */
-  seedCoverage(processId: string, fact: Omit<CoverageFact, "changedAt" | "appeal" | "partial"> & { changedAt?: Date; appeal?: boolean; partial?: boolean }): void {
-    this.coverage.set(processId, { changedAt: new Date("2026-01-01T00:00:00Z"), appeal: false, partial: false, ...fact });
-  }
-
-  async getCoverageFacts(_trx: FakeTrx, _familyId: string, processIds: string[]): Promise<CoverageFactEntry[]> {
-    this.coverageRequests.push(processIds);
-    return Promise.resolve(processIds.flatMap((processId) => {
-      const fact = this.coverage.get(processId);
-      return fact ? [{ processId, fact }] : [];
-    }));
-  }
 
   seed(originType: Exclude<ProcessOriginType, "AUTHORIZATION">, originId: string, fact: Omit<ActFact, "source" | "changedAt"> & { changedAt?: Date }): void {
     this.facts.set(`${originType}:${originId}`, { source: originType, changedAt: new Date("2026-01-01T00:00:00Z"), ...fact });
@@ -127,10 +109,6 @@ export class FakeProcessesRepository implements ProcessesRepository<FakeTrx> {
     return Promise.resolve({ rows: sorted.slice(0, limit), hasMore: sorted.length > limit });
   }
 
-  async findByIds(_trx: FakeTrx, processIds: string[]): Promise<Process[]> {
-    return Promise.resolve(this.rows.filter((p) => processIds.includes(p.id)));
-  }
-
   async findOfClinic(_trx: FakeTrx, clinicId: string, processId: string): Promise<Process | null> {
     return Promise.resolve(this.rows.find((p) => p.clinicId === clinicId && p.id === processId) ?? null);
   }
@@ -176,7 +154,7 @@ export function createProcessesFixtures(clock: Clock): ProcessesFixtures {
       ...(input.clinicId ? { clinicId: input.clinicId } : {}),
     };
     repo.rows.push(process);
-    // Origem `AUTHORIZATION` não tem ato: o facto de cobertura semeia-se à parte (`facts.seedCoverage`).
+    // Origem `AUTHORIZATION` (arquivada) não tem ato.
     if (input.phase !== null && originType !== "AUTHORIZATION") facts.seed(originType, originId, { phase: input.phase ?? "SCHEDULED" });
     return process;
   };

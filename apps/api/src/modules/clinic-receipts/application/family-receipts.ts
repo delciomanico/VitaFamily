@@ -22,10 +22,9 @@ export interface FamilyClinicReceiptView {
   issuedAt: string;
   voidedAt: string | null;
   notice: string;
-  attachedToClaimIds: string[];
 }
 
-export function toFamilyReceiptView(receipt: ClinicReceipt, attachedToClaimIds: string[]): FamilyClinicReceiptView {
+export function toFamilyReceiptView(receipt: ClinicReceipt): FamilyClinicReceiptView {
   return {
     id: receipt.id,
     number: receipt.number,
@@ -42,7 +41,6 @@ export function toFamilyReceiptView(receipt: ClinicReceipt, attachedToClaimIds: 
     issuedAt: receipt.issuedAt.toISOString(),
     voidedAt: receipt.voidedAt?.toISOString() ?? null,
     notice: RECEIPT_NOTICE,
-    attachedToClaimIds,
   };
 }
 
@@ -62,9 +60,8 @@ export function createListFamilyReceiptsUseCase<Trx>(deps: ClinicReceiptsDeps<Tr
       const rows = await deps.receiptsRepo.listLinkedByMember(trx, familyId, memberId, decoded ? { issuedAt: new Date(decoded.createdAt), id: decoded.id } : undefined, limit + 1);
       const page = rows.slice(0, limit);
       const last = page[page.length - 1];
-      const claims = await deps.attachedClaims.claimIdsByReceipt(trx, page.map((r) => r.id));
       return {
-        items: page.map((r) => toFamilyReceiptView(r, claims.get(r.id) ?? [])),
+        items: page.map(toFamilyReceiptView),
         nextCursor: rows.length > limit && last ? encodeCursor({ createdAt: last.issuedAt.toISOString(), id: last.id }) : null,
       };
     });
@@ -79,8 +76,7 @@ export function createGetFamilyReceiptUseCase<Trx>(deps: ClinicReceiptsDeps<Trx>
       if (!receipt) {
         throw new NotFoundError({ detail: "Recibo não encontrado." });
       }
-      const claims = await deps.attachedClaims.claimIdsByReceipt(trx, [receiptId]);
-      return toFamilyReceiptView(receipt, claims.get(receiptId) ?? []);
+      return toFamilyReceiptView(receipt);
     });
   };
 }

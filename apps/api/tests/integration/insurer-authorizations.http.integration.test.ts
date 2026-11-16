@@ -29,10 +29,7 @@ import { createGetActFactsUseCase as createAppointmentFacts } from "../../src/mo
 import { KyselyAppointmentActFactsSource } from "../../src/modules/appointments/infrastructure/repo.js";
 import { KyselyAuditRepository } from "../../src/modules/audit/infrastructure/repo.js";
 import { FakeAccessPolicy } from "../../src/modules/processes/application/fixtures.js";
-import { createGetProcessUseCase } from "../../src/modules/processes/application/get-process.js";
-import { createGetClinicProcessUseCase } from "../../src/modules/processes/application/get-clinic-process.js";
 import { createFindProcessForClinicUseCase, createOpenProcessUseCase } from "../../src/modules/processes/application/link-process.js";
-import { createListProcessesUseCase } from "../../src/modules/processes/application/list-processes.js";
 import type { ProcessesDeps } from "../../src/modules/processes/application/ports.js";
 import { KyselyProcessesRepository } from "../../src/modules/processes/infrastructure/repo.js";
 import { createAttachmentFiles } from "../../src/main/attachment-files.js";
@@ -226,7 +223,6 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
       repo: new KyselyProcessesRepository(),
       facts: {
         getActFacts: async (trx, familyId, refs) => (await createAppointmentFacts(new KyselyAppointmentActFactsSource())(trx, familyId, refs.map((r) => r.originId))).map((e) => ({ originType: "APPOINTMENT" as const, originId: e.originId, fact: e.fact })),
-        getCoverageFacts: (trx, familyId, processIds) => ops.getCoverageFacts(trx, familyId, processIds),
       },
       policy: new FakeAccessPolicy(),
       audit: new KyselyAuditRepository(),
@@ -234,7 +230,6 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
       clock,
       onInconsistency: () => undefined,
     };
-    processesDeps = procDeps;
     ops = createInsurerOpsModule({
       db,
       audit,
@@ -275,7 +270,6 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
       },
     });
   }, 240_000);
-  let processesDeps: ProcessesDeps<Kysely<Database>>;
 
   afterAll(async () => {
     await pool.end();
@@ -753,47 +747,14 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
         expect(detail, forbidden).not.toContain(forbidden);
       }
       expect(JSON.stringify(await rows("SELECT metadata FROM audit_logs"))).not.toContain(CANARY);
-      // vista da família (TC-PRC-27): sem justificação, valor, serviço nem anexos; kind AUTHORIZED
-      const family = JSON.stringify(
-        await createListProcessesUseCase(processesDeps)({ userId: id.user, platformAdmin: false }, id.family, ben.memberId, {}, { requestId: "r" }),
-      );
-      expect(family).not.toContain(CANARY);
-      expect(family).not.toMatch(/justification|requestedAmount|serviceCode|attachments/);
-      expect(family).toContain("AUTHORIZED");
     });
   });
 
   // ------------------------------------------------------------------ processos: estado simples e ciclo de vida
   describe("Process: estado simples e ciclo de vida (TC-PRC-27/28)", () => {
-    const view = async (processId: string, memberId: string) => createGetProcessUseCase(processesDeps)({ userId: id.user, platformAdmin: false }, id.family, memberId, processId, { requestId: "r" });
+    // TC-PRC-27 (vista Process com cobertura) saiu com o R3 do arquivo do marco B; este ficheiro sai inteiro no R5.
 
-    it("TC-PRC-27: AUTHORIZATION sem marcação ⇒ IN_PROGRESS/AWAIT_INSURER_DECISION com dueAt; INFO_REQUESTED ⇒ AWAIT_CLINIC_INFORMATION; APPROVED ⇒ ATTEND; CANCELLED ⇒ CANCELLED", async () => {
-      const { auth, ben } = await openRequest({ linked: true });
-      const processId = need(auth.processId);
-      const view_ = (id_: string) => view(id_, ben.memberId);
-      expect(await view_(processId)).toMatchObject({ kind: "AUTHORIZED", familyStatus: "IN_PROGRESS", nextStep: { code: "AWAIT_INSURER_DECISION", actor: "INSURER", dueAt: new Date(auth.decisionDueAt) }, origin: { type: "AUTHORIZATION", id: auth.id } });
-      await asInfoRequested(auth.id, new Date(clock.now().getTime() + 86_400_000));
-      expect(await view_(processId)).toMatchObject({ familyStatus: "IN_PROGRESS", nextStep: { code: "AWAIT_CLINIC_INFORMATION", actor: "CLINIC" } });
-      await setState(auth.id, "status='APPROVED', decided_by_kind='ANALYST', info_expires_at=NULL, authorized_amount=100, code='COD-2', valid_until=now() + interval '30 days', decided_at=now()");
-      expect(await view_(processId)).toMatchObject({ familyStatus: "IN_PROGRESS", nextStep: { code: "ATTEND", actor: "FAMILY" } });
-      await setState(auth.id, "status='CANCELLED', closed_reason='INFO_TIMEOUT', authorized_amount=NULL, code=NULL, valid_until=NULL");
-      expect(await view_(processId)).toMatchObject({ familyStatus: "CANCELLED", nextStep: { code: "NOTHING_PENDING", actor: "NONE" } });
-    });
-
-    it("TC-PRC-27: processo de consulta com pedido ligado mostra AWAIT_INSURER_DECISION; APPROVED volta à linha do ato", async () => {
-      const appointmentId = randomUUID();
-      const processId = randomUUID();
-      const linked = await newBeneficiary({ linked: true });
-      await pool.query("INSERT INTO processes (id, family_id, member_id, kind, origin_type, origin_id, clinic_id, opened_at) VALUES ($1,$2,$3,'ROUTINE','APPOINTMENT',$4,$5,now())", [processId, id.family, linked.memberId, appointmentId, id.clinicX]);
-      await pool.query("INSERT INTO appointments (id, family_id, member_id, scheduled_at, status, clinic_id, clinic_name, process_id) VALUES ($1,$2,$3,'2030-01-01T10:00:00Z','SCHEDULED',$4,'Clínica X',$5)", [appointmentId, id.family, linked.memberId, id.clinicX, processId]);
-      const res = await create(linked.card, { processId });
-      expect(res.status, JSON.stringify(res.body)).toBe(201);
-      expect(await view(processId, linked.memberId)).toMatchObject({ kind: "ROUTINE", familyStatus: "IN_PROGRESS", nextStep: { code: "AWAIT_INSURER_DECISION", actor: "INSURER" } });
-      await setState(as<Auth>(res).id, "status='APPROVED', decided_by_kind='ANALYST', authorized_amount=100, code='COD-3', valid_until=now() + interval '30 days', decided_at=now()");
-      expect(await view(processId, linked.memberId)).toMatchObject({ familyStatus: "SCHEDULED", nextStep: { code: "ATTEND", actor: "FAMILY" } });
-    });
-
-    it("TC-PRC-28: apagar a consulta apaga o Process e deixa process_id = NULL; o pedido mantém-se e continua visível; GET do processo AUTHORIZATION ⇒ phase nula", async () => {
+    it("TC-PRC-28: apagar a consulta apaga o Process e deixa process_id = NULL; o pedido mantém-se e continua visível; ", async () => {
       const appointmentId = randomUUID();
       const processId = randomUUID();
       const linked = await newBeneficiary({ linked: true });
@@ -803,8 +764,6 @@ describe("integração: pedido de autorização pelo prestador (marco B fatia 3)
       expect((await rows("SELECT process_id FROM insurer_authorizations WHERE id=$1", [auth.id]))[0]?.process_id).toBeNull();
       const after = as<Auth>(await send("get", `/authorizations/${auth.id}`, tok.admin));
       expect(after).toMatchObject({ id: auth.id, processId: null });
-      const fromAuthorization = need((await openRequest({ linked: true })).auth.processId);
-      expect(await createGetClinicProcessUseCase(processesDeps)({ clinicAccountId: id.accAdmin, clinicId: id.clinicX, role: "CLINIC_ADMIN" }, fromAuthorization)).toMatchObject({ kind: "AUTHORIZED", phase: null, origin: { type: "AUTHORIZATION" } });
       // apagar o membro: cascata do processo AUTHORIZATION, o pedido fica intacto
       const cascaded = await openRequest({ linked: true });
       const authId = cascaded.auth.id;

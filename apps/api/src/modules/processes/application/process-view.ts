@@ -1,7 +1,6 @@
 // Vistas de resposta (components.schemas.Process / ClinicProcess) e a montagem a partir de processo + factos.
-import { deriveCoverageView, type CoverageView } from "../domain/derive-coverage-view.js";
 import { deriveFamilyStatus } from "../domain/derive-family-status.js";
-import { hasAct, type ActFact, type ActPhase, type CoverageFact, type FamilyStatus, type NextStep, type Process, type ProcessKind, type ProcessOriginType } from "../domain/process.js";
+import { hasAct, type ActFact, type ActPhase, type FamilyStatus, type NextStep, type Process, type ProcessKind, type ProcessOriginType } from "../domain/process.js";
 import type { LoadedFacts } from "./load-facts.js";
 
 /** `Process` do contrato (família): `familyStatus`/`nextStep` derivados em leitura, nunca persistidos (BR-PRC-02/03). */
@@ -11,24 +10,24 @@ export interface ProcessView {
   kind: ProcessKind;
   familyStatus: FamilyStatus;
   nextStep: NextStep;
-  /** Fatia 5 (BR-PRC-12/13): `null` sem `MANAGE_INSURANCE`, sem pedido ou com o ato terminado. */
-  coverage: CoverageView | null;
   origin: { type: ProcessOriginType; id: string };
   scheduledAt: string | null;
   openedAt: string;
 }
 
-/** `ClinicProcess` do contrato (BR-PRC-06): sem ids Vita, `familyStatus` nem `nextStep`. `phase` nulo na origem `AUTHORIZATION`. */
+/** `ClinicProcess` do contrato (BR-PRC-06): sem ids Vita, `familyStatus` nem `nextStep`. */
 export interface ClinicProcessView {
   id: string;
   kind: ProcessKind;
   origin: { type: ProcessOriginType; id: string };
-  phase: ActPhase | null;
+  phase: ActPhase;
   openedAt: string;
 }
 
-/** Factos legíveis de um processo: com ato (e, opcionalmente, cobertura) ou só cobertura (origem `AUTHORIZATION`). */
-export type ReadableFacts = { act: ActFact; coverage?: CoverageFact } | { act?: undefined; coverage: CoverageFact };
+/** Factos legíveis de um processo: o ato. */
+export interface ReadableFacts {
+  act: ActFact;
+}
 
 export function toProcessView(process: Process, facts: ReadableFacts): ProcessView {
   const { familyStatus, nextStep } = deriveFamilyStatus(facts);
@@ -38,9 +37,8 @@ export function toProcessView(process: Process, facts: ReadableFacts): ProcessVi
     kind: process.kind,
     familyStatus,
     nextStep,
-    coverage: deriveCoverageView(facts),
     origin: { type: process.originType, id: process.originId },
-    scheduledAt: facts.act?.scheduledAt ? facts.act.scheduledAt.toISOString() : null,
+    scheduledAt: facts.act.scheduledAt ? facts.act.scheduledAt.toISOString() : null,
     openedAt: process.openedAt.toISOString(),
   };
 }
@@ -50,16 +48,14 @@ export function toClinicProcessView(process: Process, facts: ReadableFacts): Cli
     id: process.id,
     kind: process.kind,
     origin: { type: process.originType, id: process.originId },
-    phase: facts.act?.phase ?? null,
+    phase: facts.act.phase,
     openedAt: process.openedAt.toISOString(),
   };
 }
 
-/** Os factos de um processo, ou `undefined` se a origem não é legível (BR-PRC-09: ato inexistente / sem pedido legível). */
-export function readableFactsOf(process: Process, loaded: LoadedFacts, coverageVisible = true): ReadableFacts | undefined {
+/** Os factos de um processo, ou `undefined` se a origem não é legível (BR-PRC-09: ato inexistente). */
+export function readableFactsOf(process: Process, loaded: LoadedFacts): ReadableFacts | undefined {
+  if (!hasAct(process.originType)) return undefined;
   const act = loaded.acts.get(`${process.originType}:${process.originId}`);
-  // BR-PRC-13: sem `MANAGE_INSURANCE` a cobertura não entra na derivação (nem em `coverage` nem em `nextStep`).
-  const coverage = coverageVisible ? loaded.coverages.get(process.id) : undefined;
-  if (hasAct(process.originType)) return act === undefined ? undefined : { act, ...(coverage ? { coverage } : {}) };
-  return coverage === undefined ? undefined : { coverage };
+  return act === undefined ? undefined : { act };
 }

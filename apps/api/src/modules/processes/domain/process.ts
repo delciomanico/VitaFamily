@@ -14,7 +14,7 @@ export function kindOfOrigin(originType: ProcessOriginType): ProcessKind {
   return originType === "AUTHORIZATION" ? "AUTHORIZED" : "ROUTINE";
 }
 
-/** Origem sem ato (BR-AUT-01): o estado vem só do facto de cobertura. */
+/** Origem sem ato (`AUTHORIZATION`, arquivada no marco B): sem facto legível. */
 export function hasAct(originType: ProcessOriginType): boolean {
   return originType !== "AUTHORIZATION";
 }
@@ -31,24 +31,6 @@ export interface ActFact {
   changedAt: Date;
 }
 
-/** Fase de cobertura publicada por quem dono dos pedidos (state-machines.md, Process, tabela 3). */
-export type CoveragePhase = "PENDING_DECISION" | "NEEDS_INFO" | "NOT_APPROVED" | "APPROVED" | "WITHDRAWN" | "EXPIRED" | "CLOSED";
-export const COVERAGE_PHASES: readonly CoveragePhase[] = ["PENDING_DECISION", "NEEDS_INFO", "NOT_APPROVED", "APPROVED", "WITHDRAWN", "EXPIRED", "CLOSED"];
-
-/**
- * Facto de cobertura de um processo (ADR-034; fatia 5, ADR-036): `dueAt` só em `PENDING_DECISION` (informativo),
- * `validUntil` só em `APPROVED`/`EXPIRED`, `partial` só em `APPROVED`, `appeal` = o pedido determinante é uma nova análise.
- * Só booleanos e datas: nunca valores, motivos, decisor nem rasto (BR-PRC-12).
- */
-export interface CoverageFact {
-  phase: CoveragePhase;
-  dueAt?: Date;
-  validUntil?: Date;
-  appeal: boolean;
-  partial: boolean;
-  changedAt: Date;
-}
-
 /** Estado visível à família (BR-PRC-02): Marcado / A tratar / Feito / Cancelado. Nunca persistido. */
 export type FamilyStatus = "SCHEDULED" | "IN_PROGRESS" | "DONE" | "CANCELLED";
 
@@ -58,18 +40,11 @@ export type NextStepCode =
   | "ATTEND"
   | "BEING_ATTENDED"
   | "RESCHEDULE"
-  | "NOTHING_PENDING"
-  | "AWAIT_INSURER_DECISION"
-  | "AWAIT_CLINIC_INFORMATION"
-  | "COVERAGE_NOT_APPROVED"
-  | "COVERAGE_EXPIRED"
-  | "COVERAGE_WITHDRAWN";
-export type NextStepActor = "FAMILY" | "CLINIC" | "INSURER" | "NONE";
+  | "NOTHING_PENDING";
+export type NextStepActor = "FAMILY" | "CLINIC" | "NONE";
 export interface NextStep {
   code: NextStepCode;
   actor: NextStepActor;
-  /** Só em `AWAIT_INSURER_DECISION` (= `decisionDueAt` do pedido). */
-  dueAt?: Date;
 }
 
 /** Linha do processo (schema.md §4b): sem `family_status`, `nextStep` nem dados clínicos. */
@@ -84,13 +59,11 @@ export interface Process {
   openedAt: Date;
 }
 
-/**
- * O que governa a leitura (authorization.md §6.8): consulta e exame herdam a categoria de dados do ato; a origem
- * `AUTHORIZATION` não tem categoria de saúde e segue a ação de seguro (`MANAGE_INSURANCE`, §8.5).
- */
-export type OriginCategory = "APPOINTMENTS" | "EXAMS" | "INSURANCE";
+/** O que governa a leitura (authorization.md §6.8): consulta e exame herdam a categoria de dados do ato. */
+export type OriginCategory = "APPOINTMENTS" | "EXAMS";
 
-export function categoryOfOrigin(originType: ProcessOriginType): OriginCategory {
+/** `AUTHORIZATION` (arquivo do marco B, ADR-037) já não tem categoria legível: as linhas existentes ficam inertes. */
+export function categoryOfOrigin(originType: ProcessOriginType): OriginCategory | undefined {
   if (originType === "APPOINTMENT") return "APPOINTMENTS";
-  return originType === "EXAMINATION" ? "EXAMS" : "INSURANCE";
+  return originType === "EXAMINATION" ? "EXAMS" : undefined;
 }

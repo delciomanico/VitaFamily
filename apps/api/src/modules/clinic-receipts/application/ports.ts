@@ -72,11 +72,6 @@ export interface ServiceCatalogReaderPort<Trx> {
   find(trx: Trx, clinicId: string, serviceTypeId: string): Promise<CatalogService | null>;
 }
 
-/** Pedidos de reembolso (não rejeitados) a que cada recibo está anexado — implementada por `insurance` (BR-CLN-36). */
-export interface AttachedClaimsPort<Trx> {
-  claimIdsByReceipt(trx: Trx, receiptIds: string[]): Promise<Map<string, string[]>>;
-}
-
 // --- Repositório (propriedade exclusiva deste módulo, schema.md §3f) ---
 
 export interface NewReceiptRecord {
@@ -138,7 +133,6 @@ export interface ClinicReceiptsDeps<Trx> {
   consents: ConsentLookupPort<Trx>;
   profile: ClinicProfileReaderPort<Trx>;
   services: ServiceCatalogReaderPort<Trx>;
-  attachedClaims: AttachedClaimsPort<Trx>;
   policy: AccessPolicyPort<Trx>;
   audit: AuditPort<Trx>;
   withTransaction: WithTransaction<Trx>;
