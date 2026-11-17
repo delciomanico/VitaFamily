@@ -66,7 +66,9 @@ export function parseOperations(yaml: string): OpSpec[] {
   return ops;
 }
 
-const OPS = parseOperations(readFileSync(openApiSpecPath(REPO_ROOT), "utf8")).filter((op) => ["/professional-portal/", "/admin/professionals", "/admin/specialties"].some((p) => op.path.startsWith(p)));
+const OPS = parseOperations(readFileSync(openApiSpecPath(REPO_ROOT), "utf8")).filter((op) => ["/professional-portal/", "/admin/professionals", "/admin/specialties"].some((p) => op.path.startsWith(p)))
+  // As rotas de conversas (MK2, `messaging`) têm o seu próprio teste de conformidade; esta lista é o contrato de MK1.
+  .filter((op) => !op.path.startsWith("/professional-portal/conversations"));
 const keyOf = (op: OpSpec): string => `${op.method.toUpperCase()} ${op.path}`;
 
 /** Corpos válidos (para o teste de autorização do User não-admin, que só chega à guarda com corpo válido). */

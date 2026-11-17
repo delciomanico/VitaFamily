@@ -159,7 +159,7 @@ describe("integração: migração 0043 (MK1) e restrições de professional_slo
 
       await runMigrations(legacy, defaultMigrationsDir());
 
-      const registadas = await legacy.query<{ version: string }>("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1");
+      const registadas = await legacy.query<{ version: string }>("SELECT version FROM schema_migrations WHERE version = '0043_professionals'");
       expect(registadas.rows).toEqual([{ version: "0043_professionals" }]);
       expect(await tabelasExistentes(legacy, TABELAS_NOVAS)).toEqual([...TABELAS_NOVAS].sort());
       expect(TABELAS_NOVAS).toHaveLength(13);

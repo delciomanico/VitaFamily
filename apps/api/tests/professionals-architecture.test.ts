@@ -220,8 +220,8 @@ describe("TC-MKT-35 / TC-AZ-MKT-07: arquitetura de professionals (código real e
     expect(professionalsIoViolations(files)).toEqual([]);
   });
 
-  it("(5) migrações 0043+ : FKs de MK1 só para professional_*, specialties e validation_cases->users (sem família, clínica nem saúde)", async () => {
-    const sqlFiles = (await readdir(MIGRATIONS_DIR)).filter((f) => /^\d{4}_.+\.sql$/.test(f) && Number(f.slice(0, 4)) >= 43).sort();
+  it("(5) migração 0043 (MK1) : FKs de MK1 só para professional_*, specialties e validation_cases->users (sem família, clínica nem saúde)", async () => {
+    const sqlFiles = (await readdir(MIGRATIONS_DIR)).filter((f) => /^\d{4}_.+\.sql$/.test(f) && Number(f.slice(0, 4)) === 43).sort() // só a migração de MK1; a 0044 (messaging) é a ponte família↔profissional e tem as suas verificações;
     expect(sqlFiles).toContain("0043_professionals.sql");
     const sql = (await Promise.all(sqlFiles.map((f) => readFile(join(MIGRATIONS_DIR, f), "utf8")))).join("\n");
     const { tables, references } = parseSchema(sql);

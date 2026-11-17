@@ -13640,6 +13640,7 @@ components:
       description: "Razões (sinais com valor ≥ 0,75, por ordem de peso, no máximo 3); a UI traduz. Conjunto aberto: clientes toleram valores desconhecidos."
     RankingExplanation:
       type: object
+      nullable: true
       required: [version, score, signals, reasons, label]
       description: "Ranking por especialidade (função pura, BR-MKT-36/37). Só existe quando o pedido indica specialtyId."
       properties:
@@ -13660,7 +13661,7 @@ components:
         matchingOffers: { type: array, minItems: 1, items: { $ref: "#/components/schemas/MarketplaceOffer" } }
         fromPriceKz: { type: integer, minimum: 0, description: "Menor preço entre as ofertas que correspondem aos filtros." }
         nextAvailableAt: { type: string, format: date-time, nullable: true, description: "Primeiro horário futuro das ofertas correspondentes." }
-        ranking: { allOf: [{ $ref: "#/components/schemas/RankingExplanation" }], nullable: true, description: "Só com specialtyId no pedido." }
+        ranking: { allOf: [{ $ref: "#/components/schemas/RankingExplanation" }], type: object, nullable: true, description: "Só com specialtyId no pedido." }
     MarketplaceProfessionalPage:
       type: object
       required: [items, nextCursor]
@@ -13680,7 +13681,7 @@ components:
         offers: { type: array, items: { $ref: "#/components/schemas/MarketplaceOffer" }, description: "Todas as ofertas ativas." }
         nextAvailableAt: { type: string, format: date-time, nullable: true }
         memberSince: { type: string, format: date, description: "Primeiro dia do mês da primeira aprovação." }
-        ranking: { allOf: [{ $ref: "#/components/schemas/RankingExplanation" }], nullable: true, description: "Só com ?specialtyId= de uma especialidade do profissional." }
+        ranking: { allOf: [{ $ref: "#/components/schemas/RankingExplanation" }], type: object, nullable: true, description: "Só com ?specialtyId= de uma especialidade do profissional." }
     ComparisonItem:
       type: object
       required: [professionalId, displayName, city, offers, fromPriceKz]
@@ -13771,7 +13772,7 @@ components:
         professional: { $ref: "#/components/schemas/ConversationProfessional" }
         participantLabel: { type: string, minLength: 1, maxLength: 40 }
         status: { $ref: "#/components/schemas/ConversationStatus" }
-        closedBy: { allOf: [{ $ref: "#/components/schemas/ConversationClosedBy" }], nullable: true }
+        closedBy: { type: string, nullable: true, enum: [FAMILY, PROFESSIONAL, SYSTEM, null] }
         canSend: { type: boolean }
         lastMessageAt: { type: string, format: date-time }
         unreadCount: { type: integer, minimum: 0, description: "Mensagens do profissional com seq > familyReadSeq." }
@@ -13790,7 +13791,7 @@ components:
         id: { type: string, format: uuid }
         participantLabel: { type: string, minLength: 1, maxLength: 40 }
         status: { $ref: "#/components/schemas/ConversationStatus" }
-        closedBy: { allOf: [{ $ref: "#/components/schemas/ConversationClosedBy" }], nullable: true }
+        closedBy: { type: string, nullable: true, enum: [FAMILY, PROFESSIONAL, SYSTEM, null] }
         canSend: { type: boolean, description: "OPEN e o próprio profissional APPROVED." }
         lastMessageAt: { type: string, format: date-time }
         unreadCount: { type: integer, minimum: 0, description: "Mensagens da família com seq > professionalReadSeq." }
@@ -13929,6 +13930,6 @@ components:
           maxItems: 2
           description: "OP-76: no máximo as 2 mensagens imediatamente anteriores à denunciada na mesma conversa (maior seq estritamente inferior; ordem cronológica crescente). Vazio se a denunciada for a 1.ª. Nunca posteriores nem de outras conversas."
           items: { $ref: "#/components/schemas/AdminReportContextMessage" }
-        decision: { allOf: [{ $ref: "#/components/schemas/MessageReportDecision" }], nullable: true }
+        decision: { type: string, nullable: true, enum: [DISMISS, HIDE_MESSAGE, HIDE_AND_CLOSE, null] }
         decidedAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
