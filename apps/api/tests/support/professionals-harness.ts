@@ -4,6 +4,7 @@
 // cruzados. Cada ficheiro de teste cria o seu (um contentor por ficheiro).
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Writable } from "node:stream";
 import type { Express, NextFunction, Request, RequestHandler, Response } from "express";
 import type { Kysely } from "kysely";
 import { Pool } from "pg";
@@ -48,6 +49,25 @@ class RecordingQueue implements CredentialScanQueue {
   }
 }
 
+/** Destino dos logs técnicos capturados: objeto com `write` (recebe cada linha JSON) ou array (recebe cada linha). */
+export type LogSink = { write(chunk: string): void } | string[];
+
+export interface ProfessionalsHarnessOptions {
+  /** Captura os logs técnicos reais (logger da API e dos módulos) com nível `debug`; sem a opção o logger fica `silent`. */
+  logStream?: LogSink;
+}
+
+function logSinkToWritable(sink: LogSink): Writable {
+  return new Writable({
+    write(chunk: Buffer | string, _encoding, callback) {
+      const line = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+      if (Array.isArray(sink)) sink.push(line);
+      else sink.write(line);
+      callback();
+    },
+  });
+}
+
 export interface ProfessionalsHarness {
   storage: InMemoryStorage;
   /** Casos de uso dos jobs (antivírus, outbox de ficheiros). */
@@ -86,7 +106,7 @@ let ipCounter = 0;
 export const nextIp = (): string => `172.16.${String(Math.floor(++ipCounter / 250))}.${String((ipCounter % 250) + 1)}`;
 export const uniqueEmail = (prefix = "prof"): string => `${prefix}-${String(++counter)}-${String(Date.now())}@exemplo.ao`;
 
-export async function startProfessionalsHarness(overrides: Partial<Parameters<typeof createProfessionalsModule>[0]> = {}, extraRouters: (parts: { audit: AuditModule; db: Kysely<Database>; clock: FixedClock; module: ProfessionalsModule }) => import("express").Router[] = () => []): Promise<ProfessionalsHarness> {
+export async function startProfessionalsHarness(overrides: Partial<Parameters<typeof createProfessionalsModule>[0]> = {}, extraRouters: (parts: { audit: AuditModule; db: Kysely<Database>; clock: FixedClock; module: ProfessionalsModule }) => import("express").Router[] = () => [], options: ProfessionalsHarnessOptions = {}): Promise<ProfessionalsHarness> {
   const container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({ POSTGRES_USER: "vita", POSTGRES_PASSWORD: "vita", POSTGRES_DB: "vita" })
     .withExposedPorts(5432)
@@ -96,7 +116,8 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
   await runMigrations(pool, defaultMigrationsDir());
   const db = createDb(pool);
   const clock = new FixedClock(START);
-  const logger = createLogger({ level: "silent" });
+  // Sem `logStream`: logger `silent` (comportamento anterior). Com `logStream`: nível `debug` e as linhas JSON reais vão para o destino.
+  const logger = options.logStream ? createLogger({ level: "debug", destination: logSinkToWritable(options.logStream) }) : createLogger({ level: "silent" });
   const audit = createAuditModule({ db, clock });
   const mailer = new ProfessionalFakeMailer();
   const storage = new InMemoryStorage();
