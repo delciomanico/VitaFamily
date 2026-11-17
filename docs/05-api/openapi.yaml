@@ -8976,6 +8976,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AdminProfessionalPage" }
+        '400':
+          description: "MALFORMED_REQUEST (parâmetro fora do contrato ou cursor inválido)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
         '401':
           description: "UNAUTHENTICATED"
           content:

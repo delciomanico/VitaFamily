@@ -36,6 +36,9 @@ import { createDeleteFilesUseCase, createScanCredentialUseCase } from "./applica
 import { KyselyCredentialRepository, KyselyFileDeletionRepository } from "./infrastructure/credential-repo.js";
 import { registerDeleteFilesWorker, registerScanCredentialWorker } from "./infrastructure/jobs.js";
 import { StorageCredentialFileStore } from "./infrastructure/storage-file-store.js";
+import { createAdminDecideProfessionalUseCase, createAdminDownloadCredentialUseCase, createAdminGetProfessionalUseCase, createAdminListProfessionalsUseCase } from "./application/admin-professionals.js";
+import { KyselyAdminProfessionalRepository } from "./infrastructure/admin-repo.js";
+import { createAdminProfessionalsRouter } from "./interface/admin-professionals-router.js";
 import { createCredentialsRouter } from "./interface/credentials-router.js";
 import { createProfileRouter } from "./interface/profile-router.js";
 import { KyselySpecialtyRepository } from "./infrastructure/specialty-repo.js";
@@ -103,6 +106,9 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     profileRepo: new KyselyProfessionalProfileRepository(),
     validationCaseRepo: new KyselyValidationCaseRepository(),
     credentialRepo: new KyselyCredentialRepository(),
+    adminRepo: new KyselyAdminProfessionalRepository(),
+    // S9 liga a geração real de horários; até lá a aprovação não gera nada (não há regras de horário).
+    slotGenerator: { generateForProfessional: () => Promise.resolve() },
     fileDeletionRepo: new KyselyFileDeletionRepository(),
     fileStore: new StorageCredentialFileStore(deps.storage),
     scanQueue: deps.scanQueue,
@@ -140,6 +146,14 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     }),
   );
 
+  router.use(
+    createAdminProfessionalsRouter({
+      list: createAdminListProfessionalsUseCase(useCaseDeps),
+      get: createAdminGetProfessionalUseCase(useCaseDeps),
+      decide: createAdminDecideProfessionalUseCase(useCaseDeps),
+      downloadCredential: createAdminDownloadCredentialUseCase(useCaseDeps),
+    }),
+  );
   router.use(
     createCredentialsRouter({
       listCredentials: createListCredentialsUseCase(useCaseDeps),

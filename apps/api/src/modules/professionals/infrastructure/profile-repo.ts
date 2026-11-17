@@ -9,6 +9,7 @@ import type {
   ProfessionalRecord,
   StatusChange,
   ValidationCaseRepository,
+  ValidationCaseRow,
 } from "../application/ports.js";
 import type { ProfilePatch } from "../domain/profile.js";
 import "./schema.js";
@@ -123,6 +124,11 @@ export class KyselyProfessionalProfileRepository implements ProfessionalProfileR
 }
 
 export class KyselyValidationCaseRepository implements ValidationCaseRepository<Kysely<Database>> {
+  async listByProfessional(trx: Kysely<Database>, professionalId: string): Promise<ValidationCaseRow[]> {
+    const rows = await trx.selectFrom("validation_cases").selectAll().where("professional_id", "=", professionalId).orderBy("created_at", "desc").orderBy("id", "desc").execute();
+    return rows.map((r) => ({ id: r.id, action: r.action, fromStatus: r.from_status, toStatus: r.to_status, actor: r.actor, reason: r.reason, createdAt: r.created_at }));
+  }
+
   async insert(trx: Kysely<Database>, record: NewValidationCase): Promise<void> {
     await trx
       .insertInto("validation_cases")

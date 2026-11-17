@@ -213,8 +213,53 @@ export interface NewValidationCase {
   createdAt: Date;
 }
 
+export interface ValidationCaseRow {
+  id: string;
+  action: ValidationAction;
+  fromStatus: ProfessionalValidationStatus;
+  toStatus: ProfessionalValidationStatus;
+  actor: ValidationActor;
+  reason: string | null;
+  createdAt: Date;
+}
+
 export interface ValidationCaseRepository<Trx> {
   insert(trx: Trx, record: NewValidationCase): Promise<void>;
+  /** Mais recente primeiro. */
+  listByProfessional(trx: Trx, professionalId: string): Promise<ValidationCaseRow[]>;
+}
+
+export interface AdminProfessionalFilter {
+  status: ProfessionalValidationStatus;
+  category?: SpecialtyCategory;
+  q?: string;
+  limit: number;
+  /** Cursor opaco da página anterior (ordem: `submitted_at` ascendente, `id`). */
+  after?: { submittedAtKey: string | null; id: string };
+}
+
+export interface AdminProfessionalItemRow {
+  id: string;
+  displayName: string | null;
+  email: string;
+  validationStatus: ProfessionalValidationStatus;
+  submittedAt: Date | null;
+  /** `submitted_at` em texto com microssegundos exatos (chave do cursor: `Date` só tem milissegundos). */
+  submittedAtKey: string | null;
+  credentialCount: number;
+  createdAt: Date;
+}
+
+/** Fila do admin (BR-MKT-18): só identificação profissional; nunca `paymentInstructions`. */
+export interface AdminProfessionalRepository<Trx> {
+  list(trx: Trx, filter: AdminProfessionalFilter): Promise<AdminProfessionalItemRow[]>;
+  /** Especialidades de vários profissionais de uma vez (evita N+1). */
+  listSpecialtiesFor(trx: Trx, professionalIds: string[]): Promise<Map<string, LinkedSpecialty[]>>;
+}
+
+/** Gancho de aprovação (BR-MKT-25): gera os horários das regras existentes na mesma transação; implementado na fatia S9. */
+export interface ApprovalSlotGenerator<Trx> {
+  generateForProfessional(trx: Trx, professionalId: string, now: Date): Promise<void>;
 }
 
 /** Credencial (metadados). `storageKey` é interna: nunca sai nas respostas. */
@@ -299,6 +344,8 @@ export interface ProfessionalsDeps<Trx> {
   profileRepo: ProfessionalProfileRepository<Trx>;
   validationCaseRepo: ValidationCaseRepository<Trx>;
   credentialRepo: CredentialRepository<Trx>;
+  adminRepo: AdminProfessionalRepository<Trx>;
+  slotGenerator: ApprovalSlotGenerator<Trx>;
   fileDeletionRepo: FileDeletionRepository<Trx>;
   fileStore: CredentialFileStore;
   scanQueue: CredentialScanQueue;
