@@ -21,6 +21,8 @@ export type AlertNotificationType =
   | "FOLLOWUP_REMINDER"
   // M15 U (ADR-028): novo pedido de exame; sem interruptor próprio (sempre ativo, como `RECOMMENDATION_ADDED`).
   | "EXAM_ORDER_ADDED"
+  // MK2 (BR-MKT-41, OP-81): nova mensagem de profissional; sem interruptor próprio (sempre ativo); só os canais push/e-mail mandam.
+  | "MESSAGE_RECEIVED"
   // Fatia 5 (ADR-036, BR-ALR-11): pedido de autorização; sem interruptor próprio (sempre ativos); só os canais push/e-mail mandam.
   | "AUTHORIZATION_APPROVED"
   | "AUTHORIZATION_NOT_APPROVED"

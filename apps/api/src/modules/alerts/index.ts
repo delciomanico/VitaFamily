@@ -27,6 +27,7 @@ import { createMarkAllAlertsReadUseCase } from "./application/mark-all-alerts-re
 import type { AlertsApiDeps, AlertsWorkerDeps } from "./application/ports.js";
 import { createRaiseExamEventUseCase, type RaiseExamEventInput } from "./application/raise-exam-event.js";
 import { createRaiseRecommendationEventUseCase, type RaiseRecommendationEventInput } from "./application/raise-recommendation-event.js";
+import { createMarkSourceReadUseCase, createRaiseMessageEventUseCase, type MarkSourceReadInput, type RaiseMessageEventInput } from "./application/raise-message-event.js";
 import { createRaiseExamOrderEventUseCase, type RaiseExamOrderEventInput } from "./application/raise-exam-order-event.js";
 import { createScanJobUseCase } from "./application/scan-job.js";
 import { registerScanWorker } from "./infrastructure/jobs.js";
@@ -50,7 +51,13 @@ export interface AlertsModule {
   raiseRecommendationEvent: (trx: Kysely<Database>, input: RaiseRecommendationEventInput) => Promise<number>;
   /** M15 U (ADR-028, BR-CLN-53): alerta `exam_order.added` na transação do chamador (ligado no composition root a `clinic-reports`). */
   raiseExamOrderEvent: (trx: Kysely<Database>, input: RaiseExamOrderEventInput) => Promise<number>;
+  /** MK2 (BR-MKT-41): alerta `message.received` na transação do chamador (ligado no composition root a `messaging`). */
+  raiseMessageEvent: (trx: Kysely<Database>, input: RaiseMessageEventInput) => Promise<number>;
+  /** MK2 (BR-MKT-41): marca como lidos os alertas de uma conversa (ligado no composition root a `messaging`). */
+  markSourceRead: (trx: Kysely<Database>, input: MarkSourceReadInput) => Promise<number>;
 }
+
+export type { MarkSourceReadInput, RaiseMessageEventInput };
 
 export type { RaiseExamOrderEventInput } from "./application/raise-exam-order-event.js";
 export type { RaiseRecommendationEventInput } from "./application/raise-recommendation-event.js";
@@ -87,6 +94,8 @@ export function createAlertsModule(deps: AlertsModuleDeps): AlertsModule {
     raiseExamEvent: createRaiseExamEventUseCase(alertsDeps),
     raiseRecommendationEvent: createRaiseRecommendationEventUseCase(alertsDeps),
     raiseExamOrderEvent: createRaiseExamOrderEventUseCase(alertsDeps),
+    raiseMessageEvent: createRaiseMessageEventUseCase(alertsDeps),
+    markSourceRead: createMarkSourceReadUseCase(alertsDeps),
   };
 }
 

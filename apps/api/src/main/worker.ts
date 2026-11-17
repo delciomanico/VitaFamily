@@ -12,6 +12,7 @@ import { createAuditModule } from "../modules/audit/index.js";
 import { createUsersModule } from "../modules/users/index.js";
 import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modules/families/index.js";
 import { createAccessModule } from "../modules/access/index.js";
+import { SmtpProfessionalMailer, createMessagingWorkerModule } from "../modules/messaging/index.js";
 import { CredentialClamAvScanner, PgBossCredentialScanQueue, createProfessionalsWorkerModule } from "../modules/professionals/index.js";
 import { ClamAvScanner, createDocumentsWorkerModule } from "../modules/documents/index.js";
 import { createMedicationsWorkerModule } from "../modules/medications/index.js";
@@ -138,6 +139,15 @@ export function main(): void {
     boss,
   });
 
+  // MK2 S7 (BR-MKT-41): aviso GENÉRICO por e-mail ao profissional (≤ 1 cada 30 min por conversa); `messaging` só conhece portas.
+  const messagingWorker = createMessagingWorkerModule({
+    db,
+    clock,
+    boss,
+    professionals: { getNotificationEmail: (id) => professionalsWorker.notificationEmail(id) },
+    mailer: new SmtpProfessionalMailer(config.SMTP_URL, config.MAIL_FROM),
+  });
+
   boss
     .start()
     .then(async () => {
@@ -149,6 +159,7 @@ export function main(): void {
       await clinicsWorker.registerWorkers();
       await clinicPatientsWorker.registerWorkers();
       await professionalsWorker.registerWorkers();
+      await messagingWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

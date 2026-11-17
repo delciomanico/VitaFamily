@@ -112,6 +112,13 @@ export interface ConversationRepository<Trx> {
   newConversationTimes(trx: Trx, userId: string, since: Date): Promise<Date[]>;
   applyMessage(trx: Trx, conversationId: string, change: { lastSeq: number; at: Date }): Promise<void>;
   setFamilyReadSeq(trx: Trx, conversationId: string, seq: number, at: Date): Promise<void>;
+  /**
+   * Reserva o aviso ao profissional (BR-MKT-41): só se a última mensagem é da família, o profissional ainda não a leu e não houve aviso
+   * nos últimos 30 min. Sob `FOR UPDATE` (jobs repetidos/concorrentes ⇒ um só vence). Devolve o profissional e o carimbo anterior.
+   */
+  claimProfessionalNotice(trx: Trx, conversationId: string, now: Date): Promise<{ professionalId: string; previous: Date | null } | null>;
+  /** Desfaz a reserva se o envio falhou (só se ainda for a nossa), para o *retry* poder avisar. */
+  releaseProfessionalNotice(trx: Trx, conversationId: string, claimedAt: Date, previous: Date | null): Promise<void>;
   setStatus(trx: Trx, conversationId: string, change: { status: ConversationStatus; closedBy: ClosedBy | null; at: Date }): Promise<void>;
 }
 

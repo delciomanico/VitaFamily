@@ -7,11 +7,16 @@ import type { Clock } from "../../platform/clock/index.js";
 import { withTransaction, type Database } from "../../platform/db/index.js";
 import { newId } from "../../platform/ids/index.js";
 import type { AuditModule } from "../audit/index.js";
+import type PgBoss from "pg-boss";
 import { createFamilyMessaging, type FamilyMessaging } from "./application/family-conversations.js";
-import type { ConversationAccess, MessageAlerts, ProfessionalLookup, ProfessionalNoticeQueue } from "./application/ports.js";
+import { createNotifyProfessional, type NotifyProfessional } from "./application/notify-professional.js";
+import type { ConversationAccess, MessageAlerts, ProfessionalLookup, ProfessionalMailer, ProfessionalNoticeQueue } from "./application/ports.js";
+import { PgBossProfessionalNoticeQueue, registerNotifyProfessionalWorker } from "./infrastructure/jobs.js";
 import { KyselyConversationRepository, KyselyMessageRepository, KyselyReportRepository } from "./infrastructure/repo.js";
 import { createFamilyMessagingRouter } from "./interface/family-router.js";
 
+export { SmtpProfessionalMailer } from "./infrastructure/mailer-smtp.js";
+export { PgBossProfessionalNoticeQueue };
 export type { ConversationAccess, MessageAlerts, MessagingClock, ProfessionalIdentity, ProfessionalLookup, ProfessionalMailer, ProfessionalNoticeQueue } from "./application/ports.js";
 export { canSend, closeConversation, reopenConversation, sendBlock } from "./domain/conversation.js";
 export type { ConversationState, Side } from "./domain/conversation.js";
@@ -47,4 +52,36 @@ export function createMessagingModule(deps: MessagingModuleDeps): MessagingModul
     newId,
   });
   return { router: createFamilyMessagingRouter(familyUseCases), familyUseCases };
+}
+
+export interface MessagingWorkerModuleDeps {
+  db: Kysely<Database>;
+  clock: Clock;
+  boss: PgBoss;
+  /** Só `getNotificationEmail` (ligado em `main/worker.ts` à raiz de `professionals`). */
+  professionals: Pick<ProfessionalLookup, "getNotificationEmail">;
+  mailer: ProfessionalMailer;
+}
+
+export interface MessagingWorkerModule {
+  notifyProfessional: NotifyProfessional;
+  /** Regista `messaging.notify-professional` (aviso genérico por e-mail, ≤ 1 cada 30 min por conversa). */
+  registerWorkers: () => Promise<void>;
+}
+
+/** Composition root do processo "worker" (main/worker.ts). */
+export function createMessagingWorkerModule(deps: MessagingWorkerModuleDeps): MessagingWorkerModule {
+  const notifyProfessional = createNotifyProfessional<Kysely<Database>>({
+    conversations: new KyselyConversationRepository(),
+    professionals: deps.professionals,
+    mailer: deps.mailer,
+    withTransaction: (fn) => withTransaction(deps.db, fn),
+    clock: deps.clock,
+  });
+  return {
+    notifyProfessional,
+    registerWorkers: async () => {
+      await registerNotifyProfessionalWorker(deps.boss, notifyProfessional);
+    },
+  };
 }

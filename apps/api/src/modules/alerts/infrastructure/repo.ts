@@ -138,6 +138,11 @@ export class KyselyAlertsRepository implements AlertsRepository<Kysely<Database>
     return toAlert(row);
   }
 
+  async markReadBySource(trx: Kysely<Database>, sourceType: AlertSourceType, sourceId: string, readAt: Date): Promise<string[]> {
+    const rows = await trx.updateTable("alerts").set({ read_at: readAt }).where("source_type", "=", sourceType).where("source_id", "=", sourceId).where("read_at", "is", null).returning(["id"]).execute();
+    return rows.map((row) => row.id);
+  }
+
   async markAllRead(trx: Kysely<Database>, recipientUserId: string, readAt: Date): Promise<string[]> {
     const rows = await trx
       .updateTable("alerts")

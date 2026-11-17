@@ -301,14 +301,18 @@ export function createProfessionalsJobs(deps: ProfessionalsWorkerModuleDeps): Pr
 
 export interface ProfessionalsWorkerModule {
   jobs: ProfessionalsJobs;
+  /** MK2 (BR-MKT-41): e-mail da conta SÓ para o aviso genérico de nova mensagem do job `messaging.notify-professional` (ligado em `main/worker.ts`). */
+  notificationEmail: (professionalId: string) => Promise<string | null>;
   registerWorkers: () => Promise<void>;
 }
 
 /** Composition root do processo "worker" (main/worker.ts). */
 export function createProfessionalsWorkerModule(deps: ProfessionalsWorkerModuleDeps & { boss: PgBoss }): ProfessionalsWorkerModule {
   const jobs = createProfessionalsJobs(deps);
+  const directoryRepo = new KyselyDirectoryRepository();
   return {
     jobs,
+    notificationEmail: (professionalId) => withTransaction(deps.db, (trx) => directoryRepo.findNotificationEmail(trx, professionalId)),
     registerWorkers: async () => {
       await registerScanCredentialWorker(deps.boss, jobs.scanCredential);
       await registerDeleteFilesWorker(deps.boss, jobs.deleteFiles);

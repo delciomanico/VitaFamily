@@ -10,6 +10,11 @@ export class KyselyDirectoryRepository implements DirectoryRepository<Kysely<Dat
     return row?.display_name && row.city ? { id: row.id, displayName: row.display_name, bio: row.bio, city: row.city } : null;
   }
 
+  async findNotificationEmail(trx: Kysely<Database>, professionalId: string): Promise<string | null> {
+    const row = await trx.selectFrom("professionals as p").innerJoin("professional_accounts as a", "a.id", "p.account_id").select("a.email").where("p.id", "=", professionalId).executeTakeFirst();
+    return row?.email ?? null;
+  }
+
   async findConversationIdentities(trx: Kysely<Database>, ids: string[]): Promise<ConversationIdentityRow[]> {
     if (ids.length === 0) return [];
     const rows = await trx.selectFrom("professionals").select(["id", "display_name", "city", "validation_status"]).where("id", "in", ids).execute();

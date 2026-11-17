@@ -18,6 +18,8 @@ export type AlertType =
   | "FOLLOWUP_REMINDER"
   // M15 U (ADR-028, BR-CLN-53): novo pedido de exame de uma clínica (texto sempre genérico, nunca o nome do exame).
   | "EXAM_ORDER_ADDED"
+  // MK2 (ADR-037, BR-MKT-41, emenda a BR-ALR-01): nova mensagem de um profissional (texto sempre genérico, nunca conteúdo nem nome).
+  | "MESSAGE_RECEIVED"
   // Arquivo do marco B (ADR-037): os 5 tipos `AUTHORIZATION_*` já não são gerados; ficam no tipo só porque existem no enum do Postgres
   // e no contrato (alertas históricos) — saem no R6.
   | "AUTHORIZATION_APPROVED"
@@ -25,7 +27,7 @@ export type AlertType =
   | "AUTHORIZATION_INFO_REQUESTED"
   | "AUTHORIZATION_EXPIRING"
   | "AUTHORIZATION_WITHDRAWN";
-export type AlertSourceType = "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION" | "PROCESS";
+export type AlertSourceType = "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION" | "PROCESS" | "CONVERSATION";
 
 /** entities.md "Alert": `ruleKey` fixo por regra. */
 export type RuleKey =
@@ -40,7 +42,8 @@ export type RuleKey =
   | "recommendation.added"
   | "appointment.confirm48h"
   | "followup.due"
-  | "exam_order.added";
+  | "exam_order.added"
+  | "message.received";
 
 /** Alertas de evento de exame (D19): disparados no momento da resposta/emissão, não por relógio. */
 export type ExamEventAlertType = "EXAM_CANCELLED" | "EXAM_RESULTS_AVAILABLE";
@@ -63,6 +66,16 @@ export function recommendationAddedRule(occurredAt: Date): Rule {
 /** ADR-028 (BR-CLN-53): a regra de um pedido de exame novo vence no próprio instante da emissão. */
 export function examOrderAddedRule(occurredAt: Date): Rule {
   return { ruleKey: "exam_order.added", type: "EXAM_ORDER_ADDED", triggerAt: occurredAt };
+}
+
+/** BR-MKT-41: a regra de uma mensagem nova vence no próprio instante da mensagem. */
+export function messageReceivedRule(occurredAt: Date): Rule {
+  return { ruleKey: "message.received", type: "MESSAGE_RECEIVED", triggerAt: occurredAt };
+}
+
+/** BR-MKT-41: `(ruleKey, conversa, destinatário, familyReadSeq)` ⇒ no máximo um alerta por conversa até a família a ler. */
+export function buildMessageDedupeKey(conversationId: string, recipientUserId: string, familyReadSeq: number): string {
+  return `message.received:${conversationId}:${recipientUserId}:${String(familyReadSeq)}`;
 }
 
 export interface Rule {

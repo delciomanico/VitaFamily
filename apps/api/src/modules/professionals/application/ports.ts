@@ -319,6 +319,8 @@ export interface DirectoryRepository<Trx> {
   findApproved(trx: Trx, professionalId: string): Promise<PublicProfessionalRow | null>;
   listApproved(trx: Trx, filter: DirectoryFilter): Promise<PublicProfessionalRow[]>;
   activeOffersFor(trx: Trx, professionalIds: string[]): Promise<Map<string, PublicOffer[]>>;
+  /** MK2 (BR-MKT-41): e-mail da conta do profissional, SÓ para o aviso genérico de nova mensagem (nunca exposto em respostas); `null` se já não existe. */
+  findNotificationEmail(trx: Trx, professionalId: string): Promise<string | null>;
   /** MK2 (BR-MKT-47): nome/cidade públicos e `approved` dos ids pedidos em qualquer estado (para o histórico de conversas), sem e-mail nem estado detalhado. */
   findConversationIdentities(trx: Trx, ids: string[]): Promise<ConversationIdentityRow[]>;
   /** MK2: linhas `APPROVED` (por id, ordem por id, teto `limit`) para os factos de descoberta; `APPROVED` filtrado em cada consulta. */

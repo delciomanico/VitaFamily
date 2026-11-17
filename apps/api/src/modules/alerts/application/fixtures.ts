@@ -5,7 +5,7 @@ import type { Examination } from "../../examinations/index.js";
 import type { FamilyMember } from "../../families/index.js";
 import type { DoseOccurrence } from "../../medications/index.js";
 import type { AlertNotificationType } from "../../notifications/index.js";
-import type { Alert } from "../domain/alert.js";
+import type { Alert, AlertSourceType } from "../domain/alert.js";
 import type {
   AlertListFilter,
   AlertsDeps,
@@ -73,6 +73,17 @@ export class FakeAlertsRepository implements AlertsRepository<FakeTrx> {
     const updated = { ...alert, readAt };
     this.byId.set(id, updated);
     return Promise.resolve(updated);
+  }
+
+  markReadBySource(_trx: FakeTrx, sourceType: AlertSourceType, sourceId: string, readAt: Date): Promise<string[]> {
+    const ids: string[] = [];
+    for (const [id, alert] of this.byId) {
+      if (alert.sourceType === sourceType && alert.sourceId === sourceId && !alert.readAt) {
+        this.byId.set(id, { ...alert, readAt });
+        ids.push(id);
+      }
+    }
+    return Promise.resolve(ids);
   }
 
   async markAllRead(_trx: FakeTrx, recipientUserId: string, readAt: Date): Promise<string[]> {

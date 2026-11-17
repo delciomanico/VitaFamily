@@ -85,6 +85,8 @@ export interface AlertsRepository<Trx> {
   /** UC-ALR-04 "marcar todos": devolve os `id` efetivamente marcados agora (para
    * `notifications.skipPendingForAlert` por cada um). */
   markAllRead(trx: Trx, recipientUserId: string, readAt: Date): Promise<string[]>;
+  /** MK2 (BR-MKT-41): marca como lidos os alertas ainda por ler de uma origem (todos os destinatários); devolve os `id` marcados. */
+  markReadBySource(trx: Trx, sourceType: AlertSourceType, sourceId: string, readAt: Date): Promise<string[]>;
 }
 
 export interface AlertsDeps<Trx> {

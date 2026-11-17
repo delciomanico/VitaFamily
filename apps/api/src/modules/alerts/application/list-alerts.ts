@@ -31,6 +31,8 @@ const MESSAGE_BY_TYPE: Record<AlertType, string> = {
   FOLLOWUP_REMINDER: "Tem um retorno sugerido por uma clínica. Abra a app.",
   // M15 U (ADR-028, BR-ALR-07/08): sem nome do exame, do membro nem da clínica.
   EXAM_ORDER_ADDED: "Recebeu um novo pedido de exame de uma clínica.",
+  // MK2 (BR-MKT-41): sem nome do profissional, do membro nem conteúdo.
+  MESSAGE_RECEIVED: "Tem uma nova mensagem de um profissional.",
   // Fatia 5 (ADR-036, BR-ALR-11): mensagem fixa por tipo, sem nome da clínica, serviço, valor, motivo nem estado detalhado; o detalhe lê-se no Process.
   AUTHORIZATION_APPROVED: "A seguradora aprovou um pedido.",
   AUTHORIZATION_NOT_APPROVED: "A seguradora não aprovou um pedido.",

@@ -3,6 +3,7 @@
 // por (`last_message_at`, `id`) serem exatos. Nunca se regista texto de mensagens nem rótulos.
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
+import { shouldNotifyProfessional } from "../domain/conversation.js";
 import type { Message } from "../domain/message.js";
 import type {
   ConversationListFilter,
@@ -193,6 +194,20 @@ export class KyselyConversationRepository implements ConversationRepository<Db> 
 
   async setFamilyReadSeq(trx: Db, conversationId: string, seq: number, at: Date): Promise<void> {
     await trx.updateTable("conversations").set({ family_read_seq: seq, updated_at: at }).where("id", "=", conversationId).execute();
+  }
+
+  async claimProfessionalNotice(trx: Db, conversationId: string, now: Date): Promise<{ professionalId: string; previous: Date | null } | null> {
+    const row = await trx.selectFrom("conversations").select(["professional_id", "professional_notified_at", "last_seq", "last_professional_seq", "professional_read_seq"]).where("id", "=", conversationId).forUpdate().executeTakeFirst();
+    if (!row) return null;
+    // A última mensagem tem de ser da família e por ler pelo profissional.
+    if (row.last_seq <= row.last_professional_seq || row.last_seq <= row.professional_read_seq) return null;
+    if (!shouldNotifyProfessional(row.professional_notified_at?.getTime() ?? null, now.getTime())) return null;
+    await trx.updateTable("conversations").set({ professional_notified_at: now }).where("id", "=", conversationId).execute();
+    return { professionalId: row.professional_id, previous: row.professional_notified_at };
+  }
+
+  async releaseProfessionalNotice(trx: Db, conversationId: string, claimedAt: Date, previous: Date | null): Promise<void> {
+    await trx.updateTable("conversations").set({ professional_notified_at: previous }).where("id", "=", conversationId).where("professional_notified_at", "=", claimedAt).execute();
   }
 
   async setStatus(trx: Db, conversationId: string, change: { status: "OPEN" | "CLOSED"; closedBy: "FAMILY" | "PROFESSIONAL" | "SYSTEM" | null; at: Date }): Promise<void> {
