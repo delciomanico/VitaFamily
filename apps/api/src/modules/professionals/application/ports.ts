@@ -200,6 +200,8 @@ export interface ProfessionalProfileRepository<Trx> {
   /** Alguma das `specialtyIds` tem ofertas (qualquer estado) deste profissional? (a FK composta impede retirar a ligação). */
   hasOffersForSpecialties(trx: Trx, professionalId: string, specialtyIds: string[]): Promise<boolean>;
   listCredentialSummaries(trx: Trx, professionalId: string): Promise<CredentialSummary[]>;
+  /** Ids por estado de validação (jobs diários), ordem estável. */
+  listIdsByStatus(trx: Trx, status: ProfessionalValidationStatus): Promise<string[]>;
 }
 
 export interface NewValidationCase {
@@ -256,6 +258,46 @@ export interface AdminProfessionalRepository<Trx> {
   list(trx: Trx, filter: AdminProfessionalFilter): Promise<AdminProfessionalItemRow[]>;
   /** Especialidades de vários profissionais de uma vez (evita N+1). */
   listSpecialtiesFor(trx: Trx, professionalIds: string[]): Promise<Map<string, LinkedSpecialty[]>>;
+}
+
+export interface PublicOffer {
+  id: string;
+  specialtyId: string;
+  method: OfferMethod;
+  durationMinutes: number;
+  priceKz: number;
+  note: string | null;
+}
+
+export interface PublicProfessionalRow {
+  id: string;
+  displayName: string;
+  bio: string | null;
+  city: string;
+}
+
+export interface DirectoryFilter {
+  category?: SpecialtyCategory;
+  specialtyId?: string;
+  city?: string;
+  limit: number;
+  afterId?: string;
+}
+
+/** Leitor público (BR-MKT-19): TODAS as consultas filtram `validation_status = 'APPROVED'` (sem cache de estado) e só devolvem dados públicos. */
+export interface DirectoryRepository<Trx> {
+  findApproved(trx: Trx, professionalId: string): Promise<PublicProfessionalRow | null>;
+  listApproved(trx: Trx, filter: DirectoryFilter): Promise<PublicProfessionalRow[]>;
+  activeOffersFor(trx: Trx, professionalIds: string[]): Promise<Map<string, PublicOffer[]>>;
+  /** Horários futuros livres (`starts_at > now`, em `[from, to)`) de um APPROVED, só de ofertas ativas. */
+  bookableSlots(trx: Trx, professionalId: string, from: Date, to: Date, now: Date): Promise<SlotRecord[]>;
+}
+
+export interface MaintenanceRepository<Trx> {
+  deleteExpiredAuthTokens(trx: Trx, before: Date): Promise<number>;
+  deleteExpiredSessions(trx: Trx, before: Date): Promise<number>;
+  /** Credenciais `PENDING` criadas antes de `before` (o antivírus não correu: fila perdida ou worker em baixo). */
+  listStalePendingCredentialIds(trx: Trx, before: Date): Promise<string[]>;
 }
 
 /** Gancho de aprovação (BR-MKT-25): gera os horários das regras existentes na mesma transação; implementado na fatia S9. */
@@ -467,6 +509,7 @@ export interface ProfessionalsDeps<Trx> {
   scheduleRuleRepo: ScheduleRuleRepository<Trx>;
   timeOffRepo: TimeOffRepository<Trx>;
   slotRepo: SlotRepository<Trx>;
+  directoryRepo: DirectoryRepository<Trx>;
   slotGenerator: ApprovalSlotGenerator<Trx>;
   fileDeletionRepo: FileDeletionRepository<Trx>;
   fileStore: CredentialFileStore;

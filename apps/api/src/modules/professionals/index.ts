@@ -54,6 +54,10 @@ import {
 import { reconcileSchedule } from "./application/schedule-sync.js";
 import { KyselyScheduleRuleRepository, KyselySlotRepository, KyselyTimeOffRepository } from "./infrastructure/schedule-repo.js";
 import { createScheduleRouter } from "./interface/schedule-router.js";
+import { createProfessionalDirectory, type ProfessionalDirectory } from "./application/directory.js";
+import { createCleanupUseCase, createExpireCredentialsUseCase, createGenerateSlotsUseCase } from "./application/maintenance-jobs.js";
+import { KyselyDirectoryRepository, KyselyMaintenanceRepository } from "./infrastructure/directory-repo.js";
+import { CLEANUP_QUEUE, EXPIRE_CREDENTIALS_QUEUE, GENERATE_SLOTS_QUEUE, registerDailyWorker } from "./infrastructure/jobs.js";
 import { createCredentialsRouter } from "./interface/credentials-router.js";
 import { createProfileRouter } from "./interface/profile-router.js";
 import { KyselySpecialtyRepository } from "./infrastructure/specialty-repo.js";
@@ -65,6 +69,7 @@ export { parseProfessionalSigningKeys, type ProfessionalSigningKey } from "./dom
 export { ProfessionalSmtpMailer } from "./infrastructure/mailer-smtp.js";
 export { ProfessionalFakeMailer } from "./infrastructure/mailer-fake.js";
 export type { ProfessionalMailer, CredentialScanner, CredentialScanQueue } from "./application/ports.js";
+export type { ProfessionalDirectory, PublicProfessionalProfile, BookableSlot, DirectoryQuery } from "./application/directory.js";
 export { CredentialClamAvScanner } from "./infrastructure/clamav-client.js";
 export { PgBossCredentialScanQueue } from "./infrastructure/jobs.js";
 
@@ -95,6 +100,11 @@ export interface ProfessionalsModule {
   router: Router;
   /** Handler de segurança `professionalBearerAuth` (`createApp({ securityHandlers })`). */
   securityHandlers: { professionalBearerAuth: ReturnType<typeof createProfessionalBearerAuthSecurityHandler> };
+  /**
+   * Leitor público de profissionais (BR-MKT-19, OP-65): a única forma de MK2/MK3 lerem profissionais. Só `APPROVED`, só dados públicos.
+   * Em MK1 não há rota para famílias.
+   */
+  directory: ProfessionalDirectory;
   /** Middleware a compor com os de `auth` e `clinics` (preenche o TERCEIRO ator, `platform/actor`). */
   actorContextMiddleware: ReturnType<typeof createProfessionalActorContextMiddleware>;
 }
@@ -131,6 +141,7 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     scheduleRuleRepo,
     timeOffRepo,
     slotRepo,
+    directoryRepo: new KyselyDirectoryRepository(),
     // Ativar/desativar uma oferta reconcilia os horários das suas regras (BR-MKT-25); só `APPROVED` gera.
     offerSlotSync: {
       onActiveChanged: async (trx, professionalId, offerId, _active, now) => {
@@ -226,6 +237,7 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
 
   return {
     router,
+    directory: createProfessionalDirectory(useCaseDeps),
     securityHandlers: { professionalBearerAuth: createProfessionalBearerAuthSecurityHandler({ signingKeys: deps.signingKeys, clock: deps.clock }) },
     actorContextMiddleware: createProfessionalActorContextMiddleware({ resolveActorState }),
   };
@@ -233,9 +245,13 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
 
 export interface ProfessionalsWorkerModuleDeps {
   db: Kysely<Database>;
+  audit: AuditModule;
   clock: Clock;
+  logger: Logger;
   storage: Storage;
   scanner: CredentialScanner;
+  /** Para voltar a enfileirar credenciais `PENDING` sem antivírus (job `cleanup`). */
+  scanQueue: CredentialScanQueue;
 }
 
 export interface ProfessionalsJobs {
@@ -243,6 +259,12 @@ export interface ProfessionalsJobs {
   scanCredential: (job: { credentialId: string }) => Promise<void>;
   /** `professionals.delete-files` (outbox própria). */
   deleteFiles: () => Promise<{ deleted: number; failed: number }>;
+  /** `professionals.expire-credentials` (diário, BR-MKT-21). */
+  expireCredentials: () => Promise<{ expired: number }>;
+  /** `professionals.generate-slots` (diário, BR-MKT-25). */
+  generateSlots: ReturnType<typeof createGenerateSlotsUseCase<Kysely<Database>>>;
+  /** `professionals.cleanup` (diário). */
+  cleanup: () => Promise<{ tokens: number; sessions: number; rescans: number }>;
 }
 
 /** Casos de uso dos jobs, sem pg-boss (testáveis diretamente). */
@@ -255,7 +277,26 @@ export function createProfessionalsJobs(deps: ProfessionalsWorkerModuleDeps): Pr
     fileStore: new StorageCredentialFileStore(deps.storage),
     scanner: deps.scanner,
   };
-  return { scanCredential: createScanCredentialUseCase(jobDeps), deleteFiles: createDeleteFilesUseCase(jobDeps) };
+  const maintenanceDeps = {
+    withTransaction: jobDeps.withTransaction,
+    clock: deps.clock,
+    logger: deps.logger,
+    audit: deps.audit,
+    profileRepo: new KyselyProfessionalProfileRepository(),
+    validationCaseRepo: new KyselyValidationCaseRepository(),
+    scheduleRuleRepo: new KyselyScheduleRuleRepository(),
+    timeOffRepo: new KyselyTimeOffRepository(),
+    slotRepo: new KyselySlotRepository(),
+    maintenanceRepo: new KyselyMaintenanceRepository(),
+    scanQueue: deps.scanQueue,
+  };
+  return {
+    scanCredential: createScanCredentialUseCase(jobDeps),
+    deleteFiles: createDeleteFilesUseCase(jobDeps),
+    expireCredentials: createExpireCredentialsUseCase(maintenanceDeps),
+    generateSlots: createGenerateSlotsUseCase(maintenanceDeps),
+    cleanup: createCleanupUseCase(maintenanceDeps),
+  };
 }
 
 export interface ProfessionalsWorkerModule {
@@ -271,6 +312,9 @@ export function createProfessionalsWorkerModule(deps: ProfessionalsWorkerModuleD
     registerWorkers: async () => {
       await registerScanCredentialWorker(deps.boss, jobs.scanCredential);
       await registerDeleteFilesWorker(deps.boss, jobs.deleteFiles);
+      await registerDailyWorker(deps.boss, EXPIRE_CREDENTIALS_QUEUE, "30 2 * * *", jobs.expireCredentials);
+      await registerDailyWorker(deps.boss, GENERATE_SLOTS_QUEUE, "40 2 * * *", jobs.generateSlots);
+      await registerDailyWorker(deps.boss, CLEANUP_QUEUE, "10 3 * * *", jobs.cleanup);
     },
   };
 }

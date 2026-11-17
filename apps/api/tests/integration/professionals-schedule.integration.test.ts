@@ -428,14 +428,17 @@ describe("integração: horários, bloqueios e GET /slots do profissional (MK1 S
       expect(dup).toBe(0);
     });
 
-    // Contradiz BR-MKT-25 (o job diário `professionals.generate-slots` mantém a janela rolante de 8 semanas): no código não existe
-    // esse job e a janela só avança quando há escritas. Fica como it.fails até o dono decidir.
-    it.fails("janela rolante: sem escritas, 30 dias depois ainda há horários até hoje+56 (job diário em falta)", async () => {
+    // BR-MKT-25: o job diário `professionals.generate-slots` mantém a janela rolante de 8 semanas, mesmo sem escritas.
+    // `to` = meia-noite de Luanda do dia hoje+57 (inclui o dia hoje+56 inteiro; o horário das 10:30Z de hoje+56 ficava fora com `+56 dias`).
+    it("janela rolante: sem escritas, 30 dias depois o job gera horários até hoje+56 (inclusive)", async () => {
       const { pro } = await approvedWithWeekRule();
       h.clock.advance(30 * DAY_MS);
       const now2 = new Date(START.getTime() + 30 * DAY_MS);
+      await h.jobs.generateSlots();
       const token = (await h.login(pro.email)).token;
-      const got = await apiStarts(token, now2.toISOString(), new Date(now2.getTime() + 56 * DAY_MS).toISOString());
+      const lastDay = new Date(Date.parse(`${luandaDay(now2)}T00:00:00Z`) + 57 * DAY_MS - LUANDA_OFFSET_MS);
+      // from exclusivo de `now` (um horário que começa exatamente agora está na BD e o GET inclui-o; ver relatório).
+      const got = await apiStarts(token, new Date(now2.getTime() + 1).toISOString(), lastDay.toISOString());
       expect(got).toEqual(expectedStarts(BASE, now2));
     });
 

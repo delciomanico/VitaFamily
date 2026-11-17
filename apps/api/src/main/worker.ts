@@ -12,7 +12,7 @@ import { createAuditModule } from "../modules/audit/index.js";
 import { createUsersModule } from "../modules/users/index.js";
 import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modules/families/index.js";
 import { createAccessModule } from "../modules/access/index.js";
-import { CredentialClamAvScanner, createProfessionalsWorkerModule } from "../modules/professionals/index.js";
+import { CredentialClamAvScanner, PgBossCredentialScanQueue, createProfessionalsWorkerModule } from "../modules/professionals/index.js";
 import { ClamAvScanner, createDocumentsWorkerModule } from "../modules/documents/index.js";
 import { createMedicationsWorkerModule } from "../modules/medications/index.js";
 import { createAppointmentsReminderQueries } from "../modules/appointments/index.js";
@@ -129,8 +129,11 @@ export function main(): void {
   // MK1 (OP-58): antivírus das credenciais dos profissionais e outbox própria de ficheiros (não usa `documents`).
   const professionalsWorker = createProfessionalsWorkerModule({
     db,
+    audit,
     clock,
+    logger,
     storage,
+    scanQueue: new PgBossCredentialScanQueue(boss),
     scanner: new CredentialClamAvScanner({ host: config.CLAMAV_HOST, port: config.CLAMAV_PORT }),
     boss,
   });

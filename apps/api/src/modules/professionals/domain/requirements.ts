@@ -76,13 +76,13 @@ export function deriveRequirements(input: RequirementsInput): ProfessionalRequir
     }
     if (ofKind.length === 0) {
       missing.push(MISSING_CODE[kind]);
-    } else if (ofKind.some((c) => c.scanStatus === "PENDING")) {
-      pending = true;
-    } else if (ofKind.some((c) => c.scanStatus === "CLEAN")) {
-      expired = true;
-    } else {
-      infected = true;
+      continue;
     }
+    // Todas as causas se reportam (não se mascaram umas às outras): uma credencial nova em verificação NÃO esconde que a anterior caducou
+    // (o job de caducidade, BR-MKT-21, depende de `CREDENTIAL_EXPIRED` para retirar o perfil da visibilidade).
+    if (ofKind.some((c) => c.scanStatus === "PENDING")) pending = true;
+    if (ofKind.some((c) => c.scanStatus === "INFECTED") && !ofKind.some((c) => c.scanStatus === "PENDING")) infected = true;
+    if (ofKind.some((c) => c.scanStatus === "CLEAN")) expired = true; // há CLEAN mas nenhuma válida (a válida já teria satisfeito acima)
   }
   if (pending) missing.push("CREDENTIAL_SCAN_PENDING");
   if (infected) missing.push("CREDENTIAL_INFECTED");

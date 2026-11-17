@@ -117,6 +117,11 @@ export class KyselyProfessionalProfileRepository implements ProfessionalProfileR
     return result.rows.length > 0;
   }
 
+  async listIdsByStatus(trx: Kysely<Database>, status: ProfessionalRecord["validationStatus"]): Promise<string[]> {
+    const rows = await trx.selectFrom("professionals").select("id").where("validation_status", "=", status).orderBy("id").execute();
+    return rows.map((r) => r.id);
+  }
+
   async listCredentialSummaries(trx: Kysely<Database>, professionalId: string): Promise<CredentialSummary[]> {
     const rows = await trx.selectFrom("professional_credentials").select(["kind", "scan_status", "valid_until"]).where("professional_id", "=", professionalId).execute();
     return rows.map((r) => ({ kind: r.kind, scanStatus: r.scan_status, validUntil: r.valid_until }));

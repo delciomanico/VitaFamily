@@ -45,7 +45,7 @@ export interface ProfessionalProfileView {
 
 /** Requisitos em falta (BR-MKT-16), com «hoje» em Africa/Luanda e relógio injetado. */
 export async function computeMissing<Trx>(
-  deps: ProfessionalsDeps<Trx>,
+  deps: Pick<ProfessionalsDeps<Trx>, "profileRepo" | "clock">,
   trx: Trx,
   record: ProfessionalRecord,
 ): Promise<ProfessionalRequirement[]> {

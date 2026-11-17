@@ -38,3 +38,17 @@ export async function registerDeleteFilesWorker(boss: PgBoss, handler: () => Pro
     await handler();
   });
 }
+
+/** Jobs diários (UTC): `expire-credentials` 02:30, `generate-slots` 02:40, `cleanup` 03:10. Todos idempotentes. */
+export const EXPIRE_CREDENTIALS_QUEUE = "professionals.expire-credentials";
+export const GENERATE_SLOTS_QUEUE = "professionals.generate-slots";
+export const CLEANUP_QUEUE = "professionals.cleanup";
+
+export async function registerDailyWorker(boss: PgBoss, queue: string, cron: string, handler: () => Promise<unknown>): Promise<string> {
+  // `schedule` exige a fila criada (FK pgboss.schedule → pgboss.queue).
+  await boss.createQueue(queue);
+  await boss.schedule(queue, cron, {});
+  return boss.work(queue, async () => {
+    await handler();
+  });
+}

@@ -101,7 +101,7 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
   const mailer = new ProfessionalFakeMailer();
   const storage = new InMemoryStorage();
   const queue = new RecordingQueue();
-  const jobs = createProfessionalsJobs({ db, clock, storage, scanner: new FakeScanner() });
+  const jobs = createProfessionalsJobs({ db, audit, clock, logger, storage, scanner: new FakeScanner(), scanQueue: queue });
   const module = createProfessionalsModule({
     db,
     audit,

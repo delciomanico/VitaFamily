@@ -185,9 +185,10 @@ describe("deriveRequirements (TC-MKT-06)", () => {
     expect(deriveRequirements(input({ credentials }))).toEqual(["CREDENTIAL_IDENTITY", "CREDENTIAL_SCAN_PENDING"]);
   });
 
-  it("com análise pendente e caducada do mesmo tipo reporta só a pendente (a caducada só aparece após o scan)", () => {
+  it("com análise pendente e caducada do mesmo tipo reporta as duas causas (a nova não esconde a caducidade; BR-MKT-21)", () => {
     const missing = deriveRequirements(input({ credentials: [identity(), license("PENDING"), license("CLEAN", "2020-01-01")] }));
-    expect(missing).toEqual(["CREDENTIAL_SCAN_PENDING"]);
+    expect(missing).toEqual(["CREDENTIAL_SCAN_PENDING", "CREDENTIAL_EXPIRED"]);
+    expect(failsByExpiry(missing)).toBe(true);
   });
 
   it("requisitos do perfil vêm antes das credenciais; pendente antes de infetada", () => {
