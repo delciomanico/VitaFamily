@@ -61,6 +61,8 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   professionals: ["audit", "notifications"],
   // discovery (MK2, modules.md nota 36(a)): sem dependências; lê profissionais pela porta `ProfessionalCatalog` (ligada em main/api.ts).
   discovery: [],
+  // messaging (MK2, nota 36(c)): só `audit`; família/profissionais/alertas/e-mail entram por portas ligadas em main/api.ts.
+  messaging: ["audit"],
   // ADR-023 (modules.md §2): lê a origem (consulta/exame) pelas raízes de `appointments`/`examinations`.
   recommendations: ["access", "appointments", "examinations", "audit"],
   documents: ["access", "audit"],

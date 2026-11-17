@@ -16,7 +16,7 @@ import type { DataCategory } from "../domain/sharing-grant.js";
 import type { AccessDeps, MemberFacts } from "./ports.js";
 
 /** authorization.md §1 (ações sobre dados de saúde) + §4 (partilha) + VIEW_SHARED_WITH_ME (UC-PRV-02). */
-export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_CLINIC_CONSENT" | "VIEW_CLINIC_RECEIPTS" | "VIEW_CONSULTATION_REPORT" | "VIEW_EXAM_ORDERS" | "VIEW_SHARED_WITH_ME";
+export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_CLINIC_CONSENT" | "VIEW_CLINIC_RECEIPTS" | "VIEW_CONSULTATION_REPORT" | "VIEW_EXAM_ORDERS" | "MESSAGE_PROFESSIONALS" | "VIEW_SHARED_WITH_ME";
 
 export interface CanInput {
   userId: string;
@@ -40,7 +40,7 @@ export interface AccessContext {
 }
 
 function isHealthAction(action: Action): action is HealthAction {
-  return action !== "MANAGE_SHARING" && action !== "MANAGE_CLINIC_CONSENT" && action !== "VIEW_CLINIC_RECEIPTS" && action !== "VIEW_CONSULTATION_REPORT" && action !== "VIEW_EXAM_ORDERS" && action !== "VIEW_SHARED_WITH_ME";
+  return action !== "MANAGE_SHARING" && action !== "MANAGE_CLINIC_CONSENT" && action !== "VIEW_CLINIC_RECEIPTS" && action !== "VIEW_CONSULTATION_REPORT" && action !== "VIEW_EXAM_ORDERS" && action !== "MESSAGE_PROFESSIONALS" && action !== "VIEW_SHARED_WITH_ME";
 }
 
 export interface AccessPolicy<Trx> {
@@ -128,6 +128,16 @@ export function createAccessPolicy<Trx>(deps: Pick<AccessDeps<Trx>, "familiesPor
         return { actor, subject, relation };
       }
       throw new ForbiddenError({ detail: "Sem permissão sobre os pedidos de exame deste membro." });
+    }
+
+    if (input.action === "MESSAGE_PROFESSIONALS") {
+      // ADR-037/BR-MKT-38, authorization.md §11.2 (OP-77): as conversas com profissionais (podem conter dados de saúde) são só de SELF
+      // (adulto) ou TUTOR_OF do membro-sujeito; nunca DEPENDENT_SELF (só o tutor conversa), nem OTHER (nem Family Admin como OTHER, nem
+      // Platform Admin), mesmo com SharingGrant. Sem categoria (não depende de partilha).
+      if (relation === "SELF" || relation === "TUTOR_OF") {
+        return { actor, subject, relation };
+      }
+      throw new ForbiddenError({ detail: "Sem permissão sobre as conversas deste membro." });
     }
 
     if (input.action === "MANAGE_CLINIC_CONSENT") {
