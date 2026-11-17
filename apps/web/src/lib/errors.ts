@@ -25,6 +25,8 @@ export type ErrorCode =
   | 'INVALID_STATE_TRANSITION'
   | 'DOCUMENT_LIMIT_EXCEEDED'
   | 'SERVICE_UNAVAILABLE'
+  | 'PROFESSIONAL_LOCKED'
+  | 'DOCUMENT_NOT_AVAILABLE'
   | 'UNKNOWN'
 
 export class AppError extends Error {
@@ -67,6 +69,8 @@ const messages: Record<ErrorCode, string> = {
   INVALID_STATE_TRANSITION: 'O pedido já mudou de estado. Atualize a página.',
   DOCUMENT_LIMIT_EXCEEDED: 'Já tem 5 anexos neste pedido. Remova um para juntar outro.',
   SERVICE_UNAVAILABLE: 'Não foi possível verificar o ficheiro agora. Tente mais tarde.',
+  PROFESSIONAL_LOCKED: 'Neste estado não pode alterar isto. Se precisar, peça ao administrador para reabrir o perfil.',
+  DOCUMENT_NOT_AVAILABLE: 'Este ficheiro ainda não está disponível para descarregar.',
   UNKNOWN: 'Algo correu mal. Tente novamente.',
 }
 

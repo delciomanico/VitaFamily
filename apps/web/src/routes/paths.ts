@@ -94,7 +94,22 @@ export const paths = {
   clinicSettings: '/clinic/settings',
   clinicAudit: '/clinic/settings/audit',
 
+  // Portal do profissional (MK1, ADR-037): login e sessão próprios, espaço de identidade separado.
+  professionalLogin: '/profissional/entrar',
+  professionalRegister: '/profissional/registo',
+  professionalVerify: '/profissional/verificar',
+  professionalForgot: '/profissional/recuperar',
+  professionalReset: '/profissional/repor',
+  professional: '/profissional',
+  professionalProfile: '/profissional/perfil',
+  professionalCredentials: '/profissional/credenciais',
+  professionalOffers: '/profissional/servicos',
+  professionalSchedule: '/profissional/horarios',
+
   // Área do Platform Admin: mesma conta/login de `User` (platformRole), mas sem família.
   admin: '/admin',
   adminClinics: '/admin/clinics',
+  adminProfessionals: '/admin/professionals',
+  adminProfessional: (id: string) => `/admin/professionals/${id}`,
+  adminSpecialties: '/admin/specialties',
 } as const

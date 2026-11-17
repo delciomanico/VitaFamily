@@ -47,3 +47,14 @@ export const preferences = {
   hasSeenOnboarding: () => read(local, ONBOARDING_KEY) === '1',
   markOnboardingSeen: () => write(local, ONBOARDING_KEY, '1'),
 }
+
+/**
+ * Sessão do portal do profissional (ADR-037), em chave **própria** (nunca a de `User` nem a de clínica).
+ * Guarda só o id da conta do backend simulado; na API real a sessão vive no cookie `professional_refresh_token`.
+ */
+const PROFESSIONAL_SESSION_KEY = 'vf.professional.session.accountId'
+
+export const professionalSessionStore = {
+  getAccountId: () => read(session, PROFESSIONAL_SESSION_KEY),
+  setAccountId: (accountId: string | null) => write(session, PROFESSIONAL_SESSION_KEY, accountId),
+}

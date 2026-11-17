@@ -32,6 +32,8 @@ interface PortalLoginScreenProps {
   submitLabel?: string
   /** Ligação única por baixo do formulário (ex.: «Solicitar acesso»). */
   footerLink?: { prefix?: string; label: string; to: string }
+  /** Ligação opcional por cima do botão (ex.: «Esqueci-me da palavra-passe»). */
+  forgotLink?: { label: string; to: string }
   login: (email: string, password: string) => Promise<void>
   /** Substitui o formulário (ex.: aviso de conta sem acesso). */
   notice?: ReactNode
@@ -52,6 +54,7 @@ export function PortalLoginScreen({
   emailPlaceholder = 'nome@exemplo.com',
   submitLabel = 'Entrar',
   footerLink,
+  forgotLink,
   login,
   notice,
 }: PortalLoginScreenProps) {
@@ -142,6 +145,11 @@ export function PortalLoginScreen({
                   error={errors.password?.message}
                   {...register('password')}
                 />
+                {forgotLink && (
+                  <Link to={forgotLink.to} className="-mt-2 self-end text-sm font-semibold text-primary hover:underline">
+                    {forgotLink.label}
+                  </Link>
+                )}
                 <FormError message={formError} />
                 <Button type="submit" size="lg" fullWidth loading={isSubmitting} className="lg:h-14 lg:rounded-md! lg:text-base">
                   {submitLabel}

@@ -50,6 +50,8 @@ export function toErrorCode(code: string): ErrorCode {
     'INVALID_STATE_TRANSITION',
     'DOCUMENT_LIMIT_EXCEEDED',
     'SERVICE_UNAVAILABLE',
+    'PROFESSIONAL_LOCKED',
+    'DOCUMENT_NOT_AVAILABLE',
   ]
   return (known as string[]).includes(code) ? (code as ErrorCode) : 'UNKNOWN'
 }

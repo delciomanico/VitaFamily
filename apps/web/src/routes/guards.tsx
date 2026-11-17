@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { FullScreenLoader } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useClinicAuth } from '@/contexts/ClinicAuthContext'
+import { useProfessionalAuth } from '@/contexts/ProfessionalAuthContext'
 import { paths } from './paths'
 
 interface FromState {
@@ -75,6 +76,26 @@ export function ClinicGuestOnly() {
   const from = (useLocation().state as FromState | null)?.from
   if (status === 'loading') return <FullScreenLoader />
   if (session) return <Navigate to={from?.startsWith(paths.clinic) ? from : paths.clinic} replace />
+  return <Outlet />
+}
+
+/** Portal do profissional (MK1, ADR-037): exige sessão de `ProfessionalAccount`, nunca a de `User` nem a de clínica. */
+export function RequireProfessional() {
+  const { status, session } = useProfessionalAuth()
+  const location = useLocation()
+  if (status === 'loading') return <FullScreenLoader />
+  if (!session) {
+    return <Navigate to={paths.professionalLogin} replace state={{ from: location.pathname } satisfies FromState} />
+  }
+  return <Outlet />
+}
+
+/** Login, registo e recuperação do portal do profissional: com sessão, segue para o estado da validação. */
+export function ProfessionalGuestOnly() {
+  const { status, session } = useProfessionalAuth()
+  const from = (useLocation().state as FromState | null)?.from
+  if (status === 'loading') return <FullScreenLoader />
+  if (session) return <Navigate to={from?.startsWith(paths.professional) ? from : paths.professional} replace />
   return <Outlet />
 }
 
