@@ -73,6 +73,8 @@ Notas:
 | Ler recomendações | READ da categoria da origem (APPOINTMENTS/EXAMS), ver §3. |
 | Ler processos de um membro (lista/detalhe, marco B fatia 1) | READ da categoria da origem de cada processo (APPOINTMENTS/EXAMS), ver §6.8. Sem ações de escrita. |
 | Responder ao pedido de confirmação de uma consulta ("Vou" / "Não posso", `PUT …/appointments/{id}/confirmation`; M14 Q, BR-CLN-26) | WRITE(APPOINTMENTS): a mesma permissão de `setAppointmentStatus` (SELF, TUTOR_OF; `DEPENDENT_SELF` com conta, FR-ALR-08); `OTHER` ⇒ `FORBIDDEN`. Sem categoria nova. Ler `confirmationStatus`/`followUpDueOn`: READ(APPOINTMENTS). |
+| Abrir/continuar, ler, enviar, marcar como lida, fechar/reabrir e denunciar numa conversa com um profissional (`/families/{f}/members/{m}/conversations*`; MK2, BR-MKT-38) | Ação nova `MESSAGE_PROFESSIONALS`: `SELF` (adulto) ou `TUTOR_OF` do membro-sujeito; `DEPENDENT_SELF`/`OTHER` ⇒ `FORBIDDEN` — ver §11.2. Sem categoria de dados nem `SharingGrant`. |
+| Pesquisar, ver perfil, comparar profissionais (`/marketplace/*`; MK2) | Qualquer User autenticado (`AUTH`), sem família nem `AccessPolicy` — ver §11.1. |
 | Pesquisar/ver utilizador, repor acesso, listar/suspender contas de clínica | PLATFORM_ADMIN — ver §7 (nunca dados de saúde). |
 
 ## 5. Regras de implementação
@@ -258,6 +260,9 @@ Os testes de autorização são **gerados a partir da matriz** acima (incl. §7:
 | Criar/alterar ofertas, regras de horário, bloqueios | sim | sim | sim | sim | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` |
 | Submeter (`POST /submission`) | sim (se BR-MKT-16) | `INVALID_STATE_TRANSITION` | sim (se BR-MKT-16) | `INVALID_STATE_TRANSITION` | `INVALID_STATE_TRANSITION` | `INVALID_STATE_TRANSITION` |
 | Geração de horários e visibilidade a famílias | não | não | não | **sim** | não | não |
+| **MK2** Ler conversas e mensagens próprias; marcar como lida; denunciar uma mensagem recebida | sim (sem conversas em `DRAFT`/`PENDING_REVIEW` na prática) | sim | sim | sim | sim | sim |
+| **MK2** Responder (enviar), fechar e reabrir conversas | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` | **sim** | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` |
+| **MK2** Ser contactado por famílias (nova conversa) | não (`404` à família) | não | não | **sim** | não | não |
 Login, refresh, logout e recuperação de palavra-passe funcionam em todos os estados (OP-59). Operações dependentes de marcações (MK3) acrescentam colunas na matriz do respetivo marco.
 
 ### 10.3 Platform Admin (`/admin/professionals*`, `/admin/specialties*`) — complementa §7
@@ -268,10 +273,40 @@ Login, refresh, logout e recuperação de palavra-passe funcionam em todos os es
 | Decidir (`APPROVE`, `REJECT`, `REQUEST_INFO`, `SUSPEND`, `REACTIVATE`; tabela de `state-machines.md`) | sim, com motivo onde é obrigatório | idem |
 | Criar/alterar/desativar especialidades | sim | idem |
 | Editar perfil, ofertas, horários, credenciais ou palavra-passe de um profissional; ler `paymentInstructions`; criar contas de profissional | **não** (não há rota) | — |
+| **MK2** Listar denúncias de mensagens, ver o detalhe (**só a mensagem denunciada**, auditado) e decidir (`DISMISS`, `HIDE_MESSAGE`, `HIDE_AND_CLOSE`) (`/admin/message-reports*`) | sim | idem |
+| **MK2** Ler conversas, mensagens não denunciadas, `participantLabel`, família ou membro de uma conversa | **não** (não há rota; BR-MKT-44/48) | — |
 | Ler qualquer dado de saúde ou de família | **não** (BR-MKT-27; `admin`/`professionals` não importam módulos de saúde) | — |
 Um token de `ProfessionalAccount` nunca autoriza `/admin/*`.
 
 ### 10.4 Lado família (User) em MK1
-Sem rotas. O único leitor é a **raiz** de `professionals` (`ProfessionalDirectory`, BR-MKT-19), a consumir por MK2/MK3: devolve **só** `APPROVED`, só dados públicos; estados não `APPROVED` ⇒ ausente/`NOT_FOUND` (indistinguível de inexistente); **nunca** `paymentInstructions`, e-mail, credenciais nem estado de validação. A decisão de «pode esta família ver este profissional» é só a de visibilidade (não há dados de saúde em causa, logo **não** há `AccessPolicy`); a autorização de **ações** da família sobre o mercado (marcar, partilhar) fica para MK3/MK4.
+(MK2 acrescenta as rotas da família em §11.) Em MK1 sem rotas. O único leitor é a **raiz** de `professionals` (`ProfessionalDirectory`, BR-MKT-19), a consumir por MK2/MK3: devolve **só** `APPROVED`, só dados públicos; estados não `APPROVED` ⇒ ausente/`NOT_FOUND` (indistinguível de inexistente); **nunca** `paymentInstructions`, e-mail, credenciais nem estado de validação. A decisão de «pode esta família ver este profissional» é só a de visibilidade (não há dados de saúde em causa, logo **não** há `AccessPolicy`); a autorização de **ações** da família sobre o mercado (marcar, partilhar) fica para MK3/MK4.
 
 Testes gerados desta secção: `TC-AZ-MKT-01..08`.
+
+## 11. Mercado de profissionais — MK2: descoberta e conversas (ADR-037; contrato 2026-11-17, **nada implementado**)
+
+> Complementa §4 (`access`), §10 (portal do profissional) e §7 (admin). Regras: BR-MKT-32..49.
+
+### 11.1 Descoberta (`/marketplace/*`) — `AUTH` sem família
+1. **Token:** só o de `User` (`bearerAuth`); sem token, ou token de `ProfessionalAccount`/`ClinicAccount` ⇒ `401 UNAUTHENTICATED`. User `ACTIVE`, termos aceites; `SUSPENDED` ⇒ `ACCOUNT_SUSPENDED` (regras de `authentication.md`).
+2. **Sem `AccessPolicy`:** a descoberta só lê dados públicos de `APPROVED` (BR-MKT-19/32); não há família, membro nem categoria de saúde na decisão. O guard global do §5.1 mantém uma **lista fechada de rotas «sem decisão de política»** (`PUBLIC_DATA_ROUTES`: `getMarketplaceFilters`, `getRankingRules`, `searchProfessionals`, `compareProfessionals`, `getMarketplaceProfessional`); adicionar uma rota de dados de saúde a essa lista falha a CI (a lista é verificada contra o `openapi.yaml`: nenhuma rota `/families/*`).
+3. **Visibilidade:** a decisão «este profissional é visível» é só `validation_status = 'APPROVED'` lida em cada pedido pela porta (BR-MKT-19); não-`APPROVED` ⇒ `404` idêntico a inexistente.
+4. **Limites:** 60 pedidos/min por utilizador (BR-MKT-49). **Sem auditoria** (BR-MKT-32); sem registo de pesquisas.
+
+### 11.2 Conversas — lado família (`/families/{f}/members/{m}/conversations*`)
+Ação nova de `access`: **`MESSAGE_PROFESSIONALS`** (alteração mínima ao módulo `access`: uma ação na `AccessPolicy` + teste da matriz; **sem** categoria de dados nem `SharingGrant`, como `VIEW_CLINIC_RECEIPTS`). `messaging` não importa `access`: autoriza pela porta **`ConversationAccess`** (definida na sua `application`, implementada no composition root sobre `access`).
+| Ação | `SELF` (adulto) | `TUTOR_OF` | `DEPENDENT_SELF` | `OTHER` / Family Admin como `OTHER` |
+|---|---|---|---|---|
+| Listar e ver conversas e mensagens do membro | sim (do próprio) | sim (do dependente) | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Abrir/continuar, enviar, marcar como lida | sim | sim | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Fechar e reabrir (a que a família fechou) | sim | sim | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Denunciar uma mensagem do profissional | sim | sim | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+Critério: relação `SELF`/`TUTOR_OF` com o membro-sujeito (nunca `SharingGrant`: o chat é do membro e pode conter dados sensíveis); `DEPENDENT_SELF` (dependente com conta, ≥ 13 anos) **não** conversa com profissionais (só o tutor; OP-77). Os dois tutores partilham a mesma conversa e o mesmo marcador de leitura. Membro `BLOCKED` ⇒ `MEMBER_BLOCKED`. **Isolamento:** a conversa procura-se **por (`familyId`, `memberId`, `conversationId`)** (repositório exige `familyId`, `conventions.md` §3.4); de outra família/membro ou inexistente ⇒ `404` sem enumeração; `403` só quando o membro existe na família mas a relação é insuficiente. Auditoria das ações sensíveis e das negações (`ACCESS_DENIED`), com `family_id` e `subject_member_id` (`audit.md` §3). Maioridade (M9): a mesma regra recalculada por pedido (o acesso do tutor cessa sem migração de dados).
+
+### 11.3 Conversas — lado do profissional
+Algoritmo de §10.1 (token, conta, isolamento por `professionalId` do token, estado de validação lido da BD por pedido). Matriz por estado em §10.2 (linhas «MK2»): **leitura sempre**; **enviar/fechar/reabrir só `APPROVED`**; denunciar e marcar como lida sempre. O profissional **nunca** recebe ids de família, membro nem utilizador em nenhuma resposta (BR-MKT-10/38; teste de chaves proibidas, TC-AZ-MKT-12).
+
+### 11.4 Moderação (admin) — `/admin/message-reports*`
+`PLATFORM_ADMIN` (§7/§10.3); User não-admin ⇒ `403`; token de profissional ⇒ `401`. **Só** a mensagem denunciada e o contexto mínimo (BR-MKT-44); sem rota para listar/ler conversas ou mensagens não denunciadas; cada leitura de detalhe é **auditada**. `messaging` não importa `admin` e `admin` não importa `messaging` (o guard `PLATFORM_ADMIN` é injetado em `main/api.ts`, como em `professionals`/`clinics`).
+
+Testes gerados desta secção: `TC-AZ-MKT-09..16`.

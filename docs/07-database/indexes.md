@@ -89,6 +89,24 @@ Todas com justificação de consulta (nada sem consulta concreta).
 | `professional_file_deletions` | `(deleted_at, created_at) WHERE deleted_at IS NULL` | Job `professionals.delete-files` (pendentes). |
 | `professional_slots` | UNIQUE `(rule_id, starts_at)` · EXCLUDE gist `(professional_id, tstzrange(starts_at, ends_at))` · UNIQUE `(professional_id, id)` · `(professional_id, starts_at)` | Idempotência da geração; sem sobreposição; horários por intervalo; remoção de livres futuros. |
 
+## Mercado de profissionais — MK2 (ADR-037; `schema.md` §12, migração proposta `0044`)
+Todas com justificação de consulta (nada sem consulta concreta). A descoberta e o ranking **não** criam tabelas; reaproveitam os índices de MK1 (`professionals` parcial `APPROVED`, ofertas ativas, `professional_slots (professional_id, starts_at)` para as estatísticas de disponibilidade) e acrescentam **um** índice.
+
+| Tabela | Índice | Consulta que serve |
+|---|---|---|
+| `professionals` | `(lower(btrim(city))) WHERE validation_status = 'APPROVED'` | Filtro por cidade da pesquisa e lista de cidades de `GET /marketplace/filters` (só `APPROVED`). O filtro por nome (`q`, `ILIKE`) e o ranking varrem a coorte `APPROVED` em memória/na consulta sem índice próprio (teto de 1000 por pedido, BR-MKT-49; índice *trigram* só se a medição o justificar, OP-86). |
+| `conversations` | UNIQUE `(family_id, member_id, professional_id)` | Uma conversa por par; abertura idempotente (`ON CONFLICT`). |
+| `conversations` | `(family_id, member_id, last_message_at DESC, id DESC)` | Lista de conversas do membro (família), ordenada pela última mensagem, com cursor. |
+| `conversations` | `(professional_id, last_message_at DESC, id DESC)` | Lista de conversas do profissional no portal. |
+| `conversations` | `(last_message_at)` | Job `messaging.purge-expired` (retenção de 24 meses). |
+| `conversations` | `(opened_by_user_id, created_at DESC) WHERE opened_by_user_id IS NOT NULL` | Limite de 5 conversas novas / 24 h por utilizador (BR-MKT-42). |
+| `conversations` | `(family_id, member_id) WHERE status = 'OPEN'` | Limite de 20 conversas abertas por membro-sujeito. |
+| `messages` | UNIQUE `(conversation_id, seq)` | Paginação por `seq`, atribuição sem lacunas, mensagem N de uma conversa. |
+| `messages` | UNIQUE parcial `(conversation_id, client_message_id) WHERE client_message_id IS NOT NULL` | Idempotência do envio. |
+| `messages` | `(conversation_id, side, seq)` | `unreadCount` por lado (mensagens do outro lado com `seq > readSeq`) e contagem de mensagens por hora numa conversa. |
+| `messages` | `(sender_user_id, created_at DESC) WHERE sender_user_id IS NOT NULL` | Limite de 200 mensagens/dia por utilizador (BR-MKT-42). |
+| `message_reports` | UNIQUE `(message_id, reporter_side)` · `(status, created_at, id) WHERE status = 'OPEN'` | Denúncia única por lado; **fila do admin** (mais antigas primeiro, cursor por `id`). |
+
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).
 2. Antes de M10, validar os 5 caminhos quentes: scanner, agenda do dia, lista de alertas, resolução de membership, relatório individual.

@@ -224,6 +224,25 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-MKT-09 | O admin da plataforma **nunca acede a dados de saúde** nem a campos além da identificação profissional; o módulo de profissionais não contém dados de saúde (BR-MKT-10/27). | ADR-037 §11 |
 | FR-MKT-10 | As ações sensíveis do mercado (conta, credenciais, decisões, catálogo) são **auditadas** sem PII em `metadata` (BR-MKT-28). | ADR-037 |
 
+## 16. Mercado de profissionais — MK2: descoberta, comparação, ranking e conversas (MKT)
+
+> Acrescentada 2026-11-17 (ADR-037, contrato de MK2; **nada implementado**). Regras: `business-rules.md` §17 (BR-MKT-32..49). Casos de uso: `03-use-cases/marketplace.md` (UC-MKT-13..25).
+
+| ID | Requisito | Origem |
+|---|---|---|
+| FR-MKT-11 | A família **autenticada** pesquisa profissionais `APPROVED` por **especialidade/categoria, método, cidade, intervalo de preço (Kz) e disponibilidade**, com pesquisa por nome, ordenação (melhores, preço, próxima disponibilidade) e paginação; os filtros de oferta aplicam-se à **mesma** oferta (BR-MKT-32/33). | ADR-037 §5, plan MK2 |
+| FR-MKT-12 | A família vê o **perfil público** do profissional (bio, cidade, especialidades com categoria, todas as ofertas e preços em Kz, próxima disponibilidade), **sem** dados internos nem de pagamento (BR-MKT-34). | plan MK2 |
+| FR-MKT-13 | A família **compara 2–3 profissionais** lado a lado numa especialidade, vendo preços por método e o mais barato (BR-MKT-35). | plan MK2 |
+| FR-MKT-14 | A família vê os filtros disponíveis (especialidades com profissionais, cidades, métodos) e **como ordenamos** (regras públicas do ranking) (BR-MKT-33/36). | ADR-037 §6 |
+| FR-MKT-15 | O **ranking por especialidade** é uma função pura, explicável (pontuação, sinais, razões) e **independente de pagamento**, destaques ou ordem manual (BR-MKT-36/37). | ADR-037 §6 |
+| FR-MKT-16 | A família **escreve a um profissional antes de marcar** (titular ou tutor em nome do dependente), troca mensagens de texto (sem anexos) e vê o estado lido (BR-MKT-38..40). | ADR-037 §7 |
+| FR-MKT-17 | A família recebe **aviso de nova mensagem** (alerta e canais push/e-mail, texto genérico) e o profissional recebe um e-mail genérico limitado e vê as mensagens por ler no portal (BR-MKT-41). | plan MK2 |
+| FR-MKT-18 | O profissional **responde** às conversas, vê-as por ordem da última mensagem com o número por ler, **fecha/reabre** e nunca vê identificadores da família (BR-MKT-38/43). | ADR-037 §7 |
+| FR-MKT-19 | Cada participante **denuncia** uma mensagem do outro lado; o admin vê **só a mensagem denunciada** e decide ocultar, fechar ou arquivar; sem acesso às restantes conversas (BR-MKT-44). | ADR-037 §7 |
+| FR-MKT-20 | O chat tem **limites e anti-abuso** (tamanho, taxa, conversas novas, mensagens sem resposta) e aviso fixo de não enviar dados de saúde sensíveis (BR-MKT-42/46). | marketplace §4.3 |
+| FR-MKT-21 | As conversas têm **retenção de 24 meses** desde a última mensagem, apagam-se com o membro/família e entram na exportação do titular (BR-MKT-45). | ADR-037 §7 |
+| FR-MKT-22 | As ações sensíveis de MK2 (abrir conversa, fechar/reabrir, denunciar, moderar, ver denúncia) são **auditadas sem conteúdo** (BR-MKT-43/44; `audit.md` §3). | ADR-037 |
+
 ---
 
 *Fim da Fase 3 (v0.2). Requisitos funcionais fechados, salvo os pontos já resolvidos nas fases seguintes (ver `business-rules.md` e `README.md`). Próxima: Fase 4 — Requisitos não funcionais.*

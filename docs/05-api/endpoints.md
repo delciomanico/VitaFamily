@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.15 (MK1, 2026-11-16: +34 operações do mercado de profissionais — `/professional-portal/*` e `/admin/professionals*`, `/admin/specialties*`; secção «Mercado de profissionais — MK1»; contratual, sem código)**; v0.14 (R6 do arquivo do marco B, ADR-037, 2026-11-16: removidas as 100 operações de seguradora/autorização/reembolso/cartão e os respetivos schemas, as tags `Insurance`/`Insurance Portal`, o esquema `insuranceBearerAuth`, `Process.coverage` e os códigos `COVERAGE_*`/`AWAIT_INSURER_DECISION`/`AWAIT_CLINIC_INFORMATION`/actor `INSURER`; `AUTHORIZATION_*` em `AlertType` mantêm-se como legado inerte).** O histórico das fatias do marco B está em `docs/_arquivo/marco-b/` e na tag `archive-marco-b-2026-11-16`.
+> Estado: **v0.16 (MK2, 2026-11-17: +25 operações de descoberta, comparação, ranking e conversas — `/marketplace/*`, `/families/{f}/members/{m}/conversations*`, `/professional-portal/conversations*`, `/admin/message-reports*`; 271 no total; secção «Mercado de profissionais — MK2»; contratual, sem código)**; v0.15 (MK1, 2026-11-16: +34 operações do mercado de profissionais — `/professional-portal/*` e `/admin/professionals*`, `/admin/specialties*`; secção «Mercado de profissionais — MK1»; contratual, sem código)**; v0.14 (R6 do arquivo do marco B, ADR-037, 2026-11-16: removidas as 100 operações de seguradora/autorização/reembolso/cartão e os respetivos schemas, as tags `Insurance`/`Insurance Portal`, o esquema `insuranceBearerAuth`, `Process.coverage` e os códigos `COVERAGE_*`/`AWAIT_INSURER_DECISION`/`AWAIT_CLINIC_INFORMATION`/actor `INSURER`; `AUTHORIZATION_*` em `AlertType` mantêm-se como legado inerte).** O histórico das fatias do marco B está em `docs/_arquivo/marco-b/` e na tag `archive-marco-b-2026-11-16`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -2358,3 +2358,212 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 **ValidationCase** — `id`, `action`: SUBMITTED|APPROVED|REJECTED|NEEDS_INFO|SUSPENDED|REACTIVATED|EXPIRED, `fromStatus`, `toStatus`, `actor`: PROFESSIONAL|PLATFORM_ADMIN|SYSTEM, `reason?`, `createdAt`
 
 **AdminProfessionalItem** — `id`, `displayName?`, `email`, `validationStatus`, `submittedAt?`, `specialties`: [Specialty], `credentialCount`: int, `createdAt` · **AdminProfessionalPage** — `{ items, nextCursor? }` · **AdminProfessionalDetail** — `id`, `email`, `emailVerifiedAt?`, `displayName?`, `bio?`, `city?`, `validationStatus`, `statusReason?`, `statusChangedAt`, `submittedAt?`, `approvedAt?`, `specialties`, `credentials`: [ProfessionalCredential], `history`: [ValidationCase] (mais recente primeiro), `createdAt` (nunca dados de saúde, palavra-passe, tokens nem `paymentInstructions`, BR-MKT-18/27) · **ProfessionalDecisionRequest** — `decision`: APPROVE|REJECT|REQUEST_INFO|SUSPEND|REACTIVATE, `reason?` (≤500; obrigatório em REJECT/REQUEST_INFO/SUSPEND)
+
+## Mercado de profissionais — MK2: descoberta, comparação, ranking e conversas (ADR-037) — CONTRATUAL
+
+> Acrescentado 2026-11-17 (contrato de MK2). **Só contrato: nada implementado.** Tags novas `Marketplace` e `Messaging`; as conversas do profissional ficam em `Professional Portal` e a moderação em `Admin`. **25 operações novas** (271 no total): 5 de descoberta (`/marketplace/*`, só `AUTH`, sem família, **sem `AccessPolicy`**: não há dados de saúde), 9 de conversas da família (`/families/{familyId}/members/{memberId}/conversations*`, `AccessPolicy` com a ação nova `MESSAGE_PROFESSIONALS`), 8 de conversas do profissional (`/professional-portal/conversations*`, `professionalBearerAuth`; leitura em todos os estados, escritas só `APPROVED`) e 3 de moderação (`/admin/message-reports*`). Código de erro novo: `CONVERSATION_CLOSED` (`errors.md`). Alertas: `AlertType` + `MESSAGE_RECEIVED`, `AlertSourceType` + `CONVERSATION`. Regras: `business-rules.md` §17 (BR-MKT-32..49); casos de uso `03-use-cases/marketplace.md` (UC-MKT-13..25).
+
+### Descoberta (User autenticado)
+
+### `GET /marketplace/filters`  — getMarketplaceFilters
+- **AUTHORIZATION:** AUTH (sem família; `authorization.md` §11.1)
+- **DESCRIPTION:** Filtros disponíveis (especialidades ativas com profissionais, cidades, métodos).
+- **RESPONSE:** `200` `MarketplaceFilters`
+- **ERRORS:** `UNAUTHENTICATED`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-32/33; UC-MKT-13. A `city` a enviar vem daqui (a província não é filtro, OP-82).
+
+### `GET /marketplace/ranking-rules`  — getRankingRules
+- **AUTHORIZATION:** AUTH (sem família; `authorization.md` §11.1)
+- **DESCRIPTION:** «Como ordenamos»: versão, sinais, pesos e o que nunca é usado.
+- **RESPONSE:** `200` `RankingRules`
+- **ERRORS:** `UNAUTHENTICATED`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-36/37; UC-MKT-16.
+
+### `GET /marketplace/professionals`  — searchProfessionals
+- **AUTHORIZATION:** AUTH (sem família; `authorization.md` §11.1)
+- **DESCRIPTION:** Pesquisar profissionais APPROVED com filtros, ordenação e paginação.
+- **REQUEST:** Query `q?` (2–60), `specialtyId?`, `category?`, `method?`, `city?`, `minPriceKz?`, `maxPriceKz?`, `availableWithinDays?` (1–56), `sort?` (`RANKING`\|`PRICE_ASC`\|`PRICE_DESC`\|`NEXT_AVAILABLE`), `limit?` (1–50, omissão 20), `cursor?`
+- **RESPONSE:** `200` `MarketplaceProfessionalPage` (`items`: `MarketplaceProfessionalItem`, `nextCursor`)
+- **ERRORS:** `MALFORMED_REQUEST`, `VALIDATION_ERROR` (`min > max`; `sort=RANKING` sem `specialtyId`), `UNAUTHENTICATED`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-32/33/36/37/49; UC-MKT-13. Filtros de oferta na **mesma** oferta ativa; só `APPROVED` com ≥ 1 oferta que cumpra os filtros; `ranking` só com `specialtyId`; sem registo de pesquisas nem auditoria; logs sem *query string*.
+
+### `GET /marketplace/professionals/compare`  — compareProfessionals
+- **AUTHORIZATION:** AUTH (sem família; `authorization.md` §11.1)
+- **DESCRIPTION:** Comparar preços de 2–3 profissionais numa especialidade, em Kz.
+- **REQUEST:** Query `ids` (2–3 uuid, `form` sem `explode`: `ids=a,b,c`), `specialtyId` (obrigatório)
+- **RESPONSE:** `200` `ProfessionalComparison`
+- **ERRORS:** `MALFORMED_REQUEST`, `NOT_FOUND` (algum id inexistente/não `APPROVED`: pedido inteiro, sem revelar qual), `VALIDATION_ERROR` (nº de ids, repetidos, profissional sem oferta ativa na especialidade), `UNAUTHENTICATED`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-35; UC-MKT-15. Sem estado no servidor.
+
+### `GET /marketplace/professionals/{professionalId}`  — getMarketplaceProfessional
+- **AUTHORIZATION:** AUTH (sem família; `authorization.md` §11.1)
+- **DESCRIPTION:** Perfil público de um profissional APPROVED.
+- **REQUEST:** Query `specialtyId?` (devolve o `ranking` nessa especialidade)
+- **RESPONSE:** `200` `MarketplaceProfessionalProfile`
+- **ERRORS:** `NOT_FOUND` (inexistente ou qualquer estado ≠ `APPROVED`), `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-19/34/26; UC-MKT-14. Nunca e-mail, `paymentInstructions` nem credenciais.
+
+### Conversas — lado da família (`/families/{familyId}/members/{memberId}/conversations`)
+
+### `GET /families/{familyId}/members/{memberId}/conversations`  — listFamilyConversations
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `MESSAGE_PROFESSIONALS`, `authorization.md` §11.2)
+- **DESCRIPTION:** Listar as conversas do membro com profissionais.
+- **REQUEST:** Query `status?` (`OPEN`\|`CLOSED`), `limit?`, `cursor?`
+- **RESPONSE:** `200` `FamilyConversationPage`
+- **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-38/40/47/48; UC-MKT-18. Não auditado.
+
+### `POST /families/{familyId}/members/{memberId}/conversations`  — startFamilyConversation
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `MESSAGE_PROFESSIONALS`, `authorization.md` §11.2)
+- **DESCRIPTION:** Escrever a um profissional: abrir a conversa (ou continuar a existente) com a primeira mensagem.
+- **REQUEST:** `StartConversationRequest` (`professionalId`, `participantLabel` 1–40, `text` 1–1000, `clientMessageId?`)
+- **RESPONSE:** `201` `ConversationStarted` (criada) · `200` `ConversationStarted` (já existia / `clientMessageId` repetido)
+- **ERRORS:** `FORBIDDEN` (`DEPENDENT_SELF`/`OTHER`), `NOT_FOUND` (membro de outra conta; profissional inexistente/não `APPROVED`), `CONVERSATION_CLOSED` (fechada pelo profissional/sistema), `LIMIT_EXCEEDED`, `RATE_LIMITED`, `VALIDATION_ERROR`, `MEMBER_BLOCKED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-38/39/42/46/47; UC-MKT-17. Auditoria `CONVERSATION_START` sem texto nem rótulo. Cria o aviso ao profissional (BR-MKT-41).
+
+### `GET /families/{familyId}/members/{memberId}/conversations/{conversationId}`  — getFamilyConversation
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `MESSAGE_PROFESSIONALS`, `authorization.md` §11.2)
+- **DESCRIPTION:** Ver o cabeçalho de uma conversa.
+- **RESPONSE:** `200` `FamilyConversation`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-48.
+
+### `GET /families/{familyId}/members/{memberId}/conversations/{conversationId}/messages`  — listFamilyConversationMessages
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `MESSAGE_PROFESSIONALS`, `authorization.md` §11.2)
+- **DESCRIPTION:** Mensagens da conversa (`seq` decrescente).
+- **REQUEST:** Query `limit?`, `cursor?`
+- **RESPONSE:** `200` `ChatMessagePage`
+- **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-39/40/44/46. Mensagens ocultas: `hidden=true`, sem texto. Ler **não** marca como lido. Não auditado.
+
+### `POST /families/{familyId}/members/{memberId}/conversations/{conversationId}/messages`  — sendFamilyMessage
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `MESSAGE_PROFESSIONALS`, `authorization.md` §11.2)
+- **DESCRIPTION:** Enviar uma mensagem de texto.
+- **REQUEST:** `SendMessageRequest` (`text` 1–1000, `clientMessageId?`)
+- **RESPONSE:** `201` `ChatMessage` · `200` (idempotência)
+- **ERRORS:** `CONVERSATION_CLOSED`, `LIMIT_EXCEEDED` (4.ª seguida sem resposta), `RATE_LIMITED`, `VALIDATION_ERROR`, `MEMBER_BLOCKED`, `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-39/41/42/47; UC-MKT-18. Mensagens não se auditam.
+
+### `PUT /families/{familyId}/members/{memberId}/conversations/{conversationId}/read`  — markFamilyConversationRead
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `MESSAGE_PROFESSIONALS`, `authorization.md` §11.2)
+- **DESCRIPTION:** Marcar como lida (marcador do lado da família; também marca os alertas `MESSAGE_RECEIVED`).
+- **REQUEST:** `MarkReadRequest` (`upToSeq?`)
+- **RESPONSE:** `200` `FamilyConversation`
+- **ERRORS:** `VALIDATION_ERROR`, `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-40/41. Idempotente; nunca recua.
+
+### `POST /families/{familyId}/members/{memberId}/conversations/{conversationId}/close`  — closeFamilyConversation
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `MESSAGE_PROFESSIONALS`, `authorization.md` §11.2)
+- **DESCRIPTION:** Fechar a conversa.
+- **RESPONSE:** `200` `FamilyConversation`
+- **ERRORS:** `INVALID_STATE_TRANSITION`, `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-43; UC-MKT-22. Auditoria `CONVERSATION_CLOSE`.
+
+### `POST /families/{familyId}/members/{memberId}/conversations/{conversationId}/reopen`  — reopenFamilyConversation
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `MESSAGE_PROFESSIONALS`, `authorization.md` §11.2)
+- **DESCRIPTION:** Reabrir uma conversa que a própria família fechou.
+- **RESPONSE:** `200` `FamilyConversation`
+- **ERRORS:** `INVALID_STATE_TRANSITION` (aberta), `CONVERSATION_CLOSED` (fechada pelo profissional/sistema), `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-43. Auditoria `CONVERSATION_REOPEN`.
+
+### `POST /families/{familyId}/members/{memberId}/conversations/{conversationId}/messages/{messageId}/reports`  — reportFamilyMessage
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `MESSAGE_PROFESSIONALS`, `authorization.md` §11.2)
+- **DESCRIPTION:** Denunciar uma mensagem do profissional.
+- **REQUEST:** `ReportMessageRequest` (`reason`, `note?` ≤ 300)
+- **RESPONSE:** `201` `MessageReportReceipt` · `200` (já existia)
+- **ERRORS:** `VALIDATION_ERROR` (mensagem própria), `RATE_LIMITED`, `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-44; UC-MKT-23. Auditoria `MESSAGE_REPORT_CREATE` sem texto nem nota.
+
+### Conversas — lado do profissional (`/professional-portal/conversations`)
+
+### `GET /professional-portal/conversations`  — listProfessionalConversations
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Listar as conversas do profissional.
+- **REQUEST:** Query `status?`, `limit?`, `cursor?`
+- **RESPONSE:** `200` `ProfessionalConversationPage`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-38/40/47/48; UC-MKT-20. **Sem ids de família/membro/utilizador** (só `participantLabel`).
+
+### `GET /professional-portal/conversations/{conversationId}`  — getProfessionalConversation
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Ver uma conversa.
+- **RESPONSE:** `200` `ProfessionalConversation`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-48.
+
+### `GET /professional-portal/conversations/{conversationId}/messages`  — listProfessionalConversationMessages
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Mensagens da conversa.
+- **REQUEST:** Query `limit?`, `cursor?`
+- **RESPONSE:** `200` `ChatMessagePage`
+- **ERRORS:** `MALFORMED_REQUEST`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-39/44. Leitura em todos os estados de validação.
+
+### `POST /professional-portal/conversations/{conversationId}/messages`  — sendProfessionalMessage
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Responder numa conversa.
+- **REQUEST:** `SendMessageRequest`
+- **RESPONSE:** `201` `ChatMessage` · `200` (idempotência)
+- **ERRORS:** `PROFESSIONAL_LOCKED` (não `APPROVED`), `CONVERSATION_CLOSED`, `RATE_LIMITED`, `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-39/41/42/47. Cria o alerta `MESSAGE_RECEIVED` da família.
+
+### `PUT /professional-portal/conversations/{conversationId}/read`  — markProfessionalConversationRead
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Marcar como lida (lado do profissional).
+- **REQUEST:** `MarkReadRequest`
+- **RESPONSE:** `200` `ProfessionalConversation`
+- **ERRORS:** `VALIDATION_ERROR`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-40. Permitido em todos os estados.
+
+### `POST /professional-portal/conversations/{conversationId}/close`  — closeProfessionalConversation
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Fechar a conversa.
+- **RESPONSE:** `200` `ProfessionalConversation`
+- **ERRORS:** `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-43. Auditoria `PROFESSIONAL_CONVERSATION_CLOSE`.
+
+### `POST /professional-portal/conversations/{conversationId}/reopen`  — reopenProfessionalConversation
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Reabrir uma conversa que o próprio profissional fechou.
+- **RESPONSE:** `200` `ProfessionalConversation`
+- **ERRORS:** `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`, `CONVERSATION_CLOSED`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-43. Auditoria `PROFESSIONAL_CONVERSATION_REOPEN`.
+
+### `POST /professional-portal/conversations/{conversationId}/messages/{messageId}/reports`  — reportProfessionalMessage
+- **AUTHORIZATION:** PROFESSIONAL_ACCOUNT
+- **DESCRIPTION:** Denunciar uma mensagem da família.
+- **REQUEST:** `ReportMessageRequest`
+- **RESPONSE:** `201` `MessageReportReceipt` · `200`
+- **ERRORS:** `VALIDATION_ERROR`, `RATE_LIMITED`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-44. Permitido em todos os estados. Auditoria `PROFESSIONAL_MESSAGE_REPORT_CREATE`.
+
+### Moderação (`/admin/message-reports`)
+
+### `GET /admin/message-reports`  — adminListMessageReports
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Fila de denúncias.
+- **REQUEST:** Query `status?` (omissão `OPEN`), `limit?`, `cursor?`
+- **RESPONSE:** `200` `AdminMessageReportPage`
+- **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-44; UC-MKT-24. **Sem o texto** das mensagens.
+
+### `GET /admin/message-reports/{reportId}`  — adminGetMessageReport
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Detalhe de uma denúncia: a mensagem denunciada e o motivo.
+- **RESPONSE:** `200` `AdminMessageReportDetail`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-44/48. **Auditado** (`ADMIN_MESSAGE_REPORT_VIEW`, sem texto). Nunca família, membro, `participantLabel` nem outras mensagens.
+
+### `POST /admin/message-reports/{reportId}/decisions`  — adminDecideMessageReport
+- **AUTHORIZATION:** PLATFORM_ADMIN
+- **DESCRIPTION:** Decidir (arquivar, ocultar a mensagem, ocultar e fechar a conversa).
+- **REQUEST:** `MessageReportDecisionRequest` (`decision`: `DISMISS`\|`HIDE_MESSAGE`\|`HIDE_AND_CLOSE`)
+- **RESPONSE:** `200` `AdminMessageReportDetail`
+- **ERRORS:** `INVALID_STATE_TRANSITION` (já decidida), `VALIDATION_ERROR`, `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-44. Transação única com bloqueio da denúncia. Auditoria `ADMIN_MESSAGE_REPORT_DECIDE` (`decision`).
+
+### Schemas de MK2 (resumo; detalhe em `openapi.yaml`)
+
+**MarketplaceOffer** — `id`, `specialtyId`, `method`, `durationMinutes`, `priceKz`: int (Kz), `note?` · **RankingExplanation** — `version` (`v1`), `score`: 0–100, `signals`: {`profileCompleteness`, `availability`, `price`, `seniority`} (0–1), `reasons`: [`COMPLETE_PROFILE`\|`GOOD_AVAILABILITY`\|`COMPETITIVE_PRICE`\|`ESTABLISHED`] (≤ 3), `label`: `NEW` · **MarketplaceProfessionalItem** — `id`, `displayName`, `city`, `specialties`, `matchingOffers`, `fromPriceKz`, `nextAvailableAt?`, `ranking?` · **MarketplaceProfessionalProfile** — `id`, `displayName`, `bio?`, `city`, `specialties`, `offers`, `nextAvailableAt?`, `memberSince`: date, `ranking?` (nunca e-mail, pagamento, credenciais, estado) · **ProfessionalComparison** — `specialtyId`, `items`: [`ComparisonItem`: `professionalId`, `displayName`, `city`, `offers`, `fromPriceKz`, `nextAvailableAt?`], `priceSummary`: [`method`, `minPriceKz`, `maxPriceKz`, `cheapestProfessionalIds`] · **MarketplaceFilters** — `specialties`: [`id`, `name`, `category`, `professionalCount`], `cities`: [`name`, `professionalCount`], `methods` · **RankingRules** — `version`, `signals`: [`code`, `weightPercent`, `description`], `notUsed`, `statement`
+
+**FamilyConversation** — `id`, `memberId`, `professional`: {`id`, `displayName`, `city?`}, `participantLabel`, `status`: OPEN|CLOSED, `closedBy?`: FAMILY|PROFESSIONAL|SYSTEM, `canSend` (derivado), `lastMessageAt`, `unreadCount`, `createdAt` · **ProfessionalConversation** — o mesmo **sem** `memberId` nem `professional` (nunca ids de família/membro/utilizador) · **ChatMessage** — `id`, `seq`, `side`: FAMILY|PROFESSIONAL, `mine`, `text?` (nulo se `hidden`), `hidden`, `createdAt`, `readByOtherSide` (nunca o id de quem escreveu) · **StartConversationRequest** — `professionalId`, `participantLabel`, `text`, `clientMessageId?` · **ConversationStarted** — `conversation`, `message` · **SendMessageRequest** — `text`, `clientMessageId?` · **MarkReadRequest** — `upToSeq?` · **ReportMessageRequest** — `reason`: ABUSE|SPAM|SCAM_OR_OFF_PLATFORM_PAYMENT|SENSITIVE_DATA|OTHER, `note?` · **MessageReportReceipt** — `id`, `status`: OPEN|DECIDED, `reason`, `createdAt` · **AdminMessageReportItem** — `id`, `status`, `reason`, `reportedSide`, `professionalId`, `professionalDisplayName`, `createdAt` · **AdminMessageReportDetail** — `id`, `status`, `reason`, `note?`, `reportedSide`, `professional`, `reportedUserId?`, `message`: {`id`, `text`, `hidden`, `createdAt`}, `decision?`, `decidedAt?`, `createdAt` · **MessageReportDecisionRequest** — `decision`: DISMISS|HIDE_MESSAGE|HIDE_AND_CLOSE · **Páginas** — `{ items, nextCursor? }`

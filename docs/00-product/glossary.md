@@ -11,6 +11,9 @@
 | **Concluir ato** | (BR-CLN-57) Ação única da clínica que conclui a consulta e grava, na mesma transação, o relatório (Médico), os pedidos de exame (Médico) e o recibo (Admin/Gestor). |
 | **Profissional** | (ADR-037, MK1) Pessoa que presta serviços de saúde ou bem-estar no mercado do Vita; conta própria (`ProfessionalAccount`), validada pelo admin. Categoria **Saúde** ou **Bem-estar** (do catálogo de especialidades), com avisos diferentes. |
 | **Mercado de profissionais** | (ADR-037) Parte do Vita onde a família descobre, compara preços, conversa, marca e avalia profissionais. Pagamento **fora da app**; ranking só por avaliações verificadas, nunca por pagamento. |
+| **Como ordenamos** | (MK2) Regra pública do ranking por especialidade: completude do perfil, disponibilidade, preço relativo e antiguidade na plataforma; **nunca** pagamento nem destaques pagos. Cada profissional mostra as razões. As avaliações verificadas entram em MK3. |
+| **Conversa** | (MK2) Troca de mensagens de texto entre uma família (titular ou tutor, em nome do membro) e um profissional **antes de marcar**; sem anexos; o profissional só vê o nome que a família escolheu; o admin só lê a mensagem denunciada; guarda-se 24 meses desde a última mensagem. |
+| **Comparar preços** | (MK2) Ver 2–3 profissionais lado a lado numa especialidade, com preços por método em Kz. |
 | **Comprovativo de pagamento** | (MK3) Ficheiro que a família envia a provar que pagou fora da app; o profissional confirma ou rejeita. O Vita regista o estado, não valida o dinheiro. |
 | **Avaliação verificada** | (MK3) Nota e comentário de uma marcação concluída com pagamento confirmado; única base do ranking. |
 | **Partilha com prazo / visualização única** | (MK4) Concessão da família para o profissional ver categorias escolhidas até um prazo (24 h, 7 d, 30 d, fim da consulta) ou uma só vez; revogável; cada acesso fica registado e visível à família. O app não impede capturas de ecrã e diz-o. |

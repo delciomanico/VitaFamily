@@ -29,6 +29,8 @@ tags:
   - name: Documents
   - name: Alerts
   - name: Reports
+  - name: Marketplace
+  - name: Messaging
   - name: Professional Portal
   - name: Admin
   - name: Operations
@@ -9223,6 +9225,961 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /marketplace/filters:
+    get:
+      tags: [Marketplace]
+      operationId: getMarketplaceFilters
+      summary: "Filtros disponíveis da descoberta (especialidades, cidades, métodos)."
+      description: "Autorização: AUTH (User autenticado, ativo, termos aceites; sem família; authorization.md §11.1). Token de profissional/clínica ⇒ UNAUTHENTICATED. UC-MKT-13, BR-MKT-32/33. Só especialidades ativas com ≥ 1 profissional APPROVED com oferta ativa, e as cidades (valor a enviar em city) dos APPROVED; com a contagem de profissionais. Não auditado; sem registo de pesquisa."
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MarketplaceFilters" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /marketplace/ranking-rules:
+    get:
+      tags: [Marketplace]
+      operationId: getRankingRules
+      summary: "Como ordenamos: regras públicas do ranking."
+      description: "Autorização: AUTH (User autenticado, ativo, termos aceites; sem família; authorization.md §11.1). Token de profissional/clínica ⇒ UNAUTHENTICATED. UC-MKT-16, BR-MKT-36/37. Versão, sinais e pesos do ranking por especialidade (v1) e a lista do que nunca é usado (pagamento, destaques, ordem manual). Texto estático versionado; igual para todos."
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RankingRules" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /marketplace/professionals:
+    get:
+      tags: [Marketplace]
+      operationId: searchProfessionals
+      summary: "Pesquisar profissionais APPROVED com filtros e ordenação."
+      description: "Autorização: AUTH (User autenticado, ativo, termos aceites; sem família; authorization.md §11.1). Token de profissional/clínica ⇒ UNAUTHENTICATED. UC-MKT-13, FR-MKT-11, BR-MKT-32/33/36/37/49. Só APPROVED, só dados públicos (BR-MKT-19). Os filtros de oferta (specialtyId, category, method, preço, availableWithinDays) aplicam-se à MESMA oferta ativa; matchingOffers são essas ofertas e fromPriceKz o menor preço entre elas. Com specialtyId cada item traz ranking (pontuação, sinais, razões; independente de pagamento). Ordem: sort; desempate por id. Cursor opaco. Sem registo de pesquisas nem auditoria; os logs de acesso não levam query string (BR-MKT-46)."
+      parameters:
+        - { name: q, in: query, schema: { type: string, minLength: 2, maxLength: 60 }, description: "Parte do nome de apresentação (sem distinção de maiúsculas)." }
+        - { name: specialtyId, in: query, schema: { type: string, format: uuid } }
+        - { name: category, in: query, schema: { $ref: "#/components/schemas/SpecialtyCategory" } }
+        - { name: method, in: query, schema: { $ref: "#/components/schemas/OfferMethod" } }
+        - { name: city, in: query, schema: { type: string, minLength: 2, maxLength: 80 }, description: "Valor devolvido por getMarketplaceFilters." }
+        - { name: minPriceKz, in: query, schema: { type: integer, minimum: 0, maximum: 100000000 } }
+        - { name: maxPriceKz, in: query, schema: { type: integer, minimum: 0, maximum: 100000000 } }
+        - { name: availableWithinDays, in: query, schema: { type: integer, minimum: 1, maximum: 56 } }
+        - { name: sort, in: query, schema: { type: string, enum: [RANKING, PRICE_ASC, PRICE_DESC, NEXT_AVAILABLE] }, description: "RANKING só com specialtyId (omissão nesse caso); sem specialtyId a omissão é NEXT_AVAILABLE." }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MarketplaceProfessionalPage" }
+        '400':
+          description: "MALFORMED_REQUEST (parâmetro fora do contrato ou cursor inválido)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (min maior que max; sort=RANKING sem specialtyId)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /marketplace/professionals/compare:
+    get:
+      tags: [Marketplace]
+      operationId: compareProfessionals
+      summary: "Comparar preços de 2 a 3 profissionais lado a lado (Kz)."
+      description: "Autorização: AUTH (User autenticado, ativo, termos aceites; sem família; authorization.md §11.1). Token de profissional/clínica ⇒ UNAUTHENTICATED. UC-MKT-15, FR-MKT-13, BR-MKT-35/31. ids: 2 a 3 profissionais distintos; specialtyId obrigatório. Devolve as ofertas ativas de cada um nessa especialidade, fromPriceKz, nextAvailableAt e o resumo por método com os mais baratos (empates devolvem todos). Sem estado no servidor. Qualquer id inexistente ou não APPROVED ⇒ NOT_FOUND do pedido inteiro; profissional sem oferta ativa na especialidade ⇒ VALIDATION_ERROR."
+      parameters:
+        - { name: ids, in: query, required: true, style: form, explode: false, schema: { type: array, minItems: 2, maxItems: 3, uniqueItems: true, items: { type: string, format: uuid } } }
+        - { name: specialtyId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalComparison" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /marketplace/professionals/{professionalId}:
+    get:
+      tags: [Marketplace]
+      operationId: getMarketplaceProfessional
+      summary: "Perfil público de um profissional APPROVED."
+      description: "Autorização: AUTH (User autenticado, ativo, termos aceites; sem família; authorization.md §11.1). Token de profissional/clínica ⇒ UNAUTHENTICATED. UC-MKT-14, FR-MKT-12, BR-MKT-34/19/26. Nunca devolve e-mail, paymentInstructions, credenciais, estado de validação nem contagem de conversas. Com ?specialtyId= devolve ranking nessa especialidade; sem ele ranking é null. Profissional inexistente ou em qualquer estado diferente de APPROVED ⇒ NOT_FOUND (sem oráculo). Os avisos de categoria e o selo são texto da UI (BR-MKT-02)."
+      parameters:
+        - { name: professionalId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: specialtyId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MarketplaceProfessionalProfile" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/conversations:
+    get:
+      tags: [Messaging]
+      operationId: listFamilyConversations
+      summary: "Listar as conversas do membro com profissionais."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação MESSAGE_PROFESSIONALS, authorization.md §11.2); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND. UC-MKT-18, FR-MKT-16, BR-MKT-38/40/47/48. Ordem: última mensagem mais recente primeiro. unreadCount = mensagens do profissional por ler (marcador partilhado do lado da família). Não auditado."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, CLOSED] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyConversationPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Messaging]
+      operationId: startFamilyConversation
+      summary: "Escrever a um profissional: abrir a conversa (ou continuar a existente) com a primeira mensagem."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação MESSAGE_PROFESSIONALS, authorization.md §11.2); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND. UC-MKT-17, FR-MKT-16/20, BR-MKT-38/39/42/46/47. Só a família abre; sem marcação prévia. 201 = conversa criada com a mensagem; 200 = já existia uma conversa OPEN do par e a mensagem foi acrescentada (ou clientMessageId repetido: devolve a mensagem existente sem duplicar nem notificar). Profissional inexistente ou não APPROVED ⇒ NOT_FOUND; conversa fechada pelo profissional ou pelo sistema ⇒ CONVERSATION_CLOSED; limites de BR-MKT-42 (RATE_LIMITED, LIMIT_EXCEEDED). O participantLabel é tudo o que o profissional vê da família (BR-MKT-38). Auditoria CONVERSATION_START sem texto nem rótulo."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StartConversationRequest" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationStarted" }
+        '200':
+          description: Mensagem acrescentada à conversa existente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConversationStarted" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONVERSATION_CLOSED | LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/conversations/{conversationId}:
+    get:
+      tags: [Messaging]
+      operationId: getFamilyConversation
+      summary: "Ver uma conversa (cabeçalho)."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação MESSAGE_PROFESSIONALS, authorization.md §11.2); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND. UC-MKT-18, BR-MKT-48. Conversa de outro membro/família ou inexistente ⇒ NOT_FOUND. Não auditado."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyConversation" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/conversations/{conversationId}/messages:
+    get:
+      tags: [Messaging]
+      operationId: listFamilyConversationMessages
+      summary: "Mensagens da conversa (mais recentes primeiro)."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação MESSAGE_PROFESSIONALS, authorization.md §11.2); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND. UC-MKT-18, BR-MKT-39/40/44. Ordem por seq decrescente com cursor. Mensagens ocultas pela moderação vêm com hidden=true e sem texto. Ler NÃO marca como lido (usar markFamilyConversationRead). Não auditado (o conteúdo é dado de saúde potencial: fora de logs, BR-MKT-46)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatMessagePage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Messaging]
+      operationId: sendFamilyMessage
+      summary: "Enviar uma mensagem de texto."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação MESSAGE_PROFESSIONALS, authorization.md §11.2); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND. UC-MKT-18, FR-MKT-16/20, BR-MKT-39/41/42/47. Texto simples 1–1000, sem anexos. 201 = guardada; 200 = clientMessageId repetido (devolve a existente). Exige conversa OPEN e profissional APPROVED (senão CONVERSATION_CLOSED). 4.ª mensagem seguida sem resposta ⇒ LIMIT_EXCEEDED; excesso de taxa ⇒ RATE_LIMITED. Cria o aviso ao profissional (e-mail genérico limitado). Mensagens não se auditam."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendMessageRequest" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatMessage" }
+        '200':
+          description: Já existia (idempotência)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatMessage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONVERSATION_CLOSED | LIMIT_EXCEEDED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/conversations/{conversationId}/read:
+    put:
+      tags: [Messaging]
+      operationId: markFamilyConversationRead
+      summary: "Marcar a conversa como lida (do lado da família)."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação MESSAGE_PROFESSIONALS, authorization.md §11.2); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND. UC-MKT-18/19, BR-MKT-40/41. Avança o marcador familyReadSeq (monótono; nunca recua; upToSeq omitido = a última). Marca também como lidos os alertas MESSAGE_RECEIVED da conversa. Idempotente. Não auditado."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MarkReadRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyConversation" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (upToSeq fora de 0..lastSeq)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/conversations/{conversationId}/close:
+    post:
+      tags: [Messaging]
+      operationId: closeFamilyConversation
+      summary: "Fechar a conversa (arrumar)."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação MESSAGE_PROFESSIONALS, authorization.md §11.2); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND. UC-MKT-22, BR-MKT-43. OPEN → CLOSED (closedBy=FAMILY); a leitura continua. Já fechada ⇒ INVALID_STATE_TRANSITION. Auditoria CONVERSATION_CLOSE."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyConversation" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/conversations/{conversationId}/reopen:
+    post:
+      tags: [Messaging]
+      operationId: reopenFamilyConversation
+      summary: "Reabrir uma conversa que a própria família fechou."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação MESSAGE_PROFESSIONALS, authorization.md §11.2); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND. UC-MKT-22, BR-MKT-43. CLOSED(closedBy=FAMILY) → OPEN. Fechada pelo profissional ou pelo sistema ⇒ CONVERSATION_CLOSED; aberta ⇒ INVALID_STATE_TRANSITION. Auditoria CONVERSATION_REOPEN."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyConversation" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION | CONVERSATION_CLOSED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/conversations/{conversationId}/messages/{messageId}/reports:
+    post:
+      tags: [Messaging]
+      operationId: reportFamilyMessage
+      summary: "Denunciar uma mensagem do profissional."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação MESSAGE_PROFESSIONALS, authorization.md §11.2); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND. UC-MKT-23, FR-MKT-19, BR-MKT-44. Só mensagens do OUTRO lado (a própria ⇒ VALIDATION_ERROR). Uma denúncia por (mensagem, lado): repetir devolve a existente (200). A mensagem continua visível até decisão do admin. Auditoria MESSAGE_REPORT_CREATE sem texto nem nota. Limite 10/dia (RATE_LIMITED)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: messageId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportMessageRequest" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageReportReceipt" }
+        '200':
+          description: Já existia
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageReportReceipt" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/conversations:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalConversations
+      summary: "Listar as conversas do profissional."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount; authorization.md §10); conversa procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-20, FR-MKT-18, BR-MKT-38/40/47/48. Ordem: última mensagem mais recente primeiro; unreadCount = mensagens da família por ler. NUNCA devolve ids de família, membro ou utilizador: só o participantLabel (BR-MKT-10/38). Leitura em todos os estados de validação."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, CLOSED] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalConversationPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/conversations/{conversationId}:
+    get:
+      tags: [Professional Portal]
+      operationId: getProfessionalConversation
+      summary: "Ver uma conversa (cabeçalho)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount; authorization.md §10); conversa procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-20, BR-MKT-48. Leitura em todos os estados de validação."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalConversation" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/conversations/{conversationId}/messages:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalConversationMessages
+      summary: "Mensagens da conversa (mais recentes primeiro)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount; authorization.md §10); conversa procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-20, BR-MKT-39/44. Mensagens ocultas vêm com hidden=true e sem texto. Ler não marca como lido. Leitura em todos os estados (SUSPENDED/REJECTED em só leitura, OP-59). Não auditado."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatMessagePage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Professional Portal]
+      operationId: sendProfessionalMessage
+      summary: "Responder numa conversa."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount; authorization.md §10); conversa procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-20, FR-MKT-18, BR-MKT-39/41/42/47. Só com o profissional APPROVED (senão PROFESSIONAL_LOCKED) e conversa OPEN (senão CONVERSATION_CLOSED). 201 = guardada; 200 = clientMessageId repetido. Cria o alerta MESSAGE_RECEIVED para a família (um por conversa até ler). Limite 60/h por conversa e 300/dia (RATE_LIMITED)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendMessageRequest" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatMessage" }
+        '200':
+          description: Já existia (idempotência)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChatMessage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | CONVERSATION_CLOSED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/conversations/{conversationId}/read:
+    put:
+      tags: [Professional Portal]
+      operationId: markProfessionalConversationRead
+      summary: "Marcar a conversa como lida (do lado do profissional)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount; authorization.md §10); conversa procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-20, BR-MKT-40. Avança professionalReadSeq (monótono). Idempotente. Não é uma escrita bloqueada por estado: permitida em todos os estados de validação (só atualiza o marcador de leitura)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MarkReadRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalConversation" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR (upToSeq fora de 0..lastSeq)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/conversations/{conversationId}/close:
+    post:
+      tags: [Professional Portal]
+      operationId: closeProfessionalConversation
+      summary: "Fechar a conversa (travar abuso ou arrumar)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount; authorization.md §10); conversa procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-20, BR-MKT-43. OPEN → CLOSED (closedBy=PROFESSIONAL). Só APPROVED (PROFESSIONAL_LOCKED nos outros estados). Já fechada ⇒ INVALID_STATE_TRANSITION. Auditoria PROFESSIONAL_CONVERSATION_CLOSE."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalConversation" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/conversations/{conversationId}/reopen:
+    post:
+      tags: [Professional Portal]
+      operationId: reopenProfessionalConversation
+      summary: "Reabrir uma conversa que o próprio profissional fechou."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount; authorization.md §10); conversa procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-20, BR-MKT-43. CLOSED(closedBy=PROFESSIONAL) → OPEN. Fechada pela família ou pelo sistema ⇒ CONVERSATION_CLOSED; aberta ⇒ INVALID_STATE_TRANSITION; só APPROVED (PROFESSIONAL_LOCKED). Auditoria PROFESSIONAL_CONVERSATION_REOPEN."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalConversation" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | INVALID_STATE_TRANSITION | CONVERSATION_CLOSED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/conversations/{conversationId}/messages/{messageId}/reports:
+    post:
+      tags: [Professional Portal]
+      operationId: reportProfessionalMessage
+      summary: "Denunciar uma mensagem da família."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount; authorization.md §10); conversa procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-23, FR-MKT-19, BR-MKT-44. Só mensagens do OUTRO lado; uma denúncia por (mensagem, lado), repetir devolve a existente (200). Permitida em todos os estados de validação (segurança). A família nunca é identificada ao admin além do reportedUserId (BR-MKT-44). Auditoria PROFESSIONAL_MESSAGE_REPORT_CREATE sem texto nem nota."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: conversationId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: messageId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportMessageRequest" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageReportReceipt" }
+        '200':
+          description: Já existia
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageReportReceipt" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/message-reports:
+    get:
+      tags: [Admin]
+      operationId: adminListMessageReports
+      summary: "Fila de denúncias de mensagens."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-44/48: o admin NÃO tem acesso ao conteúdo das conversas; só à mensagem denunciada e ao motivo; nunca à família, ao membro, ao participantLabel nem às restantes mensagens. UC-MKT-24. Filtro status (omissão OPEN), ordem mais antiga primeiro, cursor. A listagem NÃO devolve o texto das mensagens (só motivo, profissional e hora); o texto só vem no detalhe, que é auditado."
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, DECIDED] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMessageReportPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/message-reports/{reportId}:
+    get:
+      tags: [Admin]
+      operationId: adminGetMessageReport
+      summary: "Detalhe de uma denúncia (a mensagem denunciada)."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-44/48: o admin NÃO tem acesso ao conteúdo das conversas; só à mensagem denunciada e ao motivo; nunca à família, ao membro, ao participantLabel nem às restantes mensagens. UC-MKT-24. Devolve a mensagem denunciada (texto, hora, lado), motivo, nota do denunciante, profissional (id e nome público) e, só se a mensagem for do lado da família, reportedUserId (para as rotas já existentes de suspensão de conta, ADR-023). Cada leitura é AUDITADA (ADMIN_MESSAGE_REPORT_VIEW, sem o texto)."
+      parameters:
+        - { name: reportId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMessageReportDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/message-reports/{reportId}/decisions:
+    post:
+      tags: [Admin]
+      operationId: adminDecideMessageReport
+      summary: "Decidir uma denúncia (arquivar, ocultar a mensagem, ocultar e fechar a conversa)."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-44/48: o admin NÃO tem acesso ao conteúdo das conversas; só à mensagem denunciada e ao motivo; nunca à família, ao membro, ao participantLabel nem às restantes mensagens. UC-MKT-24, BR-MKT-44. DISMISS; HIDE_MESSAGE (a mensagem passa a hidden: o texto deixa de ser devolvido a todos, sem se apagar); HIDE_AND_CLOSE (oculta e fecha a conversa com closedBy=SYSTEM, que não se reabre em MK2). Transação única com bloqueio da denúncia: já decidida ⇒ INVALID_STATE_TRANSITION. Auditoria ADMIN_MESSAGE_REPORT_DECIDE (decision; sem conteúdo)."
+      parameters:
+        - { name: reportId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessageReportDecisionRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminMessageReportDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
 components:
   securitySchemes:
     bearerAuth:
@@ -12113,8 +13070,8 @@ components:
           format: uuid
         type:
           type: string
-          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED, APPOINTMENT_CONFIRM_REQUEST, FOLLOWUP_REMINDER, EXAM_ORDER_ADDED, AUTHORIZATION_APPROVED, AUTHORIZATION_NOT_APPROVED, AUTHORIZATION_INFO_REQUESTED, AUTHORIZATION_EXPIRING, AUTHORIZATION_WITHDRAWN]
-          description: "Os cinco AUTHORIZATION_* são **legado inerte** (arquivo do marco B, ADR-037): já não são gerados; mantêm-se no enum só para a leitura de alertas históricos (existem no enum do Postgres e o código ainda os tipa/traduz em GET /alerts). Os clientes tratam-nos como tipos desconhecidos/genéricos e não os criam nem os configuram."
+          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED, APPOINTMENT_CONFIRM_REQUEST, FOLLOWUP_REMINDER, EXAM_ORDER_ADDED, MESSAGE_RECEIVED, AUTHORIZATION_APPROVED, AUTHORIZATION_NOT_APPROVED, AUTHORIZATION_INFO_REQUESTED, AUTHORIZATION_EXPIRING, AUTHORIZATION_WITHDRAWN]
+          description: "MESSAGE_RECEIVED (MK2, BR-MKT-41): nova mensagem de um profissional (sourceType=CONVERSATION, sourceId = conversa); um alerta por conversa até a família a ler; texto externo genérico. Os cinco AUTHORIZATION_* são **legado inerte** (arquivo do marco B, ADR-037): já não são gerados; mantêm-se no enum só para a leitura de alertas históricos (existem no enum do Postgres e o código ainda os tipa/traduz em GET /alerts). Os clientes tratam-nos como tipos desconhecidos/genéricos e não os criam nem os configuram."
         familyId:
           type: string
           format: uuid
@@ -12127,7 +13084,7 @@ components:
           type: string
         sourceType:
           type: string
-          enum: [DOSE, APPOINTMENT, EXAMINATION, RECOMMENDATION, PROCESS]
+          enum: [DOSE, APPOINTMENT, EXAMINATION, RECOMMENDATION, CONVERSATION, PROCESS]
         sourceId:
           type: string
           format: uuid
@@ -12657,3 +13614,305 @@ components:
       properties:
         decision: { type: string, enum: [APPROVE, REJECT, REQUEST_INFO, SUSPEND, REACTIVATE] }
         reason: { type: string, minLength: 1, maxLength: 500, description: "Obrigatório em REJECT, REQUEST_INFO e SUSPEND; mostrado ao profissional; sem dados de saúde." }
+    MarketplaceOffer:
+      type: object
+      required: [id, specialtyId, method, durationMinutes, priceKz]
+      description: "Oferta ativa vista pela família (BR-MKT-34). Kz inteiro."
+      properties:
+        id: { type: string, format: uuid }
+        specialtyId: { type: string, format: uuid }
+        method: { $ref: "#/components/schemas/OfferMethod" }
+        durationMinutes: { type: integer, enum: [15, 20, 30, 45, 60] }
+        priceKz: { type: integer, minimum: 0, maximum: 100000000 }
+        note: { type: string, nullable: true, maxLength: 200 }
+    RankingSignals:
+      type: object
+      required: [profileCompleteness, availability, price, seniority]
+      description: "Sinais do ranking v1, cada um em [0,1] (BR-MKT-37). Lista fechada: nenhum sinal de pagamento, destaque ou ordem manual existe nem é aceite (BR-MKT-36)."
+      properties:
+        profileCompleteness: { type: number, minimum: 0, maximum: 1 }
+        availability: { type: number, minimum: 0, maximum: 1 }
+        price: { type: number, minimum: 0, maximum: 1, description: "0,5 (neutro) quando a coorte tem menos de 3 profissionais." }
+        seniority: { type: number, minimum: 0, maximum: 1 }
+    RankingReason:
+      type: string
+      enum: [COMPLETE_PROFILE, GOOD_AVAILABILITY, COMPETITIVE_PRICE, ESTABLISHED]
+      description: "Razões (sinais com valor ≥ 0,75, por ordem de peso, no máximo 3); a UI traduz. Conjunto aberto: clientes toleram valores desconhecidos."
+    RankingExplanation:
+      type: object
+      required: [version, score, signals, reasons, label]
+      description: "Ranking por especialidade (função pura, BR-MKT-36/37). Só existe quando o pedido indica specialtyId."
+      properties:
+        version: { type: string, example: "v1" }
+        score: { type: integer, minimum: 0, maximum: 100 }
+        signals: { $ref: "#/components/schemas/RankingSignals" }
+        reasons: { type: array, maxItems: 3, items: { $ref: "#/components/schemas/RankingReason" } }
+        label: { type: string, enum: [NEW], description: "NEW («Novo») enquanto não existirem avaliações verificadas (MK3, BR-MKT-04). Conjunto aberto." }
+    MarketplaceProfessionalItem:
+      type: object
+      required: [id, displayName, city, specialties, matchingOffers, fromPriceKz]
+      description: "Cartão da pesquisa (BR-MKT-33/34). Sem e-mail, pagamento nem dados internos."
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        city: { type: string }
+        specialties: { type: array, items: { $ref: "#/components/schemas/Specialty" } }
+        matchingOffers: { type: array, minItems: 1, items: { $ref: "#/components/schemas/MarketplaceOffer" } }
+        fromPriceKz: { type: integer, minimum: 0, description: "Menor preço entre as ofertas que correspondem aos filtros." }
+        nextAvailableAt: { type: string, format: date-time, nullable: true, description: "Primeiro horário futuro das ofertas correspondentes." }
+        ranking: { allOf: [{ $ref: "#/components/schemas/RankingExplanation" }], nullable: true, description: "Só com specialtyId no pedido." }
+    MarketplaceProfessionalPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/MarketplaceProfessionalItem" } }
+        nextCursor: { type: string, nullable: true }
+    MarketplaceProfessionalProfile:
+      type: object
+      required: [id, displayName, city, specialties, offers]
+      description: "Perfil público para famílias (BR-MKT-34). Nunca e-mail, paymentInstructions, credenciais, estado de validação nem contagens internas."
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        bio: { type: string, nullable: true, maxLength: 1000 }
+        city: { type: string }
+        specialties: { type: array, items: { $ref: "#/components/schemas/Specialty" } }
+        offers: { type: array, items: { $ref: "#/components/schemas/MarketplaceOffer" }, description: "Todas as ofertas ativas." }
+        nextAvailableAt: { type: string, format: date-time, nullable: true }
+        memberSince: { type: string, format: date, description: "Primeiro dia do mês da primeira aprovação." }
+        ranking: { allOf: [{ $ref: "#/components/schemas/RankingExplanation" }], nullable: true, description: "Só com ?specialtyId= de uma especialidade do profissional." }
+    ComparisonItem:
+      type: object
+      required: [professionalId, displayName, city, offers, fromPriceKz]
+      properties:
+        professionalId: { type: string, format: uuid }
+        displayName: { type: string }
+        city: { type: string }
+        offers: { type: array, minItems: 1, items: { $ref: "#/components/schemas/MarketplaceOffer" }, description: "Ofertas ativas na especialidade comparada, por método e duração." }
+        fromPriceKz: { type: integer, minimum: 0 }
+        nextAvailableAt: { type: string, format: date-time, nullable: true }
+    MethodPriceSummary:
+      type: object
+      required: [method, minPriceKz, maxPriceKz, cheapestProfessionalIds]
+      properties:
+        method: { $ref: "#/components/schemas/OfferMethod" }
+        minPriceKz: { type: integer, minimum: 0 }
+        maxPriceKz: { type: integer, minimum: 0 }
+        cheapestProfessionalIds: { type: array, minItems: 1, items: { type: string, format: uuid }, description: "Todos os profissionais com o preço mínimo do método (empates incluídos)." }
+    ProfessionalComparison:
+      type: object
+      required: [specialtyId, items, priceSummary]
+      description: "Comparação de preços lado a lado em Kz (BR-MKT-35). Sem estado no servidor; sem pontuação do ranking."
+      properties:
+        specialtyId: { type: string, format: uuid }
+        items: { type: array, minItems: 2, maxItems: 3, items: { $ref: "#/components/schemas/ComparisonItem" } }
+        priceSummary: { type: array, items: { $ref: "#/components/schemas/MethodPriceSummary" } }
+    MarketplaceFilters:
+      type: object
+      required: [specialties, cities, methods]
+      properties:
+        specialties:
+          type: array
+          items:
+            type: object
+            required: [id, name, category, professionalCount]
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              category: { $ref: "#/components/schemas/SpecialtyCategory" }
+              professionalCount: { type: integer, minimum: 1 }
+        cities:
+          type: array
+          items:
+            type: object
+            required: [name, professionalCount]
+            properties:
+              name: { type: string, description: "Valor a enviar em city (grafia mais frequente)." }
+              professionalCount: { type: integer, minimum: 1 }
+        methods: { type: array, items: { $ref: "#/components/schemas/OfferMethod" } }
+    RankingRules:
+      type: object
+      required: [version, signals, notUsed, statement]
+      description: "Regras públicas do ranking («Como ordenamos», BR-MKT-36/37). Estático e versionado."
+      properties:
+        version: { type: string, example: "v1" }
+        signals:
+          type: array
+          items:
+            type: object
+            required: [code, weightPercent, description]
+            properties:
+              code: { type: string, enum: [PROFILE_COMPLETENESS, AVAILABILITY, PRICE, SENIORITY] }
+              weightPercent: { type: integer, minimum: 0, maximum: 100 }
+              description: { type: string }
+        notUsed: { type: array, items: { type: string }, description: "O que nunca influencia a ordem (pagamento, destaques, ordem manual, dados pessoais)." }
+        statement: { type: string, description: "Frase pública: o pagamento e os destaques pagos nunca influenciam a ordem." }
+    ConversationStatus:
+      type: string
+      enum: [OPEN, CLOSED]
+    ConversationClosedBy:
+      type: string
+      enum: [FAMILY, PROFESSIONAL, SYSTEM]
+    ConversationProfessional:
+      type: object
+      required: [id, displayName]
+      description: "Identidade pública do profissional (a mesma do perfil público)."
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        city: { type: string, nullable: true }
+    FamilyConversation:
+      type: object
+      required: [id, memberId, professional, participantLabel, status, canSend, lastMessageAt, unreadCount, createdAt]
+      description: "Conversa vista pela família (BR-MKT-38/47). canSend é derivado: OPEN e profissional APPROVED."
+      properties:
+        id: { type: string, format: uuid }
+        memberId: { type: string, format: uuid, description: "Membro-sujeito (o titular ou o dependente)." }
+        professional: { $ref: "#/components/schemas/ConversationProfessional" }
+        participantLabel: { type: string, minLength: 1, maxLength: 40 }
+        status: { $ref: "#/components/schemas/ConversationStatus" }
+        closedBy: { allOf: [{ $ref: "#/components/schemas/ConversationClosedBy" }], nullable: true }
+        canSend: { type: boolean }
+        lastMessageAt: { type: string, format: date-time }
+        unreadCount: { type: integer, minimum: 0, description: "Mensagens do profissional com seq > familyReadSeq." }
+        createdAt: { type: string, format: date-time }
+    FamilyConversationPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/FamilyConversation" } }
+        nextCursor: { type: string, nullable: true }
+    ProfessionalConversation:
+      type: object
+      required: [id, participantLabel, status, canSend, lastMessageAt, unreadCount, createdAt]
+      description: "Conversa vista pelo profissional: NUNCA contém ids de família, membro ou utilizador (BR-MKT-10/38)."
+      properties:
+        id: { type: string, format: uuid }
+        participantLabel: { type: string, minLength: 1, maxLength: 40 }
+        status: { $ref: "#/components/schemas/ConversationStatus" }
+        closedBy: { allOf: [{ $ref: "#/components/schemas/ConversationClosedBy" }], nullable: true }
+        canSend: { type: boolean, description: "OPEN e o próprio profissional APPROVED." }
+        lastMessageAt: { type: string, format: date-time }
+        unreadCount: { type: integer, minimum: 0, description: "Mensagens da família com seq > professionalReadSeq." }
+        createdAt: { type: string, format: date-time }
+    ProfessionalConversationPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ProfessionalConversation" } }
+        nextCursor: { type: string, nullable: true }
+    ChatMessage:
+      type: object
+      required: [id, seq, side, mine, hidden, createdAt, readByOtherSide]
+      description: "Mensagem de texto (BR-MKT-39). text é nulo quando hidden=true (moderação). Dado de saúde potencial: fora de logs (BR-MKT-46). Nunca contém o id do utilizador que escreveu."
+      properties:
+        id: { type: string, format: uuid }
+        seq: { type: integer, minimum: 1 }
+        side: { type: string, enum: [FAMILY, PROFESSIONAL] }
+        mine: { type: boolean, description: "Escrita pelo próprio utilizador (família: o próprio User; profissional: o lado PROFESSIONAL)." }
+        text: { type: string, nullable: true, minLength: 1, maxLength: 1000 }
+        hidden: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        readByOtherSide: { type: boolean, description: "seq ≤ marcador de leitura do outro lado." }
+    ChatMessagePage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ChatMessage" }, description: "seq decrescente." }
+        nextCursor: { type: string, nullable: true }
+    StartConversationRequest:
+      type: object
+      additionalProperties: false
+      required: [professionalId, participantLabel, text]
+      properties:
+        professionalId: { type: string, format: uuid }
+        participantLabel: { type: string, minLength: 1, maxLength: 40, description: "Como a família quer ser tratada; é tudo o que o profissional vê (OP-75). Ignorado se a conversa já existir." }
+        text: { type: string, minLength: 1, maxLength: 1000 }
+        clientMessageId: { type: string, format: uuid }
+    ConversationStarted:
+      type: object
+      required: [conversation, message]
+      properties:
+        conversation: { $ref: "#/components/schemas/FamilyConversation" }
+        message: { $ref: "#/components/schemas/ChatMessage" }
+    SendMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 1000, description: "Texto simples; sem anexos, HTML nem formatação (BR-MKT-39)." }
+        clientMessageId: { type: string, format: uuid, description: "Idempotência do envio (rede instável)." }
+    MarkReadRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        upToSeq: { type: integer, minimum: 0, description: "Omitido = a última mensagem. O marcador nunca recua." }
+    MessageReportReason:
+      type: string
+      enum: [ABUSE, SPAM, SCAM_OR_OFF_PLATFORM_PAYMENT, SENSITIVE_DATA, OTHER]
+    ReportMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { $ref: "#/components/schemas/MessageReportReason" }
+        note: { type: string, minLength: 1, maxLength: 300, description: "Opcional; escrita pelo denunciante; visível ao admin." }
+    MessageReportReceipt:
+      type: object
+      required: [id, status, reason, createdAt]
+      description: "Vista do denunciante: estado, não o motivo da decisão."
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [OPEN, DECIDED] }
+        reason: { $ref: "#/components/schemas/MessageReportReason" }
+        createdAt: { type: string, format: date-time }
+    MessageReportDecision:
+      type: string
+      enum: [DISMISS, HIDE_MESSAGE, HIDE_AND_CLOSE]
+    MessageReportDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { $ref: "#/components/schemas/MessageReportDecision" }
+    AdminMessageReportItem:
+      type: object
+      required: [id, status, reason, reportedSide, professionalId, professionalDisplayName, createdAt]
+      description: "Sem o texto da mensagem (BR-MKT-44)."
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [OPEN, DECIDED] }
+        reason: { $ref: "#/components/schemas/MessageReportReason" }
+        reportedSide: { type: string, enum: [FAMILY, PROFESSIONAL], description: "Lado que escreveu a mensagem denunciada." }
+        professionalId: { type: string, format: uuid }
+        professionalDisplayName: { type: string }
+        createdAt: { type: string, format: date-time }
+    AdminMessageReportPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AdminMessageReportItem" } }
+        nextCursor: { type: string, nullable: true }
+    AdminMessageReportDetail:
+      type: object
+      required: [id, status, reason, reportedSide, professional, message, createdAt]
+      description: "BR-MKT-44: só a mensagem denunciada e o contexto mínimo; nunca família, membro, participantLabel nem outras mensagens. A leitura é auditada."
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [OPEN, DECIDED] }
+        reason: { $ref: "#/components/schemas/MessageReportReason" }
+        note: { type: string, nullable: true, maxLength: 300 }
+        reportedSide: { type: string, enum: [FAMILY, PROFESSIONAL] }
+        professional: { $ref: "#/components/schemas/ConversationProfessional" }
+        reportedUserId: { type: string, format: uuid, nullable: true, description: "Só se a mensagem for do lado da família e o utilizador ainda existir; para usar a suspensão de conta já existente (ADR-023) (OP-76)." }
+        message:
+          type: object
+          required: [id, text, hidden, createdAt]
+          properties:
+            id: { type: string, format: uuid }
+            text: { type: string, description: "Texto original da mensagem denunciada (o admin vê-o mesmo que já esteja oculta para os participantes)." }
+            hidden: { type: boolean }
+            createdAt: { type: string, format: date-time }
+        decision: { allOf: [{ $ref: "#/components/schemas/MessageReportDecision" }], nullable: true }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }

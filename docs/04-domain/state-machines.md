@@ -209,6 +209,30 @@ PENDING → INFECTED    [antivírus] → objeto apagado (outbox próprio `profes
 ```
 Difere de `Document` (que elimina a linha) só para o profissional perceber o que falhou. `PENDING`/`INFECTED` não se descarregam (`DOCUMENT_NOT_AVAILABLE`) nem satisfazem os requisitos de submissão.
 
+## Conversation (MK2, BR-MKT-43/44/47; contrato 2026-11-17)
+```text
+(nova)  → OPEN                       [família abre com a 1.ª mensagem; profissional APPROVED]        (1 conversa por membro-sujeito e profissional)
+OPEN    → CLOSED (closedBy=FAMILY)       [família fecha]
+OPEN    → CLOSED (closedBy=PROFESSIONAL) [profissional fecha, p. ex. para travar abuso]
+OPEN    → CLOSED (closedBy=SYSTEM)       [admin decide HIDE_AND_CLOSE numa denúncia]
+CLOSED(FAMILY)       → OPEN  [só a família reabre]
+CLOSED(PROFESSIONAL) → OPEN  [só o profissional reabre]
+CLOSED(SYSTEM)       → (sem transição em MK2)
+```
+`status` e `closedBy` mudam **só** por estas transições (cada uma auditada, transação com bloqueio da linha da conversa); uma transição inválida (fechar fechada, reabrir aberta ou por quem não fechou) ⇒ `INVALID_STATE_TRANSITION`; abrir/continuar ou enviar numa conversa fechada ⇒ `CONVERSATION_CLOSED`. **Efeito derivado, sem transição:** se o profissional deixa de estar `APPROVED` (suspensão, caducidade, rejeição) a conversa continua `OPEN`/`CLOSED` mas `canSend = false` e ninguém envia (`CONVERSATION_CLOSED` à família, `PROFESSIONAL_LOCKED` ao profissional); ao reativar, retoma (BR-MKT-47). A conversa desaparece só por retenção (24 meses desde `lastMessageAt`), apagamento do membro/família ou do profissional (cascata).
+
+## MessageReport (MK2, BR-MKT-44)
+```text
+(nova) → OPEN                [participante denuncia uma mensagem do outro lado]
+OPEN   → DECIDED(DISMISS)       [admin arquiva; a mensagem fica visível]
+OPEN   → DECIDED(HIDE_MESSAGE)  [admin oculta: messages.hidden_at definido]
+OPEN   → DECIDED(HIDE_AND_CLOSE)[admin oculta e fecha a conversa (SYSTEM)]
+```
+Decisões concorrentes: bloqueio da denúncia; a segunda ⇒ `INVALID_STATE_TRANSITION`. A decisão é definitiva (sem reabertura em MK2).
+
+## Message (MK2) — imutável
+Não tem máquina de estados: `body` e `seq` nunca mudam; o único efeito é `hiddenAt` (nulo → data, por moderação, irreversível em MK2).
+
 ## Alert / Notification
 ```text
 Alert: não lido → lido [destinatário]  (campo readAt; não há estados de máquina)
