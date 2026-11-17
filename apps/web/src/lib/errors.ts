@@ -65,7 +65,7 @@ const messages: Record<ErrorCode, string> = {
   RATE_LIMITED: 'Fez demasiados pedidos. Tente mais tarde.',
   MEMBER_BLOCKED: 'O perfil deste membro está bloqueado.',
   FILE_TOO_LARGE: 'O ficheiro é demasiado grande.',
-  FILE_TYPE_NOT_ALLOWED: 'Tipo de ficheiro não permitido. Use CSV ou XLSX.',
+  FILE_TYPE_NOT_ALLOWED: 'Tipo de ficheiro não permitido. Use PDF, JPG ou PNG.',
   INVALID_STATE_TRANSITION: 'O pedido já mudou de estado. Atualize a página.',
   DOCUMENT_LIMIT_EXCEEDED: 'Já tem 5 anexos neste pedido. Remova um para juntar outro.',
   SERVICE_UNAVAILABLE: 'Não foi possível verificar o ficheiro agora. Tente mais tarde.',

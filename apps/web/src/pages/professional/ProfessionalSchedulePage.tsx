@@ -19,7 +19,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { isValidISODate, todayISO } from '@/lib/date'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { WEEKDAYS, offerMethodLabel, weekdayLabel } from '@/lib/professional'
-import { formatLongDate, formatShortDate, formatTime, formatWhen } from '@/lib/format'
+import { formatLongDate, formatShortDate, formatTimeLuanda, formatWhenLuanda, luandaDayISO } from '@/lib/format'
 import { paths } from '@/routes/paths'
 import { professionalPortalService } from '@/services/professionalPortal.service'
 import type {
@@ -541,7 +541,7 @@ function TimeOffSection({ canEdit, onChanged }: TimeOffSectionProps) {
                 <Card className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <p className="font-medium">
-                      {formatWhen(item.startsAt)} – {formatWhen(item.endsAt)}
+                      {formatWhenLuanda(item.startsAt)} – {formatWhenLuanda(item.endsAt)}
                     </p>
                     {item.reason && <p className="text-sm break-words text-muted">{item.reason}</p>}
                   </div>
@@ -600,12 +600,12 @@ function TimeOffSection({ canEdit, onChanged }: TimeOffSectionProps) {
 
 /* ───────────────────────── Horários gerados ───────────────────────── */
 
-/** Agrupa por dia (data local do dispositivo) e ordena cronologicamente. */
+/** Agrupa por dia (dia em Luanda) e ordena cronologicamente. */
 function groupSlotsByDay(slots: ProfessionalSlot[]): Array<[string, ProfessionalSlot[]]> {
   const byDay = new Map<string, ProfessionalSlot[]>()
   const ordered = [...slots].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))
   for (const slot of ordered) {
-    const day = todayISO(new Date(slot.startsAt))
+    const day = luandaDayISO(slot.startsAt)
     byDay.set(day, [...(byDay.get(day) ?? []), slot])
   }
   return [...byDay.entries()]
@@ -663,7 +663,7 @@ function SlotsSection({ version }: { version: number }) {
                   {daySlots.map((slot) => (
                     <li key={slot.id}>
                       <Badge tone="primary">
-                        {formatTime(slot.startsAt)}–{formatTime(slot.endsAt)}
+                        {formatTimeLuanda(slot.startsAt)}–{formatTimeLuanda(slot.endsAt)}
                       </Badge>
                     </li>
                   ))}

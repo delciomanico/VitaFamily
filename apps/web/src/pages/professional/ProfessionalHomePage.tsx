@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/Toast'
 import { useProfessionalProfile } from '@/hooks/useProfessionalProfile'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { errorMessage } from '@/lib/errors'
-import { formatShortDate, formatWhen } from '@/lib/format'
+import { formatShortDateLuanda, formatWhenLuanda } from '@/lib/format'
 import { requirementLabel, validationStatusHint } from '@/lib/professional'
 import { paths } from '@/routes/paths'
 import { professionalPortalService } from '@/services/professionalPortal.service'
@@ -73,13 +73,13 @@ export function ProfessionalHomePage() {
             {profile.submittedAt && (
               <div className="flex gap-2">
                 <dt className="text-muted">Submetido</dt>
-                <dd>{formatWhen(profile.submittedAt)}</dd>
+                <dd>{formatWhenLuanda(profile.submittedAt)}</dd>
               </div>
             )}
             {profile.approvedAt && (
               <div className="flex gap-2">
                 <dt className="text-muted">Aprovado</dt>
-                <dd>{formatShortDate(profile.approvedAt)}</dd>
+                <dd>{formatShortDateLuanda(profile.approvedAt)}</dd>
               </div>
             )}
           </dl>

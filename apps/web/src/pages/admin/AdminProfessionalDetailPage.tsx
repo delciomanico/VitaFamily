@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
 import { saveBlob } from '@/lib/download'
 import { errorMessage, isAppError } from '@/lib/errors'
-import { formatShortDate, formatWhen } from '@/lib/format'
+import { formatShortDate, formatShortDateLuanda, formatWhenLuanda } from '@/lib/format'
 import {
   categoryLabel,
   credentialKindLabel,
@@ -181,9 +181,9 @@ export function AdminProfessionalDetailPage() {
         </div>
         <dl className="flex flex-col gap-2">
           {detail.statusReason && <InfoRow label="Motivo">{detail.statusReason}</InfoRow>}
-          <InfoRow label="Estado desde">{formatWhen(detail.statusChangedAt)}</InfoRow>
-          <InfoRow label="Submetido">{detail.submittedAt ? formatShortDate(detail.submittedAt) : 'Ainda não'}</InfoRow>
-          <InfoRow label="Aprovado">{detail.approvedAt ? formatShortDate(detail.approvedAt) : 'Ainda não'}</InfoRow>
+          <InfoRow label="Estado desde">{formatWhenLuanda(detail.statusChangedAt)}</InfoRow>
+          <InfoRow label="Submetido">{detail.submittedAt ? formatShortDateLuanda(detail.submittedAt) : 'Ainda não'}</InfoRow>
+          <InfoRow label="Aprovado">{detail.approvedAt ? formatShortDateLuanda(detail.approvedAt) : 'Ainda não'}</InfoRow>
         </dl>
       </Card>
 
@@ -191,7 +191,7 @@ export function AdminProfessionalDetailPage() {
         <dl className="flex flex-col gap-2">
           <InfoRow label="E-mail">{detail.email}</InfoRow>
           <InfoRow label="E-mail verificado em">
-            {detail.emailVerifiedAt ? formatWhen(detail.emailVerifiedAt) : 'Não verificado'}
+            {detail.emailVerifiedAt ? formatWhenLuanda(detail.emailVerifiedAt) : 'Não verificado'}
           </InfoRow>
           <InfoRow label="Nome de apresentação">{detail.displayName || '—'}</InfoRow>
           <InfoRow label="Cidade">{detail.city || '—'}</InfoRow>
@@ -273,7 +273,7 @@ export function AdminProfessionalDetailPage() {
                 <li key={entry.id} className="flex flex-col gap-0.5 border-b border-border pb-3 last:border-b-0 last:pb-0">
                   <span className="flex flex-wrap items-baseline justify-between gap-2">
                     <span className="font-medium">{validationActionLabel[entry.action]}</span>
-                    <span className="text-sm text-muted">{formatWhen(entry.createdAt)}</span>
+                    <span className="text-sm text-muted">{formatWhenLuanda(entry.createdAt)}</span>
                   </span>
                   <span className="text-sm text-muted">{ACTOR_LABEL[entry.actor]}</span>
                   {entry.reason && <p className="text-sm whitespace-pre-line">{entry.reason}</p>}

@@ -80,3 +80,35 @@ export function formatRelativeDay(value: string, now: Date = new Date()): string
 export function formatWhen(value: string, now: Date = new Date()): string {
   return `${formatRelativeDay(value, now)} · ${formatTime(value)}`
 }
+
+/*
+ * Fuso fixo Africa/Luanda (UTC+1, sem DST) para o mercado de profissionais (MK1): horários e carimbos
+ * mostram-se na hora de Luanda, independentemente do fuso do dispositivo.
+ */
+export const LUANDA_TZ = 'Africa/Luanda'
+const luandaTimeFormat = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit', timeZone: LUANDA_TZ })
+const luandaDayFormat = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: LUANDA_TZ })
+
+/** Data ISO (yyyy-mm-dd) de um instante em Luanda. */
+export function luandaDayISO(value: string | Date): string {
+  return luandaDayFormat.format(typeof value === 'string' ? new Date(value) : value)
+}
+
+/** “09:30” em Luanda. */
+export function formatTimeLuanda(value: string): string {
+  return luandaTimeFormat.format(new Date(value))
+}
+
+/** “15 out 2026” com o dia em Luanda. */
+export function formatShortDateLuanda(value: string): string {
+  return formatShortDate(luandaDayISO(value))
+}
+
+/** “Amanhã · 09:30” em Luanda. */
+export function formatWhenLuanda(value: string, now: Date = new Date()): string {
+  const day = luandaDayISO(value)
+  const today = luandaDayISO(now)
+  const shifted = (days: number) => luandaDayISO(new Date(now.getTime() + days * 86_400_000))
+  const label = day === today ? 'Hoje' : day === shifted(1) ? 'Amanhã' : day === shifted(-1) ? 'Ontem' : formatDayMonth(day)
+  return `${label} · ${formatTimeLuanda(value)}`
+}

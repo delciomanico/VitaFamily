@@ -10,7 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
 import { errorMessage } from '@/lib/errors'
-import { formatCount, formatShortDate } from '@/lib/format'
+import { formatCount, formatShortDateLuanda } from '@/lib/format'
 import { categoryLabel, validationStatusLabel } from '@/lib/professional'
 import { paths } from '@/routes/paths'
 import { professionalAdminService } from '@/services/professionalAdmin.service'
@@ -121,7 +121,7 @@ export function AdminProfessionalsPage() {
                     {formatCount(item.credentialCount, 'credencial', 'credenciais')}
                   </span>
                   <span className="text-xs text-muted">
-                    Submetido: {item.submittedAt ? formatShortDate(item.submittedAt) : 'ainda não'}
+                    Submetido: {item.submittedAt ? formatShortDateLuanda(item.submittedAt) : 'ainda não'}
                   </span>
                 </Link>
               ))}
