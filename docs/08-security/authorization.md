@@ -273,8 +273,8 @@ Login, refresh, logout e recuperação de palavra-passe funcionam em todos os es
 | Decidir (`APPROVE`, `REJECT`, `REQUEST_INFO`, `SUSPEND`, `REACTIVATE`; tabela de `state-machines.md`) | sim, com motivo onde é obrigatório | idem |
 | Criar/alterar/desativar especialidades | sim | idem |
 | Editar perfil, ofertas, horários, credenciais ou palavra-passe de um profissional; ler `paymentInstructions`; criar contas de profissional | **não** (não há rota) | — |
-| **MK2** Listar denúncias de mensagens, ver o detalhe (**só a mensagem denunciada**, auditado) e decidir (`DISMISS`, `HIDE_MESSAGE`, `HIDE_AND_CLOSE`) (`/admin/message-reports*`) | sim | idem |
-| **MK2** Ler conversas, mensagens não denunciadas, `participantLabel`, família ou membro de uma conversa | **não** (não há rota; BR-MKT-44/48) | — |
+| **MK2** Listar denúncias de mensagens, ver o detalhe (**a mensagem denunciada + as 2 anteriores da mesma conversa**, auditado) e decidir (`DISMISS`, `HIDE_MESSAGE`, `HIDE_AND_CLOSE`) (`/admin/message-reports*`) | sim | idem |
+| **MK2** Ler conversas, mensagens além da denunciada e das 2 imediatamente anteriores (nem posteriores, nem de outras conversas), `participantLabel`, família ou membro de uma conversa | **não** (não há rota; BR-MKT-44/48) | — |
 | Ler qualquer dado de saúde ou de família | **não** (BR-MKT-27; `admin`/`professionals` não importam módulos de saúde) | — |
 Um token de `ProfessionalAccount` nunca autoriza `/admin/*`.
 
@@ -307,6 +307,6 @@ Critério: relação `SELF`/`TUTOR_OF` com o membro-sujeito (nunca `SharingGrant
 Algoritmo de §10.1 (token, conta, isolamento por `professionalId` do token, estado de validação lido da BD por pedido). Matriz por estado em §10.2 (linhas «MK2»): **leitura sempre**; **enviar/fechar/reabrir só `APPROVED`**; denunciar e marcar como lida sempre. O profissional **nunca** recebe ids de família, membro nem utilizador em nenhuma resposta (BR-MKT-10/38; teste de chaves proibidas, TC-AZ-MKT-12).
 
 ### 11.4 Moderação (admin) — `/admin/message-reports*`
-`PLATFORM_ADMIN` (§7/§10.3); User não-admin ⇒ `403`; token de profissional ⇒ `401`. **Só** a mensagem denunciada e o contexto mínimo (BR-MKT-44); sem rota para listar/ler conversas ou mensagens não denunciadas; cada leitura de detalhe é **auditada**. `messaging` não importa `admin` e `admin` não importa `messaging` (o guard `PLATFORM_ADMIN` é injetado em `main/api.ts`, como em `professionals`/`clinics`).
+`PLATFORM_ADMIN` (§7/§10.3); User não-admin ⇒ `403`; token de profissional ⇒ `401`. **Só** a mensagem denunciada e as 2 mensagens imediatamente anteriores da mesma conversa (contexto, BR-MKT-44/OP-76; o servidor limita a consulta por `conversation_id` e `seq`); sem rota para listar/ler conversas ou outras mensagens; cada leitura de detalhe é **auditada**. `messaging` não importa `admin` e `admin` não importa `messaging` (o guard `PLATFORM_ADMIN` é injetado em `main/api.ts`, como em `professionals`/`clinics`).
 
 Testes gerados desta secção: `TC-AZ-MKT-09..16`.

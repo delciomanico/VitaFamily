@@ -72,15 +72,15 @@
 
 ### UC-MKT-23 Denunciar uma mensagem
 - **Ator:** titular/tutor (família) ou profissional · **FR:** MKT-19 · **BR:** MKT-44
-- **Fluxo:** numa mensagem **do outro lado** → **Denunciar** → escolhe o motivo (abuso, spam, pagamento fora da plataforma/esquema, dados sensíveis, outro) e, opcionalmente, uma nota (≤ 300) → o texto «A Vita Family só verá esta mensagem» esclarece o que o admin vê.
+- **Fluxo:** numa mensagem **do outro lado** → **Denunciar** → escolhe o motivo (abuso, spam, pagamento fora da plataforma/esquema, dados sensíveis, outro) e, opcionalmente, uma nota (≤ 300) → o texto «A Vita Family só verá esta mensagem e as 2 anteriores da conversa» esclarece o que o admin vê.
 - **Alternativos:** mensagem própria ⇒ `VALIDATION_ERROR`; mensagem de outra conversa ⇒ `NOT_FOUND`; denunciar de novo (mesmo lado) ⇒ `200` com a existente; > 10/dia ⇒ `RATE_LIMITED`.
 - **Pós-condição:** `message_reports` `OPEN`; auditoria `MESSAGE_REPORT_CREATE` (`resourceId` = denúncia; `metadata.reason`; **sem** texto nem nota); a mensagem **continua visível** até decisão.
 
 ### UC-MKT-24 Moderar denúncias (admin)
 - **Ator:** Platform Admin · **FR:** MKT-19 · **BR:** MKT-44, MKT-48
-- **Fluxo:** **Administração → Denúncias** (fila `OPEN`, mais antigas primeiro) → abre o detalhe (a **mensagem denunciada**, motivo/nota, profissional, `reportedUserId` se for da família) — **auditado** → decide: **Arquivar**, **Ocultar mensagem** ou **Ocultar e fechar a conversa** → se for preciso, usa as rotas já existentes para suspender o profissional ou a conta (sem automatismo).
+- **Fluxo:** **Administração → Denúncias** (fila `OPEN`, mais antigas primeiro) → abre o detalhe (a **mensagem denunciada** e, como contexto, as **2 mensagens imediatamente anteriores** da mesma conversa por `seq` — menos se não existirem —, motivo/nota, profissional, `reportedUserId` se a denunciada for da família) — **auditado** → decide: **Arquivar**, **Ocultar mensagem** ou **Ocultar e fechar a conversa** → se for preciso, usa as rotas já existentes para suspender o profissional ou a conta (sem automatismo).
 - **Alternativos:** decisão sobre denúncia já decidida ⇒ `INVALID_STATE_TRANSITION`; User não-admin ⇒ `FORBIDDEN`; denúncia inexistente ⇒ `NOT_FOUND`.
-- **Pós-condição:** transação única com bloqueio da denúncia; `messages.hidden_at` e, se for o caso, conversa `CLOSED` (`SYSTEM`); auditoria `ADMIN_MESSAGE_REPORT_VIEW`/`ADMIN_MESSAGE_REPORT_DECIDE` (`metadata.decision`; **sem** conteúdo). O admin **não** lê as restantes mensagens nem vê a família, o membro ou o `participantLabel`.
+- **Pós-condição:** transação única com bloqueio da denúncia; `messages.hidden_at` e, se for o caso, conversa `CLOSED` (`SYSTEM`); auditoria `ADMIN_MESSAGE_REPORT_VIEW`/`ADMIN_MESSAGE_REPORT_DECIDE` (`metadata.decision`; **sem** conteúdo). O admin **não** lê mais mensagens do que a denunciada e as 2 anteriores (nem posteriores, nem de outras conversas; uma anterior já oculta vem sem texto) nem vê a família, o membro ou o `participantLabel`.
 
 ### UC-MKT-25 Expurgar conversas pela retenção (sistema)
 - **Ator:** sistema (job `messaging.purge-expired`, diário) · **BR:** MKT-45

@@ -10081,7 +10081,7 @@ paths:
       tags: [Admin]
       operationId: adminListMessageReports
       summary: "Fila de denúncias de mensagens."
-      description: "Autorização: PLATFORM_ADMIN. BR-MKT-44/48: o admin NÃO tem acesso ao conteúdo das conversas; só à mensagem denunciada e ao motivo; nunca à família, ao membro, ao participantLabel nem às restantes mensagens. UC-MKT-24. Filtro status (omissão OPEN), ordem mais antiga primeiro, cursor. A listagem NÃO devolve o texto das mensagens (só motivo, profissional e hora); o texto só vem no detalhe, que é auditado."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-44/48: o admin NÃO tem acesso ao conteúdo das conversas; só à mensagem denunciada, às 2 mensagens imediatamente anteriores da mesma conversa (contexto, por seq; OP-76) e ao motivo; nunca à família, ao membro, ao participantLabel nem a mais mensagens. UC-MKT-24. Filtro status (omissão OPEN), ordem mais antiga primeiro, cursor. A listagem NÃO devolve o texto das mensagens (só motivo, profissional e hora); o texto (da denunciada e do contexto) só vem no detalhe, que é auditado."
       parameters:
         - { name: status, in: query, schema: { type: string, enum: [OPEN, DECIDED] } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
@@ -10112,7 +10112,7 @@ paths:
       tags: [Admin]
       operationId: adminGetMessageReport
       summary: "Detalhe de uma denúncia (a mensagem denunciada)."
-      description: "Autorização: PLATFORM_ADMIN. BR-MKT-44/48: o admin NÃO tem acesso ao conteúdo das conversas; só à mensagem denunciada e ao motivo; nunca à família, ao membro, ao participantLabel nem às restantes mensagens. UC-MKT-24. Devolve a mensagem denunciada (texto, hora, lado), motivo, nota do denunciante, profissional (id e nome público) e, só se a mensagem for do lado da família, reportedUserId (para as rotas já existentes de suspensão de conta, ADR-023). Cada leitura é AUDITADA (ADMIN_MESSAGE_REPORT_VIEW, sem o texto)."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-44/48: o admin NÃO tem acesso ao conteúdo das conversas; só à mensagem denunciada, às 2 mensagens imediatamente anteriores da mesma conversa (contexto, por seq; OP-76) e ao motivo; nunca à família, ao membro, ao participantLabel nem a mais mensagens. UC-MKT-24. Devolve a mensagem denunciada (texto, hora, lado), contextBefore (até 2 mensagens imediatamente anteriores da mesma conversa, por seq decrescente de proximidade; nunca posteriores nem de outras conversas), motivo, nota do denunciante, profissional (id e nome público) e, só se a mensagem for do lado da família, reportedUserId (para as rotas já existentes de suspensão de conta, ADR-023). Cada leitura é AUDITADA (ADMIN_MESSAGE_REPORT_VIEW, sem o texto)."
       parameters:
         - { name: reportId, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
@@ -10141,7 +10141,7 @@ paths:
       tags: [Admin]
       operationId: adminDecideMessageReport
       summary: "Decidir uma denúncia (arquivar, ocultar a mensagem, ocultar e fechar a conversa)."
-      description: "Autorização: PLATFORM_ADMIN. BR-MKT-44/48: o admin NÃO tem acesso ao conteúdo das conversas; só à mensagem denunciada e ao motivo; nunca à família, ao membro, ao participantLabel nem às restantes mensagens. UC-MKT-24, BR-MKT-44. DISMISS; HIDE_MESSAGE (a mensagem passa a hidden: o texto deixa de ser devolvido a todos, sem se apagar); HIDE_AND_CLOSE (oculta e fecha a conversa com closedBy=SYSTEM, que não se reabre em MK2). Transação única com bloqueio da denúncia: já decidida ⇒ INVALID_STATE_TRANSITION. Auditoria ADMIN_MESSAGE_REPORT_DECIDE (decision; sem conteúdo)."
+      description: "Autorização: PLATFORM_ADMIN. BR-MKT-44/48: o admin NÃO tem acesso ao conteúdo das conversas; só à mensagem denunciada, às 2 mensagens imediatamente anteriores da mesma conversa (contexto, por seq; OP-76) e ao motivo; nunca à família, ao membro, ao participantLabel nem a mais mensagens. UC-MKT-24, BR-MKT-44. DISMISS; HIDE_MESSAGE (a mensagem passa a hidden: o texto deixa de ser devolvido a todos, sem se apagar); HIDE_AND_CLOSE (oculta e fecha a conversa com closedBy=SYSTEM, que não se reabre em MK2). Transação única com bloqueio da denúncia: já decidida ⇒ INVALID_STATE_TRANSITION. Auditoria ADMIN_MESSAGE_REPORT_DECIDE (decision; sem conteúdo). A resposta é o mesmo detalhe, com o mesmo limite (denunciada + até 2 de contexto)."
       parameters:
         - { name: reportId, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
@@ -13893,10 +13893,21 @@ components:
       properties:
         items: { type: array, items: { $ref: "#/components/schemas/AdminMessageReportItem" } }
         nextCursor: { type: string, nullable: true }
+    AdminReportContextMessage:
+      type: object
+      required: [id, seq, side, text, hidden, createdAt]
+      description: "OP-76: mensagem de contexto de uma denúncia. Sem ids de utilizador, família ou membro."
+      properties:
+        id: { type: string, format: uuid }
+        seq: { type: integer, minimum: 1 }
+        side: { type: string, enum: [FAMILY, PROFESSIONAL] }
+        text: { type: string, nullable: true, description: "Nulo se a mensagem já foi ocultada por moderação (hidden=true)." }
+        hidden: { type: boolean }
+        createdAt: { type: string, format: date-time }
     AdminMessageReportDetail:
       type: object
-      required: [id, status, reason, reportedSide, professional, message, createdAt]
-      description: "BR-MKT-44: só a mensagem denunciada e o contexto mínimo; nunca família, membro, participantLabel nem outras mensagens. A leitura é auditada."
+      required: [id, status, reason, reportedSide, professional, message, contextBefore, createdAt]
+      description: "BR-MKT-44 (OP-76): a mensagem denunciada mais, no máximo, 2 mensagens de contexto (as imediatamente anteriores da mesma conversa); nunca família, membro, participantLabel nem outras mensagens. A leitura é auditada."
       properties:
         id: { type: string, format: uuid }
         status: { type: string, enum: [OPEN, DECIDED] }
@@ -13913,6 +13924,11 @@ components:
             text: { type: string, description: "Texto original da mensagem denunciada (o admin vê-o mesmo que já esteja oculta para os participantes)." }
             hidden: { type: boolean }
             createdAt: { type: string, format: date-time }
+        contextBefore:
+          type: array
+          maxItems: 2
+          description: "OP-76: no máximo as 2 mensagens imediatamente anteriores à denunciada na mesma conversa (maior seq estritamente inferior; ordem cronológica crescente). Vazio se a denunciada for a 1.ª. Nunca posteriores nem de outras conversas."
+          items: { $ref: "#/components/schemas/AdminReportContextMessage" }
         decision: { allOf: [{ $ref: "#/components/schemas/MessageReportDecision" }], nullable: true }
         decidedAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }

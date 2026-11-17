@@ -101,7 +101,7 @@ Todas com justificação de consulta (nada sem consulta concreta). A descoberta 
 | `conversations` | `(last_message_at)` | Job `messaging.purge-expired` (retenção de 24 meses). |
 | `conversations` | `(opened_by_user_id, created_at DESC) WHERE opened_by_user_id IS NOT NULL` | Limite de 5 conversas novas / 24 h por utilizador (BR-MKT-42). |
 | `conversations` | `(family_id, member_id) WHERE status = 'OPEN'` | Limite de 20 conversas abertas por membro-sujeito. |
-| `messages` | UNIQUE `(conversation_id, seq)` | Paginação por `seq`, atribuição sem lacunas, mensagem N de uma conversa. |
+| `messages` | UNIQUE `(conversation_id, seq)` | Paginação por `seq`, atribuição sem lacunas, mensagem N de uma conversa; contexto de moderação (as 2 de maior `seq` < a denunciada, OP-76). |
 | `messages` | UNIQUE parcial `(conversation_id, client_message_id) WHERE client_message_id IS NOT NULL` | Idempotência do envio. |
 | `messages` | `(conversation_id, side, seq)` | `unreadCount` por lado (mensagens do outro lado com `seq > readSeq`) e contagem de mensagens por hora numa conversa. |
 | `messages` | `(sender_user_id, created_at DESC) WHERE sender_user_id IS NOT NULL` | Limite de 200 mensagens/dia por utilizador (BR-MKT-42). |
