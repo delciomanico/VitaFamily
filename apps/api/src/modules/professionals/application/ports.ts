@@ -276,6 +276,14 @@ export interface PublicProfessionalRow {
   city: string;
 }
 
+/** Identidade pública de um profissional que já tem conversas (MK2, BR-MKT-47): lida em QUALQUER estado, com o estado só como `approved`. */
+export interface ConversationIdentityRow {
+  id: string;
+  displayName: string;
+  city: string | null;
+  approved: boolean;
+}
+
 export interface DirectoryFilter {
   category?: SpecialtyCategory;
   specialtyId?: string;
@@ -311,6 +319,8 @@ export interface DirectoryRepository<Trx> {
   findApproved(trx: Trx, professionalId: string): Promise<PublicProfessionalRow | null>;
   listApproved(trx: Trx, filter: DirectoryFilter): Promise<PublicProfessionalRow[]>;
   activeOffersFor(trx: Trx, professionalIds: string[]): Promise<Map<string, PublicOffer[]>>;
+  /** MK2 (BR-MKT-47): nome/cidade públicos e `approved` dos ids pedidos em qualquer estado (para o histórico de conversas), sem e-mail nem estado detalhado. */
+  findConversationIdentities(trx: Trx, ids: string[]): Promise<ConversationIdentityRow[]>;
   /** MK2: linhas `APPROVED` (por id, ordem por id, teto `limit`) para os factos de descoberta; `APPROVED` filtrado em cada consulta. */
   listApprovedForFacts(trx: Trx, filter: FactsFilter): Promise<ApprovedFactsRow[]>;
   /** MK2: horários futuros livres de OFERTAS ATIVAS de profissionais `APPROVED`: o próximo e a contagem em `(now, now + 14 dias]`. */

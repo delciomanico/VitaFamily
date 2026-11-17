@@ -1,13 +1,19 @@
 // `DirectoryRepository` e `MaintenanceRepository` (Kysely/pg). O leitor público filtra `APPROVED` em CADA consulta (BR-MKT-19).
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
-import type { ApprovedFactsRow, DirectoryFilter, FactsFilter, SlotStatRecord, DirectoryRepository, MaintenanceRepository, PublicOffer, PublicProfessionalRow, SlotRecord } from "../application/ports.js";
+import type { ApprovedFactsRow, ConversationIdentityRow, DirectoryFilter, FactsFilter, SlotStatRecord, DirectoryRepository, MaintenanceRepository, PublicOffer, PublicProfessionalRow, SlotRecord } from "../application/ports.js";
 import "./schema.js";
 
 export class KyselyDirectoryRepository implements DirectoryRepository<Kysely<Database>> {
   async findApproved(trx: Kysely<Database>, professionalId: string): Promise<PublicProfessionalRow | null> {
     const row = await trx.selectFrom("professionals").select(["id", "display_name", "bio", "city"]).where("id", "=", professionalId).where("validation_status", "=", "APPROVED").executeTakeFirst();
     return row?.display_name && row.city ? { id: row.id, displayName: row.display_name, bio: row.bio, city: row.city } : null;
+  }
+
+  async findConversationIdentities(trx: Kysely<Database>, ids: string[]): Promise<ConversationIdentityRow[]> {
+    if (ids.length === 0) return [];
+    const rows = await trx.selectFrom("professionals").select(["id", "display_name", "city", "validation_status"]).where("id", "in", ids).execute();
+    return rows.map((r) => ({ id: r.id, displayName: r.display_name ?? "Profissional", city: r.city, approved: r.validation_status === "APPROVED" }));
   }
 
   async listApproved(trx: Kysely<Database>, filter: DirectoryFilter): Promise<PublicProfessionalRow[]> {

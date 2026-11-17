@@ -117,6 +117,12 @@ export function createProfessionalDirectory<Trx>(deps: ProfessionalsDeps<Trx>) {
       return deps.withTransaction(async (trx) => (await hydrate(deps, trx, await deps.directoryRepo.listApproved(trx, filter))).map(toPublic));
     },
 
+    /** MK2 (BR-MKT-47): identidades públicas (nome, cidade, `approved` lido agora) para o histórico de conversas; ausentes omitidos; teto `MAX_FACTS`. */
+    async getConversationIdentities(ids: readonly string[]): Promise<{ id: string; displayName: string; city: string | null; approved: boolean }[]> {
+      const unique = [...new Set(ids)].slice(0, MAX_FACTS);
+      return deps.withTransaction((trx) => deps.directoryRepo.findConversationIdentities(trx, unique));
+    },
+
     /** MK2: factos da coorte `APPROVED` (opcionalmente por especialidade/categoria), ordenados por id, no máximo `MAX_FACTS`; lido em cada chamada. */
     async listApprovedFacts(query: FactsQuery = {}): Promise<ProfessionalFacts[]> {
       const filter: FactsFilter = { limit: MAX_FACTS, ...(query.specialtyId ? { specialtyId: query.specialtyId } : {}), ...(query.category ? { category: query.category } : {}) };

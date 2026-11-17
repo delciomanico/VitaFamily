@@ -1,5 +1,50 @@
-// Raiz do módulo `messaging` (MK2, ADR-037, modules.md nota 36(c)). S5: só o domínio puro e as portas; casos de uso, repositórios, jobs
-// e rotas chegam na S6+. Nenhum módulo importa `messaging` (só `main/`); `messaging` só importa `audit` (+ `platform`).
-export type { ConversationAccess, MessageAlerts, MessagingClock, ProfessionalLookup, ProfessionalMailer, PublicProfessional } from "./application/ports.js";
+// Raiz do módulo `messaging` (MK2, ADR-037, modules.md nota 36(c)): conversas família ↔ profissional. S6: lado da família (repositórios,
+// casos de uso e as 9 rotas `/families/{f}/members/{m}/conversations*`). Nenhum módulo importa `messaging` (só `main/`); `messaging` só
+// importa `audit` (+ `platform`): acesso, profissionais, alertas e e-mail entram por PORTAS ligadas em `main/api.ts` (ADR-016).
+import type { Router } from "express";
+import type { Kysely } from "kysely";
+import type { Clock } from "../../platform/clock/index.js";
+import { withTransaction, type Database } from "../../platform/db/index.js";
+import { newId } from "../../platform/ids/index.js";
+import type { AuditModule } from "../audit/index.js";
+import { createFamilyMessaging, type FamilyMessaging } from "./application/family-conversations.js";
+import type { ConversationAccess, MessageAlerts, ProfessionalLookup, ProfessionalNoticeQueue } from "./application/ports.js";
+import { KyselyConversationRepository, KyselyMessageRepository, KyselyReportRepository } from "./infrastructure/repo.js";
+import { createFamilyMessagingRouter } from "./interface/family-router.js";
+
+export type { ConversationAccess, MessageAlerts, MessagingClock, ProfessionalIdentity, ProfessionalLookup, ProfessionalMailer, ProfessionalNoticeQueue } from "./application/ports.js";
 export { canSend, closeConversation, reopenConversation, sendBlock } from "./domain/conversation.js";
 export type { ConversationState, Side } from "./domain/conversation.js";
+
+export interface MessagingModuleDeps {
+  db: Kysely<Database>;
+  audit: AuditModule;
+  clock: Clock;
+  access: ConversationAccess<Kysely<Database>>;
+  professionals: ProfessionalLookup;
+  alerts: MessageAlerts<Kysely<Database>>;
+  noticeQueue: ProfessionalNoticeQueue;
+}
+
+export interface MessagingModule {
+  /** `/families/{f}/members/{m}/conversations*` (User autenticado; ação `MESSAGE_PROFESSIONALS`). */
+  router: Router;
+  familyUseCases: FamilyMessaging;
+}
+
+export function createMessagingModule(deps: MessagingModuleDeps): MessagingModule {
+  const familyUseCases = createFamilyMessaging<Kysely<Database>>({
+    conversations: new KyselyConversationRepository(),
+    messages: new KyselyMessageRepository(),
+    reports: new KyselyReportRepository(),
+    access: deps.access,
+    professionals: deps.professionals,
+    alerts: deps.alerts,
+    noticeQueue: deps.noticeQueue,
+    audit: deps.audit,
+    withTransaction: (fn) => withTransaction(deps.db, fn),
+    clock: deps.clock,
+    newId,
+  });
+  return { router: createFamilyMessagingRouter(familyUseCases), familyUseCases };
+}

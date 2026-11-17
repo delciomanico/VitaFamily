@@ -38,6 +38,7 @@ import { createAlertsModule, type AlertsModule } from "../modules/alerts/index.j
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
 import { createDiscoveryModule } from "../modules/discovery/index.js";
+import { createMessagingModule } from "../modules/messaging/index.js";
 import { PgBossCredentialScanQueue, ProfessionalSmtpMailer, createProfessionalsModule, parseProfessionalSigningKeys } from "../modules/professionals/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
@@ -238,6 +239,25 @@ export function main(): void {
       listApprovedFacts: (query) => professionals.directory.listApprovedFacts(query),
       getApprovedFacts: (ids) => professionals.directory.getApprovedFacts(ids),
     },
+  });
+  // MK2 S6 (modules.md nota 36(c)): `messaging` só conhece PORTAS; aqui ligam-se a `access` (ação `MESSAGE_PROFESSIONALS`), à raiz
+  // `ProfessionalDirectory` (identidade e estado lidos em cada pedido, sem cache). Alertas/e-mail ao profissional: ver S7 abaixo.
+  const messaging = createMessagingModule({
+    db,
+    audit,
+    clock,
+    access: {
+      assertCanMessage: async (trx, input) => {
+        const context = await access.policy.can(trx, { userId: input.userId, platformAdmin: input.platformAdmin, familyId: input.familyId, action: "MESSAGE_PROFESSIONALS", subjectMemberId: input.memberId });
+        return { relation: context.relation === "TUTOR_OF" ? "TUTOR_OF" : "SELF" };
+      },
+    },
+    professionals: {
+      findIdentities: (ids) => professionals.directory.getConversationIdentities(ids),
+      getNotificationEmail: () => Promise.resolve(null),
+    },
+    alerts: { raiseMessageReceived: () => Promise.resolve(), markConversationRead: () => Promise.resolve() },
+    noticeQueue: { enqueue: () => Promise.resolve() },
   });
   // M8 (plan.md §4): `notifications` antes de `alerts` — `alerts` depende de `notifications`
   // pela raiz (modules.md §3 nota 15), nunca o inverso. D19: ambos vêm antes de `examinations`,
@@ -690,6 +710,7 @@ export function main(): void {
       router.use(clinics.clinicPortalRouter);
       router.use(professionals.router);
       router.use(discovery.router);
+      router.use(messaging.router);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);
