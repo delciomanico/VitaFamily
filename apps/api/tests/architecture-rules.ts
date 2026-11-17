@@ -59,6 +59,8 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   processes: ["access", "audit"],
   // MK1 (ADR-037, modules.md nota 35): identidade própria; NÃO importa auth/access/families/users nem saúde (BR-MKT-27).
   professionals: ["audit", "notifications"],
+  // discovery (MK2, modules.md nota 36(a)): sem dependências; lê profissionais pela porta `ProfessionalCatalog` (ligada em main/api.ts).
+  discovery: [],
   // ADR-023 (modules.md §2): lê a origem (consulta/exame) pelas raízes de `appointments`/`examinations`.
   recommendations: ["access", "appointments", "examinations", "audit"],
   documents: ["access", "audit"],
