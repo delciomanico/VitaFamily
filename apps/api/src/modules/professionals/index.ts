@@ -42,6 +42,18 @@ import { createAdminProfessionalsRouter } from "./interface/admin-professionals-
 import { createCreateOfferUseCase, createListOffersUseCase, createUpdateOfferUseCase } from "./application/offers.js";
 import { KyselyOfferRepository } from "./infrastructure/offer-repo.js";
 import { createOffersRouter } from "./interface/offers-router.js";
+import {
+  createCreateScheduleRuleUseCase,
+  createCreateTimeOffUseCase,
+  createDeleteTimeOffUseCase,
+  createListScheduleRulesUseCase,
+  createListSlotsUseCase,
+  createListTimeOffUseCase,
+  createUpdateScheduleRuleUseCase,
+} from "./application/schedule.js";
+import { reconcileSchedule } from "./application/schedule-sync.js";
+import { KyselyScheduleRuleRepository, KyselySlotRepository, KyselyTimeOffRepository } from "./infrastructure/schedule-repo.js";
+import { createScheduleRouter } from "./interface/schedule-router.js";
 import { createCredentialsRouter } from "./interface/credentials-router.js";
 import { createProfileRouter } from "./interface/profile-router.js";
 import { KyselySpecialtyRepository } from "./infrastructure/specialty-repo.js";
@@ -95,6 +107,11 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
   setInterval(() => {
     rateLimiter.prune(2 * 60 * 60 * 1000);
   }, 10 * 60 * 1000).unref();
+  const profileRepo = new KyselyProfessionalProfileRepository();
+  const scheduleRuleRepo = new KyselyScheduleRuleRepository();
+  const timeOffRepo = new KyselyTimeOffRepository();
+  const slotRepo = new KyselySlotRepository();
+  const syncRepos = { scheduleRuleRepo, timeOffRepo, slotRepo };
   const useCaseDeps: ProfessionalsDeps<Kysely<Database>> = {
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
@@ -106,15 +123,27 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     authTokenRepo: new KyselyProfessionalAuthTokenRepository(),
     sessionRepo: new KyselyProfessionalSessionRepository(),
     specialtyRepo: new KyselySpecialtyRepository(),
-    profileRepo: new KyselyProfessionalProfileRepository(),
+    profileRepo,
     validationCaseRepo: new KyselyValidationCaseRepository(),
     credentialRepo: new KyselyCredentialRepository(),
     adminRepo: new KyselyAdminProfessionalRepository(),
     offerRepo: new KyselyOfferRepository(),
-    // S9 liga a sincronização real dos horários; até lá (sem regras de horário) não há nada a sincronizar.
-    offerSlotSync: { onActiveChanged: () => Promise.resolve() },
-    // S9 liga a geração real de horários; até lá a aprovação não gera nada (não há regras de horário).
-    slotGenerator: { generateForProfessional: () => Promise.resolve() },
+    scheduleRuleRepo,
+    timeOffRepo,
+    slotRepo,
+    // Ativar/desativar uma oferta reconcilia os horários das suas regras (BR-MKT-25); só `APPROVED` gera.
+    offerSlotSync: {
+      onActiveChanged: async (trx, professionalId, offerId, _active, now) => {
+        const professional = await profileRepo.findById(trx, professionalId);
+        await reconcileSchedule(syncRepos, trx, professionalId, professional?.validationStatus === "APPROVED", now, { offerId });
+      },
+    },
+    // Aprovação/reativação (BR-MKT-25): gera os horários das regras existentes na mesma transação.
+    slotGenerator: {
+      generateForProfessional: async (trx, professionalId, now) => {
+        await reconcileSchedule(syncRepos, trx, professionalId, true, now);
+      },
+    },
     fileDeletionRepo: new KyselyFileDeletionRepository(),
     fileStore: new StorageCredentialFileStore(deps.storage),
     scanQueue: deps.scanQueue,
@@ -165,6 +194,17 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
       listOffers: createListOffersUseCase(useCaseDeps),
       createOffer: createCreateOfferUseCase(useCaseDeps),
       updateOffer: createUpdateOfferUseCase(useCaseDeps),
+    }),
+  );
+  router.use(
+    createScheduleRouter({
+      listScheduleRules: createListScheduleRulesUseCase(useCaseDeps),
+      createScheduleRule: createCreateScheduleRuleUseCase(useCaseDeps),
+      updateScheduleRule: createUpdateScheduleRuleUseCase(useCaseDeps),
+      listTimeOff: createListTimeOffUseCase(useCaseDeps),
+      createTimeOff: createCreateTimeOffUseCase(useCaseDeps),
+      deleteTimeOff: createDeleteTimeOffUseCase(useCaseDeps),
+      listSlots: createListSlotsUseCase(useCaseDeps),
     }),
   );
   router.use(

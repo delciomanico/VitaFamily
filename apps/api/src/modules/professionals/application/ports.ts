@@ -364,6 +364,83 @@ export interface OfferRepository<Trx> {
   existsActiveDuplicate(trx: Trx, professionalId: string, key: { specialtyId: string; method: OfferMethod; durationMinutes: number }, excludeId?: string): Promise<boolean>;
 }
 
+export interface ScheduleRuleRecord {
+  id: string;
+  professionalId: string;
+  offerId: string;
+  weekdays: number[];
+  startTime: string;
+  endTime: string;
+  validFrom: string | null;
+  validUntil: string | null;
+  active: boolean;
+}
+
+export interface ScheduleRuleChanges {
+  weekdays?: number[];
+  startTime?: string;
+  endTime?: string;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  active?: boolean;
+}
+
+/** Regra + dados da oferta de que depende a geração. */
+export interface ScheduleRuleWithOffer extends ScheduleRuleRecord {
+  offerActive: boolean;
+  offerDurationMinutes: number;
+}
+
+export interface ScheduleRuleRepository<Trx> {
+  insert(trx: Trx, record: ScheduleRuleRecord & { createdAt: Date }): Promise<ScheduleRuleRecord>;
+  list(trx: Trx, professionalId: string, filter: { offerId?: string; active?: boolean }): Promise<ScheduleRuleRecord[]>;
+  findOwned(trx: Trx, professionalId: string, ruleId: string, options?: { forUpdate?: boolean }): Promise<ScheduleRuleRecord | null>;
+  update(trx: Trx, ruleId: string, changes: ScheduleRuleChanges, now: Date): Promise<void>;
+  countActive(trx: Trx, professionalId: string): Promise<number>;
+  /** Regras ativas do profissional (para a sobreposição, BR-MKT-25). */
+  listActive(trx: Trx, professionalId: string, excludeRuleId?: string): Promise<ScheduleRuleRecord[]>;
+  /** Regras (qualquer estado) com os dados da oferta, para gerar/reconciliar; `offerId`/`ruleId` restringem. */
+  listWithOffer(trx: Trx, professionalId: string, filter: { offerId?: string; ruleId?: string }): Promise<ScheduleRuleWithOffer[]>;
+  /** Profissionais `APPROVED` com pelo menos uma regra ativa (job diário). */
+  listApprovedProfessionalIdsWithActiveRules(trx: Trx): Promise<string[]>;
+}
+
+export interface TimeOffRecord {
+  id: string;
+  professionalId: string;
+  startsAt: Date;
+  endsAt: Date;
+  reason: string | null;
+}
+
+export interface TimeOffRepository<Trx> {
+  insert(trx: Trx, record: TimeOffRecord & { createdAt: Date }): Promise<TimeOffRecord>;
+  /** Por omissão (sem `from`) só os que terminam depois de `now`. */
+  list(trx: Trx, professionalId: string, filter: { from?: Date; to?: Date; endsAfter?: Date }): Promise<TimeOffRecord[]>;
+  findOwned(trx: Trx, professionalId: string, id: string): Promise<TimeOffRecord | null>;
+  delete(trx: Trx, professionalId: string, id: string): Promise<void>;
+}
+
+export interface SlotRecord {
+  id: string;
+  offerId: string;
+  ruleId: string;
+  startsAt: Date;
+  endsAt: Date;
+}
+
+export interface SlotRepository<Trx> {
+  /** Horários que começam em `[from, to)`. */
+  listInRange(trx: Trx, professionalId: string, from: Date, to: Date): Promise<SlotRecord[]>;
+  /** Horários que terminam depois de `after` (futuros ou em curso), de qualquer regra. */
+  listFuture(trx: Trx, professionalId: string, after: Date): Promise<SlotRecord[]>;
+  /** Idempotente (`ON CONFLICT DO NOTHING`: também cobre a exclusão de sobreposição); devolve quantos criou. */
+  insertMany(trx: Trx, professionalId: string, slots: { id: string; offerId: string; ruleId: string; startsAt: Date; endsAt: Date; createdAt: Date }[]): Promise<number>;
+  deleteByIds(trx: Trx, professionalId: string, ids: string[]): Promise<number>;
+  /** Remove os horários do profissional que intersectam `[from, to)` (bloqueio); devolve quantos. */
+  deleteIntersecting(trx: Trx, professionalId: string, from: Date, to: Date): Promise<number>;
+}
+
 /** Efeitos de uma oferta nos horários gerados (BR-MKT-25): desativar remove os futuros livres; reativar repõe o que as regras prevêem. Fatia S9. */
 export interface OfferSlotSync<Trx> {
   onActiveChanged(trx: Trx, professionalId: string, offerId: string, active: boolean, now: Date): Promise<void>;
@@ -387,6 +464,9 @@ export interface ProfessionalsDeps<Trx> {
   adminRepo: AdminProfessionalRepository<Trx>;
   offerRepo: OfferRepository<Trx>;
   offerSlotSync: OfferSlotSync<Trx>;
+  scheduleRuleRepo: ScheduleRuleRepository<Trx>;
+  timeOffRepo: TimeOffRepository<Trx>;
+  slotRepo: SlotRepository<Trx>;
   slotGenerator: ApprovalSlotGenerator<Trx>;
   fileDeletionRepo: FileDeletionRepository<Trx>;
   fileStore: CredentialFileStore;

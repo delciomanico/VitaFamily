@@ -8662,6 +8662,11 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ProfessionalOffer" }
+        '400':
+          description: "MALFORMED_REQUEST (parâmetro de consulta fora do contrato)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
         '401':
           description: "UNAUTHENTICATED"
           content:
@@ -8760,6 +8765,11 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ProfessionalScheduleRule" }
+        '400':
+          description: "MALFORMED_REQUEST (parâmetro de consulta fora do contrato)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
         '401':
           description: "UNAUTHENTICATED"
           content:
@@ -8853,8 +8863,8 @@ paths:
       security:
         - professionalBearerAuth: []
       parameters:
-        - { name: from, in: query, schema: { type: string, format: date-time } }
-        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { name: from, in: query, allowReserved: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, allowReserved: true, schema: { type: string, format: date-time } }
       responses:
         '200':
           description: Sucesso
@@ -8863,6 +8873,11 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ProfessionalTimeOff" }
+        '400':
+          description: "MALFORMED_REQUEST (parâmetro de consulta fora do contrato)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
         '401':
           description: "UNAUTHENTICATED"
           content:
@@ -8938,8 +8953,8 @@ paths:
       security:
         - professionalBearerAuth: []
       parameters:
-        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
-        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: from, in: query, allowReserved: true, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, allowReserved: true, required: true, schema: { type: string, format: date-time } }
       responses:
         '200':
           description: Sucesso
@@ -8948,6 +8963,11 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ProfessionalSlot" }
+        '400':
+          description: "MALFORMED_REQUEST (parâmetro de consulta fora do contrato)"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
         '401':
           description: "UNAUTHENTICATED"
           content:

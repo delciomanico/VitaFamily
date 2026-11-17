@@ -117,6 +117,41 @@ export interface ProfessionalOffersTable {
   updated_at: Timestamp;
 }
 
+export interface ProfessionalScheduleRulesTable {
+  id: string;
+  professional_id: string;
+  offer_id: string;
+  weekdays: number[];
+  start_time: string;
+  end_time: string;
+  valid_from: Nullable<string>;
+  valid_until: Nullable<string>;
+  active: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface ProfessionalTimeOffTable {
+  id: string;
+  professional_id: string;
+  starts_at: Date;
+  ends_at: Date;
+  reason: Nullable<string>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
+export interface ProfessionalSlotsTable {
+  id: string;
+  professional_id: string;
+  offer_id: string;
+  rule_id: string;
+  starts_at: Date;
+  ends_at: Date;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
 declare module "../../../platform/db/index.js" {
   interface Database {
     professional_accounts: ProfessionalAccountsTable;
@@ -128,6 +163,9 @@ declare module "../../../platform/db/index.js" {
     professional_credentials: ProfessionalCredentialsTable;
     validation_cases: ValidationCasesTable;
     professional_offers: ProfessionalOffersTable;
+    professional_schedule_rules: ProfessionalScheduleRulesTable;
+    professional_time_off: ProfessionalTimeOffTable;
+    professional_slots: ProfessionalSlotsTable;
   }
 }
 
