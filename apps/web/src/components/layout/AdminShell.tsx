@@ -1,5 +1,5 @@
 import { Outlet, useNavigate } from 'react-router-dom'
-import { Building2, Users } from 'lucide-react'
+import { BadgeCheck, Building2, Tags, Users } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { paths } from '@/routes/paths'
 import { PortalMobileHeader } from './PortalMobileHeader'
@@ -19,6 +19,8 @@ export function AdminShell() {
       items: [
         { to: paths.admin, label: 'Contas', icon: Users, end: true },
         { to: paths.adminClinics, label: 'Clínicas', icon: Building2, end: false },
+        { to: paths.adminProfessionals, label: 'Profissionais', icon: BadgeCheck, end: false },
+        { to: paths.adminSpecialties, label: 'Especialidades', icon: Tags, end: false },
       ],
     },
   ]

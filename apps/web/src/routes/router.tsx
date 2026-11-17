@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-do
 import { AdminShell } from '@/components/layout/AdminShell'
 import { AppShell } from '@/components/layout/AppShell'
 import { ClinicPortalRoot, ClinicShell } from '@/components/layout/ClinicShell'
+import { ProfessionalPortalRoot, ProfessionalShell } from '@/components/layout/ProfessionalShell'
 import { PublicLayout } from '@/components/layout/PublicLayout'
 import { PublicSiteLayout } from '@/components/layout/PublicSiteLayout'
 import { HomePage } from '@/pages/home/HomePage'
@@ -22,6 +23,7 @@ import { RouteError } from '@/components/ui/RouteError'
 import {
   ClinicGuestOnly,
   GuestOnly,
+  ProfessionalGuestOnly,
   RequireAuth,
   RequireClinicAccount,
   RequireClinicAdmin,
@@ -29,6 +31,7 @@ import {
   RequireFamily,
   RequirePendingVerification,
   RequirePlatformAdmin,
+  RequireProfessional,
 } from './guards'
 import { paths } from './paths'
 
@@ -243,6 +246,18 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, ...page(() => import('@/pages/admin/AdminUsersPage'), 'AdminUsersPage') },
               { path: 'clinics', ...page(() => import('@/pages/admin/AdminClinicsPage'), 'AdminClinicsPage') },
+              {
+                path: 'professionals',
+                ...page(() => import('@/pages/admin/AdminProfessionalsPage'), 'AdminProfessionalsPage'),
+              },
+              {
+                path: 'professionals/:professionalId',
+                ...page(() => import('@/pages/admin/AdminProfessionalDetailPage'), 'AdminProfessionalDetailPage'),
+              },
+              {
+                path: 'specialties',
+                ...page(() => import('@/pages/admin/AdminSpecialtiesPage'), 'AdminSpecialtiesPage'),
+              },
             ],
           },
         ],
@@ -316,6 +331,44 @@ export const routes: RouteObject[] = [
                   },
                 ],
               },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    /*
+     * Portal do profissional (MK1, ADR-037): árvore **disjunta** da família e da clínica — sessão de
+     * `ProfessionalAccount` (`ProfessionalPortalRoot` monta o seu provider) e login próprio.
+     */
+    path: paths.professional,
+    element: <ProfessionalPortalRoot />,
+    children: [
+      {
+        element: <ProfessionalGuestOnly />,
+        children: [
+          { path: 'entrar', ...page(() => import('@/pages/professional/ProfessionalLoginPage'), 'ProfessionalLoginPage') },
+          { path: 'registo', ...page(() => import('@/pages/professional/ProfessionalRegisterPage'), 'ProfessionalRegisterPage') },
+          { path: 'verificar', ...page(() => import('@/pages/professional/ProfessionalVerifyPage'), 'ProfessionalVerifyPage') },
+          { path: 'recuperar', ...page(() => import('@/pages/professional/ProfessionalForgotPage'), 'ProfessionalForgotPage') },
+          { path: 'repor', ...page(() => import('@/pages/professional/ProfessionalResetPage'), 'ProfessionalResetPage') },
+        ],
+      },
+      {
+        element: <RequireProfessional />,
+        children: [
+          {
+            element: <ProfessionalShell />,
+            children: [
+              { index: true, ...page(() => import('@/pages/professional/ProfessionalHomePage'), 'ProfessionalHomePage') },
+              { path: 'perfil', ...page(() => import('@/pages/professional/ProfessionalProfilePage'), 'ProfessionalProfilePage') },
+              {
+                path: 'credenciais',
+                ...page(() => import('@/pages/professional/ProfessionalCredentialsPage'), 'ProfessionalCredentialsPage'),
+              },
+              { path: 'servicos', ...page(() => import('@/pages/professional/ProfessionalOffersPage'), 'ProfessionalOffersPage') },
+              { path: 'horarios', ...page(() => import('@/pages/professional/ProfessionalSchedulePage'), 'ProfessionalSchedulePage') },
             ],
           },
         ],
