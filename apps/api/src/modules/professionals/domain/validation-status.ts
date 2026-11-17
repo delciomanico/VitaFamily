@@ -1,6 +1,7 @@
 // Máquina de estados de validação do `Professional` (BR-MKT-15..21, state-machines.md «Professional») e matriz de escrita por estado
 // (BR-MKT-23, authorization.md §10.2). Funções puras, sem I/O; o estado vive na BD e lê-se por pedido (BR-MKT-29).
 import { ValidationError } from "../../../platform/errors/index.js";
+import { charLength } from "./text.js";
 import { InvalidStateTransitionError, ProfessionalLockedError } from "./errors.js";
 
 function validationReasonError(message: string): ValidationError {
@@ -80,7 +81,7 @@ export function normalizeDecisionReason(transition: Pick<Transition, "reasonRequ
     }
     return null;
   }
-  if (trimmed.length > 500) {
+  if (charLength(trimmed) > 500) {
     throw validationReasonError("O motivo tem no máximo 500 caracteres.");
   }
   return trimmed;

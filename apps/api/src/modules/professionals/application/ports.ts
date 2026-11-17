@@ -5,6 +5,7 @@ import type { Clock } from "../../../platform/clock/index.js";
 import type { Logger } from "../../../platform/logger/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { ProfessionalAccount, ProfessionalRef } from "../domain/account.js";
+import type { OfferMethod, OfferPatchFields } from "../domain/offer.js";
 import type { ProfilePatch } from "../domain/profile.js";
 import type { CredentialKind, ScanStatus, SpecialtyCategory } from "../domain/requirements.js";
 import type { ProfessionalValidationStatus, ValidationAction, ValidationActor } from "../domain/validation-status.js";
@@ -329,6 +330,45 @@ export interface CredentialScanQueue {
   enqueueScan(job: { credentialId: string }): Promise<void>;
 }
 
+export interface OfferRecord {
+  id: string;
+  professionalId: string;
+  specialtyId: string;
+  method: OfferMethod;
+  durationMinutes: number;
+  priceKz: number;
+  note: string | null;
+  active: boolean;
+}
+
+export interface NewOfferRecord {
+  id: string;
+  professionalId: string;
+  specialtyId: string;
+  method: OfferMethod;
+  durationMinutes: number;
+  priceKz: number;
+  note: string | null;
+  createdAt: Date;
+}
+
+/** Isolamento: toda a operação leva o `professionalId` do token. */
+export interface OfferRepository<Trx> {
+  /** `null` se a restrição de duplicado ativo (partial unique) é violada (`ON CONFLICT DO NOTHING`). */
+  insert(trx: Trx, record: NewOfferRecord): Promise<OfferRecord | null>;
+  /** Ordem: nome da especialidade, método, duração. */
+  list(trx: Trx, professionalId: string, options: { active?: boolean }): Promise<OfferRecord[]>;
+  findOwned(trx: Trx, professionalId: string, offerId: string, options?: { forUpdate?: boolean }): Promise<OfferRecord | null>;
+  update(trx: Trx, offerId: string, changes: OfferPatchFields, now: Date): Promise<void>;
+  countActive(trx: Trx, professionalId: string): Promise<number>;
+  existsActiveDuplicate(trx: Trx, professionalId: string, key: { specialtyId: string; method: OfferMethod; durationMinutes: number }, excludeId?: string): Promise<boolean>;
+}
+
+/** Efeitos de uma oferta nos horários gerados (BR-MKT-25): desativar remove os futuros livres; reativar repõe o que as regras prevêem. Fatia S9. */
+export interface OfferSlotSync<Trx> {
+  onActiveChanged(trx: Trx, professionalId: string, offerId: string, active: boolean, now: Date): Promise<void>;
+}
+
 /** Tudo o que os casos de uso precisam (ligado em `index.ts`); `db` é a ligação para leituras fora de transação. */
 export interface ProfessionalsDeps<Trx> {
   db: Trx;
@@ -345,6 +385,8 @@ export interface ProfessionalsDeps<Trx> {
   validationCaseRepo: ValidationCaseRepository<Trx>;
   credentialRepo: CredentialRepository<Trx>;
   adminRepo: AdminProfessionalRepository<Trx>;
+  offerRepo: OfferRepository<Trx>;
+  offerSlotSync: OfferSlotSync<Trx>;
   slotGenerator: ApprovalSlotGenerator<Trx>;
   fileDeletionRepo: FileDeletionRepository<Trx>;
   fileStore: CredentialFileStore;

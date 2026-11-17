@@ -104,6 +104,19 @@ export interface ValidationCasesTable {
   created_at: Timestamp;
 }
 
+export interface ProfessionalOffersTable {
+  id: string;
+  professional_id: string;
+  specialty_id: string;
+  method: "IN_PERSON" | "VIDEO" | "CHAT" | "PHONE";
+  duration_minutes: number;
+  price_kz: number;
+  note: Nullable<string>;
+  active: ColumnType<boolean, boolean | undefined, boolean>;
+  created_at: Timestamp;
+  updated_at: Timestamp;
+}
+
 declare module "../../../platform/db/index.js" {
   interface Database {
     professional_accounts: ProfessionalAccountsTable;
@@ -114,6 +127,7 @@ declare module "../../../platform/db/index.js" {
     professional_specialties: ProfessionalSpecialtiesTable;
     professional_credentials: ProfessionalCredentialsTable;
     validation_cases: ValidationCasesTable;
+    professional_offers: ProfessionalOffersTable;
   }
 }
 

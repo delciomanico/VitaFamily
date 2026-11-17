@@ -39,6 +39,9 @@ import { StorageCredentialFileStore } from "./infrastructure/storage-file-store.
 import { createAdminDecideProfessionalUseCase, createAdminDownloadCredentialUseCase, createAdminGetProfessionalUseCase, createAdminListProfessionalsUseCase } from "./application/admin-professionals.js";
 import { KyselyAdminProfessionalRepository } from "./infrastructure/admin-repo.js";
 import { createAdminProfessionalsRouter } from "./interface/admin-professionals-router.js";
+import { createCreateOfferUseCase, createListOffersUseCase, createUpdateOfferUseCase } from "./application/offers.js";
+import { KyselyOfferRepository } from "./infrastructure/offer-repo.js";
+import { createOffersRouter } from "./interface/offers-router.js";
 import { createCredentialsRouter } from "./interface/credentials-router.js";
 import { createProfileRouter } from "./interface/profile-router.js";
 import { KyselySpecialtyRepository } from "./infrastructure/specialty-repo.js";
@@ -107,6 +110,9 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     validationCaseRepo: new KyselyValidationCaseRepository(),
     credentialRepo: new KyselyCredentialRepository(),
     adminRepo: new KyselyAdminProfessionalRepository(),
+    offerRepo: new KyselyOfferRepository(),
+    // S9 liga a sincronização real dos horários; até lá (sem regras de horário) não há nada a sincronizar.
+    offerSlotSync: { onActiveChanged: () => Promise.resolve() },
     // S9 liga a geração real de horários; até lá a aprovação não gera nada (não há regras de horário).
     slotGenerator: { generateForProfessional: () => Promise.resolve() },
     fileDeletionRepo: new KyselyFileDeletionRepository(),
@@ -152,6 +158,13 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
       get: createAdminGetProfessionalUseCase(useCaseDeps),
       decide: createAdminDecideProfessionalUseCase(useCaseDeps),
       downloadCredential: createAdminDownloadCredentialUseCase(useCaseDeps),
+    }),
+  );
+  router.use(
+    createOffersRouter({
+      listOffers: createListOffersUseCase(useCaseDeps),
+      createOffer: createCreateOfferUseCase(useCaseDeps),
+      updateOffer: createUpdateOfferUseCase(useCaseDeps),
     }),
   );
   router.use(

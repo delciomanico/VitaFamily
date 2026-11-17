@@ -2,6 +2,7 @@
 // Fuso fixo `Africa/Luanda` (UTC+1, sem horário de verão): por isso a conversão local→UTC é uma subtração constante, sem os casos
 // de GAP/AMBIGUOUS do motor das clínicas (`Europe/Lisbon`). OP-72 (resolvida por omissão segura, OP-74): o motor das clínicas NÃO é
 // tocado nem importado; reutilizam-se só os utilitários de calendário de `platform/time`.
+import { charLength } from "./text.js";
 import { ValidationError } from "../../../platform/errors/index.js";
 import { addDaysIso, isIsoDate, localDateIso } from "../../../platform/time/index.js";
 
@@ -199,6 +200,6 @@ export function assertValidTimeOffRange(startsAt: Date, endsAt: Date, now: Date)
 
 export function normalizeTimeOffReason(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "string" || value.trim().length > 200) bad("reason", "máximo 200 caracteres", "Motivo inválido.");
+  if (typeof value !== "string" || charLength(value.trim()) > 200) bad("reason", "máximo 200 caracteres", "Motivo inválido.");
   return value.trim().length === 0 ? null : value.trim();
 }

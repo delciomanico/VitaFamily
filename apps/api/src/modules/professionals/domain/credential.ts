@@ -1,4 +1,5 @@
 // Credenciais do profissional (BR-MKT-17): validação pura dos metadados. O ficheiro valida-se por conteúdo em `file-type.ts`.
+import { charLength } from "./text.js";
 import { ValidationError, type FieldError } from "../../../platform/errors/index.js";
 import { isIsoDate } from "../../../platform/time/index.js";
 import type { CredentialKind } from "./requirements.js";
@@ -20,7 +21,7 @@ function fail(fields: FieldError[]): never {
 
 function optionalText(value: unknown, field: string, max: number): string | null {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "string" || value.trim().length > max) fail([{ field, message: `no máximo ${String(max)} caracteres` }]);
+  if (typeof value !== "string" || charLength(value.trim()) > max) fail([{ field, message: `no máximo ${String(max)} caracteres` }]);
   return value.trim().length === 0 ? null : value.trim();
 }
 

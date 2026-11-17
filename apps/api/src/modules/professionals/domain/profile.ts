@@ -1,5 +1,6 @@
 // Perfil do profissional (BR-MKT-23/26): validação pura do patch. `displayName` é identidade (só DRAFT/NEEDS_INFO); `bio`, `city` e
 // `paymentInstructions` são campos livres. `paymentInstructions` é texto livre, nunca exposto fora do próprio (BR-MKT-26).
+import { charLength } from "./text.js";
 import { ValidationError, type FieldError } from "../../../platform/errors/index.js";
 
 export const MAX_SPECIALTIES_PER_PROFESSIONAL = 5;
@@ -22,7 +23,8 @@ function fail(fields: FieldError[]): never {
 function required(value: unknown, field: string, min: number, max: number): string {
   if (typeof value !== "string") fail([{ field, message: "texto obrigatório" }]);
   const trimmed = value.trim();
-  if (trimmed.length < min || trimmed.length > max) fail([{ field, message: `entre ${String(min)} e ${String(max)} caracteres` }]);
+  const len = charLength(trimmed);
+  if (len < min || len > max) fail([{ field, message: `entre ${String(min)} e ${String(max)} caracteres` }]);
   return trimmed;
 }
 
@@ -30,7 +32,7 @@ function optional(value: unknown, field: string, max: number): string | null {
   if (value === null) return null;
   if (typeof value !== "string") fail([{ field, message: "texto ou nulo" }]);
   const trimmed = value.trim();
-  if (trimmed.length > max) fail([{ field, message: `no máximo ${String(max)} caracteres` }]);
+  if (charLength(trimmed) > max) fail([{ field, message: `no máximo ${String(max)} caracteres` }]);
   return trimmed.length === 0 ? null : trimmed;
 }
 

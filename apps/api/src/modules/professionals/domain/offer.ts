@@ -1,4 +1,5 @@
 // Ofertas e preços em Kz (BR-MKT-03/24/31). Validação pura; `specialtyId`, `method` e `durationMinutes` são imutáveis.
+import { charLength } from "./text.js";
 import { ValidationError, type FieldError } from "../../../platform/errors/index.js";
 
 export const OFFER_METHODS = ["IN_PERSON", "VIDEO", "CHAT", "PHONE"] as const;
@@ -36,7 +37,7 @@ function validatePrice(value: unknown): number {
 
 function validateNote(value: unknown): string | null {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "string" || value.trim().length > MAX_OFFER_NOTE) {
+  if (typeof value !== "string" || charLength(value.trim()) > MAX_OFFER_NOTE) {
     fail([{ field: "note", message: `máximo ${String(MAX_OFFER_NOTE)} caracteres` }]);
   }
   return value.trim().length === 0 ? null : value.trim();
