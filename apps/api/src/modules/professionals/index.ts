@@ -69,7 +69,7 @@ export { parseProfessionalSigningKeys, type ProfessionalSigningKey } from "./dom
 export { ProfessionalSmtpMailer } from "./infrastructure/mailer-smtp.js";
 export { ProfessionalFakeMailer } from "./infrastructure/mailer-fake.js";
 export type { ProfessionalMailer, CredentialScanner, CredentialScanQueue } from "./application/ports.js";
-export type { ProfessionalDirectory, PublicProfessionalProfile, BookableSlot, DirectoryQuery } from "./application/directory.js";
+export type { ProfessionalDirectory, PublicProfessionalProfile, BookableSlot, DirectoryQuery, ProfessionalFacts, FactsQuery } from "./application/directory.js";
 export { CredentialClamAvScanner } from "./infrastructure/clamav-client.js";
 export { PgBossCredentialScanQueue } from "./infrastructure/jobs.js";
 

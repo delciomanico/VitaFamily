@@ -1,7 +1,7 @@
 // `DirectoryRepository` e `MaintenanceRepository` (Kysely/pg). O leitor público filtra `APPROVED` em CADA consulta (BR-MKT-19).
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
-import type { DirectoryFilter, DirectoryRepository, MaintenanceRepository, PublicOffer, PublicProfessionalRow, SlotRecord } from "../application/ports.js";
+import type { ApprovedFactsRow, DirectoryFilter, FactsFilter, SlotStatRecord, DirectoryRepository, MaintenanceRepository, PublicOffer, PublicProfessionalRow, SlotRecord } from "../application/ports.js";
 import "./schema.js";
 
 export class KyselyDirectoryRepository implements DirectoryRepository<Kysely<Database>> {
@@ -39,6 +39,44 @@ export class KyselyDirectoryRepository implements DirectoryRepository<Kysely<Dat
     for (const r of rows) {
       const list = result.get(r.professional_id) ?? [];
       list.push({ id: r.id, specialtyId: r.specialty_id, method: r.method, durationMinutes: r.duration_minutes, priceKz: r.price_kz, note: r.note });
+      result.set(r.professional_id, list);
+    }
+    return result;
+  }
+
+  async listApprovedForFacts(trx: Kysely<Database>, filter: FactsFilter): Promise<ApprovedFactsRow[]> {
+    if (filter.ids?.length === 0) return [];
+    let query = trx.selectFrom("professionals as p").select(["p.id", "p.display_name", "p.bio", "p.city", "p.approved_at"]).where("p.validation_status", "=", "APPROVED");
+    if (filter.ids) query = query.where("p.id", "in", filter.ids);
+    if (filter.specialtyId) {
+      query = query.where(sql<boolean>`EXISTS (SELECT 1 FROM professional_specialties ps WHERE ps.professional_id = p.id AND ps.specialty_id = ${filter.specialtyId}::uuid)`);
+    }
+    if (filter.category) {
+      query = query.where(sql<boolean>`EXISTS (SELECT 1 FROM professional_specialties ps JOIN specialties s ON s.id = ps.specialty_id WHERE ps.professional_id = p.id AND s.category = ${filter.category})`);
+    }
+    const rows = await query.orderBy("p.id").limit(filter.limit).execute();
+    return rows.flatMap((r) => (r.display_name && r.city && r.approved_at ? [{ id: r.id, displayName: r.display_name, bio: r.bio, city: r.city, approvedAt: r.approved_at }] : []));
+  }
+
+  async slotStatsFor(trx: Kysely<Database>, professionalIds: string[], now: Date): Promise<Map<string, SlotStatRecord[]>> {
+    const result = new Map<string, SlotStatRecord[]>();
+    if (professionalIds.length === 0) return result;
+    const horizon = new Date(now.getTime() + 14 * 24 * 3600 * 1000);
+    const rows = await trx
+      .selectFrom("professional_slots as sl")
+      .innerJoin("professionals as p", "p.id", "sl.professional_id")
+      .innerJoin("professional_offers as o", (join) => join.onRef("o.id", "=", "sl.offer_id").onRef("o.professional_id", "=", "sl.professional_id"))
+      .select(["sl.professional_id", "sl.offer_id", sql<Date>`min(sl.starts_at)`.as("next_slot_at"), sql<string>`count(*) FILTER (WHERE sl.starts_at <= ${horizon})`.as("count_14d")])
+      .where("sl.professional_id", "in", professionalIds)
+      .where("p.validation_status", "=", "APPROVED")
+      .where("o.active", "=", true)
+      .where("sl.starts_at", ">", now)
+      .groupBy(["sl.professional_id", "sl.offer_id"])
+      .orderBy("sl.offer_id")
+      .execute();
+    for (const r of rows) {
+      const list = result.get(r.professional_id) ?? [];
+      list.push({ offerId: r.offer_id, nextSlotAt: r.next_slot_at, countNext14Days: Number(r.count_14d) });
       result.set(r.professional_id, list);
     }
     return result;

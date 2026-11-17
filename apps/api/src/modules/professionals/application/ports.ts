@@ -284,11 +284,37 @@ export interface DirectoryFilter {
   afterId?: string;
 }
 
+/** Linha de `professionals` `APPROVED` para os factos de descoberta (MK2; só dados públicos + `approvedAt`). */
+export interface ApprovedFactsRow extends PublicProfessionalRow {
+  approvedAt: Date;
+}
+
+export interface FactsFilter {
+  /** Só profissionais que têm esta especialidade ligada. */
+  specialtyId?: string;
+  /** Só profissionais com alguma especialidade desta categoria. */
+  category?: SpecialtyCategory;
+  /** Restringe a estes ids (`getApprovedFacts`). */
+  ids?: string[];
+  limit: number;
+}
+
+/** Estatística de horários futuros livres de uma oferta ativa (MK2; BR-MKT-37). */
+export interface SlotStatRecord {
+  offerId: string;
+  nextSlotAt: Date | null;
+  countNext14Days: number;
+}
+
 /** Leitor público (BR-MKT-19): TODAS as consultas filtram `validation_status = 'APPROVED'` (sem cache de estado) e só devolvem dados públicos. */
 export interface DirectoryRepository<Trx> {
   findApproved(trx: Trx, professionalId: string): Promise<PublicProfessionalRow | null>;
   listApproved(trx: Trx, filter: DirectoryFilter): Promise<PublicProfessionalRow[]>;
   activeOffersFor(trx: Trx, professionalIds: string[]): Promise<Map<string, PublicOffer[]>>;
+  /** MK2: linhas `APPROVED` (por id, ordem por id, teto `limit`) para os factos de descoberta; `APPROVED` filtrado em cada consulta. */
+  listApprovedForFacts(trx: Trx, filter: FactsFilter): Promise<ApprovedFactsRow[]>;
+  /** MK2: horários futuros livres de OFERTAS ATIVAS de profissionais `APPROVED`: o próximo e a contagem em `(now, now + 14 dias]`. */
+  slotStatsFor(trx: Trx, professionalIds: string[], now: Date): Promise<Map<string, SlotStatRecord[]>>;
   /** Horários futuros livres (`starts_at > now`, em `[from, to)`) de um APPROVED, só de ofertas ativas. */
   bookableSlots(trx: Trx, professionalId: string, from: Date, to: Date, now: Date): Promise<SlotRecord[]>;
 }

@@ -2,7 +2,7 @@
 // `APPROVED` em cada leitura (sem cache de estado) e devolve só dados públicos: nunca `paymentInstructions`, e-mail, credenciais nem estado
 // de validação. `DRAFT`/`PENDING_REVIEW`/`NEEDS_INFO`/`REJECTED`/`SUSPENDED` são indistinguíveis de «inexistente» (`null`/ausente).
 import type { SpecialtyCategory } from "../domain/requirements.js";
-import type { DirectoryFilter, ProfessionalsDeps, PublicOffer, SlotRecord } from "./ports.js";
+import type { ApprovedFactsRow, DirectoryFilter, FactsFilter, ProfessionalsDeps, PublicOffer, SlotRecord } from "./ports.js";
 
 export interface PublicProfessionalProfile {
   id: string;
@@ -12,6 +12,27 @@ export interface PublicProfessionalProfile {
   specialties: { id: string; name: string; category: SpecialtyCategory }[];
   offers: PublicOffer[];
 }
+
+/** Factos para a descoberta (MK2, `modules.md` nota 36(b)): só `APPROVED`, só ofertas ativas, nunca e-mail/`paymentInstructions`/credenciais/estado. */
+export interface ProfessionalFacts {
+  id: string;
+  displayName: string;
+  city: string;
+  bio: string | null;
+  /** Primeira aprovação (não muda com suspensões). */
+  approvedAt: Date;
+  specialties: { id: string; name: string; category: SpecialtyCategory }[];
+  offers: PublicOffer[];
+  slotStats: { offerId: string; nextSlotAt: Date | null; countNext14Days: number }[];
+}
+
+export interface FactsQuery {
+  specialtyId?: string;
+  category?: SpecialtyCategory;
+}
+
+/** Teto técnico por pedido (BR-MKT-49). */
+export const MAX_FACTS = 1000;
 
 export interface DirectoryQuery {
   category?: SpecialtyCategory;
@@ -45,6 +66,27 @@ async function hydrate<Trx>(deps: ProfessionalsDeps<Trx>, trx: Trx, rows: { id: 
   }));
 }
 
+async function hydrateFacts<Trx>(deps: ProfessionalsDeps<Trx>, trx: Trx, rows: ApprovedFactsRow[]): Promise<ProfessionalFacts[]> {
+  const base = await hydrate(deps, trx, rows);
+  const slotStats = await deps.directoryRepo.slotStatsFor(trx, rows.map((r) => r.id), deps.clock.now());
+  return base.flatMap((profile, i) => {
+    const row = rows[i];
+    if (!row) return [];
+    return [
+      {
+        id: profile.id,
+        displayName: profile.displayName,
+        city: profile.city,
+        bio: profile.bio,
+        approvedAt: row.approvedAt,
+        specialties: profile.specialties,
+        offers: profile.offers,
+        slotStats: (slotStats.get(profile.id) ?? []).map((s) => ({ offerId: s.offerId, nextSlotAt: s.nextSlotAt, countNext14Days: s.countNext14Days })),
+      },
+    ];
+  });
+}
+
 export function createProfessionalDirectory<Trx>(deps: ProfessionalsDeps<Trx>) {
   return {
     async getApprovedProfile(professionalId: string): Promise<PublicProfessionalProfile | null> {
@@ -65,6 +107,18 @@ export function createProfessionalDirectory<Trx>(deps: ProfessionalsDeps<Trx>) {
         ...(query.afterId ? { afterId: query.afterId } : {}),
       };
       return deps.withTransaction(async (trx) => hydrate(deps, trx, await deps.directoryRepo.listApproved(trx, filter)));
+    },
+
+    /** MK2: factos da coorte `APPROVED` (opcionalmente por especialidade/categoria), ordenados por id, no máximo `MAX_FACTS`; lido em cada chamada. */
+    async listApprovedFacts(query: FactsQuery = {}): Promise<ProfessionalFacts[]> {
+      const filter: FactsFilter = { limit: MAX_FACTS, ...(query.specialtyId ? { specialtyId: query.specialtyId } : {}), ...(query.category ? { category: query.category } : {}) };
+      return deps.withTransaction(async (trx) => hydrateFacts(deps, trx, await deps.directoryRepo.listApprovedForFacts(trx, filter)));
+    },
+
+    /** MK2: factos dos ids pedidos que estão `APPROVED` (ids repetidos ignorados; ausentes/não aprovados omitidos; teto `MAX_FACTS`), por ordem de id. */
+    async getApprovedFacts(ids: readonly string[]): Promise<ProfessionalFacts[]> {
+      const unique = [...new Set(ids)].slice(0, MAX_FACTS);
+      return deps.withTransaction(async (trx) => hydrateFacts(deps, trx, await deps.directoryRepo.listApprovedForFacts(trx, { ids: unique, limit: MAX_FACTS })));
     },
 
     /** Horários futuros livres de um APPROVED (só ofertas ativas); `[]` se não está APPROVED; intervalo limitado a 62 dias. */
