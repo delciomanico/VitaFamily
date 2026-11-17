@@ -9320,7 +9320,7 @@ paths:
       summary: "Comparar preços de 2 a 3 profissionais lado a lado (Kz)."
       description: "Autorização: AUTH (User autenticado, ativo, termos aceites; sem família; authorization.md §11.1). Token de profissional/clínica ⇒ UNAUTHENTICATED. UC-MKT-15, FR-MKT-13, BR-MKT-35/31. ids: 2 a 3 profissionais distintos; specialtyId obrigatório. Devolve as ofertas ativas de cada um nessa especialidade, fromPriceKz, nextAvailableAt e o resumo por método com os mais baratos (empates devolvem todos). Sem estado no servidor. Qualquer id inexistente ou não APPROVED ⇒ NOT_FOUND do pedido inteiro; profissional sem oferta ativa na especialidade ⇒ VALIDATION_ERROR."
       parameters:
-        - { name: ids, in: query, required: true, style: form, explode: false, schema: { type: array, minItems: 2, maxItems: 3, uniqueItems: true, items: { type: string, format: uuid } } }
+        - { name: ids, in: query, required: true, style: form, explode: false, description: "2 a 3 ids distintos, separados por vírgula; a contagem e a repetição são validadas no caso de uso (422 VALIDATION_ERROR, OP-89), não pelo esquema.", schema: { type: array, items: { type: string, format: uuid } } }
         - { name: specialtyId, in: query, required: true, schema: { type: string, format: uuid } }
       responses:
         '200':

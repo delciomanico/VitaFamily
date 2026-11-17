@@ -1,5 +1,30 @@
-// Raiz do módulo `discovery` (MK2, ADR-037, modules.md nota 36(a)): descoberta, comparação e ranking de profissionais. Sem tabelas, sem jobs,
-// sem auditoria. Nesta fatia (S3) só existe o domínio puro; os casos de uso, a porta `ProfessionalCatalog` e as rotas `/marketplace/*`
-// chegam na S4. Nenhum módulo importa `discovery` (só `main/`).
+// Raiz do módulo `discovery` (MK2, ADR-037, modules.md nota 36(a)): descoberta, comparação e ranking de profissionais `APPROVED`. Sem
+// tabelas, sem jobs, sem auditoria. Lê profissionais SÓ pela porta `ProfessionalCatalog` (ligada em `main/api.ts` à raiz
+// `ProfessionalDirectory`); nenhum módulo importa `discovery` (só `main/`).
+import type { Router } from "express";
+import type { Clock } from "../../platform/clock/index.js";
+import { InMemoryRateLimiter } from "../../platform/rate-limit/index.js";
+import { createDiscoveryUseCases, type DiscoveryUseCases } from "./application/discovery.js";
+import type { ProfessionalCatalog } from "./application/ports.js";
+import { createDiscoveryRouter } from "./interface/router.js";
+
 export { RANKING_V1, rankProfessionals } from "./domain/ranking.js";
 export type { RankingInput, RankingResult } from "./domain/ranking.js";
+export { PUBLIC_DATA_ROUTES } from "./interface/public-data-routes.js";
+export type { ProfessionalCatalog, ProfessionalCatalogQuery } from "./application/ports.js";
+
+export interface DiscoveryModuleDeps {
+  catalog: ProfessionalCatalog;
+  clock: Clock;
+}
+
+export interface DiscoveryModule {
+  /** `/marketplace/*` (User autenticado; sem `AccessPolicy`). */
+  router: Router;
+  useCases: DiscoveryUseCases;
+}
+
+export function createDiscoveryModule(deps: DiscoveryModuleDeps): DiscoveryModule {
+  const useCases = createDiscoveryUseCases({ catalog: deps.catalog, clock: deps.clock });
+  return { router: createDiscoveryRouter({ useCases, rateLimiter: new InMemoryRateLimiter(deps.clock) }), useCases };
+}

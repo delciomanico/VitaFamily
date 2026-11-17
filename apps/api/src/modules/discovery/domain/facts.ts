@@ -8,6 +8,8 @@ export interface FactsSpecialty {
   id: string;
   name: string;
   category: SpecialtyCategoryCode;
+  /** Ausente = ativa. Só as ativas entram nos filtros disponíveis (BR-MKT-33). */
+  active?: boolean;
 }
 
 /** Oferta ATIVA (as inativas nunca chegam ao domínio). */

@@ -37,6 +37,7 @@ import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPu
 import { createAlertsModule, type AlertsModule } from "../modules/alerts/index.js";
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
+import { createDiscoveryModule } from "../modules/discovery/index.js";
 import { PgBossCredentialScanQueue, ProfessionalSmtpMailer, createProfessionalsModule, parseProfessionalSigningKeys } from "../modules/professionals/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
@@ -228,6 +229,15 @@ export function main(): void {
     storage,
     scanQueue: new PgBossCredentialScanQueue(boss),
     maxFileSizeBytes: config.UPLOAD_MAX_BYTES,
+  });
+  // MK2 (ADR-037, modules.md nota 36(a)): `discovery` lê profissionais SÓ pela porta `ProfessionalCatalog`, aqui ligada à raiz
+  // `ProfessionalDirectory` (só `APPROVED`, dados públicos, lido em cada pedido). Sem `AccessPolicy` (dados públicos).
+  const discovery = createDiscoveryModule({
+    clock,
+    catalog: {
+      listApprovedFacts: (query) => professionals.directory.listApprovedFacts(query),
+      getApprovedFacts: (ids) => professionals.directory.getApprovedFacts(ids),
+    },
   });
   // M8 (plan.md §4): `notifications` antes de `alerts` — `alerts` depende de `notifications`
   // pela raiz (modules.md §3 nota 15), nunca o inverso. D19: ambos vêm antes de `examinations`,
@@ -679,6 +689,7 @@ export function main(): void {
       router.use(clinics.adminRouter);
       router.use(clinics.clinicPortalRouter);
       router.use(professionals.router);
+      router.use(discovery.router);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);
