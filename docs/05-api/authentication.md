@@ -24,6 +24,8 @@
 - **Convite de membro (UC-MEM-03, change control — decisão do proprietário):** `register` com `invitationToken` de um convite tipo `MEMBER` cria a conta E aceita automaticamente o convite no mesmo pedido, ligando-a ao `FamilyMember` do convite (perfil existente ou novo), sem exigir login + `POST /invitations/accept` manuais em separado. `email` tem de coincidir com o do convite (`INVITATION_EMAIL_MISMATCH` caso contrário); a idade mínima de autorregisto (18 anos, BR-ACC-02) continua a aplicar-se (é uma conta de adulto, não de acesso limitado).
 
 ## 3. Limites (rate limiting, NFR-SEC-05)
+> **Armazenamento (ADR-038, OP-116):** os contadores vivem em **Redis**, partilhados entre réplicas e sobrevivem ao reinício da API; janela deslizante exata. Falha do Redis ⇒ **falha fechada** (`503 SERVICE_UNAVAILABLE`, `Retry-After: 5`) em login, registo, recuperação, verificação e refresh; o limite geral só degrada para memória local em `GET`/`HEAD`. Valores abaixo inalterados.
+
 | Endpoint | Limite |
 |---|---|
 | `POST /auth/login` | 5 falhas / 15 min por (e-mail + IP), com atraso crescente; 20 / 15 min por IP. |

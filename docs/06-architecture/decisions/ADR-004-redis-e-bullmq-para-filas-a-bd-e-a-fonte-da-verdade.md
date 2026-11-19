@@ -1,6 +1,6 @@
 # ADR-004 — Redis e BullMQ para filas; a BD é a fonte da verdade
 
-**Estado:** Parcialmente substituída por ADR-012: mantém-se "a BD é a fonte da verdade"; fila em **river (PostgreSQL)**, **sem Redis**.
+**Estado:** Parcialmente substituída por ADR-012: mantém-se "a BD é a fonte da verdade"; fila em **river (PostgreSQL)**, **sem Redis**. **Emenda (ADR-038, 2026-11-20):** o Redis volta, mas **só** como armazenamento dos limitadores de taxa; as filas continuam em pg-boss.
 
 ## Contexto
 Há trabalho assíncrono (notificações, antivírus, exportações) e agendado (alertas, tomas). Perder um lembrete é um risco de saúde.

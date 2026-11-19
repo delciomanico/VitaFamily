@@ -1,6 +1,6 @@
 # Vita Family — Estratégia de testes (Fase 15)
 
-> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), com **Vitest** (unitários/domínio), **testcontainers** (integração: PostgreSQL e MinIO reais) e **Supertest** (API), Kysely+`pg`, pg-boss, **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015; a estratégia mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), com **Vitest** (unitários/domínio), **testcontainers** (integração: PostgreSQL e MinIO reais) e **Supertest** (API), Kysely+`pg`, pg-boss, **sem Redis para filas** (Redis só nos limitadores de taxa, ADR-038), em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015; a estratégia mantém-se.
 
 > Estado: **v0.1 — adotada com a recomendação do assistente.** Requisitos: NFR-QA-01..04.
 

@@ -1,6 +1,6 @@
 # Vita Family — Monitorização (Fase 16)
 
-> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), Kysely+`pg`, pg-boss (fila sobre PostgreSQL), **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), Kysely+`pg`, pg-boss (fila sobre PostgreSQL), **sem Redis para filas** (Redis só nos limitadores de taxa, ADR-038), em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ ou Jest, ler o equivalente de ADR-014/ADR-015.
 
 > Estado: **v0.1**. Requisitos: NFR-OPS-01..03, NFR-AVL-01 (99,5 %).
 
@@ -40,10 +40,12 @@ pendente de implementação por módulo.
 | Espaço em disco/objetos > 80 % | Média | |
 | Certificado a expirar < 14 dias | Média | |
 | Documento `INFECTED` | Informativa (auditado) | |
+| Redis indisponível (`/health/ready` 503, `RATE_LIMIT_BACKEND_UNAVAILABLE`/`_DEGRADED`, disjuntor aberto) > 1 min; memória do Redis > 80 % de 64 MB; picos de `503` por limitador | Alta (escritas e rotas sensíveis falham fechadas, ADR-038) | Reiniciar `redis`; os contadores repõem-se a zero (sem restauro) |
 | `file_deletions` pendentes > 1 h | Média | Garantir apagamento (RGPD) |
 
 ## 4. Disponibilidade e SLO
 - **SLO:** 99,5 % mensal de disponibilidade da API (≈ 3 h 39 min de indisponibilidade/mês permitida) e **lembretes ≤ 1 min de atraso (p95)**.
+- `/health/ready` inclui o `PING` ao Redis (ADR-038); `/health` (liveness) não depende dele.
 - *Uptime check* externo em `/health/ready` a cada minuto (de fora da infraestrutura).
 - Relatório mensal: SLO, incidentes, atraso de lembretes.
 
@@ -51,5 +53,5 @@ pendente de implementação por módulo.
 Ferramenta de captura de exceções (autohospedada ou na UE) **com redação de dados** e sem corpos de pedido; desativada se não garantir a ausência de dados de saúde.
 
 ## 6. Procedimentos
-- **Runbooks** curtos: fila parada (reiniciar `worker`/pg-boss; jobs idempotentes repõem-se a partir da BD), ClamAV em baixo, falha de SMTP/Push, restauro de backup, rotação de segredos, violação de dados (`security.md` §4).
+- **Runbooks** curtos: Redis em baixo (reiniciar o serviço; sem restauro; escritas sensíveis ficam `503` até voltar), fila parada (reiniciar `worker`/pg-boss; jobs idempotentes repõem-se a partir da BD), ClamAV em baixo, falha de SMTP/Push, restauro de backup, rotação de segredos, violação de dados (`security.md` §4).
 - **Pós-incidente:** análise sem culpa, registo e, se alterar decisões, novo ADR.

@@ -1,6 +1,6 @@
 # Vita Family — Infraestrutura (Fase 11)
 
-> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), Kysely+`pg`, pg-boss (fila sobre PostgreSQL), **sem Redis** (linha `redis` da tabela de serviços abaixo foi removida; filas e rate limit passam pela BD/em memória), em **VPS própria** com Dokploy/Traefik (ADR-017), domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), Kysely+`pg`, pg-boss (fila sobre PostgreSQL), **sem Redis para filas** (filas em pg-boss; o Redis volta **só** para os limitadores de taxa, ADR-038, 2026-11-20, linha `redis` da tabela abaixo), em **VPS própria** com Dokploy/Traefik (ADR-017), domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015; a arquitetura lógica mantém-se.
 
 > Estado: **v0.1**. Decisões de hospedagem concretas (fornecedor) ficam como **escolha operacional** na Fase 16/M0; aqui só requisitos.
 
@@ -11,6 +11,7 @@
 | `api` | Node LTS (imagem própria) | HTTP | stateless, 1+ réplicas |
 | `worker` | mesma imagem, outro comando | Jobs | 1 instância (jobs idempotentes permitem mais) |
 | `postgres` | PostgreSQL 16 | Dados + filas (pg-boss) | persistente, backups |
+| `redis` | `redis:7-alpine` (ADR-038) | **Só** contadores dos limitadores de taxa (janela deslizante, script Lua); rede interna, sem porta publicada, `requirepass`, `--save "" --appendonly no`, `noeviction`, 64 MB | **efémero**, sem volume, **sem backup**; reiniciar zera os contadores |
 | `object-storage` | MinIO (dev) / S3-compatível na UE (prod) | Documentos e exportações | persistente, versionado, SSE |
 | `clamav` | clamd | Antivírus | atualização diária de assinaturas |
 | `proxy` | Traefik do Dokploy (ADR-017) | TLS, domínio, encaminhamento `/` → web (único serviço com domínio); o nginx do `web` reencaminha `/api` internamente para `api`, sem domínio próprio (ADR-019). **Cadeia de proxies (2026-11-12):** internet → Traefik → nginx do `web` → `api`; a API tem de confiar em 2 saltos (`TRUST_PROXY=2`, `environment.md`), ou 3 com CDN, para que `req.ip` seja o IP real do cliente e os rate limits/auditoria não possam ser contornados com `X-Forwarded-For` forjado | |

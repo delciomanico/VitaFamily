@@ -4,7 +4,7 @@
 > **PIVÔ 2026-11-16 (ADR-037, decisão do proprietário):** o Vita = **registo de saúde da família + mercado de profissionais de saúde e bem-estar (Angola)**. Detalhe, marcos MK0–MK4 e decisões ratificadas (2026-11-16) em `00-product/marketplace-profissionais.md` §11. **Seguradoras/autorizações/marco B (ADR-029..036) ficam ARQUIVADOS** (ramo `archive/marco-b-seguradoras`, tag `archive-marco-b-2026-11-16`) e **saem do `main`, sem interruptor** — plano em `11-implementation/arquivo-marco-b.md` (**R1–R7 feitos**: código, contrato e docs ativos; R8 migração de limpeza e R9 auditoria final pendentes); migrações aplicadas ficam inertes (`07-database/schema.md` §10); `processes` (sem coverage) e o portal da clínica são reaproveitados.
 > Regra: se o código e a documentação divergirem ⇒ parar, decidir, atualizar a documentação, corrigir o código. Alterações por change control.
 
-> **Stack e alojamento (ADR-014/ADR-015, decisão do proprietário):** Node.js 24 LTS + TypeScript (Clean Architecture por módulo), sem Redis (pg-boss sobre PostgreSQL), VPS própria, `https://vitafamily.cassfrei.com` (PWA na raiz, API em `/api/v1`), responsável pelo tratamento: **Cassfrei**. Convenções de código em `11-implementation/conventions.md`; agentes em `.claude/agents/`.
+> **Stack e alojamento (ADR-014/ADR-015, decisão do proprietário):** Node.js 24 LTS + TypeScript (Clean Architecture por módulo), sem Redis para filas (pg-boss sobre PostgreSQL; Redis só para os limitadores de taxa, ADR-038), VPS própria, `https://vitafamily.cassfrei.com` (PWA na raiz, API em `/api/v1`), responsável pelo tratamento: **Cassfrei**. Convenções de código em `11-implementation/conventions.md`; agentes em `.claude/agents/`.
 
 ## Índice
 | Pasta | Conteúdo |
@@ -15,7 +15,7 @@
 | `03-use-cases/` | Casos de uso por área (inclui `processes.md`, UC-PRC; `professionals.md`, UC-MKT-01..12; `marketplace.md`, UC-MKT-13..25 — MK2: descoberta, ranking e conversas; `consultations.md`, UC-MKT-26..47 — MK3: marcação, comprovativo e avaliações); decisões Q1–Q11 em `alerts.md`. Os casos de uso de seguradora estão em `_arquivo/marco-b/` |
 | `04-domain/` | `domain-model.md` (DM1–DM8), `entities.md`, `relationships.md`, `state-machines.md` (ST1–ST6; `Process` vigente) |
 | `05-api/` | `api-overview.md`, `authentication.md`, `endpoints.md`, `errors.md`, `openapi.yaml` (246 operações e 228 schemas: 212/195 após o R6 do arquivo do marco B + 34 operações/33 schemas de MK1; validado com `openapi-typescript`) |
-| `06-architecture/` | `architecture.md`, `modules.md`, `infrastructure.md`, `decisions/` (ADR-001..037; **ADR-037 pivô**; 029–036 **arquivados** pelo pivô, não apagados; ver `_arquivo/marco-b/marco-b-construcao.md`) |
+| `06-architecture/` | `architecture.md`, `modules.md`, `infrastructure.md`, `decisions/` (ADR-001..038 (**ADR-038: limitadores de taxa em Redis**); **ADR-037 pivô**; 029–036 **arquivados** pelo pivô, não apagados; ver `_arquivo/marco-b/marco-b-construcao.md`) |
 | `07-database/` | `schema.md`, `indexes.md`, `migrations.md` |
 | `08-security/` | `security.md`, `authorization.md`, `privacy.md`, `audit.md` |
 | `09-testing/` | `strategy.md`, `test-cases.md`, `acceptance-criteria.md` |

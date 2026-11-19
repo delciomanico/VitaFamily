@@ -8034,7 +8034,7 @@ paths:
     get:
       tags: [Operations]
       operationId: healthReady
-      summary: "Readiness (BD, armazenamento)."
+      summary: "Readiness (BD, armazenamento, Redis dos limitadores; ADR-038)."
       description: "Autorização: PUBLIC."
       security: []
       responses:

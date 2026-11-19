@@ -1,6 +1,6 @@
 # Vita Family — Arquitetura (Fase 11)
 
-> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture: `domain/application/infrastructure/interface`), Express+express-openapi-validator, Kysely+`pg`, pg-boss, **sem Redis**, em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015; a arquitetura lógica mantém-se.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture: `domain/application/infrastructure/interface`), Express+express-openapi-validator, Kysely+`pg`, pg-boss, **sem Redis para filas** (Redis só nos limitadores de taxa, ADR-038), em **VPS própria** com Caddy, domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015; a arquitetura lógica mantém-se.
 
 > Estado: **v0.1 — decisões adotadas com a recomendação do assistente (delegação do proprietário, 2026-10-04); ver ADRs em `decisions/`.**
 > Princípios (prompt §27): *Simple first · Modular · Extensible · Testable · Secure*.
@@ -106,7 +106,7 @@ Transação apaga linhas e insere `file_deletion` por documento; o worker apaga 
 | NestJS + TypeScript | **Confirmada** | Estrutura modular, DI e testabilidade; equipa de uma pessoa a aprender arquitetura beneficia da convenção. |
 | PostgreSQL | **Confirmada** | Relacional, transações, tipos (jsonb, timestamptz), índices parciais necessários (tutor principal, dedupe). |
 | Prisma | **Confirmada com cautela** | Bom DX e migrações; não suporta nativamente índices parciais/constraints complexas ⇒ usar SQL manual nas migrações para esses casos (ADR-003). |
-| Redis | **Confirmada, âmbito mínimo** | Filas (BullMQ) e rate limit. **Não** é fonte de verdade. |
+| Redis | **Confirmada, âmbito mínimo (ADR-038, 2026-11-20): só rate limit; filas em pg-boss** | Contadores dos limitadores de taxa (janela deslizante, falha fechada). **Não** é fonte de verdade. |
 | MinIO/S3 | **Confirmada** | S3-compatível; em produção usar S3 UE-compatível; mesma API. |
 | REST + OpenAPI | **Confirmada** | Contrato primeiro (`openapi.yaml`). |
 | Docker | **Confirmada** | Ambientes reproduzíveis. |

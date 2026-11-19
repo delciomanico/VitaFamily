@@ -1,6 +1,6 @@
 # Vita Family — Deploy (Fase 16)
 
-> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), com Kysely+`pg` e runner de migrações próprio (sem Prisma), pg-boss, **sem Redis**, em **VPS própria** com Dokploy/Traefik (ADR-017), domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015.
+> **ATUALIZAÇÃO 2026-10-08 (ADR-014/ADR-015, decisão do proprietário):** a implementação é em **Node.js/TypeScript** (Clean Architecture), com Kysely+`pg` e runner de migrações próprio (sem Prisma), pg-boss, **sem Redis para filas** (Redis só nos limitadores de taxa, ADR-038), em **VPS própria** com Dokploy/Traefik (ADR-017), domínio `vitafamily.cassfrei.com`. Onde este documento diz NestJS, Prisma, Redis, BullMQ, Jest ou Go, ler o equivalente de ADR-014/ADR-015.
 
 > Estado: **v0.1**.
 
@@ -50,6 +50,8 @@ Proxy reverso termina TLS (certificados automáticos), HSTS, redirecionamento HT
 > **Nota (2026-11-12) — cadeia de proxies e `TRUST_PROXY`:** a cadeia é Traefik → nginx do `web` → `api`; em produção definir `TRUST_PROXY=2` (3 com CDN). **Passo de verificação na VPS após o deploy:** `curl -s https://vitafamily.cassfrei.com/api/v1/health -H 'X-Forwarded-For: 9.9.9.9'` e confirmar (nos logs/auditoria de pedido) que `req.ip` **nunca** é `9.9.9.9`; se aparecer o IP do gateway Docker em vez do IP do cliente, o nº de saltos está errado ou o nginx não reencaminha `X-Forwarded-For` — tratar à parte, sem subir o valor às cegas.
 
 ## 5. Backups e restauro (N10)
+**Redis (ADR-038): fora de âmbito** — só contadores efémeros de rate limit (`--save ""`, sem volume); não entra em `backup-postgres.sh` nem no ensaio de restauro. Serviço `redis` no `deploy/docker-compose.api.prod.yml` (Dokploy, ADR-017): rede interna, **sem porta publicada nem domínio**, `requirepass` (`REDIS_PASSWORD` em segredo do Dokploy); a `api` e o `worker` só arrancam com `redis` saudável. Ordem do deploy: `redis` → `postgres` → migrações → `api`/`worker`.
+
 Scripts na VPS (cron, fora dos contentores): `deploy/scripts/backup-postgres.sh` (dump diário
 `pg_dump --format=custom`, encriptado com `openssl`/`BACKUP_ENCRYPTION_PASSPHRASE`, retenção
 `BACKUP_RETENTION_DAYS` aplicada no próprio script) e `deploy/scripts/restore-postgres.sh` (para
