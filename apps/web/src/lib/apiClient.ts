@@ -52,6 +52,7 @@ export function toErrorCode(code: string): ErrorCode {
     'SERVICE_UNAVAILABLE',
     'PROFESSIONAL_LOCKED',
     'DOCUMENT_NOT_AVAILABLE',
+    'CONVERSATION_CLOSED',
   ]
   return (known as string[]).includes(code) ? (code as ErrorCode) : 'UNKNOWN'
 }

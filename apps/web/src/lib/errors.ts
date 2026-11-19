@@ -27,6 +27,7 @@ export type ErrorCode =
   | 'SERVICE_UNAVAILABLE'
   | 'PROFESSIONAL_LOCKED'
   | 'DOCUMENT_NOT_AVAILABLE'
+  | 'CONVERSATION_CLOSED'
   | 'UNKNOWN'
 
 export class AppError extends Error {
@@ -71,6 +72,7 @@ const messages: Record<ErrorCode, string> = {
   SERVICE_UNAVAILABLE: 'Não foi possível verificar o ficheiro agora. Tente mais tarde.',
   PROFESSIONAL_LOCKED: 'Neste estado não pode alterar isto. Se precisar, peça ao administrador para reabrir o perfil.',
   DOCUMENT_NOT_AVAILABLE: 'Este ficheiro ainda não está disponível para descarregar.',
+  CONVERSATION_CLOSED: 'Esta conversa já não aceita mensagens: está fechada ou o profissional está indisponível.',
   UNKNOWN: 'Algo correu mal. Tente novamente.',
 }
 
