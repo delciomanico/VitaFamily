@@ -14,6 +14,7 @@ import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modul
 import { createAccessModule } from "../modules/access/index.js";
 import { SmtpProfessionalMailer, createMessagingWorkerModule } from "../modules/messaging/index.js";
 import { CredentialClamAvScanner, PgBossCredentialScanQueue, createProfessionalsWorkerModule } from "../modules/professionals/index.js";
+import { ProofClamAvScanner, createConsultationsWorkerModule } from "../modules/consultations/index.js";
 import { ClamAvScanner, createDocumentsWorkerModule } from "../modules/documents/index.js";
 import { createMedicationsWorkerModule } from "../modules/medications/index.js";
 import { createAppointmentsReminderQueries } from "../modules/appointments/index.js";
@@ -149,6 +150,15 @@ export function main(): void {
     audit,
   });
 
+  // MK3 S8 (OP-99): antivírus dos comprovativos e outbox própria de ficheiros (não usa `documents`).
+  const consultationsWorker = createConsultationsWorkerModule({
+    db,
+    clock,
+    storage,
+    scanner: new ProofClamAvScanner({ host: config.CLAMAV_HOST, port: config.CLAMAV_PORT }),
+    boss,
+  });
+
   boss
     .start()
     .then(async () => {
@@ -161,6 +171,7 @@ export function main(): void {
       await clinicPatientsWorker.registerWorkers();
       await professionalsWorker.registerWorkers();
       await messagingWorker.registerWorkers();
+      await consultationsWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

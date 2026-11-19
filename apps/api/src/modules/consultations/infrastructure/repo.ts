@@ -193,6 +193,17 @@ export class KyselyBookingRepository implements BookingRepository<Db> {
       .execute();
   }
 
+  async findById(trx: Db, bookingId: string, forUpdate: boolean): Promise<BookingRecord | null> {
+    let query = trx.selectFrom("bookings").select(COLUMNS).where("id", "=", bookingId);
+    if (forUpdate) query = query.forUpdate();
+    const row = await query.executeTakeFirst();
+    return row ? toBooking(row) : null;
+  }
+
+  async setPaymentStatus(trx: Db, bookingId: string, paymentStatus: BookingRecord["paymentStatus"], at: Date): Promise<void> {
+    await trx.updateTable("bookings").set({ payment_status: paymentStatus, updated_at: at }).where("id", "=", bookingId).execute();
+  }
+
   async bookingIdsWithReview(trx: Db, bookingIds: string[]): Promise<Set<string>> {
     if (bookingIds.length === 0) return new Set();
     const rows = await trx.selectFrom("reviews").select("booking_id").where("booking_id", "in", bookingIds).execute();

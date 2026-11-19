@@ -12,6 +12,7 @@ import { checkBookingAction, isRequestExpired, meetingInfoRequired, transitionEf
 import { TEXT_LIMITS, validateOptionalFreeText, validateRequiredFreeText, type TextError } from "../domain/text.js";
 import { decodeBookingCursor, encodeBookingCursor } from "./cursor.js";
 import type { BookingRecord, ConsultationsDeps, ProfessionalActor, RequestContext } from "./ports.js";
+import { toProofView } from "./proof-views.js";
 import { toProfessionalBookingView, type ProfessionalBookingView } from "./professional-views.js";
 
 export interface ProfessionalPage<T> {
@@ -30,12 +31,14 @@ export function createProfessionalBookings<Trx>(deps: ConsultationsDeps<Trx>) {
   async function present(trx: Trx, records: BookingRecord[]): Promise<ProfessionalBookingView[]> {
     if (records.length === 0) return [];
     const specialties = await deps.agenda.findSpecialties([...new Set(records.map((r) => r.specialtyId))]);
+    const latestProofs = await deps.proofs.latestForBookings(trx, records.map((r) => r.id));
     const views: ProfessionalBookingView[] = [];
     for (const record of records) {
       // O profissional vê o id da conversa do par, nunca o par (família/membro ficam no servidor).
       const conversationId = (await deps.conversations.findConversationIds(trx, record.familyId, record.memberId, [record.professionalId])).get(record.professionalId) ?? null;
       const specialty = specialties.find((s) => s.id === record.specialtyId);
-      views.push(toProfessionalBookingView(record, { specialty: specialty ? { name: specialty.name, category: specialty.category } : undefined, conversationId }));
+      const latest = latestProofs.get(record.id);
+      views.push(toProfessionalBookingView(record, { specialty: specialty ? { name: specialty.name, category: specialty.category } : undefined, conversationId, proof: latest ? toProofView(latest) : undefined }));
     }
     return views;
   }

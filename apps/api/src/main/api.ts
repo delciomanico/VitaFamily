@@ -39,7 +39,7 @@ import { createRecommendationsModule } from "../modules/recommendations/index.js
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
 import { createDiscoveryModule } from "../modules/discovery/index.js";
 import { PgBossProfessionalNoticeQueue, createMessagingModule } from "../modules/messaging/index.js";
-import { createConsultationsModule, createSelfDealingGuard, type ConsultationsModule } from "../modules/consultations/index.js";
+import { PgBossProofScanQueue, createConsultationsModule, createSelfDealingGuard, type ConsultationsModule } from "../modules/consultations/index.js";
 import { PgBossCredentialScanQueue, ProfessionalSmtpMailer, createProfessionalsModule, parseProfessionalSigningKeys } from "../modules/professionals/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
@@ -454,6 +454,8 @@ export function main(): void {
     processes: { open: (trx, input) => processes.linker.open(trx, input) },
     appointments: appointments.familyAppointmentWriter,
     conversations: messaging.lookup,
+    storage,
+    scanQueue: new PgBossProofScanQueue(boss),
   });
   late.consultations = consultations;
 

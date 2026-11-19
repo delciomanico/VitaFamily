@@ -9,14 +9,16 @@ import { createAccessModule } from "../../src/modules/access/index.js";
 import { KyselyAppointmentsRepository } from "../../src/modules/appointments/infrastructure/repo.js";
 import { createFamilyAppointmentWriter, type FamilyAppointmentWriterImpl } from "../../src/modules/appointments/application/family-appointment-writer.js";
 import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
-import { createConsultationsModule, createSelfDealingGuard } from "../../src/modules/consultations/index.js";
+import { createConsultationsJobs, createConsultationsModule, createSelfDealingGuard } from "../../src/modules/consultations/index.js";
 import { createDiscoveryModule } from "../../src/modules/discovery/index.js";
 import { createFamiliesModule } from "../../src/modules/families/index.js";
 import { signProfessionalAccessToken } from "../../src/modules/professionals/domain/jwt.js";
 import { createMessagingModule } from "../../src/modules/messaging/index.js";
 import { createUsersModule } from "../../src/modules/users/index.js";
+import type { FixedClock } from "../../src/platform/clock/index.js";
+import type { InMemoryStorage } from "../../src/platform/storage/index.js";
 import { withTransaction, type Database } from "../../src/platform/db/index.js";
-import { SIGNING_KEYS, START, startProfessionalsHarness, type LogSink, type ProfessionalsHarness } from "./professionals-harness.js";
+import { INFECTED_MARKER, SIGNING_KEYS, START, startProfessionalsHarness, type LogSink, type ProfessionalsHarness } from "./professionals-harness.js";
 import { createRealProcessLinker } from "./process-linker.js";
 
 export { START };
@@ -76,16 +78,24 @@ export interface ConsultationsHarness {
   seedBooking(input: { familyId: string; memberId: string; offer: OfferFixture; startsAt: Date; status?: "REQUESTED" | "CONFIRMED"; createdByUserId?: string | null; label?: string }): Promise<{ bookingId: string; slotId: string }>;
   /** Token de ProfessionalAccount de vida longa (120 dias), para avançar o relógio sem o expirar (o `token` de `professional()` expira em 900 s). */
   professionalToken(professionalId: string): Promise<string>;
+  /** Corre os jobs de antivírus pendentes (o ficheiro com `INFECTED_MARKER` sai infetado). */
+  runProofScans(): Promise<void>;
+  /** Corre a outbox `consultations.delete-files`. */
+  runDeleteFiles(): Promise<{ deleted: number; failed: number }>;
+  /** Fila de antivírus (só para os testes inspecionarem). */
+  proofQueue: { proofId: string }[];
   stop(): Promise<void>;
 }
 
 /** Arranca PostgreSQL + app real com o módulo `consultations` ligado (rota da família e descoberta pública). */
 export async function startConsultationsHarness(options: { logStream?: LogSink } = {}): Promise<ConsultationsHarness> {
   let appointments: FamilyAppointmentWriterImpl<Kysely<Database>> | undefined;
+  let jobsDeps: { db: Kysely<Database>; clock: FixedClock; storage: InMemoryStorage } | undefined;
+  const proofQueue = { jobs: [] as { proofId: string }[], enqueueScan(job: { proofId: string }): Promise<void> { this.jobs.push(job); return Promise.resolve(); } };
 
   const h = await startProfessionalsHarness(
     {},
-    ({ audit, db, clock, module }) => {
+    ({ audit, db, clock, module, storage }) => {
       const users = createUsersModule({ db, audit, clock, currentTermsVersion: "1" });
       const families = createFamiliesModule({
         db,
@@ -115,6 +125,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
       const writer = createFamilyAppointmentWriter({ appointmentsRepo: new KyselyAppointmentsRepository(), clock });
       const processes = createRealProcessLinker(db);
       appointments = writer;
+      jobsDeps = { db, clock, storage };
 
       const consultations = createConsultationsModule({
         db,
@@ -144,6 +155,8 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         processes: { open: (trx, input) => processes.open(trx, input) },
         appointments: writer,
         conversations: messaging.lookup,
+        storage,
+        scanQueue: proofQueue,
       });
       return [discovery.router, consultations.familyRouter, consultations.professionalRouter];
     },
@@ -153,6 +166,8 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
   if (!appointments) throw new Error("consultations não ligado");
   const writer = appointments;
   const { pool, clock } = h;
+  if (!jobsDeps) throw new Error("jobs não ligados");
+  const jobs = createConsultationsJobs({ ...jobsDeps, scanner: { scan: (buffer) => Promise.resolve(buffer.includes(INFECTED_MARKER) ? "INFECTED" : "CLEAN") } });
 
   const mintToken = async (userId: string): Promise<string> =>
     (await signAccessToken({ subject: { userId, sessionId: randomUUID() }, now: clock.now(), ttlSeconds: TOKEN_TTL_SECONDS, signingKeys: SIGNING_KEYS })).token;
@@ -275,6 +290,11 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
       if (!professionalAccountId) throw new Error("profissional sem conta");
       return (await signProfessionalAccessToken({ subject: { professionalAccountId, professionalId, sessionId: randomUUID() }, now: clock.now(), ttlSeconds: TOKEN_TTL_SECONDS, signingKeys: SIGNING_KEYS })).token;
     },
+    async runProofScans() {
+      for (const job of proofQueue.jobs.splice(0)) await jobs.scanProof(job);
+    },
+    runDeleteFiles: () => jobs.deleteFiles(),
+    proofQueue: proofQueue.jobs,
     async stop() {
       await h.stop();
     },

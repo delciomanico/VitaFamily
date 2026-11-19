@@ -106,7 +106,7 @@ let ipCounter = 0;
 export const nextIp = (): string => `172.16.${String(Math.floor(++ipCounter / 250))}.${String((ipCounter % 250) + 1)}`;
 export const uniqueEmail = (prefix = "prof"): string => `${prefix}-${String(++counter)}-${String(Date.now())}@exemplo.ao`;
 
-export async function startProfessionalsHarness(overrides: Partial<Parameters<typeof createProfessionalsModule>[0]> = {}, extraRouters: (parts: { audit: AuditModule; db: Kysely<Database>; clock: FixedClock; module: ProfessionalsModule }) => import("express").Router[] = () => [], options: ProfessionalsHarnessOptions = {}): Promise<ProfessionalsHarness> {
+export async function startProfessionalsHarness(overrides: Partial<Parameters<typeof createProfessionalsModule>[0]> = {}, extraRouters: (parts: { audit: AuditModule; db: Kysely<Database>; clock: FixedClock; module: ProfessionalsModule; storage: InMemoryStorage }) => import("express").Router[] = () => [], options: ProfessionalsHarnessOptions = {}): Promise<ProfessionalsHarness> {
   const container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({ POSTGRES_USER: "vita", POSTGRES_PASSWORD: "vita", POSTGRES_DB: "vita" })
     .withExposedPorts(5432)
@@ -183,7 +183,7 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
     registerHealthRoutes: () => undefined,
     registerRoutes: (router) => {
       router.use(module.router);
-      for (const extra of extraRouters({ audit, db, clock, module })) router.use(extra);
+      for (const extra of extraRouters({ audit, db, clock, module, storage })) router.use(extra);
     },
   });
 

@@ -2,8 +2,10 @@
 // `users`, `professionals`, `appointments`, `processes`, `alerts`, `notifications`, `messaging`, `discovery`, `admin`, `lifecycle` nem
 // módulos de saúde: tudo o que vem de fora entra por estas portas, ligadas em `main/api.ts`. Só `audit` e `platform`.
 // Texto livre (rótulo, notas, motivos, ligação) nunca sai por estas portas para logs, auditoria nem alertas (BR-MKT-63).
+import type { Readable } from "node:stream";
 import type { AuditEvent } from "../../audit/index.js";
 import type { BookingCancelledBy, BookingPaymentStatus, BookingStatus, BookingSystemReason } from "../domain/booking.js";
+import type { ProofStatus } from "../domain/payment.js";
 import type { BookingHint, BookingPhase } from "../domain/projection.js";
 
 export interface ConsultationsClock {
@@ -186,8 +188,88 @@ export interface BookingRepository<Trx> {
   markFinished(trx: Trx, bookingId: string, change: { status: "COMPLETED" | "NO_SHOW"; at: Date }): Promise<void>;
   /** Marcações que já têm avaliação (para `hasReview`/`REVIEW_DUE`). */
   bookingIdsWithReview(trx: Trx, bookingIds: string[]): Promise<Set<string>>;
+  /** Por id (jobs/admin, sem contexto de família); `forUpdate` bloqueia a linha. */
+  findById(trx: Trx, bookingId: string, forUpdate: boolean): Promise<BookingRecord | null>;
+  /** `payment_status` da marcação (a marcação já está bloqueada pelo chamador). */
+  setPaymentStatus(trx: Trx, bookingId: string, paymentStatus: BookingPaymentStatus, at: Date): Promise<void>;
   /** Factos de `Process` (`phase`/`hint`) das marcações da família. */
   findStateRows(trx: Trx, familyId: string, bookingIds: string[]): Promise<{ id: string; status: BookingStatus; paymentStatus: BookingPaymentStatus; startsAt: Date; completedAt: Date | null; updatedAt: Date; hasReview: boolean }[]>;
+}
+
+export type ProofScanStatus = "PENDING" | "CLEAN" | "INFECTED";
+export type ProofDisputeDecision = "CONFIRM_PAYMENT" | "UPHOLD_REJECTION";
+
+/** Comprovativo de pagamento (BR-MKT-57/58). `storageKey` NUNCA sai da `application` para as vistas. */
+export interface ProofRecord {
+  id: string;
+  bookingId: string;
+  uploadedByUserId: string | null;
+  storageKey: string;
+  contentType: "application/pdf" | "image/jpeg" | "image/png";
+  sizeBytes: number;
+  scanStatus: ProofScanStatus;
+  scannedAt: Date | null;
+  status: ProofStatus;
+  decidedAt: Date | null;
+  decisionReason: string | null;
+  disputedAt: Date | null;
+  disputeNote: string | null;
+  disputeDecision: ProofDisputeDecision | null;
+  disputeDecidedAt: Date | null;
+  purgedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface ProofRepository<Trx> {
+  insert(trx: Trx, record: ProofRecord): Promise<void>;
+  /** Procurado SEMPRE por (marcação, id); `forUpdate` bloqueia a linha. */
+  findForBooking(trx: Trx, bookingId: string, proofId: string, forUpdate: boolean): Promise<ProofRecord | null>;
+  /** Mais recentes primeiro. */
+  listForBooking(trx: Trx, bookingId: string): Promise<ProofRecord[]>;
+  /** O comprovativo mais recente de cada marcação (para a vista do profissional). */
+  latestForBookings(trx: Trx, bookingIds: string[]): Promise<Map<string, ProofRecord>>;
+  /** Job de antivírus: por id, SEM bloqueio (para saber a marcação e bloqueá-la primeiro: ordem marcação < comprovativo). */
+  findForScan(trx: Trx, proofId: string): Promise<ProofRecord | null>;
+  markClean(trx: Trx, proofId: string, storageKey: string, at: Date): Promise<void>;
+  /** Infetado conta como NÃO enviado (BR-MKT-57): a linha apaga-se (o trigger de BD enfileira o ficheiro na outbox). */
+  deleteProof(trx: Trx, proofId: string): Promise<void>;
+  markDecided(trx: Trx, proofId: string, change: { status: "CONFIRMED" | "REJECTED"; at: Date; reason: string | null }): Promise<void>;
+}
+
+export interface FileDeletionRepository<Trx> {
+  enqueue(trx: Trx, storageKey: string): Promise<void>;
+  listPending(trx: Trx, limit: number, maxAttempts: number): Promise<{ id: string; storageKey: string }[]>;
+  markDeleted(trx: Trx, id: string, now: Date): Promise<void>;
+  recordFailure(trx: Trx, id: string): Promise<void>;
+}
+
+/** Armazenamento dos comprovativos (quarentena → final), sobre `Storage` (OP-99: infraestrutura própria, sem `documents`). */
+export interface ProofFileStore {
+  put(key: string, body: Buffer, contentType: string): Promise<void>;
+  get(key: string): Promise<Readable>;
+  copy(sourceKey: string, destKey: string): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+
+/** Antivírus (ClamAV INSTREAM na `infrastructure`). */
+export interface ProofScanner {
+  scan(buffer: Buffer): Promise<"CLEAN" | "INFECTED">;
+}
+
+/** Fila `consultations.scan-proof` (pg-boss na `infrastructure`). */
+export interface ProofScanQueue {
+  enqueueScan(job: { proofId: string }): Promise<void>;
+}
+
+/** Dependências dos jobs de ficheiros (processo worker): sem portas de família/profissional. */
+export interface ProcessorFileDeps<Trx> {
+  withTransaction: WithTransaction<Trx>;
+  clock: ConsultationsClock;
+  bookings: BookingRepository<Trx>;
+  proofs: ProofRepository<Trx>;
+  fileDeletions: FileDeletionRepository<Trx>;
+  fileStore: ProofFileStore;
+  scanner: ProofScanner;
 }
 
 /** Tudo o que os casos de uso precisam (ligado em `index.ts`). */
@@ -202,6 +284,9 @@ export interface ConsultationsDeps<Trx> {
   appointments: FamilyAppointmentWriter<Trx>;
   conversations: ConversationLookup<Trx>;
   bookings: BookingRepository<Trx>;
+  proofs: ProofRepository<Trx>;
+  fileStore: ProofFileStore;
+  scanQueue: ProofScanQueue;
 }
 
 export type { BookingHint, BookingPhase };

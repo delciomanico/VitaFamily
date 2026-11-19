@@ -44,9 +44,18 @@ export interface ReviewsTable {
   booking_id: Nullable<string>;
 }
 
+export interface ConsultationFileDeletionsTable {
+  id: Generated<string>;
+  storage_key: string;
+  attempts: ColumnType<number, number | undefined, number>;
+  deleted_at: Nullable<Date>;
+  created_at: ColumnType<Date, Date | undefined, never>;
+}
+
 declare module "../../../platform/db/index.js" {
   interface Database {
     bookings: BookingsTable;
     reviews: ReviewsTable;
+    consultation_file_deletions: ConsultationFileDeletionsTable;
   }
 }

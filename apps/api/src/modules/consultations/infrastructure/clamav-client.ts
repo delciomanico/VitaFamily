@@ -1,0 +1,88 @@
+// Cliente ClamAV (protocolo INSTREAM, `node:net`) da porta `ProofScanner` do módulo `consultations` (OP-99: infraestrutura própria,
+// `documents` não é importada nem alterada). Duplicado deliberadamente de `professionals/infrastructure/clamav-client.ts`.
+import { Socket } from "node:net";
+import type { ProofScanner } from "../application/ports.js";
+
+const INSTREAM_CHUNK_BYTES = 64 * 1024;
+const RESPONSE_TIMEOUT_MS = 30_000;
+
+export interface ClamAvClientOptions {
+  host: string;
+  port: number;
+  timeoutMs?: number;
+}
+
+/**
+ * Envia `buffer` pelo protocolo INSTREAM e devolve "CLEAN"/"INFECTED" consoante a resposta
+ * ("... OK" ou "... FOUND"). Qualquer outra resposta ("... ERROR") ou falha de ligação lança —
+ * quem chama (worker `consultations.scan-proof`) decide se tenta de novo (pg-boss retry).
+ */
+export class ProofClamAvScanner implements ProofScanner {
+  constructor(private readonly options: ClamAvClientOptions) {}
+
+  async scan(buffer: Buffer): Promise<"CLEAN" | "INFECTED"> {
+    const response = await this.sendInstream(buffer);
+    if (response.includes("FOUND")) {
+      return "INFECTED";
+    }
+    if (response.includes("OK")) {
+      return "CLEAN";
+    }
+    throw new Error(`resposta inesperada do ClamAV: ${response}`);
+  }
+
+  private sendInstream(buffer: Buffer): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const socket = new Socket();
+      const chunks: Buffer[] = [];
+      let settled = false;
+
+      const finish = (fn: () => void): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        socket.removeAllListeners();
+        socket.destroy();
+        fn();
+      };
+
+      socket.setTimeout(this.options.timeoutMs ?? RESPONSE_TIMEOUT_MS);
+      socket.on("timeout", () => {
+        finish(() => {
+          reject(new Error("ClamAV: tempo de resposta excedido"));
+        });
+      });
+      socket.on("error", (err) => {
+        finish(() => {
+          reject(err);
+        });
+      });
+      socket.on("data", (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+      socket.on("close", () => {
+        finish(() => {
+          resolve(Buffer.concat(chunks).toString("utf8").trim());
+        });
+      });
+
+      socket.connect(this.options.port, this.options.host, () => {
+        socket.write("zINSTREAM\0");
+        for (let offset = 0; offset < buffer.length; offset += INSTREAM_CHUNK_BYTES) {
+          const chunk = buffer.subarray(offset, offset + INSTREAM_CHUNK_BYTES);
+          const sizeHeader = Buffer.alloc(4);
+          sizeHeader.writeUInt32BE(chunk.length, 0);
+          socket.write(sizeHeader);
+          socket.write(chunk);
+        }
+        // Chunk de tamanho zero termina o stream (protocolo INSTREAM); fecha a escrita a seguir
+        // (half-close) — o daemon já tem tudo o que precisa, e isto permite a quem testa com um
+        // servidor TCP simples reagir a "end" em vez de ter de interpretar o framing.
+        const zero = Buffer.alloc(4);
+        zero.writeUInt32BE(0, 0);
+        socket.end(zero);
+      });
+    });
+  }
+}

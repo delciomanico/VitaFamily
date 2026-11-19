@@ -2,6 +2,7 @@
 // nem nome: só o `participantLabel` que a família escolheu. O comprovativo entra na fatia S8.
 import { isCancelledLate } from "../domain/booking.js";
 import type { BookingRecord, SpecialtyCategory } from "./ports.js";
+import type { ProofView } from "./proof-views.js";
 
 export interface ProfessionalBookingView {
   id: string;
@@ -19,12 +20,12 @@ export interface ProfessionalBookingView {
   meetingInfo: string | null;
   conversationId: string | null;
   /** Comprovativo em curso (S8); AUSENTE quando não há: o schema `allOf`+`nullable` do contrato não aceita `null` na validação de respostas. */
-  proof?: never;
+  proof?: ProofView;
   createdAt: string;
   updatedAt: string;
 }
 
-export function toProfessionalBookingView(b: BookingRecord, c: { specialty: { name: string; category: SpecialtyCategory } | undefined; conversationId: string | null }): ProfessionalBookingView {
+export function toProfessionalBookingView(b: BookingRecord, c: { specialty: { name: string; category: SpecialtyCategory } | undefined; conversationId: string | null; proof?: ProofView | undefined }): ProfessionalBookingView {
   return {
     id: b.id,
     participantLabel: b.participantLabel,
@@ -40,6 +41,7 @@ export function toProfessionalBookingView(b: BookingRecord, c: { specialty: { na
     cancelledLate: isCancelledLate({ cancelledBy: b.cancelledBy, cancelledAtMs: b.cancelledAt?.getTime() ?? null, startsAtMs: b.startsAt.getTime() }),
     meetingInfo: b.meetingInfo,
     conversationId: c.conversationId,
+    ...(c.proof ? { proof: c.proof } : {}),
     createdAt: b.createdAt.toISOString(),
     updatedAt: b.updatedAt.toISOString(),
   };
