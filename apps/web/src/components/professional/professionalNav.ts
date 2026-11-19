@@ -1,4 +1,4 @@
-import { CalendarClock, ClipboardCheck, FileBadge, Tags, UserRound, type LucideIcon } from 'lucide-react'
+import { CalendarClock, ClipboardCheck, FileBadge, MessageCircle, Tags, UserRound, type LucideIcon } from 'lucide-react'
 import { paths } from '@/routes/paths'
 
 export interface ProfessionalNavItem {
@@ -15,4 +15,5 @@ export const professionalNavItems: ProfessionalNavItem[] = [
   { to: paths.professionalCredentials, label: 'Credenciais', icon: FileBadge, end: false },
   { to: paths.professionalOffers, label: 'Serviços e preços', icon: Tags, end: false },
   { to: paths.professionalSchedule, label: 'Horários', icon: CalendarClock, end: false },
+  { to: paths.professionalConversations, label: 'Conversas', icon: MessageCircle, end: false },
 ]

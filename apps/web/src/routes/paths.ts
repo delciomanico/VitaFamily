@@ -64,6 +64,15 @@ export const paths = {
   familyReport: '/app/reports/family',
   preventiveReport: '/app/reports/preventive',
   preventiveReportOf: (memberId: string) => `/app/reports/preventive?membro=${memberId}`,
+  /** Mercado de profissionais (MK2): descoberta e comparação. A pesquisa exige sessão de família. */
+  marketplace: '/app/marketplace',
+  marketplaceRanking: '/app/marketplace/como-ordenamos',
+  marketplaceCompare: (ids: string[], specialtyId: string) => `/app/marketplace/comparar?${new URLSearchParams({ ids: ids.join(','), especialidade: specialtyId })}`,
+  marketplaceProfessional: (id: string, specialtyId?: string) => `/app/marketplace/profissional/${id}${specialtyId ? `?especialidade=${specialtyId}` : ''}`,
+  /** Conversas da família com profissionais (MK2). */
+  messages: '/app/messages',
+  messageThread: (memberId: string, conversationId: string) => `/app/messages/${memberId}/${conversationId}`,
+
   settings: '/app/settings',
   settingsAccount: '/app/settings/account',
   settingsSecurity: '/app/settings/security',
@@ -105,6 +114,8 @@ export const paths = {
   professionalCredentials: '/profissional/credenciais',
   professionalOffers: '/profissional/servicos',
   professionalSchedule: '/profissional/horarios',
+  professionalConversations: '/profissional/conversas',
+  professionalConversation: (id: string) => `/profissional/conversas/${id}`,
 
   // Área do Platform Admin: mesma conta/login de `User` (platformRole), mas sem família.
   admin: '/admin',
@@ -112,4 +123,6 @@ export const paths = {
   adminProfessionals: '/admin/professionals',
   adminProfessional: (id: string) => `/admin/professionals/${id}`,
   adminSpecialties: '/admin/specialties',
+  adminMessageReports: '/admin/message-reports',
+  adminMessageReport: (id: string) => `/admin/message-reports/${id}`,
 } as const

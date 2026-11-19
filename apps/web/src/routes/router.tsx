@@ -108,6 +108,15 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, element: <HomePage /> },
               { path: 'health', ...page(() => import('@/pages/health/HealthHubPage'), 'HealthHubPage') },
+              { path: 'marketplace', ...page(() => import('@/pages/marketplace/MarketplacePage'), 'MarketplacePage') },
+              { path: 'marketplace/como-ordenamos', ...page(() => import('@/pages/marketplace/RankingRulesPage'), 'RankingRulesPage') },
+              { path: 'marketplace/comparar', ...page(() => import('@/pages/marketplace/MarketplaceComparePage'), 'MarketplaceComparePage') },
+              {
+                path: 'marketplace/profissional/:professionalId',
+                ...page(() => import('@/pages/marketplace/MarketplaceProfessionalPage'), 'MarketplaceProfessionalPage'),
+              },
+              { path: 'messages', ...page(() => import('@/pages/messages/ConversationsPage'), 'ConversationsPage') },
+              { path: 'messages/:memberId/:conversationId', ...page(() => import('@/pages/messages/ConversationPage'), 'ConversationPage') },
               {
                 path: 'health/profile',
                 ...page(() => import('@/pages/health/HealthProfilePage'), 'HealthProfilePage'),
@@ -258,6 +267,11 @@ export const routes: RouteObject[] = [
                 path: 'specialties',
                 ...page(() => import('@/pages/admin/AdminSpecialtiesPage'), 'AdminSpecialtiesPage'),
               },
+              { path: 'message-reports', ...page(() => import('@/pages/admin/AdminMessageReportsPage'), 'AdminMessageReportsPage') },
+              {
+                path: 'message-reports/:reportId',
+                ...page(() => import('@/pages/admin/AdminMessageReportDetailPage'), 'AdminMessageReportDetailPage'),
+              },
             ],
           },
         ],
@@ -369,6 +383,11 @@ export const routes: RouteObject[] = [
               },
               { path: 'servicos', ...page(() => import('@/pages/professional/ProfessionalOffersPage'), 'ProfessionalOffersPage') },
               { path: 'horarios', ...page(() => import('@/pages/professional/ProfessionalSchedulePage'), 'ProfessionalSchedulePage') },
+              { path: 'conversas', ...page(() => import('@/pages/professional/ProfessionalConversationsPage'), 'ProfessionalConversationsPage') },
+              {
+                path: 'conversas/:conversationId',
+                ...page(() => import('@/pages/professional/ProfessionalConversationPage'), 'ProfessionalConversationPage'),
+              },
             ],
           },
         ],
