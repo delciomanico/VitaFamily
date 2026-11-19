@@ -1,5 +1,5 @@
 import { Outlet, useNavigate } from 'react-router-dom'
-import { BadgeCheck, Building2, Flag, Tags, Users } from 'lucide-react'
+import { BadgeCheck, Banknote, Building2, Flag, Star, Tags, Users } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { paths } from '@/routes/paths'
 import { PortalMobileHeader } from './PortalMobileHeader'
@@ -22,6 +22,8 @@ export function AdminShell() {
         { to: paths.adminProfessionals, label: 'Profissionais', icon: BadgeCheck, end: false },
         { to: paths.adminSpecialties, label: 'Especialidades', icon: Tags, end: false },
         { to: paths.adminMessageReports, label: 'Denúncias', icon: Flag, end: false },
+        { to: paths.adminPaymentDisputes, label: 'Disputas de pagamento', icon: Banknote, end: false },
+        { to: paths.adminReviewReports, label: 'Denúncias de avaliações', icon: Star, end: false },
       ],
     },
   ]

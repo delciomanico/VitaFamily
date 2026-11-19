@@ -73,6 +73,10 @@ export const paths = {
   messages: '/app/messages',
   messageThread: (memberId: string, conversationId: string) => `/app/messages/${memberId}/${conversationId}`,
 
+  /** Marcações da família com profissionais (MK3). */
+  bookings: '/app/bookings',
+  booking: (memberId: string, bookingId: string) => `/app/bookings/${memberId}/${bookingId}`,
+
   settings: '/app/settings',
   settingsAccount: '/app/settings/account',
   settingsSecurity: '/app/settings/security',
@@ -116,6 +120,9 @@ export const paths = {
   professionalSchedule: '/profissional/horarios',
   professionalConversations: '/profissional/conversas',
   professionalConversation: (id: string) => `/profissional/conversas/${id}`,
+  professionalBookings: '/profissional/marcacoes',
+  professionalBooking: (id: string) => `/profissional/marcacoes/${id}`,
+  professionalReviews: '/profissional/avaliacoes',
 
   // Área do Platform Admin: mesma conta/login de `User` (platformRole), mas sem família.
   admin: '/admin',
@@ -125,4 +132,8 @@ export const paths = {
   adminSpecialties: '/admin/specialties',
   adminMessageReports: '/admin/message-reports',
   adminMessageReport: (id: string) => `/admin/message-reports/${id}`,
+  adminPaymentDisputes: '/admin/payment-disputes',
+  adminPaymentDispute: (proofId: string) => `/admin/payment-disputes/${proofId}`,
+  adminReviewReports: '/admin/review-reports',
+  adminReviewReport: (id: string) => `/admin/review-reports/${id}`,
 } as const

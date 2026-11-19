@@ -58,7 +58,9 @@ function ProcessCard({ process }: { process: FamilyProcess }) {
       ? { to: paths.appointment(process.origin.id), label: 'Ver consulta' }
       : process.origin.type === 'EXAMINATION'
         ? { to: paths.examination(process.origin.id), label: 'Ver exame' }
-        : undefined
+        : process.origin.type === 'BOOKING'
+          ? { to: paths.booking(process.memberId, process.origin.id), label: 'Ver marcação' }
+          : undefined
 
   return (
     <div className="flex flex-col gap-5">

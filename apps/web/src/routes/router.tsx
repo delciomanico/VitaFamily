@@ -115,6 +115,8 @@ export const routes: RouteObject[] = [
                 path: 'marketplace/profissional/:professionalId',
                 ...page(() => import('@/pages/marketplace/MarketplaceProfessionalPage'), 'MarketplaceProfessionalPage'),
               },
+              { path: 'bookings', ...page(() => import('@/pages/bookings/BookingsPage'), 'BookingsPage') },
+              { path: 'bookings/:memberId/:bookingId', ...page(() => import('@/pages/bookings/BookingPage'), 'BookingPage') },
               { path: 'messages', ...page(() => import('@/pages/messages/ConversationsPage'), 'ConversationsPage') },
               { path: 'messages/:memberId/:conversationId', ...page(() => import('@/pages/messages/ConversationPage'), 'ConversationPage') },
               {
@@ -267,6 +269,10 @@ export const routes: RouteObject[] = [
                 path: 'specialties',
                 ...page(() => import('@/pages/admin/AdminSpecialtiesPage'), 'AdminSpecialtiesPage'),
               },
+              { path: 'payment-disputes', ...page(() => import('@/pages/admin/AdminPaymentDisputesPage'), 'AdminPaymentDisputesPage') },
+              { path: 'payment-disputes/:proofId', ...page(() => import('@/pages/admin/AdminPaymentDisputeDetailPage'), 'AdminPaymentDisputeDetailPage') },
+              { path: 'review-reports', ...page(() => import('@/pages/admin/AdminReviewReportsPage'), 'AdminReviewReportsPage') },
+              { path: 'review-reports/:reportId', ...page(() => import('@/pages/admin/AdminReviewReportDetailPage'), 'AdminReviewReportDetailPage') },
               { path: 'message-reports', ...page(() => import('@/pages/admin/AdminMessageReportsPage'), 'AdminMessageReportsPage') },
               {
                 path: 'message-reports/:reportId',
@@ -383,6 +389,9 @@ export const routes: RouteObject[] = [
               },
               { path: 'servicos', ...page(() => import('@/pages/professional/ProfessionalOffersPage'), 'ProfessionalOffersPage') },
               { path: 'horarios', ...page(() => import('@/pages/professional/ProfessionalSchedulePage'), 'ProfessionalSchedulePage') },
+              { path: 'marcacoes', ...page(() => import('@/pages/professional/ProfessionalBookingsPage'), 'ProfessionalBookingsPage') },
+              { path: 'marcacoes/:bookingId', ...page(() => import('@/pages/professional/ProfessionalBookingPage'), 'ProfessionalBookingPage') },
+              { path: 'avaliacoes', ...page(() => import('@/pages/professional/ProfessionalReviewsPage'), 'ProfessionalReviewsPage') },
               { path: 'conversas', ...page(() => import('@/pages/professional/ProfessionalConversationsPage'), 'ProfessionalConversationsPage') },
               {
                 path: 'conversas/:conversationId',

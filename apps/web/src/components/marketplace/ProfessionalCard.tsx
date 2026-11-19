@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { RatingSummary } from '@/components/consultations/Stars'
 import { RankingBadges } from '@/components/marketplace/RankingBadges'
 import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
@@ -50,6 +51,7 @@ export function ProfessionalCard({ item, specialtyId, selected = false, onToggle
         {item.nextAvailableAt ? formatWhenLuanda(item.nextAvailableAt) : 'Sem horários livres'}
       </p>
 
+      <RatingSummary summary={item.reviewSummary} showNew={!item.ranking} />
       <RankingBadges ranking={item.ranking} />
 
       {onToggleCompare && (

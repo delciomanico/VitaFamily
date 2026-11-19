@@ -1,4 +1,5 @@
 import type { Tone } from '@/components/ui/Badge'
+import { isAppError } from '@/lib/errors'
 import type {
   BookingCancelledBy,
   BookingPaymentStatus,
@@ -97,9 +98,9 @@ export const proofTypeLabel: Record<ProofContentType, string> = {
 }
 
 /** Quem cancelou e porquê, em frase simples (BR-MKT-54). */
-export function cancellationText(cancelledBy: BookingCancelledBy | undefined, systemReason?: BookingSystemReason): string {
-  if (cancelledBy === 'FAMILY') return 'Cancelada por si.'
-  if (cancelledBy === 'PROFESSIONAL') return 'Cancelada pelo profissional.'
+export function cancellationText(cancelledBy: BookingCancelledBy | undefined, systemReason?: BookingSystemReason, side: 'FAMILY' | 'PROFESSIONAL' = 'FAMILY'): string {
+  if (cancelledBy === 'FAMILY') return side === 'FAMILY' ? 'Cancelada por si.' : 'Cancelada pela família.'
+  if (cancelledBy === 'PROFESSIONAL') return side === 'FAMILY' ? 'Cancelada pelo profissional.' : 'Cancelada por si.'
   if (systemReason === 'PROFESSIONAL_UNAVAILABLE') return 'Cancelada: o profissional ficou indisponível.'
   if (systemReason === 'REQUEST_EXPIRED') return 'Cancelada: o pedido não foi respondido a tempo.'
   return 'Cancelada.'
@@ -136,6 +137,9 @@ export const queueStatusLabel: Record<'OPEN' | 'DECIDED' | 'DISPUTED', StatusTex
   DISPUTED: { label: 'Por decidir', tone: 'warning' },
   DECIDED: { label: 'Decidida', tone: 'neutral' },
 }
+
+/** O estado mudou entretanto: o mock devolve `INVALID_STATE_TRANSITION`; a API real chega como `CONFLICT` (apiClient). */
+export const isStateChange = (error: unknown): boolean => isAppError(error, 'INVALID_STATE_TRANSITION') || isAppError(error, 'CONFLICT')
 
 /** Texto livre normalizado como o servidor: aparado; sem caracteres de controlo (exceto quebra de linha). */
 // eslint-disable-next-line no-control-regex

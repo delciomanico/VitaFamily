@@ -27,8 +27,6 @@ export function RankingRulesPage() {
 function RulesContent({ rules }: { rules: RankingRules }) {
   return (
     <>
-      <p className="text-sm text-muted">Versão {rules.version}</p>
-
       <p className="rounded-xl bg-primary-soft p-4 font-medium text-primary">{rules.statement}</p>
 
       <Section title="Critérios">

@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { UserX } from 'lucide-react'
 import { Page } from '@/components/layout/Page'
+import { BookingModal } from '@/components/consultations/BookingModal'
+import { ProfessionalReviews } from '@/components/consultations/ProfessionalReviews'
+import { RatingSummary } from '@/components/consultations/Stars'
 import { RankingBadges } from '@/components/marketplace/RankingBadges'
 import { StartConversationModal } from '@/components/marketplace/StartConversationModal'
 import { Button, ButtonLink } from '@/components/ui/Button'
@@ -32,6 +35,7 @@ export function MarketplaceProfessionalPage() {
   const [params] = useSearchParams()
   const specialtyParam = params.get('especialidade') ?? ''
   const [writing, setWriting] = useState(false)
+  const [booking, setBooking] = useState(false)
   const { state, reload } = useAsync(
     () => marketplaceService.get(professionalId, specialtyParam || undefined),
     [professionalId, specialtyParam],
@@ -73,6 +77,7 @@ export function MarketplaceProfessionalPage() {
           <Badge tone="success">Validado</Badge>
           <RankingBadges ranking={p.ranking} />
         </div>
+        <RatingSummary summary={p.reviewSummary} showNew={!p.ranking} />
         <p className="text-sm text-muted">{p.city}</p>
         {p.memberSince && <p className="text-sm text-muted">Membro desde {memberSinceLabel(p.memberSince)}</p>}
         {p.bio && <p className="text-sm whitespace-pre-line">{p.bio}</p>}
@@ -117,12 +122,28 @@ export function MarketplaceProfessionalPage() {
         )}
       </Section>
 
+      <ProfessionalReviews professionalId={p.id} specialtyId={specialtyParam || undefined} />
+
       <div className="flex flex-col gap-3 sm:flex-row">
-        <Button onClick={() => setWriting(true)}>Escrever</Button>
+        <Button onClick={() => setBooking(true)} disabled={p.offers.length === 0}>
+          Marcar consulta
+        </Button>
+        <Button variant="secondary" onClick={() => setWriting(true)}>
+          Escrever
+        </Button>
         <ButtonLink to={compareTo} variant="secondary">
           Comparar com outros
         </ButtonLink>
       </div>
+
+      <BookingModal
+        open={booking}
+        onClose={() => setBooking(false)}
+        professional={{ id: p.id, displayName: p.displayName }}
+        offers={p.offers}
+        specialties={p.specialties}
+        initialOfferId={p.offers.find((offer) => offer.specialtyId === specialtyParam)?.id}
+      />
 
       <StartConversationModal
         open={writing}
