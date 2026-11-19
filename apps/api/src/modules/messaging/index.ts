@@ -14,6 +14,9 @@ import { createNotifyProfessional, type NotifyProfessional } from "./application
 import type { ConversationAccess, MessageAlerts, MessagingDeps, ProfessionalLookup, ProfessionalMailer, ProfessionalNoticeQueue } from "./application/ports.js";
 import { PgBossProfessionalNoticeQueue, registerNotifyProfessionalWorker } from "./infrastructure/jobs.js";
 import { KyselyConversationRepository, KyselyMessageRepository, KyselyReportRepository } from "./infrastructure/repo.js";
+import { createModeration, type Moderation } from "./application/moderation.js";
+import { KyselyModerationRepository } from "./infrastructure/moderation-repo.js";
+import { createAdminModerationRouter } from "./interface/admin-router.js";
 import { createFamilyMessagingRouter } from "./interface/family-router.js";
 import { createProfessionalMessagingRouter } from "./interface/professional-router.js";
 
@@ -40,6 +43,9 @@ export interface MessagingModule {
   /** `/professional-portal/conversations*` (token de `ProfessionalAccount`; MK2 S8). */
   professionalRouter: Router;
   professionalUseCases: ProfessionalMessaging;
+  /** `/admin/message-reports*` (PLATFORM_ADMIN; MK2 S9). */
+  adminRouter: Router;
+  moderationUseCases: Moderation;
 }
 
 export function createMessagingModule(deps: MessagingModuleDeps): MessagingModule {
@@ -58,7 +64,22 @@ export function createMessagingModule(deps: MessagingModuleDeps): MessagingModul
   };
   const familyUseCases = createFamilyMessaging<Kysely<Database>>(messagingDeps);
   const professionalUseCases = createProfessionalMessaging<Kysely<Database>>(messagingDeps);
-  return { router: createFamilyMessagingRouter(familyUseCases), familyUseCases, professionalRouter: createProfessionalMessagingRouter(professionalUseCases), professionalUseCases };
+  const moderationUseCases = createModeration<Kysely<Database>>({
+    moderation: new KyselyModerationRepository(),
+    messages: messagingDeps.messages,
+    professionals: deps.professionals,
+    audit: deps.audit,
+    withTransaction: messagingDeps.withTransaction,
+    clock: deps.clock,
+  });
+  return {
+    router: createFamilyMessagingRouter(familyUseCases),
+    familyUseCases,
+    professionalRouter: createProfessionalMessagingRouter(professionalUseCases),
+    professionalUseCases,
+    adminRouter: createAdminModerationRouter(moderationUseCases),
+    moderationUseCases,
+  };
 }
 
 export interface MessagingWorkerModuleDeps {
