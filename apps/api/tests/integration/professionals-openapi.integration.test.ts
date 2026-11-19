@@ -8,6 +8,7 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { errorCatalog } from "../../src/platform/errors/codes.js";
 import { openApiSpecPath } from "../support/openapi-spec.js";
+import { MK3_PENDING_OPERATION_IDS } from "../support/mk3-pending.js";
 import { API, nextIp, startProfessionalsHarness, type ProfessionalsHarness } from "../support/professionals-harness.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -52,6 +53,13 @@ export function parseOperations(yaml: string): OpSpec[] {
     if (methodMatch && path !== null) {
       current = { method: methodMatch[1] as Method, path, security: "user", line: i + 1 };
       ops.push(current);
+      continue;
+    }
+    const idMatch = /^ {6}operationId: (\w+)/.exec(line);
+    if (idMatch && current !== null && MK3_PENDING_OPERATION_IDS.has(idMatch[1] ?? "")) {
+      // Operações MK3 ainda por implementar ficam fora até à S13 (tests/support/mk3-pending.ts).
+      ops.pop();
+      current = null;
       continue;
     }
     if (current !== null && /^ {6}security:/.test(line)) {

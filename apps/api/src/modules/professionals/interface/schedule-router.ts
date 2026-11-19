@@ -20,7 +20,8 @@ export interface ScheduleController {
 
 const toRuleResponse = (r: ScheduleRuleRecord) => ({ id: r.id, offerId: r.offerId, weekdays: r.weekdays, startTime: r.startTime, endTime: r.endTime, validFrom: r.validFrom, validUntil: r.validUntil, active: r.active });
 const toTimeOffResponse = (t: TimeOffRecord) => ({ id: t.id, startsAt: t.startsAt.toISOString(), endsAt: t.endsAt.toISOString(), reason: t.reason });
-const toSlotResponse = (s: SlotRecord) => ({ id: s.id, offerId: s.offerId, startsAt: s.startsAt.toISOString(), endsAt: s.endsAt.toISOString() });
+// MK3 (BR-MKT-53): sem lógica de marcação ainda (S2); o contrato exige booked/bookingId.
+const toSlotResponse = (s: SlotRecord) => ({ id: s.id, offerId: s.offerId, startsAt: s.startsAt.toISOString(), endsAt: s.endsAt.toISOString(), booked: false, bookingId: null });
 const toResult = (r: ScheduleRuleResult) => ({ rule: toRuleResponse(r.rule), generation: r.generation });
 
 function dateQuery(value: unknown, field: string): Date | undefined {

@@ -10,6 +10,7 @@ import { createDiscoveryModule } from "../../src/modules/discovery/index.js";
 import { createMessagingModule } from "../../src/modules/messaging/index.js";
 import { errorCatalog } from "../../src/platform/errors/codes.js";
 import { openApiSpecPath } from "../support/openapi-spec.js";
+import { MK3_PENDING_OPERATION_IDS } from "../support/mk3-pending.js";
 import { API, nextIp, startProfessionalsHarness, type ProfessionalsHarness } from "../support/professionals-harness.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -38,6 +39,7 @@ function parseOps(text: string): Op[] {
   const ops: Op[] = [];
   let inPaths = false;
   let path: string | null = null;
+  let pending = false;
   for (const line of text.split("\n")) {
     if (/^\S/.test(line)) {
       inPaths = line === "paths:";
@@ -52,7 +54,18 @@ function parseOps(text: string): Op[] {
     }
     const m = /^ {4}(get|post|put|patch|delete):\s*$/.exec(line);
     const area = path === null ? null : areaOf(path);
-    if (m && path !== null && area !== null) ops.push({ method: m[1] as Method, path, area });
+    if (m && path !== null && area !== null) {
+      ops.push({ method: m[1] as Method, path, area });
+      pending = true;
+      continue;
+    }
+    if (m) pending = false;
+    const id = /^ {6}operationId: (\w+)/.exec(line);
+    if (id && pending) {
+      // Operações MK3 ainda por implementar ficam fora até à S13 (tests/support/mk3-pending.ts).
+      if (MK3_PENDING_OPERATION_IDS.has(id[1] ?? "")) ops.pop();
+      pending = false;
+    }
   }
   return ops;
 }

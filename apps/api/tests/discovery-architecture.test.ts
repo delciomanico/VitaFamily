@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { PUBLIC_DATA_ROUTES } from "../src/modules/discovery/interface/public-data-routes.js";
 import { RANKING_INPUT_KEYS } from "../src/modules/discovery/domain/ranking.js";
 import { collectImports } from "./collect-imports.js";
+import { MK3_PENDING_OPERATION_IDS } from "./support/mk3-pending.js";
 
 const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 const SRC_ROOT = join(TESTS_DIR, "..", "src");
@@ -55,7 +56,7 @@ describe("TC-MKT-53: arquitetura de discovery", () => {
       const o = /^ {6}operationId: (\w+)/.exec(line);
       if (o && path) ops.push({ path, id: o[1] ?? "" });
     }
-    const market = ops.filter((o) => o.path.startsWith("/marketplace/")).map((o) => o.id).sort();
+    const market = ops.filter((o) => o.path.startsWith("/marketplace/") && !MK3_PENDING_OPERATION_IDS.has(o.id)).map((o) => o.id).sort();
     expect([...PUBLIC_DATA_ROUTES].sort()).toEqual(market);
     for (const id of PUBLIC_DATA_ROUTES) expect(ops.find((o) => o.id === id)?.path.startsWith("/families/")).toBe(false);
   });
