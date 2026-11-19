@@ -125,6 +125,9 @@ Todos com justificação de consulta. O ranking `v2` **não** cria tabelas: agre
 | `reviews` | UNIQUE `(booking_id)` · `(specialty_id, professional_id)` · `(professional_id, created_at DESC, id DESC)` | Uma por marcação; agregação `{count, sum}` do ranking `v2` por especialidade e coorte; lista pública do profissional. |
 | `review_reports` | UNIQUE `(review_id)` · `(status, created_at, id) WHERE status = 'OPEN'` | Uma denúncia por avaliação; **fila do admin** (mais antigas primeiro). |
 | `consultation_file_deletions` | `(created_at) WHERE deleted_at IS NULL` | Job `consultations.delete-files`. |
+| `record_shares` (MK4) | `(family_id, member_id, created_at DESC, id DESC)` · `(professional_id, created_at DESC, id DESC)` · `(booking_id)` · UNIQUE parcial `(member_id, client_request_id) WHERE client_request_id IS NOT NULL` · `(member_id) WHERE status = 'ACTIVE'` | Lista da família por membro com cursor; lista do profissional; partilhas por marcação (filtro `bookingId`, cascata); idempotência da criação; contagem das ativas para o limite de 20 por membro (BR-MKT-77). |
+| `record_shares` (MK4) | `(expires_at)` | Job `record-sharing.purge-expired`: filtra por `expires_at` e calcula o fim real (`GREATEST(expires_at, revoked_at, consumed_at)`) no SQL (índice simples; a expressão com `NULL` não compensa). |
+| `record_share_views` (MK4) | UNIQUE `(share_id, view_no)` · `(share_id, viewed_at DESC, id DESC)` | Numeração sem lacunas; lista «quem viu» com cursor. |
 
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).

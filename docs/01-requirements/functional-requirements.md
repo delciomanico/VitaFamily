@@ -209,7 +209,7 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 
 ## 15. Mercado de profissionais — MK1 (MKT)
 
-> Acrescentada 2026-11-16 (ADR-037, contrato de MK1; **nada implementado**). Regras: `business-rules.md` §17 (BR-MKT-01..31). Casos de uso: `03-use-cases/professionals.md` (UC-MKT-01..12).
+> Acrescentada 2026-11-16 (ADR-037, contrato de MK1; **nada implementado**). Regras: `business-rules.md` §17 (BR-MKT-01..31). Casos de uso: `03-use-cases/professionals.md` (UC-MKT-01..12). **MK4 (2026-11-20):** FR-MKT-37..45 (partilha de registos e receita digital; BR-MKT-67..81; UC-MKT-48..62 em `03-use-cases/record-sharing.md`).
 
 | ID | Requisito | Origem |
 |---|---|---|
@@ -256,6 +256,15 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-MKT-34 | As marcações, comprovativos e avaliações cumprem **minimização** (o profissional nunca vê ids da família; o admin só vê o que BR-MKT-63 define), **retenção** de comprovativos, cascatas e **exportação do titular** (BR-MKT-63/64). | ADR-037 §11 |
 | FR-MKT-35 | A família é avisada (alerta e canais, texto genérico) das atualizações de marcação e de comprovativo; o profissional recebe um e-mail genérico por evento (BR-MKT-65). | plan MK3 |
 | FR-MKT-36 | As ações sensíveis de MK3 (marcar, cancelar, comprovativos e downloads, decisões, disputas, avaliações, moderação) são **auditadas sem conteúdo** (`audit.md` §3). | ADR-037 |
+| FR-MKT-37 | A família (`SELF`/`TUTOR_OF`) **partilha com um profissional** categorias dos registos de um membro, a partir de uma marcação `CONFIRMED`/`COMPLETED`, escolhendo o **prazo** (24 h, 7 dias, 30 dias ou fim da consulta + 24 h; nunca > 30 dias) e se é de **visualização única**; para `WELLNESS` só medicação ativa (BR-MKT-67/68/69). | ADR-037 §8 |
+| FR-MKT-38 | O profissional vê a lista das partilhas que recebeu (metadados) e **abre** o conteúdo: cada abertura reavalia partilha, prazo, revogação, consumo, estado do profissional e da marcação; expirada/revogada/consumida/inválida ⇒ negada, sem revelar a causa nem o titular (BR-MKT-70). | ADR-037 §8 |
+| FR-MKT-39 | A **visualização única** entrega o conteúdo uma só vez (consumo atómico na primeira abertura bem-sucedida); toda a abertura traz **marca de água** (nome do profissional e data) e o texto honesto sobre capturas é mostrado à família (BR-MKT-71/72). | ADR-037 §8 |
+| FR-MKT-40 | A família vê, por partilha, **quem viu o quê e quando** e **revoga** a qualquer momento, com efeito imediato (BR-MKT-73/74). | ADR-037 §8 |
+| FR-MKT-41 | As partilhas cumprem **minimização** (o profissional só vê o rótulo e o que foi concedido; o admin nada), **retenção** de 24 meses após o fim, cascatas e **exportação do titular**; o conteúdo nunca vai para logs nem auditoria (BR-MKT-75/76). | ADR-037 §11 |
+| FR-MKT-42 | A partilha tem **limites** e *rate limiting*, e o profissional recebe um e-mail genérico ao ser criada uma partilha, sem alertas por abertura à família (BR-MKT-77/78). | plan MK4 |
+| FR-MKT-43 | Criar, revogar e **abrir** partilhas (incluindo aberturas recusadas) são **auditados sem conteúdo** (`audit.md` §3). | ADR-037 |
+| FR-MKT-44 | **Receita digital** (desligada até ao parecer jurídico): o profissional `HEALTH` `APPROVED` emite, numa marcação `COMPLETED` por vídeo e em até 7 dias, uma receita estruturada no membro da marcação, com origem «profissional»; `WELLNESS` nunca (BR-MKT-79/80). | ADR-037 §9 |
+| FR-MKT-45 | A família recebe a receita digital no registo como qualquer receita (plano de toma, M2), com a origem visível; o profissional só vê a receita que emitiu; emissão auditada sem conteúdo e avisada por alerta genérico (BR-MKT-81). | ADR-037 §9 |
 
 ---
 

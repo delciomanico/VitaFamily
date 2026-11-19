@@ -299,6 +299,27 @@ ReviewReport: (nova) → OPEN [profissional denuncia; uma por avaliação]
 ```
 Decisões concorrentes: bloqueio da denúncia; a segunda ⇒ `INVALID_STATE_TRANSITION`. A decisão é definitiva em MK3.
 
+## RecordShare — partilha de registos (MK4, BR-MKT-69..74; contrato 2026-11-20)
+```text
+(nova)  → ACTIVE     [família SELF/TUTOR_OF cria sobre uma marcação CONFIRMED|COMPLETED; expiresAt calculado e imutável]
+ACTIVE  → REVOKED    [família SELF/TUTOR_OF revoga; efeito imediato; irreversível]
+ACTIVE  → CONSUMED   [só viewOnce: primeira abertura bem-sucedida do profissional, na mesma transação da leitura]
+ACTIVE  → EXPIRED    [DERIVADO: expiresAt ≤ agora; não é gravado nem há job]
+REVOKED | CONSUMED | EXPIRED → (terminais; sem reativar nem prolongar: cria-se outra partilha)
+```
+**Estado efetivo de abertura (por pedido, BR-MKT-70):** só se abre quando `status=ACTIVE` **e** `expiresAt > agora` **e** o profissional está `APPROVED` **e** a marcação âncora está `CONFIRMED`/`COMPLETED` **e** o membro `ACTIVE`; qualquer falha ⇒ `SHARE_NOT_AVAILABLE` (`CONSUMED` ⇒ `SHARE_ALREADY_VIEWED`). Marcação cancelada, profissional suspenso ou membro bloqueado **não** alteram a linha: tornam-na inaberta enquanto durar a condição (reativado o profissional, volta a abrir-se dentro do prazo). **Efeitos:** `CONSUMED` e cada abertura bem-sucedida gravam uma `RecordShareView` na mesma transação; revogar não apaga vistas. Revogar uma partilha já terminada ⇒ `INVALID_STATE_TRANSITION`. A transição `ACTIVE → REVOKED|CONSUMED` faz-se por `UPDATE … WHERE status='ACTIVE'` condicional (`SELECT … FOR UPDATE` na revogação), pelo que de duas decisões concorrentes só uma vence.
+
+## Receita digital — elegibilidade da emissão (MK4, BR-MKT-79..80; sem estados novos)
+```text
+canPrescribe = DIGITAL_PRESCRIPTION_ENABLED
+             ∧ profissional APPROVED (credencial válida implícita, BR-MKT-21)
+             ∧ marcação do profissional ∧ status = COMPLETED ∧ method = VIDEO
+             ∧ categoria da especialidade marcada = HEALTH
+             ∧ agora ≤ completedAt + 7 dias
+             ∧ ainda não existe Prescription com booking_id = marcação
+```
+Função **pura** de `consultations/domain` (flag, estado, método, categoria, `completedAt`, existência) com testes de tabela; a emissão repete-a **sob bloqueio da marcação**. `Prescription.status` não muda (ACTIVE | COMPLETED | CANCELLED); a origem `PROFESSIONAL` é imutável.
+
 ## Alert / Notification
 ```text
 Alert: não lido → lido [destinatário]  (campo readAt; não há estados de máquina)

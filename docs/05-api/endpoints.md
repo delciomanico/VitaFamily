@@ -2824,3 +2824,99 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 ### Schemas de MK3 (resumo; detalhe em `openapi.yaml`)
 
 **BookingStatus** — REQUESTED|CONFIRMED|REJECTED|CANCELLED|COMPLETED|NO_SHOW · **BookingPaymentStatus** — NOT_REQUIRED|AWAITING_PROOF|PROOF_SUBMITTED|CONFIRMED|REJECTED|DISPUTED · **BookableSlot** — `id`, `offerId`, `startsAt`, `endsAt` · **CreateBookingRequest** — `offerId`, `slotId`, `participantLabel` (1–40), `clientRequestId?` (**sem motivo**) · **FamilyBooking** — `id`, `memberId`, `professional` {`id`, `displayName`, `city?`}, `offer` {`specialtyId`, `specialtyName`, `category`, `method`, `durationMinutes`}, `participantLabel`, `priceKz` (copiado), `startsAt`, `endsAt`, `status`, `paymentStatus`, `statusReason?`, `cancelledBy?`, `systemReason?`, `cancelledLate`, `meetingInfo?`, `paymentInstructions?` (só `CONFIRMED`/`COMPLETED` com preço > 0), `processId?`, `appointmentId?`, `conversationId?`, `canCancel`, `canSendProof`, `canReview`, `hasReview`, `createdAt`, `updatedAt` · **ProfessionalBooking** — o mesmo **sem** `memberId`, `professional`, `paymentInstructions`, `processId`, `appointmentId`, `canCancel`/`canSendProof`/`canReview`/`hasReview` e com `proof?` (nunca ids de família/membro/utilizador, BR-MKT-63) · **PaymentProof** — `id`, `bookingId`, `status` (SUBMITTED|CONFIRMED|REJECTED|DISPUTED|REJECTION_UPHELD), `scanStatus`, `contentType`, `sizeBytes`, `decisionReason?`, `disputeNote?`, `disputeDecision?`, `decidedAt?`, `disputedAt?`, `purged`, `createdAt` · **ReviewSummary** — `count`, `averageRating?` (só com ≥ 3) · **FamilyReview** — `bookingId`, `rating`, `comment?`, `commentHidden`, `reply?`, `consultedMonth`, `createdAt`, `updatedAt`, `editableUntil` · **PublicReview**/**ProfessionalReview** — `id`, `rating`, `comment?`, `commentHidden`, `reply?`, `specialty`, `method`, `consultedMonth`, `createdOn` (+ `reported` no profissional); **anónimas** · **PublicReviewPage** — `summary`, `items`, `nextCursor` · **AdminPaymentDisputeItem/Detail** — marcação (profissional pelo nome público, especialidade, método, hora, preço, estados) + metadados do comprovativo + `professionalReason?` + `familyNote?` (nunca família, membro, rótulo) · **AdminReviewReportItem/Detail** — avaliação (nota, comentário, resposta, mês, especialidade, método) + profissional + motivo/nota (nunca família, membro, marcação).
+
+## Mercado de profissionais — MK4: partilha de registos e receita digital (ADR-037) — CONTRATUAL
+
+> Acrescentado 2026-11-20 (contrato de MK4). **Só contrato: nada implementado.** Tag nova `Record Sharing` (família e profissional; a receita fica em `Professional Portal`). **11 operações novas** (313 no total): 6 da família (`/families/{familyId}/members/{memberId}/record-shares*`, ação nova `SHARE_WITH_PROFESSIONALS`), 3 do profissional (`/professional-portal/shares*`, `professionalBearerAuth`; leitura em todos os estados, abrir só `APPROVED`) e 2 da **receita digital** (`/professional-portal/bookings/{bookingId}/prescription*`, **desligadas por omissão**: `404` enquanto `DIGITAL_PRESCRIPTION_ENABLED=false`). **Sem rotas de admin.** **Alterações a operações existentes (aditivas):** `Prescription.issuedBy` + `PROFESSIONAL` e `Prescription.bookingId?`; `FamilyBooking.prescriptionId?`; `ProfessionalBooking.canPrescribe?`/`hasPrescription?` (omitidas = `false`). **Sem alertas novos** (`BOOKING_UPDATED` reutilizado). Códigos de erro novos: `SHARE_NOT_AVAILABLE`, `SHARE_ALREADY_VIEWED` (`errors.md`). Regras: `business-rules.md` §17 (BR-MKT-67..81); casos de uso `03-use-cases/record-sharing.md` (UC-MKT-48..62). `429 RATE_LIMITED` declarado em todas as rotas com limite (BR-MKT-77; porta `RateLimiter` de `platform/rate-limit`, ADR-038).
+
+### `GET /families/{familyId}/members/{memberId}/record-shares/options`  — getRecordShareOptions
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `SHARE_WITH_PROFESSIONALS`, `authorization.md` §13.1)
+- **DESCRIPTION:** Opções de partilha de uma marcação (categorias permitidas, prazos com a data resultante, limites).
+- **REQUEST:** Query `bookingId` (obrigatório)
+- **RESPONSE:** `200` `RecordShareOptions`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `MEMBER_BLOCKED`, `RATE_LIMITED` (≤ 60/min)
+- **BUSINESS RULES:** BR-MKT-67/68/69/77; UC-MKT-48. Não auditado.
+
+### `GET /families/{familyId}/members/{memberId}/record-shares`  — listRecordShares
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `SHARE_WITH_PROFESSIONALS`)
+- **DESCRIPTION:** Listar as partilhas do membro (estado derivado, vistas).
+- **REQUEST:** Query `bookingId?`, `status?`, `limit?`, `cursor?`
+- **RESPONSE:** `200` `RecordSharePage`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `RATE_LIMITED` (≤ 60/min)
+- **BUSINESS RULES:** BR-MKT-67/73; UC-MKT-50. `EXPIRED` derivado. Não auditado.
+
+### `POST /families/{familyId}/members/{memberId}/record-shares`  — createRecordShare
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `SHARE_WITH_PROFESSIONALS`)
+- **DESCRIPTION:** Partilhar categorias dos registos com o profissional de uma marcação `CONFIRMED`/`COMPLETED`.
+- **REQUEST:** `CreateRecordShareRequest` (`bookingId`, `categories` 1–5, `validity`, `viewOnce?`, `clientRequestId?`); o profissional, o rótulo e a categoria vêm da marcação
+- **RESPONSE:** `201` `RecordShare` · `200` (`clientRequestId` repetido)
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `INVALID_STATE_TRANSITION`, `LIMIT_EXCEEDED`, `CONFLICT`, `VALIDATION_ERROR`, `RATE_LIMITED` (20 criações/dia)
+- **BUSINESS RULES:** BR-MKT-67/68/69/72/77/78; UC-MKT-49. `expiresAt` calculado e imutável (≤ 30 dias). Auditoria `RECORD_SHARE_CREATE`; e-mail genérico ao profissional.
+
+### `GET /families/{familyId}/members/{memberId}/record-shares/{shareId}`  — getRecordShare
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `SHARE_WITH_PROFESSIONALS`)
+- **DESCRIPTION:** Ver uma partilha.
+- **REQUEST:** —
+- **RESPONSE:** `200` `RecordShare`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `RATE_LIMITED` (≤ 60/min)
+- **BUSINESS RULES:** BR-MKT-67/73; UC-MKT-50. Sem conteúdo dos registos. Não auditado.
+
+### `POST /families/{familyId}/members/{memberId}/record-shares/{shareId}/revoke`  — revokeRecordShare
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `SHARE_WITH_PROFESSIONALS`)
+- **DESCRIPTION:** Revogar (efeito imediato; as vistas mantêm-se).
+- **REQUEST:** —
+- **RESPONSE:** `200` `RecordShare`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `INVALID_STATE_TRANSITION`
+- **BUSINESS RULES:** BR-MKT-74; UC-MKT-52. Auditoria `RECORD_SHARE_REVOKE`.
+
+### `GET /families/{familyId}/members/{memberId}/record-shares/{shareId}/views`  — listRecordShareViews
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `SHARE_WITH_PROFESSIONALS`)
+- **DESCRIPTION:** Quem viu o quê e quando (aberturas bem-sucedidas).
+- **REQUEST:** Query `limit?`, `cursor?`
+- **RESPONSE:** `200` `RecordShareViewPage`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `RATE_LIMITED` (≤ 60/min)
+- **BUSINESS RULES:** BR-MKT-73 (emenda a BR-PRV-09); UC-MKT-51. Aberturas recusadas só na auditoria interna. Não auditado.
+
+### `GET /professional-portal/shares`  — listProfessionalShares
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§13.2; leitura em todos os estados)
+- **DESCRIPTION:** Listar as partilhas recebidas (só metadados e rótulo do participante).
+- **REQUEST:** Query `status?`, `bookingId?`, `limit?`, `cursor?`
+- **RESPONSE:** `200` `ProfessionalSharePage`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `RATE_LIMITED` (≤ 60/min)
+- **BUSINESS RULES:** BR-MKT-70/75; UC-MKT-53. Nunca ids de família/membro/utilizador. Não auditado.
+
+### `GET /professional-portal/shares/{shareId}`  — getProfessionalShare
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (leitura em todos os estados)
+- **DESCRIPTION:** Metadados de uma partilha recebida.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ProfessionalShare`
+- **ERRORS:** `UNAUTHENTICATED`, `NOT_FOUND`, `RATE_LIMITED` (≤ 60/min)
+- **BUSINESS RULES:** BR-MKT-70/75; UC-MKT-53. Não auditado.
+
+### `POST /professional-portal/shares/{shareId}/open`  — openProfessionalShare
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (a abertura reavalia tudo em cada pedido; só `APPROVED`, `authorization.md` §13.2)
+- **DESCRIPTION:** Abrir a partilha e ler as categorias concedidas (grava a vista; em visualização única consome-a).
+- **REQUEST:** —
+- **RESPONSE:** `200` `SharedRecordsView` (`Cache-Control: no-store`; `watermark`)
+- **ERRORS:** `UNAUTHENTICATED`, `SHARE_NOT_AVAILABLE` (403; expirada, revogada, profissional não `APPROVED`, marcação cancelada, membro bloqueado — `detail` genérico e igual), `SHARE_ALREADY_VIEWED` (403), `NOT_FOUND`, `RATE_LIMITED` (30/min por conta; 120/dia por partilha)
+- **BUSINESS RULES:** BR-MKT-68/70/71/72/73/77; UC-MKT-54/55. POST porque tem efeitos. Auditoria `PROFESSIONAL_SHARE_OPEN` (também as recusadas, sem conteúdo).
+
+### `POST /professional-portal/bookings/{bookingId}/prescriptions`  — issueProfessionalPrescription
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (escritas só `APPROVED`); **`404` com a flag `DIGITAL_PRESCRIPTION_ENABLED` desligada (omissão)**
+- **DESCRIPTION:** Emitir a receita digital numa marcação `COMPLETED` de vídeo, categoria `HEALTH`, até 7 dias depois, uma por marcação.
+- **REQUEST:** `ProfessionalPrescriptionInput` (`notes?` ≤ 500, `medications` 1–10 com a estrutura de `MedicationPlanInput`); o servidor fixa `issuedOn`, `doctorName`, `issuedBy`, membro e família
+- **RESPONSE:** `201` `ProfessionalPrescription`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN` (`WELLNESS`), `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`, `CONFLICT`, `VALIDATION_ERROR`, `RATE_LIMITED` (20/dia)
+- **BUSINESS RULES:** BR-MKT-79/80/81; UC-MKT-59. Cria `Prescription` e planos de toma do membro; alerta `BOOKING_UPDATED`; auditoria `PRESCRIPTION_ISSUED_BY_PROFESSIONAL` (sem conteúdo).
+
+### `GET /professional-portal/bookings/{bookingId}/prescription`  — getProfessionalBookingPrescription
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (leitura em todos os estados); `404` com a flag desligada
+- **DESCRIPTION:** Reler a receita que o próprio profissional emitiu nesta marcação.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ProfessionalPrescription`
+- **ERRORS:** `UNAUTHENTICATED`, `NOT_FOUND`, `RATE_LIMITED` (≤ 60/min)
+- **BUSINESS RULES:** BR-MKT-79/81; UC-MKT-60. Sem receita ou apagada pela família ⇒ `404`. Não auditado.
+
+### Schemas de MK4 (resumo; detalhe em `openapi.yaml`)
+
+**RecordShareCategory** — ALLERGIES|CONDITIONS|MEDICATION|APPOINTMENTS|EXAMS (as de `SharingGrant`) · **ShareValidity** — H24|D7|D30|UNTIL_CONSULTATION_END_PLUS_24H · **RecordShareStatus** — ACTIVE|EXPIRED|REVOKED|CONSUMED (`EXPIRED` derivado) · **RecordShareOptions** — `bookingId`, `professional`, `professionalCategory`, `allowedCategories`, `validities` [{`validity`, `expiresAt`, `eligible`}], `viewOnceAllowed`, `maxActive`, `activeCount` · **CreateRecordShareRequest** — `bookingId`, `categories`, `validity`, `viewOnce?`, `clientRequestId?` · **RecordShare** — `id`, `bookingId`, `professional`, `categories`, `validity`, `viewOnce`, `status`, `expiresAt`, `revokedAt?`, `consumedAt?`, `viewCount`, `lastViewedAt?`, `createdAt` · **RecordShareView** — `viewNo`, `viewedAt`, `professionalName`, `categories` · **ProfessionalShare** — `id`, `bookingId`, `participantLabel`, `categories`, `validity`, `viewOnce`, `status`, `expiresAt`, `openCount`, `lastOpenedAt?`, `canOpen`, `createdAt` (nunca ids de família/membro/utilizador) · **SharedRecordsView** — `shareId`, `participantLabel`, `openedAt`, `expiresAt`, `viewOnce`, `watermark` {`professionalName`, `openedOn`} e **só as secções das categorias concedidas** (omitidas, nunca `null`): `allergies`, `bloodType`, `conditions`, `medications`, `appointments`, `examinations` (sem identificação, notas, motivos, documentos nem ids; BR-MKT-68) · **ProfessionalPrescriptionInput** — `notes?`, `medications` · **ProfessionalPrescription** — `bookingId`, `issuedOn`, `notes?`, `medications`, `createdAt` (sem ids de receita nem de membro).

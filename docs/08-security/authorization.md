@@ -75,6 +75,7 @@ Notas:
 | Responder ao pedido de confirmação de uma consulta ("Vou" / "Não posso", `PUT …/appointments/{id}/confirmation`; M14 Q, BR-CLN-26) | WRITE(APPOINTMENTS): a mesma permissão de `setAppointmentStatus` (SELF, TUTOR_OF; `DEPENDENT_SELF` com conta, FR-ALR-08); `OTHER` ⇒ `FORBIDDEN`. Sem categoria nova. Ler `confirmationStatus`/`followUpDueOn`: READ(APPOINTMENTS). |
 | Abrir/continuar, ler, enviar, marcar como lida, fechar/reabrir e denunciar numa conversa com um profissional (`/families/{f}/members/{m}/conversations*`; MK2, BR-MKT-38) | Ação nova `MESSAGE_PROFESSIONALS`: `SELF` (adulto) ou `TUTOR_OF` do membro-sujeito; `DEPENDENT_SELF`/`OTHER` ⇒ `FORBIDDEN` — ver §11.2. Sem categoria de dados nem `SharingGrant`. |
 | Marcar, ver, cancelar marcações, carregar/descarregar/disputar comprovativos, avaliar (`/families/{f}/members/{m}/bookings*`; MK3, BR-MKT-50) | Ação nova `BOOK_PROFESSIONALS`: `SELF` (adulto) ou `TUTOR_OF` do membro-sujeito; `DEPENDENT_SELF`/`OTHER` ⇒ `FORBIDDEN` — ver §12.1. Sem categoria de dados nem `SharingGrant`. A consulta gerada e o `Process` `BOOKING` leem-se pelas regras existentes (APPOINTMENTS, §3). |
+| Ver opções, criar, listar, ver, ver as vistas e revogar partilhas de registos com um profissional (`/families/{f}/members/{m}/record-shares*`; MK4, BR-MKT-67) | Ação nova `SHARE_WITH_PROFESSIONALS`: `SELF` (adulto) ou `TUTOR_OF` do membro-sujeito; `DEPENDENT_SELF`/`OTHER` ⇒ `FORBIDDEN` — ver §13.1. Sem categoria de dados nem `SharingGrant` (a partilha **não** é um `SharingGrant`: o destinatário é um profissional, fora da família). |
 | Horários livres e avaliações públicas de um profissional (`/marketplace/professionals/{id}/slots`, `…/reviews`; MK3) | Qualquer User autenticado (`AUTH`), sem família nem `AccessPolicy` — ver §12.4. |
 | Pesquisar, ver perfil, comparar profissionais (`/marketplace/*`; MK2) | Qualquer User autenticado (`AUTH`), sem família nem `AccessPolicy` — ver §11.1. |
 | Pesquisar/ver utilizador, repor acesso, listar/suspender contas de clínica | PLATFORM_ADMIN — ver §7 (nunca dados de saúde). |
@@ -344,3 +345,35 @@ Algoritmo de §10.1 (token, conta, isolamento por `professionalId` do token, est
 `AUTH` sem família, como §11.1: só `User` autenticado (`bearerAuth`); só dados públicos de `APPROVED` (horários livres; avaliações anónimas). Entram na lista fechada **`PUBLIC_DATA_ROUTES`** (`listBookableSlots`, `listProfessionalReviews`); a CI continua a verificar que nenhuma rota `/families/*` lá está. 60 pedidos/min por utilizador (BR-MKT-66). Não auditadas.
 
 Testes gerados desta secção: `TC-AZ-MKT-17..25`.
+
+## 13. Mercado de profissionais — MK4: partilha de registos e receita digital (ADR-037; contrato 2026-11-20, **nada implementado**)
+
+> Complementa §4 (`access`), §10 (portal do profissional) e §12 (marcações). Regras: BR-MKT-67..81. A partilha com um profissional **não** usa `SharingGrant` (destinatário é um ator de outro espaço de identidade, ADR-037 §3) nem `AccessPolicy` do lado do profissional: usa o token de `ProfessionalAccount` e a **reavaliação a cada abertura** (BR-MKT-70, modelo do `ClinicConsent`, ADR-026).
+
+### 13.1 Partilhas — lado família (`/families/{f}/members/{m}/record-shares*`)
+Ação nova de `access`: **`SHARE_WITH_PROFESSIONALS`** (alteração mínima ao módulo `access`: uma ação na `AccessPolicy` + teste da matriz; **sem** categoria de dados, como `BOOK_PROFESSIONALS`). `record-sharing` não importa `access`: autoriza pela porta **`ShareAccess`** (definida na sua `application`, implementada no composition root sobre `access`).
+| Ação | `SELF` (adulto) | `TUTOR_OF` | `DEPENDENT_SELF` | `OTHER` / Family Admin como `OTHER` |
+|---|---|---|---|---|
+| Ver as opções de partilha de uma marcação | sim (do próprio) | sim (do dependente) | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Criar partilha | sim | sim | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Listar e ver partilhas e **as vistas** («quem viu») | sim | sim | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Revogar | sim | sim | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+Critério: relação `SELF`/`TUTOR_OF` com o membro-sujeito (nunca `SharingGrant`: quem pode ler o registo de um irmão por `SharingGrant` **não** pode partilhá-lo com um profissional — a concessão é do titular/tutor, BR-PRV-02); `DEPENDENT_SELF` não partilha (só o tutor; coerente com OP-77 e N2). Os dois tutores veem e revogam as mesmas partilhas. Membro `BLOCKED` ⇒ `MEMBER_BLOCKED`. **Isolamento:** a partilha procura-se **por (`familyId`, `memberId`, `shareId`)** e as vistas **sempre através da partilha**; de outra família/membro ou inexistente ⇒ `404` sem enumeração; `403` só quando o membro existe na família mas a relação é insuficiente. A marcação âncora procura-se por (`familyId`, `memberId`, `bookingId`) pela porta `ShareAnchor` (de outro membro/família ⇒ `404`). Auditoria da criação, da revogação e das negações (`ACCESS_DENIED`) com `family_id` e `subject_member_id` (`audit.md` §3). **Esta vista é a única exceção a BR-PRV-09** (BR-MKT-73): o titular/tutor vê as aberturas **dos profissionais às suas partilhas**; não vê auditoria nem acessos de outros membros.
+
+### 13.2 Partilhas — lado do profissional (`/professional-portal/shares*`)
+Algoritmo de §10.1 (token, conta, isolamento por `professionalId` do token, estado de validação lido da BD por pedido). A partilha procura-se **por `professionalId` do token** (de outro profissional ou inexistente ⇒ `404` idêntico). **Abrir** reavalia, em cada pedido, as condições de BR-MKT-70 (estado, prazo, profissional `APPROVED`, marcação, membro). Matriz (gerada para `TC-AZ-MKT-28`):
+| Operação | DRAFT | PENDING_REVIEW | NEEDS_INFO | APPROVED | REJECTED | SUSPENDED |
+|---|---|---|---|---|---|---|
+| Listar e ver (metadados) as partilhas próprias | sim | sim | sim | sim | sim | sim |
+| **Abrir** uma partilha (`open`) | `SHARE_NOT_AVAILABLE` | `SHARE_NOT_AVAILABLE` | `SHARE_NOT_AVAILABLE` | sim (se as restantes condições de BR-MKT-70) | `SHARE_NOT_AVAILABLE` | `SHARE_NOT_AVAILABLE` |
+| Ler a receita que emitiu (`GET …/prescription`) | sim | sim | sim | sim | sim | sim |
+| Emitir receita digital (`POST …/prescriptions`) | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` | sim (se BR-MKT-80; flag ligada) | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` |
+O profissional **nunca** recebe ids de família, membro nem utilizador (BR-MKT-75; teste de chaves proibidas, TC-AZ-MKT-30) e **não** pode revogar, prolongar nem apagar partilhas. Sem a flag, as rotas da receita respondem `404` (§13.4). Um profissional com especialidades `HEALTH` e `WELLNESS` recebe o conteúdo conforme a categoria **da marcação âncora** (fixa à criação), não a do perfil.
+
+### 13.3 Admin
+`PLATFORM_ADMIN` **não** tem rota de MK4: nenhuma lê partilhas, vistas, conteúdo partilhado nem receitas (D4, BR-MKT-75). `record-sharing` não importa `admin` e `admin` não importa `record-sharing`/`consultations` (inventário de rotas, TC-AZ-MKT-31).
+
+### 13.4 Receita digital (`/professional-portal/bookings/{id}/prescription*`; BR-MKT-79..81)
+Só `PROFESSIONAL_ACCOUNT` (token de profissional; token de `User`/clínica ⇒ `401`). Marcação procurada por `professionalId` do token (alheia ou inexistente ⇒ `404` idêntico). **Flag `DIGITAL_PRESCRIPTION_ENABLED=false` ⇒ `404`** em ambas as rotas (indistinguível de rota inexistente) e `canPrescribe=false`. Com a flag ligada: emitir exige `APPROVED` (`PROFESSIONAL_LOCKED` nos outros estados, §13.2), categoria `HEALTH` da marcação (`WELLNESS` ⇒ `FORBIDDEN`), marcação `COMPLETED` de vídeo em ≤ 7 dias e sem receita (`INVALID_STATE_TRANSITION`/`CONFLICT`). Do lado da família **não há ação nova**: a receita lê-se e gere-se como qualquer receita (categoria `MEDICATION`, §3; `DEPENDENT_SELF` lê, não edita). O profissional **não** ganha leitura de nenhum registo: lê só a receita que emitiu.
+
+Testes gerados desta secção: `TC-AZ-MKT-26..32`.

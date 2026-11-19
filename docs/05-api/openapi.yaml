@@ -32,6 +32,7 @@ tags:
   - name: Marketplace
   - name: Messaging
   - name: Bookings
+  - name: Record Sharing
   - name: Professional Portal
   - name: Admin
   - name: Operations
@@ -11497,6 +11498,488 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/record-shares/options:
+    get:
+      tags: [Record Sharing]
+      operationId: getRecordShareOptions
+      summary: "Ver as opções de partilha de uma marcação."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação SHARE_WITH_PROFESSIONALS, authorization.md §13.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-48, FR-MKT-37, BR-MKT-67/68/69/77. Query bookingId (obrigatório): marcação do membro em CONFIRMED ou COMPLETED (outro estado ⇒ INVALID_STATE_TRANSITION; de outro membro/família ou inexistente ⇒ NOT_FOUND). Devolve as categorias permitidas pela categoria do profissional (HEALTH: as cinco; WELLNESS: só MEDICATION), cada prazo com a data de fim e a elegibilidade e os limites; a regra vive no servidor. Não auditado."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: "Sucesso"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecordShareOptions" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/record-shares:
+    get:
+      tags: [Record Sharing]
+      operationId: listRecordShares
+      summary: "Listar as partilhas do membro."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação SHARE_WITH_PROFESSIONALS, authorization.md §13.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-50, FR-MKT-40, BR-MKT-67/73. Filtros bookingId e status (derivado: ACTIVE, EXPIRED, REVOKED, CONSUMED); mais recentes primeiro, cursor. EXPIRED é derivado de expiresAt ≤ agora (não é gravado). Sem conteúdo dos registos. Não auditado. 60 pedidos/min por utilizador (BR-MKT-77)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/RecordShareStatus" } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: "Sucesso"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecordSharePage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Record Sharing]
+      operationId: createRecordShare
+      summary: "Partilhar categorias de registos com um profissional."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação SHARE_WITH_PROFESSIONALS, authorization.md §13.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-49, FR-MKT-37/43, BR-MKT-67/68/69/72/77. Numa transação, sob bloqueio do membro: factos da marcação pela porta ShareAnchor (do membro, CONFIRMED ou COMPLETED; profissional, rótulo e categoria vêm da marcação, nunca do corpo), categorias permitidas para a categoria do profissional (WELLNESS ⇒ só MEDICATION), expiresAt calculado pelo servidor (nunca mais de 30 dias; imutável), limites, gravação ACTIVE e auditoria RECORD_SHARE_CREATE; depois do commit enfileira um e-mail genérico ao profissional (BR-MKT-78). 201 = criada; 200 = clientRequestId repetido (devolve a existente; corpo com bookingId divergente ⇒ CONFLICT). Marcação inexistente ou de outro membro ⇒ NOT_FOUND; marcação noutro estado ⇒ INVALID_STATE_TRANSITION; categorias fora do permitido, vazias, repetidas ou prazo já passado ⇒ VALIDATION_ERROR; 20 ativas ⇒ LIMIT_EXCEEDED; 20 criações/dia ⇒ RATE_LIMITED."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRecordShareRequest" }
+      responses:
+        '201':
+          description: "Criada"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecordShare" }
+        '200':
+          description: "Partilha existente (clientRequestId repetido)"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecordShare" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION | LIMIT_EXCEEDED | CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/record-shares/{shareId}:
+    get:
+      tags: [Record Sharing]
+      operationId: getRecordShare
+      summary: "Ver uma partilha."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação SHARE_WITH_PROFESSIONALS, authorization.md §13.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-50, BR-MKT-67/73. Partilha procurada por (familyId, memberId, shareId). Sem conteúdo dos registos. Não auditado. 60 pedidos/min por utilizador."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: shareId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: "Sucesso"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecordShare" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/record-shares/{shareId}/revoke:
+    post:
+      tags: [Record Sharing]
+      operationId: revokeRecordShare
+      summary: "Revogar uma partilha."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação SHARE_WITH_PROFESSIONALS, authorization.md §13.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-52, FR-MKT-40/43, BR-MKT-74. ACTIVE → REVOKED com efeito imediato (a abertura seguinte do profissional falha); as vistas já registadas mantêm-se. Qualquer dos tutores pode revogar. Já REVOKED, CONSUMED ou expirada ⇒ INVALID_STATE_TRANSITION. Bloqueio da linha. Auditoria RECORD_SHARE_REVOKE."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: shareId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: "Sucesso"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecordShare" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/record-shares/{shareId}/views:
+    get:
+      tags: [Record Sharing]
+      operationId: listRecordShareViews
+      summary: "Ver quem viu o quê e quando."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação SHARE_WITH_PROFESSIONALS, authorization.md §13.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-51, FR-MKT-40, BR-MKT-73. Cada abertura bem-sucedida do profissional (nome público, categorias lidas, data/hora); mais recentes primeiro, cursor. As aberturas recusadas não aparecem (só na auditoria interna). Única exceção a BR-PRV-09. Leitura não auditada. 60 pedidos/min por utilizador."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: shareId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: "Sucesso"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RecordShareViewPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/shares:
+    get:
+      tags: [Record Sharing]
+      operationId: listProfessionalShares
+      summary: "Listar as partilhas recebidas."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §13.2); partilha procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-53, FR-MKT-38, BR-MKT-70/75. Leitura em todos os estados de validação. Só metadados (rótulo do participante, categorias, prazo, modo, estado derivado, aberturas próprias, canOpen); nunca conteúdo nem ids de família/membro/utilizador. Filtros status e bookingId; cursor. Não auditado. 60 pedidos/min por conta."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/RecordShareStatus" } }
+        - { name: bookingId, in: query, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: "Sucesso"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalSharePage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/shares/{shareId}:
+    get:
+      tags: [Record Sharing]
+      operationId: getProfessionalShare
+      summary: "Ver os metadados de uma partilha recebida."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §13.2); partilha procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-53, BR-MKT-70/75. Só metadados; sem conteúdo. Não auditado. 60 pedidos/min por conta."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: shareId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: "Sucesso"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalShare" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/shares/{shareId}/open:
+    post:
+      tags: [Record Sharing]
+      operationId: openProfessionalShare
+      summary: "Abrir uma partilha e ler o conteúdo concedido."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §13.2); partilha procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-54/55, FR-MKT-38/39, BR-MKT-68/70/71/72/73/77. POST porque abrir tem efeitos (vista e, em visualização única, consumo). Em cada pedido, na mesma transação: pertença; status ACTIVE e expiresAt > agora; profissional APPROVED agora; marcação CONFIRMED/COMPLETED e membro ACTIVE; categorias permitidas; lê só as categorias concedidas pela porta SharedRecordsReader; grava a vista (record_share_views) e, se viewOnce, consome a partilha atomicamente (se a leitura falhar nada se consome). Expirada, revogada, profissional não APPROVED, marcação cancelada ou membro bloqueado ⇒ 403 SHARE_NOT_AVAILABLE (detail genérico e igual; vista não gravada; auditoria PROFESSIONAL_SHARE_OPEN com result DENIED); já consumida ⇒ 403 SHARE_ALREADY_VIEWED. Resposta com Cache-Control no-store, sem ETag; traz watermark (nome público e data) a sobrepor pelo cliente. O conteúdo nunca é guardado nem auditado. 30 pedidos/min por conta e 120/dia por partilha ⇒ RATE_LIMITED."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: shareId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: "Sucesso (cabeçalho Cache-Control: no-store)"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SharedRecordsView" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "SHARE_NOT_AVAILABLE | SHARE_ALREADY_VIEWED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}/prescriptions:
+    post:
+      tags: [Professional Portal]
+      operationId: issueProfessionalPrescription
+      summary: "Emitir uma receita digital (desligada até ao parecer jurídico)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §13.2); partilha procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-59, FR-MKT-44, BR-MKT-79/80/81 (ADR-037 §9). Com DIGITAL_PRESCRIPTION_ENABLED=false (omissão) ⇒ 404 NOT_FOUND, indistinguível de rota inexistente. Com a flag ligada, numa transação sob bloqueio da marcação: profissional APPROVED (PROFESSIONAL_LOCKED nos outros estados); marcação do profissional, COMPLETED, método VIDEO, categoria HEALTH (WELLNESS ⇒ FORBIDDEN) e até 7 dias depois de completedAt (senão INVALID_STATE_TRANSITION); sem receita nessa marcação (senão CONFLICT). O servidor fixa issuedOn (hoje em Africa/Luanda), doctorName (nome público), issuedBy=PROFESSIONAL, membro e família; o profissional não indica membro, data nem nome. Cria a Prescription e os planos de toma do membro (UC-RX-01), alerta genérico BOOKING_UPDATED à família e auditoria PRESCRIPTION_ISSUED_BY_PROFESSIONAL (sem conteúdo). 20 emissões/dia por profissional ⇒ RATE_LIMITED."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfessionalPrescriptionInput" }
+      responses:
+        '201':
+          description: "Criada"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalPrescription" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | INVALID_STATE_TRANSITION | CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}/prescription:
+    get:
+      tags: [Professional Portal]
+      operationId: getProfessionalBookingPrescription
+      summary: "Ver a receita que o profissional emitiu nesta marcação."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §13.2); partilha procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-60, FR-MKT-45, BR-MKT-79/81. Só o que o profissional escreveu (sem ids de registo); é a única leitura de dados de saúde que a receita dá ao profissional. Flag desligada, sem receita ou receita apagada pela família ⇒ 404. Leitura em todos os estados de validação; não auditada. 60 pedidos/min por conta."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: "Sucesso"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalPrescription" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
 components:
   securitySchemes:
     bearerAuth:
@@ -12287,8 +12770,13 @@ components:
           enum: [ACTIVE, COMPLETED, CANCELLED]
         issuedBy:
           type: string
-          enum: [FAMILY, CLINIC]
-          description: "D18/BR-RX-07. Default FAMILY; CLINIC quando emitida pelo portal da clínica (completeClinicAppointment)."
+          enum: [FAMILY, CLINIC, PROFESSIONAL]
+          description: "D18/BR-RX-07. Default FAMILY; CLINIC quando emitida pelo portal da clínica (completeClinicAppointment); PROFESSIONAL (MK4, BR-MKT-79..81) quando emitida por um profissional após consulta de vídeo — só existe com DIGITAL_PRESCRIPTION_ENABLED. O id do profissional nunca se devolve."
+        bookingId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "MK4 (BR-MKT-81): marcação de origem; só quando issuedBy=PROFESSIONAL (e enquanto a marcação existir). Propriedade opcional."
         appointmentId:
           type: string
           format: uuid
@@ -15350,6 +15838,7 @@ components:
         canSendProof: { type: boolean }
         canReview: { type: boolean }
         hasReview: { type: boolean }
+        prescriptionId: { type: string, format: uuid, nullable: true, description: "MK4 (BR-MKT-81): receita digital emitida para esta marcação, se existir. Propriedade opcional (omitida enquanto a receita digital estiver desligada)." }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     FamilyBookingPage:
@@ -15377,6 +15866,8 @@ components:
         cancelledLate: { type: boolean }
         meetingInfo: { type: string, nullable: true, maxLength: 300 }
         conversationId: { type: string, format: uuid, nullable: true, description: "Conversa (do portal) do par, se existir." }
+        canPrescribe: { type: boolean, description: "MK4 (BR-MKT-80, state-machines.md): derivado; sempre false com DIGITAL_PRESCRIPTION_ENABLED=false. Propriedade opcional (omitida = false)." }
+        hasPrescription: { type: boolean, description: "MK4: já emitiu receita nesta marcação. Propriedade opcional." }
         proof: { allOf: [{ $ref: "#/components/schemas/PaymentProof" }], description: "Comprovativo em curso ou o mais recente. Propriedade opcional: omitida (nunca null) quando não há comprovativo." }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -15639,3 +16130,172 @@ components:
       required: [decision]
       properties:
         decision: { type: string, enum: [DISMISS, HIDE_COMMENT] }
+    RecordShareCategory:
+      type: string
+      enum: [ALLERGIES, CONDITIONS, MEDICATION, APPOINTMENTS, EXAMS]
+      description: "As mesmas categorias de SharingGrant (sem categoria nova). ALLERGIES inclui o tipo sanguíneo. HEALTH ⇒ qualquer subconjunto; WELLNESS ⇒ só MEDICATION (BR-MKT-68)."
+    ShareValidity:
+      type: string
+      enum: [H24, D7, D30, UNTIL_CONSULTATION_END_PLUS_24H]
+      description: "Prazo escolhido (BR-MKT-69). O servidor calcula expiresAt uma vez, nunca mais de 30 dias."
+    RecordShareStatus:
+      type: string
+      enum: [ACTIVE, EXPIRED, REVOKED, CONSUMED]
+      description: "Estado visto pela API (state-machines.md, RecordShare). EXPIRED é derivado de expiresAt ≤ agora (não é coluna). CONSUMED só em visualização única."
+    RecordShareOptions:
+      type: object
+      required: [bookingId, professional, professionalCategory, allowedCategories, validities, viewOnceAllowed, maxActive, activeCount]
+      description: "UC-MKT-48. Opções calculadas no servidor para uma marcação CONFIRMED/COMPLETED (BR-MKT-67/68/69). Os textos legais e o aviso sobre capturas de ecrã são constantes da UI (BR-MKT-72)."
+      properties:
+        bookingId: { type: string, format: uuid }
+        professional: { $ref: "#/components/schemas/BookingProfessional" }
+        professionalCategory: { $ref: "#/components/schemas/SpecialtyCategory" }
+        allowedCategories: { type: array, minItems: 1, items: { $ref: "#/components/schemas/RecordShareCategory" } }
+        validities:
+          type: array
+          items:
+            type: object
+            required: [validity, expiresAt, eligible]
+            properties:
+              validity: { $ref: "#/components/schemas/ShareValidity" }
+              expiresAt: { type: string, format: date-time, description: "Data em que a partilha acabaria se fosse criada agora (nunca mais de 30 dias)." }
+              eligible: { type: boolean, description: "false se a data resultante já passou (ex.: fim da consulta + 24 h)." }
+        viewOnceAllowed: { type: boolean }
+        maxActive: { type: integer, description: "Máximo de partilhas ativas por membro (20, BR-MKT-77)." }
+        activeCount: { type: integer, minimum: 0 }
+    CreateRecordShareRequest:
+      type: object
+      additionalProperties: false
+      required: [bookingId, categories, validity]
+      description: "BR-MKT-67/69. O profissional, o rótulo e a categoria vêm da marcação; nunca do corpo."
+      properties:
+        bookingId: { type: string, format: uuid }
+        categories: { type: array, minItems: 1, maxItems: 5, uniqueItems: true, items: { $ref: "#/components/schemas/RecordShareCategory" } }
+        validity: { $ref: "#/components/schemas/ShareValidity" }
+        viewOnce: { type: boolean, default: false, description: "Visualização única (BR-MKT-71)." }
+        clientRequestId: { type: string, format: uuid, description: "Idempotência da criação (por membro)." }
+    RecordShare:
+      type: object
+      required: [id, bookingId, professional, categories, validity, viewOnce, status, expiresAt, viewCount, createdAt]
+      description: "Partilha vista pela família (BR-MKT-67/73). Sem conteúdo dos registos. A autoria (qual dos tutores criou) não se devolve."
+      properties:
+        id: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        professional: { $ref: "#/components/schemas/BookingProfessional" }
+        categories: { type: array, items: { $ref: "#/components/schemas/RecordShareCategory" } }
+        validity: { $ref: "#/components/schemas/ShareValidity" }
+        viewOnce: { type: boolean }
+        status: { $ref: "#/components/schemas/RecordShareStatus" }
+        expiresAt: { type: string, format: date-time }
+        revokedAt: { type: string, format: date-time, nullable: true }
+        consumedAt: { type: string, format: date-time, nullable: true }
+        viewCount: { type: integer, minimum: 0 }
+        lastViewedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    RecordSharePage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/RecordShare" } }
+        nextCursor: { type: string, nullable: true }
+    RecordShareView:
+      type: object
+      required: [viewNo, viewedAt, professionalName, categories]
+      description: "Uma abertura bem-sucedida (BR-MKT-73): quem (nome público), o quê (categorias; nunca o conteúdo) e quando."
+      properties:
+        viewNo: { type: integer, minimum: 1 }
+        viewedAt: { type: string, format: date-time }
+        professionalName: { type: string }
+        categories: { type: array, items: { $ref: "#/components/schemas/RecordShareCategory" } }
+    RecordShareViewPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/RecordShareView" } }
+        nextCursor: { type: string, nullable: true }
+    ProfessionalShare:
+      type: object
+      required: [id, bookingId, participantLabel, categories, validity, viewOnce, status, expiresAt, openCount, canOpen, createdAt]
+      description: "Partilha vista pelo profissional (BR-MKT-70/75). NUNCA devolve familyId, memberId, userId, nome nem dados de saúde: só o participantLabel e metadados. bookingId é a marcação do próprio profissional."
+      properties:
+        id: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        participantLabel: { type: string, minLength: 1, maxLength: 40 }
+        categories: { type: array, items: { $ref: "#/components/schemas/RecordShareCategory" } }
+        validity: { $ref: "#/components/schemas/ShareValidity" }
+        viewOnce: { type: boolean }
+        status: { $ref: "#/components/schemas/RecordShareStatus" }
+        expiresAt: { type: string, format: date-time }
+        openCount: { type: integer, minimum: 0, description: "Aberturas feitas pelo próprio profissional." }
+        lastOpenedAt: { type: string, format: date-time, nullable: true }
+        canOpen: { type: boolean, description: "Derivado: ACTIVE, não expirada, profissional APPROVED e marcação válida. Informativo; a abertura reavalia tudo (BR-MKT-70)." }
+        createdAt: { type: string, format: date-time }
+    ProfessionalSharePage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ProfessionalShare" } }
+        nextCursor: { type: string, nullable: true }
+    SharedAllergy:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        since: { type: string, format: date, nullable: true }
+    SharedCondition:
+      type: object
+      required: [name, kind]
+      properties:
+        name: { type: string }
+        kind: { type: string, enum: [CONDITION, HISTORY] }
+        since: { type: string, format: date, nullable: true }
+        until: { type: string, format: date, nullable: true }
+    SharedAppointment:
+      type: object
+      required: [scheduledAt, status]
+      properties:
+        scheduledAt: { type: string, format: date-time }
+        status: { type: string, enum: [REQUESTED, SCHEDULED, REJECTED, COMPLETED, NO_SHOW, CANCELLED] }
+        specialty: { type: string, nullable: true }
+        professionalName: { type: string, nullable: true }
+    SharedRecordsView:
+      type: object
+      required: [shareId, participantLabel, openedAt, expiresAt, viewOnce, watermark]
+      description: "Resposta de abertura (BR-MKT-68/72). As secções existem SÓ para as categorias concedidas (omitidas, nunca null). Mínimo necessário: sem identificação do membro, notas, motivos, documentos, tomas, tutela nem ids de registos (BR-MKT-68/75). Medicação: só planos ativos. Consultas e exames: últimos 24 meses e futuros. Cache-Control no-store."
+      properties:
+        shareId: { type: string, format: uuid }
+        participantLabel: { type: string, minLength: 1, maxLength: 40 }
+        openedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        viewOnce: { type: boolean }
+        watermark:
+          type: object
+          required: [professionalName, openedOn]
+          description: "A sobrepor visivelmente ao conteúdo pelo cliente (BR-MKT-72); dissuade e identifica, não impede capturas."
+          properties:
+            professionalName: { type: string }
+            openedOn: { type: string, format: date, description: "Dia da abertura em Africa/Luanda." }
+        allergies: { type: array, items: { $ref: "#/components/schemas/SharedAllergy" }, description: "Categoria ALLERGIES." }
+        bloodType: { type: string, enum: [A_POS, A_NEG, B_POS, B_NEG, AB_POS, AB_NEG, O_POS, O_NEG, UNKNOWN], description: "Categoria ALLERGIES (tipo sanguíneo)." }
+        conditions: { type: array, items: { $ref: "#/components/schemas/SharedCondition" }, description: "Categoria CONDITIONS." }
+        medications: { type: array, items: { $ref: "#/components/schemas/ClinicSharedMedication" }, description: "Categoria MEDICATION: planos ativos (nome, dosagem, início, fim/contínua)." }
+        appointments: { type: array, items: { $ref: "#/components/schemas/SharedAppointment" }, description: "Categoria APPOINTMENTS." }
+        examinations: { type: array, items: { $ref: "#/components/schemas/ClinicSharedExam" }, description: "Categoria EXAMS (nome, data, estado, parâmetros de resultado; sem PDF)." }
+    ProfessionalPrescriptionInput:
+      type: object
+      additionalProperties: false
+      required: [medications]
+      description: "BR-MKT-80. O servidor fixa issuedOn, doctorName, issuedBy, membro e família; o profissional só indica medicamentos e observações."
+      properties:
+        notes: { type: string, maxLength: 500, description: "Observações da receita; fora de logs e auditoria (BR-MKT-81)." }
+        medications: { type: array, minItems: 1, maxItems: 10, items: { $ref: "#/components/schemas/MedicationPlanInput" } }
+    ProfessionalPrescription:
+      type: object
+      required: [bookingId, issuedOn, medications, createdAt]
+      description: "O que o profissional emitiu (BR-MKT-81). Sem id da receita nem do membro."
+      properties:
+        bookingId: { type: string, format: uuid }
+        issuedOn: { type: string, format: date }
+        notes: { type: string, nullable: true, maxLength: 500 }
+        medications: { type: array, items: { $ref: "#/components/schemas/MedicationPlanInput" } }
+        createdAt: { type: string, format: date-time }

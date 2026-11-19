@@ -241,6 +241,22 @@ Documento **gerado, sem entidade nem tabela**: derivado de uma marcação `COMPL
 ### Estruturas só de contrato (sem tabela) — ranking `v2`
 `RankingInputV2` (fechado: os de `v1` mais `reviewCount`/`ratingSum` por profissional e a média `C` da coorte, BR-MKT-61), `ReviewStats` (`{professionalId, count, sum}` por especialidade, devolvido por `consultations` a `discovery` sem textos nem ids de família), `RANKING_V2` (pesos 40/20/20/10/10, `m = 5`, N = 3).
 
+## Mercado de profissionais — MK4: partilha de registos e receita digital (ADR-037; contrato 2026-11-20, **nada implementado**)
+
+> Dados em `schema.md` §14. A partilha é do **membro** (FK composta `(family_id, member_id)`, `CASCADE`) e ancora-se numa marcação de MK3; **não** copia conteúdo (lê-se na abertura, BR-MKT-68/70). O profissional nunca recebe ids de família/membro/utilizador (BR-MKT-75). A receita digital **não** tem tabela nova: estende `Prescription`.
+
+### RecordShare — partilha de registos com um profissional (tabela `record_shares`; módulo `record-sharing`)
+`familyId` · `memberId` (membro-sujeito) · `professionalId` · `bookingId` (marcação âncora, `CONFIRMED`/`COMPLETED` à criação) · `participantLabel` (cópia do rótulo da marcação, 1–40; tudo o que o profissional vê do membro) · `professionalCategory` (HEALTH | WELLNESS; cópia da categoria da especialidade marcada, fixa à criação) · `categories` (1–5 de ALLERGIES | CONDITIONS | MEDICATION | APPOINTMENTS | EXAMS; `WELLNESS` ⇒ só MEDICATION) · `validity` (H24 | D7 | D30 | UNTIL_CONSULTATION_END_PLUS_24H) · `viewOnce` (bool) · `expiresAt` (calculado e **imutável**, ≤ 30 dias) · `status` (ACTIVE | REVOKED | CONSUMED; `EXPIRED` é **derivado** de `expiresAt ≤ agora`, não é coluna) · `revokedAt?` · `consumedAt?` · `viewCount` · `lastViewedAt?` · `createdAt` · `updatedAt`. **Só servidor:** `createdByUserId`, `revokedByUserId`, `clientRequestId`. Estados: `state-machines.md`. Regras: BR-MKT-67..77.
+
+### RecordShareView — acesso de um profissional a uma partilha (tabela `record_share_views`; **imutável**)
+`shareId` · `viewNo` (1.., sequencial por partilha) · `viewedAt` · `categories` (as categorias lidas nessa abertura; **nunca** o conteúdo). Uma linha por abertura **bem-sucedida**; as recusadas só existem na auditoria (BR-MKT-73). A família lê-as; o profissional vê só o seu total (`openCount`).
+
+### Estruturas só de contrato (sem tabela)
+`RecordShareOptions` (opções e datas resultantes por prazo, categorias permitidas, limites; só leitura) · `SharedRecordsView` (resposta de abertura: `watermark` {`professionalName`, `openedOn`}, `expiresAt`, `viewOnce` e **secções só das categorias concedidas** — omitidas, nunca `null`: `allergies`+`bloodType` (ALLERGIES), `conditions`, `medications` (planos ativos: nome, dosagem, início, fim/contínua), `appointments` (data/hora, estado, especialidade, nome do profissional; 24 meses e futuras), `examinations` (nome, data, estado, parâmetros de resultado; 24 meses e futuros); sem notas, motivos, documentos nem ids) · `SharedRecordsReader` (porta de leitura, `modules.md` nota 38).
+
+### Prescription — extensão MK4 (receita digital do profissional; BR-MKT-79..81)
+`issuedBy` ganha o valor **`PROFESSIONAL`** (com `FAMILY`, `CLINIC`) · `issuedByProfessionalId?` (**só servidor**, nunca devolvido; nulo se o profissional for apagado, `issuedBy` mantém-se) · `bookingId?` (marcação `COMPLETED` de origem; UNIQUE parcial: **uma receita por marcação**; nulo se a marcação desaparecer). `doctorName` = nome público do profissional e `issuedOn` = dia da emissão em `Africa/Luanda`, ambos **fixados pelo servidor**. Os medicamentos usam a mesma estrutura (`MedicationPlan`) e geram plano de toma como qualquer receita (UC-RX-01, M2). A família gere-a como qualquer receita (OP-127). Nada se cria enquanto `DIGITAL_PRESCRIPTION_ENABLED=false` (BR-MKT-79).
+
 ## Alertas
 
 ### Alert
