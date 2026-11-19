@@ -27,3 +27,15 @@ export async function registerNotifyProfessionalWorker(boss: PgBoss, handler: (c
     for (const job of jobs) await handler(job.data.conversationId);
   });
 }
+
+export const PURGE_EXPIRED_QUEUE = "messaging.purge-expired";
+/** Diário, 03:50 UTC (fora das janelas dos outros jobs). */
+const PURGE_EXPIRED_CRON = "50 3 * * *";
+
+export async function registerPurgeExpiredWorker(boss: PgBoss, handler: () => Promise<unknown>): Promise<string> {
+  await boss.createQueue(PURGE_EXPIRED_QUEUE);
+  await boss.schedule(PURGE_EXPIRED_QUEUE, PURGE_EXPIRED_CRON, {});
+  return boss.work(PURGE_EXPIRED_QUEUE, async () => {
+    await handler();
+  });
+}

@@ -648,6 +648,8 @@ export function main(): void {
       consultationReport: async (actor, familyId, memberId, appointmentId, context) => ({ ...(await clinicReports.reads.familyReport(actor, familyId, memberId, appointmentId, context)) }),
       // M15 U (BR-CLN-56): os pedidos de exame não cancelados do titular/tutor entram na exportação.
       examOrders: async (actor, familyId, memberId) => (await clinicReports.reads.familyExamOrders(actor, familyId, memberId)).map((order) => ({ ...order })),
+      // MK2 (BR-MKT-45): as conversas do titular/tutor com profissionais entram na exportação (porta opcional, sem acoplar módulos).
+      conversations: async (actor, familyId, memberId) => messaging.reads.conversations(actor, familyId, memberId),
       documents: documents.reads.list,
       downloadDocument: documents.reads.download,
     },

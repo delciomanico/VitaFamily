@@ -54,6 +54,8 @@ export interface ExportSources {
   consultationReport?: (actor: ReadActor, familyId: string, memberId: string, appointmentId: string, context: ReadContext) => Promise<ApiObject>;
   /** M15 U (BR-CLN-56): pedidos de exame não cancelados do membro (`FamilyExamOrder[]`, só SELF/TUTOR_OF); fonte opcional (sem importar `clinic-reports`). */
   examOrders?: MemberRead<ApiObject[]>;
+  /** MK2 (BR-MKT-45): conversas com profissionais do membro (SELF/TUTOR_OF); fonte opcional (sem importar `messaging`). */
+  conversations?: MemberRead<ApiObject[]>;
   /** Documentos de uma receita ou de um exame (a listagem exige o recurso). */
   documents: (actor: ReadActor, familyId: string, memberId: string, resourceType: "PRESCRIPTION" | "EXAMINATION", resourceId: string) => Promise<ApiObject[]>;
   downloadDocument: (

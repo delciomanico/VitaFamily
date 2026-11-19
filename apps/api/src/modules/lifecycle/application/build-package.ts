@@ -45,6 +45,10 @@ async function memberPackage(
   const readExamOrders = sources.examOrders;
   const examOrders = readExamOrders ? await readable(() => readExamOrders(actor, familyId, memberId, context)) : undefined;
 
+  // MK2 (BR-MKT-45): as conversas do membro com profissionais (mensagens trocadas); negado ⇒ omitido.
+  const readConversations = sources.conversations;
+  const conversations = readConversations ? await readable(() => readConversations(actor, familyId, memberId, context)) : undefined;
+
   const resources = [
     ...(prescriptions ?? []).map((p) => ({ resourceType: "PRESCRIPTION" as const, resourceId: str(p, "id") })),
     ...(examinations ?? []).map((e) => ({ resourceType: "EXAMINATION" as const, resourceId: str(e, "id") })),
@@ -78,6 +82,7 @@ async function memberPackage(
     ...(appointments !== undefined ? { appointments } : {}),
     ...(consultationReports.length > 0 ? { consultationReports } : {}),
     ...(examOrders !== undefined && examOrders.length > 0 ? { examOrders } : {}),
+    ...(conversations !== undefined && conversations.length > 0 ? { conversations } : {}),
     ...(examinations !== undefined ? { examinations } : {}),
     documents: documentEntries,
   };

@@ -137,6 +137,8 @@ export interface ConversationRepository<Trx> {
   /** Desfaz a reserva se o envio falhou (só se ainda for a nossa), para o *retry* poder avisar. */
   releaseProfessionalNotice(trx: Trx, conversationId: string, claimedAt: Date, previous: Date | null): Promise<void>;
   setStatus(trx: Trx, conversationId: string, change: { status: ConversationStatus; closedBy: ClosedBy | null; at: Date }): Promise<void>;
+  /** Retenção (BR-MKT-45): apaga as conversas com `lastMessageAt` ANTERIOR a `before` (mensagens e denúncias em cascata); devolve a contagem. */
+  purgeLastMessageBefore(trx: Trx, before: Date): Promise<number>;
 }
 
 export interface MessageRepository<Trx> {

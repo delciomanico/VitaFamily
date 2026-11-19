@@ -276,6 +276,11 @@ export class KyselyConversationRepository implements ConversationRepository<Db> 
       .where("id", "=", conversationId)
       .execute();
   }
+
+  async purgeLastMessageBefore(trx: Db, before: Date): Promise<number> {
+    const rows = await trx.deleteFrom("conversations").where("last_message_at", "<", before).returning("id").execute();
+    return rows.length;
+  }
 }
 
 interface MessageRow {

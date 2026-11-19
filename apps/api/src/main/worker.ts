@@ -146,6 +146,7 @@ export function main(): void {
     boss,
     professionals: { getNotificationEmail: (id) => professionalsWorker.notificationEmail(id) },
     mailer: new SmtpProfessionalMailer(config.SMTP_URL, config.MAIL_FROM),
+    audit,
   });
 
   boss

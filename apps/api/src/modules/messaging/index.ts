@@ -11,8 +11,10 @@ import type PgBoss from "pg-boss";
 import { createFamilyMessaging, type FamilyMessaging } from "./application/family-conversations.js";
 import { createProfessionalMessaging, type ProfessionalMessaging } from "./application/professional-conversations.js";
 import { createNotifyProfessional, type NotifyProfessional } from "./application/notify-professional.js";
-import type { ConversationAccess, MessageAlerts, MessagingDeps, ProfessionalLookup, ProfessionalMailer, ProfessionalNoticeQueue } from "./application/ports.js";
-import { PgBossProfessionalNoticeQueue, registerNotifyProfessionalWorker } from "./infrastructure/jobs.js";
+import { exportConversations } from "./application/export.js";
+import type { ActorIdentity, ConversationAccess, MessageAlerts, MessagingDeps, ProfessionalLookup, ProfessionalMailer, ProfessionalNoticeQueue } from "./application/ports.js";
+import { createPurgeExpired, type PurgeExpired } from "./application/purge-expired.js";
+import { PgBossProfessionalNoticeQueue, registerNotifyProfessionalWorker, registerPurgeExpiredWorker } from "./infrastructure/jobs.js";
 import { KyselyConversationRepository, KyselyMessageRepository, KyselyReportRepository } from "./infrastructure/repo.js";
 import { createModeration, type Moderation } from "./application/moderation.js";
 import { KyselyModerationRepository } from "./infrastructure/moderation-repo.js";
@@ -46,6 +48,8 @@ export interface MessagingModule {
   /** `/admin/message-reports*` (PLATFORM_ADMIN; MK2 S9). */
   adminRouter: Router;
   moderationUseCases: Moderation;
+  /** Leitura para a exportação do titular (BR-MKT-45): fonte opcional de `lifecycle`, ligada em `main/api.ts` sem acoplar módulos. */
+  reads: { conversations: (actor: ActorIdentity, familyId: string, memberId: string) => Promise<Record<string, unknown>[]> };
 }
 
 export function createMessagingModule(deps: MessagingModuleDeps): MessagingModule {
@@ -79,6 +83,7 @@ export function createMessagingModule(deps: MessagingModuleDeps): MessagingModul
     professionalUseCases,
     adminRouter: createAdminModerationRouter(moderationUseCases),
     moderationUseCases,
+    reads: { conversations: (actor, familyId, memberId) => exportConversations(familyUseCases, actor, familyId, memberId) },
   };
 }
 
@@ -89,10 +94,13 @@ export interface MessagingWorkerModuleDeps {
   /** Só `getNotificationEmail` (ligado em `main/worker.ts` à raiz de `professionals`). */
   professionals: Pick<ProfessionalLookup, "getNotificationEmail">;
   mailer: ProfessionalMailer;
+  audit: AuditModule;
 }
 
 export interface MessagingWorkerModule {
   notifyProfessional: NotifyProfessional;
+  /** Retenção de 24 meses (BR-MKT-45). */
+  purgeExpired: PurgeExpired;
   /** Regista `messaging.notify-professional` (aviso genérico por e-mail, ≤ 1 cada 30 min por conversa). */
   registerWorkers: () => Promise<void>;
 }
@@ -106,10 +114,18 @@ export function createMessagingWorkerModule(deps: MessagingWorkerModuleDeps): Me
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
   });
+  const purgeExpired = createPurgeExpired<Kysely<Database>>({
+    conversations: new KyselyConversationRepository(),
+    audit: deps.audit,
+    withTransaction: (fn) => withTransaction(deps.db, fn),
+    clock: deps.clock,
+  });
   return {
     notifyProfessional,
+    purgeExpired,
     registerWorkers: async () => {
       await registerNotifyProfessionalWorker(deps.boss, notifyProfessional);
+      await registerPurgeExpiredWorker(deps.boss, purgeExpired);
     },
   };
 }
