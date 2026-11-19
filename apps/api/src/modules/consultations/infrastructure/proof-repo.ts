@@ -89,6 +89,15 @@ export class KyselyProofRepository implements ProofRepository<Db> {
     return result.rows.map((r) => r.id);
   }
 
+  async purgeFilesBefore(trx: Db, before: Date, at: Date): Promise<string[]> {
+    const result = await sql<{ storage_key: string }>`
+      UPDATE payment_proofs p SET purged_at = ${at}
+      FROM bookings b
+      WHERE b.id = p.booking_id AND b.starts_at < ${before} AND p.purged_at IS NULL AND p.scan_status <> 'PENDING'
+      RETURNING p.storage_key`.execute(trx);
+    return result.rows.map((r) => r.storage_key);
+  }
+
   async markClean(trx: Db, proofId: string, storageKey: string, at: Date): Promise<void> {
     await sql`UPDATE payment_proofs SET scan_status = 'CLEAN', scanned_at = ${at}, storage_key = ${storageKey} WHERE id = ${proofId}`.execute(trx);
   }

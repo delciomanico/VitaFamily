@@ -49,6 +49,10 @@ async function memberPackage(
   const readConversations = sources.conversations;
   const conversations = readConversations ? await readable(() => readConversations(actor, familyId, memberId, context)) : undefined;
 
+  // MK3 (BR-MKT-64): as marcações do membro (sem ficheiros de comprovativos); negado ⇒ omitido.
+  const readBookings = sources.bookings;
+  const bookings = readBookings ? await readable(() => readBookings(actor, familyId, memberId, context)) : undefined;
+
   const resources = [
     ...(prescriptions ?? []).map((p) => ({ resourceType: "PRESCRIPTION" as const, resourceId: str(p, "id") })),
     ...(examinations ?? []).map((e) => ({ resourceType: "EXAMINATION" as const, resourceId: str(e, "id") })),
@@ -83,6 +87,7 @@ async function memberPackage(
     ...(consultationReports.length > 0 ? { consultationReports } : {}),
     ...(examOrders !== undefined && examOrders.length > 0 ? { examOrders } : {}),
     ...(conversations !== undefined && conversations.length > 0 ? { conversations } : {}),
+    ...(bookings !== undefined && bookings.length > 0 ? { bookings } : {}),
     ...(examinations !== undefined ? { examinations } : {}),
     documents: documentEntries,
   };

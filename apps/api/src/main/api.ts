@@ -700,6 +700,8 @@ export function main(): void {
       examOrders: async (actor, familyId, memberId) => (await clinicReports.reads.familyExamOrders(actor, familyId, memberId)).map((order) => ({ ...order })),
       // MK2 (BR-MKT-45): as conversas do titular/tutor com profissionais entram na exportação (porta opcional, sem acoplar módulos).
       conversations: async (actor, familyId, memberId) => messaging.reads.conversations(actor, familyId, memberId),
+      // MK3 (BR-MKT-64): as marcações do titular/tutor entram na exportação (porta opcional, sem acoplar módulos).
+      bookings: async (actor, familyId, memberId) => required(late.consultations, "consultations").reads.bookings(actor, familyId, memberId),
       documents: documents.reads.list,
       downloadDocument: documents.reads.download,
     },

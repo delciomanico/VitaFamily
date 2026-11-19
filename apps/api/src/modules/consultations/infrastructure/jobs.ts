@@ -49,6 +49,9 @@ export async function registerDailyWorker(boss: PgBoss, queue: string, cron: str
   });
 }
 
+export const PURGE_EXPIRED_QUEUE = "consultations.purge-expired";
+/** Diário às 03:55 UTC (depois de `messaging.purge-expired`, 03:50). */
+export const PURGE_EXPIRED_CRON = "55 3 * * *";
 export const NOTIFY_PROFESSIONAL_QUEUE = "consultations.notify-professional";
 export const RECONCILE_BOOKINGS_QUEUE = "consultations.reconcile-bookings";
 export const REQUEUE_PENDING_PROOFS_QUEUE = "consultations.requeue-pending-proofs";

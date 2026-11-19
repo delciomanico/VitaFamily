@@ -241,6 +241,11 @@ export interface ProofRepository<Trx> {
   markDecided(trx: Trx, proofId: string, change: { status: "CONFIRMED" | "REJECTED"; at: Date; reason: string | null }): Promise<void>;
   /** Comprovativos `PENDING` criados antes de `before` (job `requeue-pending-proofs`, OP-114 iii); mais antigos primeiro. */
   listPendingBefore(trx: Trx, before: Date, limit: number): Promise<string[]>;
+  /**
+   * Retenção (BR-MKT-64): marca `purged_at = at` nos comprovativos NÃO `PENDING` e ainda com ficheiro de marcações com `startsAt < before` e
+   * devolve as chaves dos objetos a apagar. Idempotente (só toca em `purged_at IS NULL`); os metadados ficam.
+   */
+  purgeFilesBefore(trx: Trx, before: Date, at: Date): Promise<string[]>;
   /** `REJECTED → DISPUTED` (uma vez por comprovativo). */
   markDisputed(trx: Trx, proofId: string, change: { at: Date; note: string | null }): Promise<void>;
   /** Decisão do admin: `CONFIRM_PAYMENT` ⇒ `CONFIRMED`; `UPHOLD_REJECTION` ⇒ `REJECTION_UPHELD`. */

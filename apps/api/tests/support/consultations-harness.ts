@@ -95,12 +95,15 @@ export interface ConsultationsHarness {
   mails: string[];
   /** Falha o envio do e-mail de aviso enquanto `true` (para o retry). */
   failMail: { value: boolean };
+  /** Fonte `bookings` da exportação do titular (BR-MKT-64), tal como ligada a `lifecycle` em `main/api.ts`. */
+  exportBookings: ReturnType<typeof createConsultationsModule>["reads"]["bookings"];
   stop(): Promise<void>;
 }
 
 /** Arranca PostgreSQL + app real com o módulo `consultations` ligado (rota da família e descoberta pública). */
 export async function startConsultationsHarness(options: { logStream?: LogSink } = {}): Promise<ConsultationsHarness> {
   let appointments: FamilyAppointmentWriterImpl<Kysely<Database>> | undefined;
+  let exportBookings: ConsultationsHarness["exportBookings"] | undefined;
   let jobsDeps: { db: Kysely<Database>; clock: FixedClock; storage: InMemoryStorage } | undefined;
   const alertCalls: ConsultationsHarness["alertCalls"] = [];
   const noticeCalls: ConsultationsHarness["noticeCalls"] = [];
@@ -175,6 +178,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         scanQueue: proofQueue,
       });
       late.stats = consultations.reviewStats;
+      exportBookings = consultations.reads.bookings;
       return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter];
     },
     options.logStream ? { logStream: options.logStream } : {},
@@ -182,6 +186,8 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
 
   if (!appointments) throw new Error("consultations não ligado");
   const writer = appointments;
+  if (!exportBookings) throw new Error("exportBookings não ligado");
+  const exportBookingsRead = exportBookings;
   const { pool, clock } = h;
   if (!jobsDeps) throw new Error("jobs não ligados");
   const jobs = createConsultationsJobs({ ...jobsDeps, scanner: { scan: (buffer) => Promise.resolve(buffer.includes(INFECTED_MARKER) ? "INFECTED" : "CLEAN") } });
@@ -342,6 +348,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
     maintenance,
     mails,
     failMail,
+    exportBookings: exportBookingsRead,
     async stop() {
       await h.stop();
     },

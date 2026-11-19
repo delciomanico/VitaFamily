@@ -56,6 +56,8 @@ export interface ExportSources {
   examOrders?: MemberRead<ApiObject[]>;
   /** MK2 (BR-MKT-45): conversas com profissionais do membro (SELF/TUTOR_OF); fonte opcional (sem importar `messaging`). */
   conversations?: MemberRead<ApiObject[]>;
+  /** MK3 (BR-MKT-64): marcações do membro (SELF/TUTOR_OF; metadados dos comprovativos, sem ficheiros; a sua avaliação); fonte opcional (sem importar `consultations`). */
+  bookings?: MemberRead<ApiObject[]>;
   /** Documentos de uma receita ou de um exame (a listagem exige o recurso). */
   documents: (actor: ReadActor, familyId: string, memberId: string, resourceType: "PRESCRIPTION" | "EXAMINATION", resourceId: string) => Promise<ApiObject[]>;
   downloadDocument: (

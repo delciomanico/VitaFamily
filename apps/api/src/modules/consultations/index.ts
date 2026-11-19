@@ -11,6 +11,8 @@ import { createGetBookingActFacts } from "./application/act-facts.js";
 import { createAdminDisputes } from "./application/admin-disputes.js";
 import { createNotifyProfessional } from "./application/notify-professional.js";
 import { createReconcileBookings, createRequeuePendingProofs } from "./application/reconcile.js";
+import { createExportBookings } from "./application/export.js";
+import { createPurgeExpiredProofs } from "./application/purge-expired.js";
 import { createFamilyBookings } from "./application/family-bookings.js";
 import { createFamilyProofs, createProfessionalProofs, createProofJobs } from "./application/proofs.js";
 import { createReviews } from "./application/reviews.js";
@@ -31,7 +33,7 @@ import type {
   SelfDealingGuard,
 } from "./application/ports.js";
 import { KyselyFileDeletionRepository } from "./infrastructure/file-deletion-repo.js";
-import { RECONCILE_BOOKINGS_QUEUE, REQUEUE_PENDING_PROOFS_QUEUE, registerDeleteFilesWorker, registerEvery5MinWorker, registerNotifyProfessionalWorker, registerScanProofWorker } from "./infrastructure/jobs.js";
+import { PURGE_EXPIRED_QUEUE, PURGE_EXPIRED_CRON, RECONCILE_BOOKINGS_QUEUE, REQUEUE_PENDING_PROOFS_QUEUE, registerDailyWorker, registerDeleteFilesWorker, registerEvery5MinWorker, registerNotifyProfessionalWorker, registerScanProofWorker } from "./infrastructure/jobs.js";
 import { KyselyProofRepository } from "./infrastructure/proof-repo.js";
 import { KyselyBookingRepository } from "./infrastructure/repo.js";
 import { KyselyReviewRepository } from "./infrastructure/review-repo.js";
@@ -82,6 +84,8 @@ export interface ConsultationsModule {
   getActFacts: ReturnType<typeof createGetBookingActFacts<Trx>>;
   /** Porta `ReviewStats` de `discovery` (BR-MKT-61): agregações `{professionalId, count, sum}`, sem textos nem ids de família. */
   reviewStats: ReturnType<typeof createReviews<Trx>>["stats"];
+  /** Fonte `bookings` da exportação do titular (BR-MKT-64): ligada a `lifecycle` em `main/api.ts`, sem `lifecycle` importar `consultations`. */
+  reads: { bookings: ReturnType<typeof createExportBookings<Trx>> };
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -124,6 +128,7 @@ export function createConsultationsModule(deps: ConsultationsModuleDeps): Consul
     adminRouter,
     getActFacts: createGetBookingActFacts({ bookings, clock: deps.clock }),
     reviewStats: reviews.stats,
+    reads: { bookings: createExportBookings(consultationsDeps) },
   };
 }
 
@@ -163,6 +168,7 @@ export interface ConsultationsMaintenanceDeps {
 export function createConsultationsMaintenance(deps: ConsultationsMaintenanceDeps) {
   const run = <T>(fn: (trx: Trx) => Promise<T>): Promise<T> => withTransaction(deps.db, fn);
   return {
+    purgeExpired: createPurgeExpiredProofs<Trx>({ withTransaction: run, clock: deps.clock, audit: deps.audit, proofs: new KyselyProofRepository(), fileDeletions: new KyselyFileDeletionRepository() }),
     reconcileBookings: createReconcileBookings<Trx>({ withTransaction: run, clock: deps.clock, audit: deps.audit, bookings: new KyselyBookingRepository(), agenda: deps.agenda, appointments: deps.appointments, alerts: deps.alerts }),
     requeuePendingProofs: createRequeuePendingProofs<Trx>({ withTransaction: run, clock: deps.clock, proofs: new KyselyProofRepository(), scanQueue: deps.scanQueue }),
     notifyProfessional: createNotifyProfessional({ contact: deps.contact, mailer: deps.mailer }),
@@ -187,6 +193,7 @@ export function createConsultationsWorkerModule(deps: ConsultationsWorkerModuleD
       await registerDeleteFilesWorker(deps.boss, () => jobs.deleteFiles());
       await registerEvery5MinWorker(deps.boss, RECONCILE_BOOKINGS_QUEUE, () => maintenance.reconcileBookings());
       await registerEvery5MinWorker(deps.boss, REQUEUE_PENDING_PROOFS_QUEUE, () => maintenance.requeuePendingProofs());
+      await registerDailyWorker(deps.boss, PURGE_EXPIRED_QUEUE, PURGE_EXPIRED_CRON, () => maintenance.purgeExpired());
       await registerNotifyProfessionalWorker(deps.boss, (job) => maintenance.notifyProfessional(job));
     },
   };
