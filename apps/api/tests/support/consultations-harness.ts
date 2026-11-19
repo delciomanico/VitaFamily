@@ -18,7 +18,7 @@ import { createUsersModule } from "../../src/modules/users/index.js";
 import type { FixedClock } from "../../src/platform/clock/index.js";
 import type { InMemoryStorage } from "../../src/platform/storage/index.js";
 import { withTransaction, type Database } from "../../src/platform/db/index.js";
-import { INFECTED_MARKER, SIGNING_KEYS, START, startProfessionalsHarness, type LogSink, type ProfessionalsHarness } from "./professionals-harness.js";
+import { ADMIN_USER_ID, INFECTED_MARKER, SIGNING_KEYS, START, startProfessionalsHarness, type LogSink, type ProfessionalsHarness } from "./professionals-harness.js";
 import { createRealProcessLinker } from "./process-linker.js";
 
 export { START };
@@ -64,6 +64,8 @@ export interface ConsultationsHarness {
   appointments: FamilyAppointmentWriterImpl<Kysely<Database>>;
   /** Utilizador `ACTIVE` com token (JWT) de vida longa. */
   user(name: string, options?: { email?: string; birth?: string }): Promise<UserFixture>;
+  /** Administrador da plataforma (`ADMIN_USER_ID`) com token; cria a linha em `users` se ainda não existir. */
+  admin(): Promise<UserFixture>;
   family(name?: string): Promise<string>;
   member(familyId: string, options?: MemberOptions): Promise<string>;
   /** Concessão de partilha por categoria: `owner` partilha com `grantee` (mesma família). */
@@ -158,7 +160,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         storage,
         scanQueue: proofQueue,
       });
-      return [discovery.router, consultations.familyRouter, consultations.professionalRouter];
+      return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter];
     },
     options.logStream ? { logStream: options.logStream } : {},
   );
@@ -192,6 +194,14 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         [id, email, name, options.birth ?? "1985-01-01"],
       );
       return { id, email, token: await mintToken(id) };
+    },
+    async admin() {
+      const email = "admin-mk3@exemplo.ao";
+      await pool.query(
+        "INSERT INTO users (id, email, password_hash, name, birth_date, timezone, status, terms_accepted_version, terms_accepted_at) VALUES ($1,$2,'x','Admin','1985-01-01','Africa/Luanda','ACTIVE','1',now()) ON CONFLICT (id) DO NOTHING",
+        [ADMIN_USER_ID, email],
+      );
+      return { id: ADMIN_USER_ID, email, token: await mintToken(ADMIN_USER_ID) };
     },
     async family(name = "Família") {
       const id = randomUUID();

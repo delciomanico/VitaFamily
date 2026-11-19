@@ -8,6 +8,7 @@ import type { Clock } from "../../platform/clock/index.js";
 import type { Storage } from "../../platform/storage/index.js";
 import type { AuditModule } from "../audit/index.js";
 import { createGetBookingActFacts } from "./application/act-facts.js";
+import { createAdminDisputes } from "./application/admin-disputes.js";
 import { createFamilyBookings } from "./application/family-bookings.js";
 import { createFamilyProofs, createProfessionalProofs, createProofJobs } from "./application/proofs.js";
 import { createProfessionalBookings } from "./application/professional-bookings.js";
@@ -27,6 +28,7 @@ import { registerDeleteFilesWorker, registerScanProofWorker } from "./infrastruc
 import { KyselyProofRepository } from "./infrastructure/proof-repo.js";
 import { KyselyBookingRepository } from "./infrastructure/repo.js";
 import { StorageProofFileStore } from "./infrastructure/storage-file-store.js";
+import { createAdminDisputesRouter } from "./interface/admin-router.js";
 import { createFamilyBookingsRouter } from "./interface/family-router.js";
 import { createProfessionalBookingsRouter } from "./interface/professional-router.js";
 import { createFamilyProofsRouter, createProfessionalProofsRouter } from "./interface/proofs-router.js";
@@ -58,6 +60,8 @@ export interface ConsultationsModuleDeps {
 export interface ConsultationsModule {
   /** `/families/{f}/members/{m}/bookings*` e `/marketplace/professionals/{id}/slots` (User autenticado). */
   familyRouter: Router;
+  /** `/admin/payment-disputes*` (S9) e, na S10, `/admin/review-reports*` (só `PLATFORM_ADMIN`). */
+  adminRouter: Router;
   /** `/professional-portal/bookings*` (token de `ProfessionalAccount`). */
   professionalRouter: Router;
   /** `ProcessFacts` de `originType=BOOKING` (ligado no adaptador composto de `main/api.ts`). */
@@ -88,9 +92,12 @@ export function createConsultationsModule(deps: ConsultationsModuleDeps): Consul
   const professionalRouter = Router();
   professionalRouter.use(createProfessionalBookingsRouter(createProfessionalBookings(consultationsDeps)));
   professionalRouter.use(createProfessionalProofsRouter(createProfessionalProofs(consultationsDeps)));
+  const adminRouter = Router();
+  adminRouter.use(createAdminDisputesRouter(createAdminDisputes(consultationsDeps)));
   return {
     familyRouter,
     professionalRouter,
+    adminRouter,
     getActFacts: createGetBookingActFacts({ bookings, clock: deps.clock }),
   };
 }

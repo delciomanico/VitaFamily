@@ -70,6 +70,16 @@ export function createFamilyProofsRouter(useCases: ReturnType<typeof createFamil
     }),
   );
 
+  router.post(
+    `${FAMILY_BASE}/:proofId/dispute`,
+    asyncHandler(async (req, res) => {
+      const { familyId, memberId, bookingId } = ids(req);
+      const note = optionalString(body(req).note);
+      const proof = await useCases.disputeProof(requireActor(), familyId, memberId, bookingId, requireParam(req, "proofId"), { ...(note !== undefined ? { note } : {}) }, buildRequestContext(req));
+      res.set("Cache-Control", "no-store").json(proof);
+    }),
+  );
+
   return router;
 }
 

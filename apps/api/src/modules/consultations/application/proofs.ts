@@ -8,9 +8,9 @@ import { ConflictError, DomainError, NotFoundError, RateLimitedError, Validation
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { AuditEvent } from "../../audit/index.js";
-import { checkProofUpload, nextPaymentStatus, PROOF_LIMITS, type PaymentEvent } from "../domain/payment.js";
+import { checkProofUpload, nextPaymentStatus, nextProofStatus, PROOF_LIMITS, type PaymentEvent } from "../domain/payment.js";
 import { detectFileKind, finalKey, MIME_BY_KIND, quarantineKey } from "../domain/file-type.js";
-import { TEXT_LIMITS, validateRequiredFreeText, type TextError } from "../domain/text.js";
+import { TEXT_LIMITS, validateOptionalFreeText, validateRequiredFreeText, type TextError } from "../domain/text.js";
 import type { ActorIdentity, BookingRecord, ConsultationsDeps, ProcessorFileDeps, ProfessionalActor, ProofRecord, RequestContext } from "./ports.js";
 import { isDownloadable, PROOF_EXTENSION, toProofView, type ProofView } from "./proof-views.js";
 import { SlidingWindowLimiter } from "./rate-limiter.js";
@@ -29,9 +29,11 @@ const notFound = (): NotFoundError => new NotFoundError({ detail: "Marcação ou
 export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
   const uploadLimiter = new SlidingWindowLimiter(deps.clock, 20, HOUR_MS);
   const downloadLimiter = new SlidingWindowLimiter(deps.clock, 60, 60_000);
+  const listLimiter = new SlidingWindowLimiter(deps.clock, 60, 60_000);
   setInterval(() => {
     uploadLimiter.prune();
     downloadLimiter.prune();
+    listLimiter.prune();
   }, 10 * 60_000).unref();
 
   async function authorize(trx: Trx, actor: ActorIdentity, familyId: string, memberId: string): Promise<void> {
@@ -47,6 +49,8 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
   return {
     /** Metadados dos comprovativos da marcação; não auditado. */
     async listProofs(actor: ActorIdentity, familyId: string, memberId: string, bookingId: string): Promise<ProofView[]> {
+      const wait = listLimiter.hit(actor.userId);
+      if (wait !== null) throw new RateLimitedError(wait);
       return deps.withTransaction(async (trx) => {
         await authorize(trx, actor, familyId, memberId);
         await loadBooking(trx, familyId, memberId, bookingId, false);
@@ -131,6 +135,42 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
       // Só depois do commit o antivírus tem sentido (sem job órfão se a transação falhasse).
       await deps.scanQueue.enqueueScan({ proofId });
       return view;
+    },
+
+    /** UC-MKT-37: disputa um comprovativo `REJECTED` (uma vez por comprovativo); `paymentStatus` passa a `DISPUTED`. */
+    async disputeProof(actor: ActorIdentity, familyId: string, memberId: string, bookingId: string, proofId: string, input: { note?: string | null }, context: RequestContext): Promise<ProofView> {
+      const note = validateOptionalFreeText(input.note, TEXT_LIMITS.note);
+      if (!note.ok) throw invalid("note", FIELD_ERRORS[note.error]);
+      return deps.withTransaction(async (trx) => {
+        await authorize(trx, actor, familyId, memberId);
+        const booking = await loadBooking(trx, familyId, memberId, bookingId, true);
+        const proof = await deps.proofs.findForBooking(trx, bookingId, proofId, true);
+        if (!proof) throw notFound();
+        // Só `REJECTED`; já disputado (`DISPUTED`/`REJECTION_UPHELD`) ou noutro estado ⇒ o mesmo erro.
+        const check = nextPaymentStatus(booking.status, booking.paymentStatus, "DISPUTE");
+        if (nextProofStatus(proof.status, "DISPUTE") === null || !check.ok) throw new DomainError("INVALID_STATE_TRANSITION", { detail: "Este comprovativo não pode ser disputado." });
+        const at = deps.clock.now();
+        await deps.proofs.markDisputed(trx, proofId, { at, note: note.text });
+        await deps.bookings.setPaymentStatus(trx, bookingId, check.to, at);
+        await deps.audit.record(trx, {
+          occurredAt: at,
+          actorType: "USER",
+          actorUserId: actor.userId,
+          action: "PAYMENT_PROOF_DISPUTE",
+          resourceType: "PaymentProof",
+          resourceId: proofId,
+          familyId,
+          subjectMemberId: memberId,
+          result: "SUCCESS",
+          requestId: context.requestId,
+          metadata: { bookingId },
+          ...auditContextFields(context),
+        });
+        // O aviso ao profissional (e-mail genérico) liga-se na fatia S11.
+        const updated = await deps.proofs.findForBooking(trx, bookingId, proofId, false);
+        if (!updated) throw notFound();
+        return toProofView(updated);
+      });
     },
 
     /** Descarrega um comprovativo próprio (auditado SEMPRE; só `CLEAN`, não purgado). */

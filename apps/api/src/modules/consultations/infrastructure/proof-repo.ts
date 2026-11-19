@@ -2,7 +2,7 @@
 // para a `application`, nunca para as vistas.
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
-import type { ProofRecord, ProofRepository } from "../application/ports.js";
+import type { DisputeListFilter, DisputeRow, ProofDisputeDecision, ProofRecord, ProofRepository } from "../application/ports.js";
 import "./schema.js";
 
 type Db = Kysely<Database>;
@@ -95,4 +95,45 @@ export class KyselyProofRepository implements ProofRepository<Db> {
   async markDecided(trx: Db, proofId: string, change: { status: "CONFIRMED" | "REJECTED"; at: Date; reason: string | null }): Promise<void> {
     await sql`UPDATE payment_proofs SET status = ${change.status}::payment_proof_status, decided_at = ${change.at}, decision_reason = ${change.reason} WHERE id = ${proofId}`.execute(trx);
   }
+
+  async markDisputed(trx: Db, proofId: string, change: { at: Date; note: string | null }): Promise<void> {
+    await sql`UPDATE payment_proofs SET status = 'DISPUTED', disputed_at = ${change.at}, dispute_note = ${change.note} WHERE id = ${proofId}`.execute(trx);
+  }
+
+  async markDisputeDecided(trx: Db, proofId: string, change: { decision: ProofDisputeDecision; at: Date; decidedBy: string }): Promise<void> {
+    const status = change.decision === "CONFIRM_PAYMENT" ? "CONFIRMED" : "REJECTION_UPHELD";
+    await sql`UPDATE payment_proofs SET status = ${status}::payment_proof_status, dispute_decision = ${change.decision}::payment_dispute_decision,
+      dispute_decided_at = ${change.at}, dispute_decided_by = ${change.decidedBy} WHERE id = ${proofId}`.execute(trx);
+  }
+
+  async listDisputes(trx: Db, filter: DisputeListFilter): Promise<DisputeRow[]> {
+    const decided = filter.status === "DECIDED";
+    const after = filter.after ? sql`AND (p.disputed_at, p.id) > (${filter.after.disputedAt}, ${filter.after.id})` : sql``;
+    // Fila por decidir: fora as disputas de marcações terminadas sem consulta (OP-114); só leitura, sem transição.
+    const queue = decided ? sql`p.dispute_decision IS NOT NULL` : sql`p.dispute_decision IS NULL AND b.status NOT IN ('CANCELLED', 'REJECTED', 'NO_SHOW')`;
+    const result = await sql<JoinedRow>`${JOINED} WHERE p.disputed_at IS NOT NULL AND ${queue} ${after}
+      ORDER BY p.disputed_at ASC, p.id ASC LIMIT ${filter.limit}`.execute(trx);
+    return result.rows.map(toDispute);
+  }
+
+  async findDispute(trx: Db, proofId: string): Promise<DisputeRow | null> {
+    const result = await sql<JoinedRow>`${JOINED} WHERE p.id = ${proofId} AND p.disputed_at IS NOT NULL`.execute(trx);
+    return result.rows[0] ? toDispute(result.rows[0]) : null;
+  }
+}
+
+type JoinedRow = Row & { b_id: string; b_professional_id: string; b_specialty_id: string; b_method: DisputeRow["booking"]["method"]; b_duration_minutes: number; b_starts_at: Date; b_price_kz: number; b_status: DisputeRow["booking"]["status"]; b_payment_status: DisputeRow["booking"]["paymentStatus"] };
+
+/** Só colunas de `bookings` que o admin pode ver: nunca `family_id`, `member_id`, `participant_label`. */
+const JOINED = sql`SELECT p.id, p.booking_id, p.uploaded_by_user_id, p.storage_key, p.content_type, p.size_bytes, p.scan_status, p.scanned_at, p.status, p.decided_at,
+  p.decision_reason, p.disputed_at, p.dispute_note, p.dispute_decision, p.dispute_decided_at, p.purged_at, p.created_at,
+  b.id AS b_id, b.professional_id AS b_professional_id, b.specialty_id AS b_specialty_id, b.method AS b_method, b.duration_minutes AS b_duration_minutes,
+  b.starts_at AS b_starts_at, b.price_kz AS b_price_kz, b.status AS b_status, b.payment_status AS b_payment_status
+  FROM payment_proofs p JOIN bookings b ON b.id = p.booking_id`;
+
+function toDispute(r: JoinedRow): DisputeRow {
+  return {
+    proof: toProof(r),
+    booking: { id: r.b_id, professionalId: r.b_professional_id, specialtyId: r.b_specialty_id, method: r.b_method, durationMinutes: r.b_duration_minutes, startsAt: r.b_starts_at, priceKz: r.b_price_kz, status: r.b_status, paymentStatus: r.b_payment_status },
+  };
 }

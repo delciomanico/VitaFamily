@@ -234,6 +234,26 @@ export interface ProofRepository<Trx> {
   /** Infetado conta como NÃO enviado (BR-MKT-57): a linha apaga-se (o trigger de BD enfileira o ficheiro na outbox). */
   deleteProof(trx: Trx, proofId: string): Promise<void>;
   markDecided(trx: Trx, proofId: string, change: { status: "CONFIRMED" | "REJECTED"; at: Date; reason: string | null }): Promise<void>;
+  /** `REJECTED → DISPUTED` (uma vez por comprovativo). */
+  markDisputed(trx: Trx, proofId: string, change: { at: Date; note: string | null }): Promise<void>;
+  /** Decisão do admin: `CONFIRM_PAYMENT` ⇒ `CONFIRMED`; `UPHOLD_REJECTION` ⇒ `REJECTION_UPHELD`. */
+  markDisputeDecided(trx: Trx, proofId: string, change: { decision: ProofDisputeDecision; at: Date; decidedBy: string }): Promise<void>;
+  /** Fila do admin: só comprovativos com disputa; `DISPUTED` (por decidir) ou `DECIDED`; `disputed_at ASC, id ASC`. */
+  listDisputes(trx: Trx, filter: DisputeListFilter): Promise<DisputeRow[]>;
+  /** Disputa (com a marcação) por id do comprovativo; `null` se nunca foi disputado. NÃO bloqueia. */
+  findDispute(trx: Trx, proofId: string): Promise<DisputeRow | null>;
+}
+
+export interface DisputeListFilter {
+  status: "DISPUTED" | "DECIDED";
+  limit: number;
+  after?: { disputedAt: Date; id: string };
+}
+
+/** Comprovativo disputado com os factos da marcação que o admin pode ver (BR-MKT-63): NUNCA família, membro nem rótulo. */
+export interface DisputeRow {
+  proof: ProofRecord;
+  booking: { id: string; professionalId: string; specialtyId: string; method: OfferMethod; durationMinutes: number; startsAt: Date; priceKz: number; status: BookingStatus; paymentStatus: BookingPaymentStatus };
 }
 
 export interface FileDeletionRepository<Trx> {
