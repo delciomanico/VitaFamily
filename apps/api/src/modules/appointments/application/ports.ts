@@ -257,6 +257,8 @@ export interface AppointmentsRepository<Trx> {
   insert(trx: Trx, record: NewAppointmentRecord): Promise<Appointment>;
   /** MK3 (BR-MKT-55): a consulta gerada pela marcação, se existir (UNIQUE parcial por `booking_id`). */
   findByBookingId(trx: Trx, bookingId: string): Promise<Appointment | null>;
+  /** MK3: `bookingId -> appointmentId` das consultas geradas (para `FamilyBooking.appointmentId`). */
+  findIdsByBookingIds(trx: Trx, bookingIds: string[]): Promise<Map<string, string>>;
   /** MK3: o estado da consulta gerada segue o da marcação; devolve quantas linhas mudou (0 se foi apagada). */
   setStatusByBooking(trx: Trx, bookingId: string, status: AppointmentStatus): Promise<number>;
   findById(trx: Trx, familyId: string, memberId: string, appointmentId: string): Promise<Appointment | null>;

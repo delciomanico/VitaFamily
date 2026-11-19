@@ -28,6 +28,9 @@ export type ErrorCode =
   | "LIMIT_EXCEEDED"
   | "PROFESSIONAL_LOCKED"
   | "CONVERSATION_CLOSED"
+  | "SLOT_UNAVAILABLE"
+  | "SELF_BOOKING_NOT_ALLOWED"
+  | "REVIEW_NOT_ALLOWED"
   | "STORAGE_QUOTA_EXCEEDED"
   | "INVITATION_EXPIRED"
   | "FILE_TOO_LARGE"
@@ -78,6 +81,9 @@ export const errorCatalog: Record<ErrorCode, CatalogEntry> = {
   LIMIT_EXCEEDED: { status: 409, title: "Limite atingido" },
   PROFESSIONAL_LOCKED: { status: 409, title: "Perfil bloqueado à edição" },
   CONVERSATION_CLOSED: { status: 409, title: "Conversa fechada" },
+  SLOT_UNAVAILABLE: { status: 409, title: "Horário indisponível" },
+  SELF_BOOKING_NOT_ALLOWED: { status: 409, title: "Não pode marcar consigo próprio" },
+  REVIEW_NOT_ALLOWED: { status: 409, title: "Avaliação não permitida" },
   STORAGE_QUOTA_EXCEEDED: { status: 409, title: "Quota de armazenamento excedida" },
   INVITATION_EXPIRED: { status: 410, title: "Convite expirado" },
   FILE_TOO_LARGE: { status: 413, title: "Ficheiro demasiado grande" },

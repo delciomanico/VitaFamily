@@ -113,6 +113,8 @@ export interface ConversationRepository<Trx> {
   /** Bloqueios consultivos transacionais, adquiridos por ordem de chave (sem deadlocks entre pedidos). */
   acquireLocks(trx: Trx, keys: readonly string[]): Promise<void>;
   findByPair(trx: Trx, familyId: string, memberId: string, professionalId: string): Promise<ConversationRecord | null>;
+  /** MK3 (OP-106): `professionalId -> conversationId` das conversas do par (membro, profissional), SEM bloquear linhas. */
+  findIdsByProfessionals(trx: Trx, familyId: string, memberId: string, professionalIds: string[]): Promise<Map<string, string>>;
   /** Procurada SEMPRE por (família, membro, id): outra família/membro ⇒ `null` (BR-MKT-48). `forUpdate` bloqueia a linha. */
   findForFamily(trx: Trx, familyId: string, memberId: string, conversationId: string, forUpdate: boolean): Promise<ConversationRecord | null>;
   insert(trx: Trx, record: ConversationRecord): Promise<void>;

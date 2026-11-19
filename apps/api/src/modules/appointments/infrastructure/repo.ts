@@ -162,6 +162,14 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
     return row ? toAppointment(row) : null;
   }
 
+  async findIdsByBookingIds(trx: Kysely<Database>, bookingIds: string[]): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    if (bookingIds.length === 0) return result;
+    const rows = await trx.selectFrom("appointments").select(["id", "booking_id"]).where("booking_id", "in", bookingIds).execute();
+    for (const row of rows) if (row.booking_id) result.set(row.booking_id, row.id);
+    return result;
+  }
+
   async setStatusByBooking(trx: Kysely<Database>, bookingId: string, status: AppointmentStatus): Promise<number> {
     const result = await trx
       .updateTable("appointments")

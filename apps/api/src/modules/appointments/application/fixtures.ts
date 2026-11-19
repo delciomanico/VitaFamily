@@ -251,6 +251,12 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
     return Promise.resolve([...this.byId.values()].find((a) => a.bookingId === bookingId) ?? null);
   }
 
+  findIdsByBookingIds(_trx: FakeTrx, bookingIds: string[]): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    for (const a of this.byId.values()) if (a.bookingId && bookingIds.includes(a.bookingId)) result.set(a.bookingId, a.id);
+    return Promise.resolve(result);
+  }
+
   setStatusByBooking(_trx: FakeTrx, bookingId: string, status: AppointmentStatus): Promise<number> {
     const found = [...this.byId.values()].find((a) => a.bookingId === bookingId);
     if (found) found.status = status;

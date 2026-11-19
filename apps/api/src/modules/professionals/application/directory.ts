@@ -163,6 +163,12 @@ export function createProfessionalDirectory<Trx>(deps: ProfessionalsDeps<Trx>) {
       return deps.directoryRepo.releaseSlot(trx, bookingId);
     },
 
+    /** MK3: nome/categoria das especialidades (catálogo público) para as vistas de marcação. */
+    async findSpecialties(ids: readonly string[]): Promise<{ id: string; name: string; category: SpecialtyCategory }[]> {
+      const unique = [...new Set(ids)].slice(0, MAX_FACTS);
+      return deps.withTransaction((trx) => deps.directoryRepo.findSpecialties(trx, unique));
+    },
+
     /** MK3 (BR-MKT-26/56): ÚNICA via por que `paymentInstructions` sai de `professionals` (só `consultations`, só em `CONFIRMED`/`COMPLETED`). */
     async readPaymentInstructions(professionalId: string): Promise<string | null> {
       return deps.withTransaction((trx) => deps.directoryRepo.findPaymentInstructions(trx, professionalId));

@@ -21,6 +21,8 @@ export interface FamilyAppointmentWriterImpl<Trx> {
   createFromBooking(trx: Trx, input: CreateFromBookingInput): Promise<{ appointmentId: string }>;
   /** O estado da consulta segue a marcação; sem consulta (ex.: apagada pela família) não faz nada. */
   syncFromBooking(trx: Trx, input: { bookingId: string; status: "COMPLETED" | "NO_SHOW" | "CANCELLED" }): Promise<void>;
+  /** `bookingId -> appointmentId` das consultas geradas (só leitura; para `FamilyBooking.appointmentId`). */
+  findAppointmentIds(trx: Trx, bookingIds: string[]): Promise<Map<string, string>>;
 }
 
 export function createFamilyAppointmentWriter<Trx>(deps: Pick<AppointmentsDeps<Trx>, "appointmentsRepo" | "clock">): FamilyAppointmentWriterImpl<Trx> {
@@ -43,6 +45,7 @@ export function createFamilyAppointmentWriter<Trx>(deps: Pick<AppointmentsDeps<T
       });
       return { appointmentId: appointment.id };
     },
+    findAppointmentIds: (trx, bookingIds) => deps.appointmentsRepo.findIdsByBookingIds(trx, bookingIds),
     async syncFromBooking(trx, input) {
       await deps.appointmentsRepo.setStatusByBooking(trx, input.bookingId, input.status);
     },

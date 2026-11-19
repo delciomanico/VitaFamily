@@ -85,6 +85,14 @@ export class KyselyConversationRepository implements ConversationRepository<Db> 
     }
   }
 
+  async findIdsByProfessionals(trx: Db, familyId: string, memberId: string, professionalIds: string[]): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    if (professionalIds.length === 0) return result;
+    const rows = await trx.selectFrom("conversations").select(["id", "professional_id"]).where("family_id", "=", familyId).where("member_id", "=", memberId).where("professional_id", "in", professionalIds).execute();
+    for (const row of rows) result.set(row.professional_id, row.id);
+    return result;
+  }
+
   async findByPair(trx: Db, familyId: string, memberId: string, professionalId: string): Promise<ConversationRecord | null> {
     const row = await trx
       .selectFrom("conversations")

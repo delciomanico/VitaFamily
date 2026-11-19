@@ -50,6 +50,8 @@ export interface MessagingModule {
   moderationUseCases: Moderation;
   /** Leitura para a exportação do titular (BR-MKT-45): fonte opcional de `lifecycle`, ligada em `main/api.ts` sem acoplar módulos. */
   reads: { conversations: (actor: ActorIdentity, familyId: string, memberId: string) => Promise<Record<string, unknown>[]> };
+  /** MK3 (OP-106, porta `ConversationLookup` de `consultations`): ligação derivada marcação↔conversa; só ids, sem autorização (quem chama já autorizou). */
+  lookup: { findConversationIds: (trx: Kysely<Database>, familyId: string, memberId: string, professionalIds: string[]) => Promise<Map<string, string>> };
 }
 
 export function createMessagingModule(deps: MessagingModuleDeps): MessagingModule {
@@ -84,6 +86,7 @@ export function createMessagingModule(deps: MessagingModuleDeps): MessagingModul
     adminRouter: createAdminModerationRouter(moderationUseCases),
     moderationUseCases,
     reads: { conversations: (actor, familyId, memberId) => exportConversations(familyUseCases, actor, familyId, memberId) },
+    lookup: { findConversationIds: (trx, familyId, memberId, professionalIds) => messagingDeps.conversations.findIdsByProfessionals(trx, familyId, memberId, professionalIds) },
   };
 }
 

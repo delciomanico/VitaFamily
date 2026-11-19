@@ -2,6 +2,7 @@
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
 import type { ApprovedFactsRow, BookingFactsRow, ConversationIdentityRow, DirectoryFilter, FactsFilter, SlotStatRecord, DirectoryRepository, MaintenanceRepository, PublicOffer, PublicProfessionalRow, SlotRecord } from "../application/ports.js";
+import type { SpecialtyCategory } from "../domain/requirements.js";
 import "./schema.js";
 
 export class KyselyDirectoryRepository implements DirectoryRepository<Kysely<Database>> {
@@ -156,6 +157,12 @@ export class KyselyDirectoryRepository implements DirectoryRepository<Kysely<Dat
   async releaseSlot(trx: Kysely<Database>, bookingId: string): Promise<boolean> {
     const result = await trx.updateTable("professional_slots").set({ booking_id: null }).where("booking_id", "=", bookingId).executeTakeFirst();
     return Number(result.numUpdatedRows) > 0;
+  }
+
+  async findSpecialties(trx: Kysely<Database>, ids: string[]): Promise<{ id: string; name: string; category: SpecialtyCategory }[]> {
+    if (ids.length === 0) return [];
+    const rows = await trx.selectFrom("specialties").select(["id", "name", "category"]).where("id", "in", ids).execute();
+    return rows.map((r) => ({ id: r.id, name: r.name, category: r.category }));
   }
 
   async findPaymentInstructions(trx: Kysely<Database>, professionalId: string): Promise<string | null> {

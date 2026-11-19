@@ -335,6 +335,8 @@ export interface DirectoryRepository<Trx> {
   reserveSlot(trx: Trx, input: { bookingId: string; slotId: string; offerId: string; minStart: Date }): Promise<boolean>;
   /** MK3: liberta o horário detido pela marcação; verdadeiro se havia algum. */
   releaseSlot(trx: Trx, bookingId: string): Promise<boolean>;
+  /** MK3: nome e categoria das especialidades pedidas (catálogo público; qualquer estado de `active`); ausentes omitidos. */
+  findSpecialties(trx: Trx, ids: string[]): Promise<{ id: string; name: string; category: SpecialtyCategory }[]>;
   /** MK3 (BR-MKT-26/56): única leitura de `payment_instructions` (qualquer estado de validação); `null` se vazio ou inexistente. */
   findPaymentInstructions(trx: Trx, professionalId: string): Promise<string | null>;
 }

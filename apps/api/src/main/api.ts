@@ -9,7 +9,7 @@ import type { Kysely } from "kysely";
 import PgBoss from "pg-boss";
 import { loadConfig } from "../platform/config/index.js";
 import { createLogger } from "../platform/logger/index.js";
-import { createDb, createPool, checkConnection, type Database } from "../platform/db/index.js";
+import { createDb, createPool, checkConnection, withTransaction, type Database } from "../platform/db/index.js";
 import { SystemClock } from "../platform/clock/index.js";
 import { MinioStorage } from "../platform/storage/index.js";
 import { createApp } from "../platform/http/index.js";
@@ -39,6 +39,7 @@ import { createRecommendationsModule } from "../modules/recommendations/index.js
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
 import { createDiscoveryModule } from "../modules/discovery/index.js";
 import { PgBossProfessionalNoticeQueue, createMessagingModule } from "../modules/messaging/index.js";
+import { createConsultationsModule, createSelfDealingGuard, type ConsultationsModule } from "../modules/consultations/index.js";
 import { PgBossCredentialScanQueue, ProfessionalSmtpMailer, createProfessionalsModule, parseProfessionalSigningKeys } from "../modules/professionals/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
@@ -110,7 +111,7 @@ export function main(): void {
   // da criação do User.
   // `families` precisa de `documents` (ficheiros) e `lifecycle` (pacote de dados), que dependem dele:
   // a porta `memberData` resolve-os tardiamente (atribuídos mais abaixo, antes de o servidor ouvir).
-  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule; clinicReports?: ClinicReportsModule; processes?: ProcessesModule; alerts?: AlertsModule } = {};
+  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule; clinicReports?: ClinicReportsModule; processes?: ProcessesModule; alerts?: AlertsModule; consultations?: ConsultationsModule } = {};
   const required = <T>(module: T | undefined, name: string): T => {
     if (!module) throw new Error(`${name} ainda não inicializado`);
     return module;
@@ -402,9 +403,15 @@ export function main(): void {
     clock,
     facts: {
       getActFacts: async (trx, familyId, refs) => {
-        const idsOf = (type: "APPOINTMENT" | "EXAMINATION") => refs.filter((ref) => ref.originType === type).map((ref) => ref.originId);
-        const [appointmentFacts, examinationFacts] = await Promise.all([appointments.getActFacts(trx, familyId, idsOf("APPOINTMENT")), examinations.getActFacts(trx, familyId, idsOf("EXAMINATION"))]);
+        const idsOf = (type: "APPOINTMENT" | "EXAMINATION" | "BOOKING") => refs.filter((ref) => ref.originType === type).map((ref) => ref.originId);
+        // MK3 (BR-MKT-55): a marcação é lida de `consultations` (ligação tardia: `consultations` precisa do `ProcessLinker` de `processes`).
+        const [appointmentFacts, examinationFacts, bookingFacts] = await Promise.all([
+          appointments.getActFacts(trx, familyId, idsOf("APPOINTMENT")),
+          examinations.getActFacts(trx, familyId, idsOf("EXAMINATION")),
+          required(late.consultations, "consultations").getActFacts(trx, familyId, idsOf("BOOKING")),
+        ]);
         return [
+          ...bookingFacts.map((entry) => ({ originType: "BOOKING" as const, originId: entry.originId, fact: entry.fact })),
           ...appointmentFacts.map((entry) => ({ originType: "APPOINTMENT" as const, originId: entry.originId, fact: entry.fact })),
           ...examinationFacts.map((entry) => ({ originType: "EXAMINATION" as const, originId: entry.originId, fact: entry.fact })),
         ];
@@ -416,6 +423,39 @@ export function main(): void {
     },
   });
   late.processes = processes;
+
+  // MK3 (ADR-037, modules.md nota 37): `consultations` só conhece PORTAS; aqui ligam-se a `access` (ação `BOOK_PROFESSIONALS`), à raiz
+  // `ProfessionalDirectory` (ocupação do horário, factos, instruções de pagamento, identidades), a `users`/`professionals` (guarda
+  // de automarcação, só e-mails normalizados), a `processes` (`ProcessLinker`), a `appointments` (consulta gerada) e a `messaging`.
+  const consultations = createConsultationsModule({
+    db,
+    audit,
+    clock,
+    access: {
+      assertCanBook: async (trx, input) => {
+        const context = await access.policy.can(trx, { userId: input.userId, platformAdmin: input.platformAdmin, familyId: input.familyId, action: "BOOK_PROFESSIONALS", subjectMemberId: input.memberId });
+        return { relation: context.relation === "TUTOR_OF" ? "TUTOR_OF" : "SELF" };
+      },
+    },
+    agenda: {
+      getBookingFacts: (offerId, slotId) => professionals.directory.getBookingFacts(offerId, slotId),
+      reserveSlot: (trx, input) => professionals.directory.reserveSlot(trx, input),
+      releaseSlot: (trx, bookingId) => professionals.directory.releaseSlot(trx, bookingId),
+      listApprovedOfferIds: async (professionalId) => (await professionals.directory.getApprovedProfile(professionalId))?.offers.map((offer) => offer.id) ?? null,
+      listBookableSlots: (professionalId, from, to) => professionals.directory.listBookableSlots(professionalId, from, to),
+      readPaymentInstructions: (professionalId) => professionals.directory.readPaymentInstructions(professionalId),
+      findIdentities: (ids) => professionals.directory.getConversationIdentities(ids),
+      findSpecialties: (ids) => professionals.directory.findSpecialties(ids),
+    },
+    selfDealing: createSelfDealingGuard({
+      professionalEmail: (professionalId) => professionals.directory.getNotificationEmail(professionalId),
+      userEmail: async (userId) => (await withTransaction(db, (trx) => users.byId(trx, userId)))?.email ?? null,
+    }),
+    processes: { open: (trx, input) => processes.linker.open(trx, input) },
+    appointments: appointments.familyAppointmentWriter,
+    conversations: messaging.lookup,
+  });
+  late.consultations = consultations;
 
   // D19/ADR-023 (M7c): `recommendations` lê a origem pelas APIs públicas de `appointments`/`examinations`
   // e dispara `recommendation.added` por uma porta ligada à API pública de `alerts`.
@@ -724,6 +764,7 @@ export function main(): void {
       router.use(messaging.router);
       router.use(messaging.professionalRouter);
       router.use(messaging.adminRouter);
+      router.use(consultations.familyRouter);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);
