@@ -6,8 +6,7 @@
 //   (c) SLOT_UNAVAILABLE, SELF_BOOKING_NOT_ALLOWED e REVIEW_NOT_ALLOWED: em errors.md, no catálogo do código e devolvidos pela API com o status contratado;
 //   (d) varrimento recursivo (por $ref) dos schemas de resposta do profissional, do admin e das avaliações públicas: nenhum com familyId/memberId/userId.
 // Nota: `completeBooking` e `markBookingNoShow` não têm corpo de pedido no contrato (nada a fechar nelas) e `uploadPaymentProof` é multipart.
-// As operações do contrato MK3 que `MK3_OPERATION_IDS` (tests/support/mk3-pending.ts) ainda não lista (uploadPaymentProof e as 4 do admin sobre
-// disputas) completam-se aqui e verificam-se contra o yaml (a); a lista tem de coincidir com as rotas MK3 do yaml.
+// `MK3_OPERATION_IDS` (tests/support/mk3-pending.ts) lista as 31 operações e tem de coincidir com as rotas MK3 do yaml (a).
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,9 +26,8 @@ const ID = "00000000-0000-4000-8000-00000000abcd";
 const yaml = readFileSync(openApiSpecPath(REPO_ROOT), "utf8");
 const errorsMd = readFileSync(join(REPO_ROOT, "docs/05-api/errors.md"), "utf8");
 
-/** As 31 operações MK3 (as 26 de `MK3_OPERATION_IDS` mais as 5 que lá faltam). */
-const EXTRA_MK3 = ["uploadPaymentProof", "adminListPaymentDisputes", "adminGetPaymentDispute", "adminDownloadPaymentProof", "adminDecidePaymentDispute"];
-const MK3_ALL = new Set<string>([...MK3_OPERATION_IDS, ...EXTRA_MK3]);
+/** As 31 operações MK3. */
+const MK3_ALL = MK3_OPERATION_IDS;
 
 const ALL_OPS = parseAllOps(yaml);
 /** Rota «de MK3» pelo caminho, independentemente da lista de ids (para a conferir). */
@@ -115,7 +113,7 @@ describe("MK3: conformidade OpenAPI das 31 operações de consultations (TC-MKT-
   });
 
   describe("(a) rota montada, protegida e exercitada com resposta validada", () => {
-    it("o inventário do yaml tem 31 operações MK3 e coincide com as de MK3_OPERATION_IDS completadas; MK3_PENDING_OPERATION_IDS está vazio", () => {
+    it("o inventário do yaml tem 31 operações MK3 e coincide com as de MK3_OPERATION_IDS; MK3_PENDING_OPERATION_IDS está vazio", () => {
       expect(MK3_PENDING_OPERATION_IDS.size).toBe(0);
       const byPath = ALL_OPS.filter((op) => isMk3Path(op.path)).map((op) => op.id).sort();
       expect(byPath).toHaveLength(31);

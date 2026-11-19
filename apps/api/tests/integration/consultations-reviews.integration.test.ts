@@ -2,7 +2,7 @@
 // Integração (PostgreSQL real, app real com validação de pedidos E respostas) das AVALIAÇÕES VERIFICADAS (UC-MKT-39..43; BR-MKT-59/60/61/62/63):
 // criar/editar/ler pela família (elegibilidade, janelas, validação, autorização, concorrência), lista pública (resumo, paginação, filtro,
 // privacidade, limite de 60/min), portal do profissional (resposta única, denúncia única, limite diário), fila e decisão do admin (ocultar
-// comentário sem apagar a nota, auditoria por abertura). Ranking v2 (cenário 11) omitido: o harness não liga `reviewStats` ao discovery.
+// comentário sem apagar a nota, auditoria por abertura). Ranking v2 com avaliações verificadas: cenário final deste ficheiro.
 // Ficheiros fake em memória; BD real.
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";

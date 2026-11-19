@@ -152,6 +152,45 @@ describe("integração: criação de marcações pela família (MK3 S6)", () => 
     expect(await count("SELECT count(*) AS n FROM audit_logs WHERE action = 'BOOKING_CREATE' AND subject_member_id = $1", [s.m])).toBe(1);
   });
 
+  it("replay com clientRequestId e slotId/offerId divergentes ⇒ 409 CONFLICT, sem reservar o novo horário; o pedido idêntico continua a dar 200", async () => {
+    const s = await scene();
+    const slot1 = await c.slot(s.offerA, at(3 * HOUR));
+    const slot2 = await c.slot(s.offerA, at(6 * HOUR));
+    const slot3 = await c.slot(s.offerB, at(9 * HOUR));
+    const clientRequestId = randomUUID();
+    const first = await book(s.u.token, s.fam, s.m, { offerId: s.offerA.id, slotId: slot1, participantLabel: "Ana", clientRequestId });
+    expect(first.status).toBe(201);
+
+    const otherSlot = await book(s.u.token, s.fam, s.m, { offerId: s.offerA.id, slotId: slot2, participantLabel: "Ana", clientRequestId });
+    expect(otherSlot.status).toBe(409);
+    expect(bodyOf(otherSlot).code).toBe("CONFLICT");
+    const otherOffer = await book(s.u.token, s.fam, s.m, { offerId: s.offerB.id, slotId: slot3, participantLabel: "Ana", clientRequestId });
+    expect(otherOffer.status).toBe(409);
+    expect(bodyOf(otherOffer).code).toBe("CONFLICT");
+    for (const slotId of [slot2, slot3]) expect((await c.h.pool.query("SELECT booking_id FROM professional_slots WHERE id = $1", [slotId])).rows[0]).toEqual({ booking_id: null });
+    expect(await count("SELECT count(*) AS n FROM bookings WHERE member_id = $1", [s.m])).toBe(1);
+
+    const same = await book(s.u.token, s.fam, s.m, { offerId: s.offerA.id, slotId: slot1, participantLabel: "Ana", clientRequestId });
+    expect(same.status).toBe(200);
+    expect(bodyOf(same).id).toBe(bodyOf(first).id);
+  });
+
+  it("BR-MKT-66 corrida: um tutor com vários membros não excede 10 criações/dia (limite por utilizador sob bloqueio): 9 feitas + 3 em paralelo ⇒ 1×201 e 2×429", async () => {
+    const s = await scene();
+    const d1 = await c.member(s.fam, { dependent: true, name: "Filho 1", guardians: [s.m] });
+    const d2 = await c.member(s.fam, { dependent: true, name: "Filho 2", guardians: [s.m] });
+    for (let k = 0; k < 9; k++) {
+      const slotId = await c.slot(s.offerA, at(3 * HOUR + k * HOUR));
+      expect((await book(s.u.token, s.fam, s.m, { offerId: s.offerA.id, slotId, participantLabel: "Ana" })).status, `criação ${String(k + 1)}`).toBe(201);
+    }
+    const slots = [await c.slot(s.offerA, at(20 * HOUR)), await c.slot(s.offerA, at(22 * HOUR)), await c.slot(s.offerA, at(24 * HOUR))];
+    const members = [s.m, d1, d2];
+    const results = await Promise.all(members.map((m, i) => book(s.u.token, s.fam, m, { offerId: s.offerA.id, slotId: slots[i], participantLabel: "Filho" })));
+    expect(results.map((r) => r.status).sort()).toEqual([201, 429, 429]);
+    for (const r of results.filter((x) => x.status === 429)) expect(bodyOf(r).code).toBe("RATE_LIMITED");
+    expect(await count("SELECT count(*) AS n FROM bookings WHERE created_by_user_id = $1", [s.u.id])).toBe(10);
+  });
+
   it("mesmo membro, mesmo horário, sem clientRequestId ⇒ 409 CONFLICT (sobreposição) e nada criado a mais", async () => {
     const s = await scene();
     const slotId = await c.slot(s.offerA, at(3 * HOUR));

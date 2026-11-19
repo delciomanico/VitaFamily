@@ -4,7 +4,7 @@ export const MK3_PENDING_OPERATION_IDS: ReadonlySet<string> = new Set([]);
 
 // Todas as operações do contrato MK3 (31): os testes de conformidade de MK1/MK2 deixam-nas de fora (têm os seus testes, S13).
 export const MK3_OPERATION_IDS: ReadonlySet<string> = new Set([
-  "adminDecideReviewReport",
+  "adminDecidePaymentDispute", "adminDecideReviewReport", "adminDownloadPaymentProof", "adminGetPaymentDispute", "adminListPaymentDisputes", "uploadPaymentProof",
   "adminGetReviewReport", "adminListReviewReports", "cancelFamilyBooking",
   "cancelProfessionalBooking", "completeBooking", "confirmBooking", "createBooking", "decidePaymentProof",
   "disputePaymentProof", "downloadFamilyPaymentProof", "downloadProfessionalPaymentProof", "getFamilyBooking",

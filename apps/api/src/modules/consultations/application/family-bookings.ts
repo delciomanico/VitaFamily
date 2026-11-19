@@ -1,7 +1,7 @@
 // Casos de uso do lado da FAMÍLIA (UC-MKT-26..29; BR-MKT-50..53, 55, 62, 65, 66). Todos (exceto a consulta de horários públicos) começam
 // por `BookingAccess.assertCanBook` (ação `BOOK_PROFESSIONALS`: só `SELF`/`TUTOR_OF`) e procuram a marcação por (família, membro, id):
 // qualquer outra ⇒ `NOT_FOUND` sem enumeração.
-// Concorrência: a criação serializa-se por bloqueio consultivo do membro (limites, sobreposição e `clientRequestId` sem corridas; a BD tem
+// Concorrência: a criação serializa-se por bloqueio consultivo do membro e do utilizador (10 criações/dia; limites, sobreposição e `clientRequestId` sem corridas; a BD tem
 // `EXCLUDE` e UNIQUE como rede) e a posse do horário decide-se por UM `UPDATE` condicional (`ProfessionalAgenda.reserveSlot`); a
 // marcação, a reserva e o `Process` partilham a transação (falha ⇒ nada existe). Ordem dos bloqueios: consultivo do membro < slot <
 // linha da marcação; o cancelamento bloqueia a marcação e depois liberta o horário (sem ciclo).
@@ -113,10 +113,15 @@ export function createFamilyBookings<Trx>(deps: ConsultationsDeps<Trx>) {
         const label = validateParticipantLabel(input.participantLabel);
         if (!label.ok) throw invalid("participantLabel", FIELD_ERRORS[label.error]);
 
-        await deps.bookings.acquireLocks(trx, [`booking-create:${memberId}`]);
+        // Também por utilizador: um tutor com vários membros não pode exceder as 10 criações/dia em concorrência (BR-MKT-66); `acquireLocks` ordena as chaves.
+        await deps.bookings.acquireLocks(trx, [`booking-create:${memberId}`, `booking-create-user:${actor.userId}`]);
         if (input.clientRequestId) {
           const replay = await deps.bookings.findByClientRequestId(trx, memberId, input.clientRequestId);
-          if (replay) return { created: false, record: replay };
+          if (replay) {
+            // Replay só com o mesmo pedido: `offerId`/`slotId` divergentes ⇒ 409 (a ligação ao horário perde-se ao cancelar; aí só se compara a oferta).
+            if (replay.offerId !== input.offerId || (replay.slotId !== null && replay.slotId !== input.slotId)) throw new ConflictError({ detail: "O identificador do pedido já foi usado com outros dados." });
+            return { created: false, record: replay };
+          }
         }
 
         // (2) factos lidos agora; profissional/oferta/horário inexistentes ou não APPROVED ⇒ 404 indistinguíveis.
