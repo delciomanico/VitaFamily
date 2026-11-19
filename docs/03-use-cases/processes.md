@@ -27,3 +27,8 @@
 
 ### UC-PRC-06 Backfill dos atos existentes (migração)
 - **Ator:** migração `0036` · **Regras:** BR-PRC-08 · **Resultado:** cada consulta e exame existente tem `Process` e `process_id`; idempotente; verificação de contagens (TC-PRC-14).
+
+### UC-PRC-07 Processo de uma marcação do mercado (MK3, ADR-037)
+- **Ator:** `consultations` (abre) e a família (lê) · **Regras:** BR-PRC-01/04/05 emendadas por BR-MKT-55.
+- **Fluxo:** ao criar a marcação (UC-MKT-27) `consultations` chama a **sua** `ProcessLinker.open` na mesma transação (`originType=BOOKING`, sem clínica) e implementa `ProcessFacts` para `BOOKING` (`ActFact.phase` + `hint` de pagamento/avaliação, `state-machines.md` Process 1b/2b); a leitura por UC-PRC-03/04 exige READ(APPOINTMENTS). Ao confirmar, a consulta gerada em `appointments` **partilha este `Process`** (sem `open` próprio). Apagar a consulta gerada não chama `discard`.
+- **Alternativos:** marcação desaparecida ⇒ processo omitido/`NOT_FOUND` (BR-PRC-09); `GET /clinic-portal/processes/{id}` de um `BOOKING` ⇒ `NOT_FOUND` (sem clínica).

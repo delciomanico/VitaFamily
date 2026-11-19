@@ -310,3 +310,5 @@
 ### UC-ADM-06 Gerir contas do portal de uma clínica (ADR-023)
 - **Ator:** Platform Admin · **FR:** ADM-03 · **BR:** BR-ADM-03/04
 - **Fluxo:** abre a clínica → lista as contas (`CLINIC_ADMIN` + `CLINIC_MANAGER`) → suspende (motivo) ou reativa uma conta; suspender revoga `clinic_sessions`. Não cria nem remove Gestores (BR-CLN-05); reposição da raiz por UC-ADM-03/`root-account`.
+
+> **Consultas geradas por uma marcação do mercado (MK3, BR-MKT-55):** ao confirmar uma marcação, `consultations` cria uma consulta `SCHEDULED` no membro (porta `FamilyAppointmentWriter`; `bookingId`, sem clínica, **partilha o `Process` da marcação**). Essa consulta é **gerida pela marcação**: UC-APT de alterar estado/data/profissional, cancelar e marcar concluída/falta ⇒ `CONFLICT` (a ação faz-se na marcação, UC-MKT-29/32/33); só `notes` se edita; apagar só com a marcação terminal e sem apagar o `Process`. Os lembretes (`alerts`) aplicam-se normalmente.

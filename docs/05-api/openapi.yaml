@@ -31,6 +31,7 @@ tags:
   - name: Reports
   - name: Marketplace
   - name: Messaging
+  - name: Bookings
   - name: Professional Portal
   - name: Admin
   - name: Operations
@@ -8909,7 +8910,7 @@ paths:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
         '409':
-          description: "PROFESSIONAL_LOCKED"
+          description: "PROFESSIONAL_LOCKED | CONFLICT (MK3, BR-MKT-53: o intervalo cobre horários com marcação REQUESTED/CONFIRMED futura; detail só com a contagem)"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -10180,6 +10181,1312 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /marketplace/professionals/{professionalId}/slots:
+    get:
+      tags: [Marketplace]
+      operationId: listBookableSlots
+      summary: "Horários livres de um profissional por oferta."
+      description: "Autorização: User autenticado (AUTH, sem família nem AccessPolicy: só dados públicos de profissionais APPROVED; authorization.md §11.1/§12.4). UC-MKT-26, FR-MKT-23, BR-MKT-53. Só horários futuros livres (sem marcação) de uma oferta ativa de um profissional APPROVED; from/to opcionais (omissão: agora até 14 dias; máximo 62 dias). Profissional inexistente ou não APPROVED, ou oferta que não é dele ou está inativa ⇒ NOT_FOUND. 60 pedidos/min por utilizador."
+      parameters:
+        - { name: professionalId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: offerId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: from, in: query, allowReserved: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, allowReserved: true, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/BookableSlot" } }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /marketplace/professionals/{professionalId}/reviews:
+    get:
+      tags: [Marketplace]
+      operationId: listProfessionalReviews
+      summary: "Avaliações verificadas de um profissional."
+      description: "Autorização: User autenticado (AUTH, sem família nem AccessPolicy: só dados públicos de profissionais APPROVED; authorization.md §11.1/§12.4). UC-MKT-40, FR-MKT-30, BR-MKT-59/60/63. Anónimas: nunca nome, rótulo, ids nem a data exata (só mês da consulta e dia da avaliação); comentário ocultado pela moderação sai como commentHidden=true sem texto; a resposta do profissional vem junto. Mais recentes primeiro, cursor. Profissional inexistente ou não APPROVED ⇒ NOT_FOUND. 60 pedidos/min por utilizador."
+      parameters:
+        - { name: professionalId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: specialtyId, in: query, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicReviewPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/bookings:
+    get:
+      tags: [Bookings]
+      operationId: listFamilyBookings
+      summary: "Listar as marcações do membro."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-28, FR-MKT-24, BR-MKT-50. Filtro status; mais recentes primeiro (startsAt desc), cursor. Não auditado."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/BookingStatus" } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyBookingPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Bookings]
+      operationId: createBooking
+      summary: "Marcar uma consulta com um profissional."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-27, FR-MKT-23/26/33, BR-MKT-51/53/55/62/65/66. Numa transação: SelfDealingGuard, factos da oferta/horário, antecedência (≥ 2 h, ≤ 8 semanas), sobreposição e limites, reserva atómica do horário, marcação REQUESTED com preço copiado, Process BOOKING, auditoria BOOKING_CREATE e aviso ao profissional. Sem motivo em texto livre. 201 = criada; 200 = clientRequestId repetido (devolve a existente). Profissional/oferta/horário inexistente ou profissional não APPROVED ⇒ NOT_FOUND; horário que não é da oferta ou antecedência inválida ⇒ VALIDATION_ERROR; horário ocupado ⇒ SLOT_UNAVAILABLE; sobreposição do membro ⇒ CONFLICT; 10 ativas ⇒ LIMIT_EXCEEDED; mesmo e-mail do profissional ⇒ SELF_BOOKING_NOT_ALLOWED; 10 criações/dia ⇒ RATE_LIMITED."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateBookingRequest" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyBooking" }
+        '200':
+          description: Marcação existente (clientRequestId repetido)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyBooking" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "SLOT_UNAVAILABLE | CONFLICT | LIMIT_EXCEEDED | SELF_BOOKING_NOT_ALLOWED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/bookings/{bookingId}:
+    get:
+      tags: [Bookings]
+      operationId: getFamilyBooking
+      summary: "Ver uma marcação."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-28, BR-MKT-50/52/56. Marcação procurada por (familyId, memberId, bookingId). meetingInfo só com CONFIRMED/COMPLETED; paymentInstructions só com CONFIRMED/COMPLETED e priceKz > 0 (BR-MKT-56); canCancel/canSendProof/canReview derivados. Não auditado."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/bookings/{bookingId}/cancel:
+    post:
+      tags: [Bookings]
+      operationId: cancelFamilyBooking
+      summary: "Cancelar uma marcação (família)."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-29, FR-MKT-24, BR-MKT-52/53/55/65. REQUESTED/CONFIRMED → CANCELLED (cancelledBy=FAMILY) só antes de startsAt; liberta o horário e atualiza a consulta gerada. note ≤ 300 (texto livre visto pelo profissional; fora de logs). Já terminal ou hora passada ⇒ INVALID_STATE_TRANSITION. Auditoria BOOKING_CANCEL."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CancelBookingRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyBooking" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/bookings/{bookingId}/payment-proofs:
+    get:
+      tags: [Bookings]
+      operationId: listFamilyPaymentProofs
+      summary: "Listar os comprovativos de uma marcação."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-35, BR-MKT-57. Metadados (nunca o ficheiro); mais recente primeiro. Não auditado."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/PaymentProof" } }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [Bookings]
+      operationId: uploadPaymentProof
+      summary: "Carregar o comprovativo de pagamento (multipart)."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-35, FR-MKT-28, BR-MKT-56/57/66. Ficheiro PDF/JPG/PNG ≤ 10 MB validado por conteúdo, em quarentena + antivírus (nasce PENDING). Só com a marcação CONFIRMED ou COMPLETED e preço > 0 (senão INVALID_STATE_TRANSITION); um comprovativo em curso por marcação e no máximo 5 (LIMIT_EXCEEDED/CONFLICT); 20 uploads/hora por utilizador. paymentStatus passa a PROOF_SUBMITTED; aviso genérico ao profissional; auditoria PAYMENT_PROOF_UPLOAD sem nome de ficheiro."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/PaymentProofUploadRequest" }
+      responses:
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentProof" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION | LIMIT_EXCEEDED | CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '413':
+          description: "FILE_TOO_LARGE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '415':
+          description: "FILE_TYPE_NOT_ALLOWED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/bookings/{bookingId}/payment-proofs/{proofId}/file:
+    get:
+      tags: [Bookings]
+      operationId: downloadFamilyPaymentProof
+      summary: "Descarregar um comprovativo próprio (stream mediado)."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-35, BR-MKT-57: só a família da marcação; Cache-Control: private, no-store; Content-Disposition: attachment; só com scan CLEAN (DOCUMENT_NOT_AVAILABLE caso contrário, incl. INFECTED e ficheiro já apagado pela retenção). Todo o download é auditado (PAYMENT_PROOF_DOWNLOAD)."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOCUMENT_NOT_AVAILABLE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/bookings/{bookingId}/payment-proofs/{proofId}/dispute:
+    post:
+      tags: [Bookings]
+      operationId: disputePaymentProof
+      summary: "Disputar um comprovativo rejeitado."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-37, FR-MKT-29, BR-MKT-58. REJECTED → DISPUTED (uma vez por comprovativo; paymentStatus=DISPUTED); entra na fila do admin, que verá só o comprovativo e a marcação. note ≤ 300. Comprovativo que não está REJECTED ou já disputado ⇒ INVALID_STATE_TRANSITION. Auditoria PAYMENT_PROOF_DISPUTE."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DisputePaymentProofRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentProof" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/bookings/{bookingId}/review:
+    get:
+      tags: [Bookings]
+      operationId: getFamilyBookingReview
+      summary: "Ver a avaliação da marcação."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-39, BR-MKT-59. Devolve a avaliação própria (com editableUntil) ou NOT_FOUND se ainda não existe. Não auditado."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyReview" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    put:
+      tags: [Bookings]
+      operationId: putFamilyBookingReview
+      summary: "Avaliar o profissional (criar ou editar)."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-39, FR-MKT-30/33, BR-MKT-59/62/66. Só com a marcação COMPLETED e pagamento CONFIRMED ou NOT_REQUIRED, até 30 dias após completedAt (REVIEW_NOT_ALLOWED caso contrário; NO_SHOW/CANCELLED/REJECTED/REQUESTED/CONFIRMED nunca). 201 = criada; 200 = editada (só até 7 dias após a criação, senão REVIEW_NOT_ALLOWED). rating 1-5 e comment ≤ 500 opcional (texto simples; aviso fixo na UI: não escreva dados de saúde). Anónima: sem nome, rótulo, ids nem data exata. Mesmo e-mail do profissional ⇒ SELF_BOOKING_NOT_ALLOWED. Auditoria REVIEW_CREATE/REVIEW_UPDATE sem texto; 20 avaliações/dia por utilizador."
+      parameters:
+        - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewInput" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyReview" }
+        '200':
+          description: Editada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FamilyReview" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "REVIEW_NOT_ALLOWED | SELF_BOOKING_NOT_ALLOWED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '423':
+          description: "MEMBER_BLOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalBookings
+      summary: "Listar as marcações do profissional."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-30, FR-MKT-25, BR-MKT-50/63. Leitura em todos os estados de validação. Filtros status e from/to (startsAt; omissão: REQUESTED e CONFIRMED futuras); ordem startsAt asc. NUNCA devolve ids de família, membro ou utilizador: só o participantLabel (BR-MKT-63)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/BookingStatus" } }
+        - { name: from, in: query, allowReserved: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, allowReserved: true, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalBookingPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}:
+    get:
+      tags: [Professional Portal]
+      operationId: getProfessionalBooking
+      summary: "Ver uma marcação."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-30, BR-MKT-63. Leitura em todos os estados de validação; inclui o comprovativo em curso (resumo)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}/confirm:
+    post:
+      tags: [Professional Portal]
+      operationId: confirmBooking
+      summary: "Confirmar um pedido de marcação."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-31, FR-MKT-25/26, BR-MKT-52/55/65. REQUESTED → CONFIRMED; meetingInfo ≤ 300 obrigatório em VIDEO/PHONE (ligação externa ou número a ligar). Na mesma transação cria a consulta no membro e o alerta BOOKING_UPDATED. Só APPROVED (PROFESSIONAL_LOCKED); estado que já mudou ⇒ INVALID_STATE_TRANSITION. Auditoria PROFESSIONAL_BOOKING_CONFIRM sem texto."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmBookingRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalBooking" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}/reject:
+    post:
+      tags: [Professional Portal]
+      operationId: rejectBooking
+      summary: "Recusar um pedido de marcação."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-31, BR-MKT-52/53/65. REQUESTED → REJECTED com reason ≤ 300 obrigatório (visível à família; fora de logs); liberta o horário. Só APPROVED (PROFESSIONAL_LOCKED). Auditoria PROFESSIONAL_BOOKING_REJECT sem o motivo."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RejectBookingRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalBooking" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}/cancel:
+    post:
+      tags: [Professional Portal]
+      operationId: cancelProfessionalBooking
+      summary: "Cancelar uma marcação (profissional)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-32, BR-MKT-52/53/55/65. REQUESTED/CONFIRMED → CANCELLED (cancelledBy=PROFESSIONAL) só antes de startsAt, com reason ≤ 300 obrigatório; liberta o horário e atualiza a consulta gerada. Só APPROVED (PROFESSIONAL_LOCKED). Auditoria PROFESSIONAL_BOOKING_CANCEL sem o motivo."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RejectBookingRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalBooking" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}/complete:
+    post:
+      tags: [Professional Portal]
+      operationId: completeBooking
+      summary: "Marcar a consulta como concluída."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-33, FR-MKT-25, BR-MKT-52/55/59. CONFIRMED → COMPLETED só com agora ≥ startsAt (senão INVALID_STATE_TRANSITION); grava completedAt; atualiza a consulta gerada; com pagamento satisfeito abre a janela de avaliação de 30 dias. Terminal (sem correção, OP-108). Só APPROVED. Auditoria PROFESSIONAL_BOOKING_COMPLETE."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}/no-show:
+    post:
+      tags: [Professional Portal]
+      operationId: markBookingNoShow
+      summary: "Marcar falta da família."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-33, BR-MKT-52/55. CONFIRMED → NO_SHOW só com agora ≥ startsAt; atualiza a consulta gerada; terminal (sem correção, OP-108). Só APPROVED. Auditoria PROFESSIONAL_BOOKING_NO_SHOW."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalBooking" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}/payment-proofs/{proofId}/file:
+    get:
+      tags: [Professional Portal]
+      operationId: downloadProfessionalPaymentProof
+      summary: "Descarregar um comprovativo da própria marcação (stream mediado)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-36, BR-MKT-57: só o profissional da marcação (e o admin, só se disputado, pela rota /admin); Cache-Control: private, no-store; Content-Disposition: attachment; só com scan CLEAN (DOCUMENT_NOT_AVAILABLE caso contrário). Leitura em todos os estados de validação. Todo o download é auditado (PROFESSIONAL_PAYMENT_PROOF_DOWNLOAD)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOCUMENT_NOT_AVAILABLE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/bookings/{bookingId}/payment-proofs/{proofId}/decision:
+    post:
+      tags: [Professional Portal]
+      operationId: decidePaymentProof
+      summary: "Confirmar ou rejeitar um comprovativo."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-36, FR-MKT-29, BR-MKT-57/58/65. CONFIRM (paymentStatus=CONFIRMED) ou REJECT (reason ≤ 300 obrigatório; paymentStatus=REJECTED) sobre um comprovativo SUBMITTED e CLEAN; estado que já mudou ⇒ INVALID_STATE_TRANSITION; ainda em antivírus ou infetado ⇒ DOCUMENT_NOT_AVAILABLE. Só APPROVED (PROFESSIONAL_LOCKED). Alerta PAYMENT_UPDATED à família; auditoria PROFESSIONAL_PAYMENT_PROOF_DECIDE (metadata.decision; sem o motivo)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: bookingId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProofDecisionRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaymentProof" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | INVALID_STATE_TRANSITION | DOCUMENT_NOT_AVAILABLE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/reviews:
+    get:
+      tags: [Professional Portal]
+      operationId: listProfessionalReviewsOwn
+      summary: "Listar as avaliações recebidas."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-41, FR-MKT-31, BR-MKT-59/60. Leitura em todos os estados de validação; mais recentes primeiro; filtro opcional unanswered=true. Anónimas (sem nome, rótulo, ids nem data exata); um comentário ocultado pela moderação sai como commentHidden=true sem texto."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: unanswered, in: query, schema: { type: boolean } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalReviewPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/reviews/{reviewId}/reply:
+    post:
+      tags: [Professional Portal]
+      operationId: replyToReview
+      summary: "Responder a uma avaliação (uma vez)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-41, BR-MKT-60. text 1-500, texto simples; uma resposta por avaliação, sem editar nem apagar (já respondida ⇒ CONFLICT). Só APPROVED (PROFESSIONAL_LOCKED). Auditoria PROFESSIONAL_REVIEW_REPLY sem o texto."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: reviewId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewReplyRequest" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProfessionalReview" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED | CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /professional-portal/reviews/{reviewId}/reports:
+    post:
+      tags: [Professional Portal]
+      operationId: reportReview
+      summary: "Denunciar uma avaliação."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-42, FR-MKT-31, BR-MKT-60/66. reason ABUSE, PERSONAL_DATA, OFF_TOPIC ou OTHER e note ≤ 300 opcional. Uma denúncia por avaliação, para sempre (repetir ⇒ 200 com a existente); a avaliação continua visível até decisão do admin. Só APPROVED (PROFESSIONAL_LOCKED); 10 denúncias/dia. Auditoria PROFESSIONAL_REVIEW_REPORT_CREATE (metadata.reason)."
+      security:
+        - professionalBearerAuth: []
+      parameters:
+        - { name: reviewId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewReportRequest" }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewReport" }
+        '200':
+          description: Já existia
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewReport" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "PROFESSIONAL_LOCKED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/payment-disputes:
+    get:
+      tags: [Admin]
+      operationId: adminListPaymentDisputes
+      summary: "Fila de disputas de comprovativos."
+      description: "Autorização: PLATFORM_ADMIN (authorization.md §12.3); User não-admin ⇒ FORBIDDEN; token de profissional ⇒ UNAUTHENTICATED. UC-MKT-38, BR-MKT-58/63: o admin vê só o comprovativo e a marcação das disputas; nunca família, membro, rótulo nem conversas. Filtro status (omissão DISPUTED), mais antigas primeiro, cursor. A lista não devolve ficheiros nem textos livres (só profissional pelo nome público, especialidade, hora, preço e datas)."
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [DISPUTED, DECIDED] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminPaymentDisputePage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/payment-disputes/{proofId}:
+    get:
+      tags: [Admin]
+      operationId: adminGetPaymentDispute
+      summary: "Detalhe de uma disputa (marcação + metadados do comprovativo)."
+      description: "Autorização: PLATFORM_ADMIN (authorization.md §12.3); User não-admin ⇒ FORBIDDEN; token de profissional ⇒ UNAUTHENTICATED. UC-MKT-38, BR-MKT-58/63. Devolve a marcação (profissional pelo nome público, especialidade, método, hora, preço, estados), o motivo do profissional e a nota da família; o ficheiro descarrega-se pela rota /file. Cada abertura é AUDITADA (ADMIN_PAYMENT_DISPUTE_VIEW, sem textos). Só comprovativos que foram disputados; outros ou inexistente ⇒ NOT_FOUND."
+      parameters:
+        - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminPaymentDisputeDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/payment-disputes/{proofId}/file:
+    get:
+      tags: [Admin]
+      operationId: adminDownloadPaymentProof
+      summary: "Descarregar o comprovativo de uma disputa (stream mediado)."
+      description: "Autorização: PLATFORM_ADMIN (authorization.md §12.3); User não-admin ⇒ FORBIDDEN; token de profissional ⇒ UNAUTHENTICATED. UC-MKT-38, BR-MKT-57/58: só de comprovativos disputados (DISPUTED ou já decididos); Cache-Control: private, no-store; Content-Disposition: attachment; só com scan CLEAN. Todo o download é AUDITADO (ADMIN_PAYMENT_PROOF_DOWNLOAD)."
+      parameters:
+        - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "DOCUMENT_NOT_AVAILABLE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/payment-disputes/{proofId}/decisions:
+    post:
+      tags: [Admin]
+      operationId: adminDecidePaymentDispute
+      summary: "Decidir uma disputa de comprovativo."
+      description: "Autorização: PLATFORM_ADMIN (authorization.md §12.3); User não-admin ⇒ FORBIDDEN; token de profissional ⇒ UNAUTHENTICATED. UC-MKT-38, FR-MKT-29, BR-MKT-58. CONFIRM_PAYMENT (comprovativo e paymentStatus CONFIRMED) ou UPHOLD_REJECTION (REJECTION_UPHELD; paymentStatus REJECTED). Transação com bloqueio do comprovativo; já decidida ⇒ INVALID_STATE_TRANSITION. O admin não valida dinheiro nem altera a marcação, o preço ou o ranking. Alerta PAYMENT_UPDATED à família e e-mail ao profissional; auditoria ADMIN_PAYMENT_DISPUTE_DECIDE (metadata.decision)."
+      parameters:
+        - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminPaymentDisputeDecisionRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminPaymentDisputeDetail" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/review-reports:
+    get:
+      tags: [Admin]
+      operationId: adminListReviewReports
+      summary: "Fila de denúncias de avaliações."
+      description: "Autorização: PLATFORM_ADMIN (authorization.md §12.3); User não-admin ⇒ FORBIDDEN; token de profissional ⇒ UNAUTHENTICATED. UC-MKT-43, BR-MKT-60/63. Filtro status (omissão OPEN), mais antigas primeiro, cursor. A lista não devolve o comentário (só motivo, profissional pelo nome público, nota e datas)."
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [OPEN, DECIDED] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminReviewReportPage" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/review-reports/{reportId}:
+    get:
+      tags: [Admin]
+      operationId: adminGetReviewReport
+      summary: "Detalhe de uma denúncia de avaliação."
+      description: "Autorização: PLATFORM_ADMIN (authorization.md §12.3); User não-admin ⇒ FORBIDDEN; token de profissional ⇒ UNAUTHENTICATED. UC-MKT-43, BR-MKT-60/63. Só a avaliação denunciada (nota, comentário, resposta, mês, especialidade, método), o profissional (nome público) e o motivo/nota; nunca família, membro, marcação, rótulo nem outras avaliações. Cada abertura é AUDITADA (ADMIN_REVIEW_REPORT_VIEW, sem textos)."
+      parameters:
+        - { name: reportId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminReviewReportDetail" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /admin/review-reports/{reportId}/decisions:
+    post:
+      tags: [Admin]
+      operationId: adminDecideReviewReport
+      summary: "Decidir uma denúncia de avaliação."
+      description: "Autorização: PLATFORM_ADMIN (authorization.md §12.3); User não-admin ⇒ FORBIDDEN; token de profissional ⇒ UNAUTHENTICATED. UC-MKT-43, FR-MKT-31, BR-MKT-60. DISMISS (arquiva) ou HIDE_COMMENT (o comentário deixa de ser devolvido por qualquer rota; a nota continua a contar no ranking; o comentário não se apaga até à retenção). Transação com bloqueio da denúncia; já decidida ⇒ INVALID_STATE_TRANSITION. Auditoria ADMIN_REVIEW_REPORT_DECIDE (metadata.decision)."
+      parameters:
+        - { name: reportId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminReviewReportDecisionRequest" }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminReviewReportDetail" }
+        '400':
+          description: "MALFORMED_REQUEST"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "INVALID_STATE_TRANSITION"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
 components:
   securitySchemes:
     bearerAuth:
@@ -11089,6 +12396,11 @@ components:
         professionalName:
           type: string
           nullable: true
+        bookingId:
+          type: string
+          format: uuid
+          nullable: true
+          description: "MK3 (BR-MKT-55): marcação do mercado que gerou esta consulta (só leitura). Com bookingId a consulta é gerida pela marcação: as rotas genéricas que mudam estado, data ou profissional devolvem CONFLICT (só notes se edita)."
         clinicId:
           type: string
           format: uuid
@@ -11897,15 +13209,15 @@ components:
       description: "ROUTINE: episódio de cuidado aberto por um ato (consulta/exame). O valor AUTHORIZED do enum da BD é inerte (arquivo do marco B, ADR-037) e nunca é devolvido. Conjunto aberto: os clientes tratam valores desconhecidos como genéricos."
     ProcessOriginType:
       type: string
-      enum: [APPOINTMENT, EXAMINATION]
-      description: "Ato que abriu o processo. O valor AUTHORIZATION do enum da BD é inerte (ADR-037) e nunca é devolvido. Conjunto aberto: valores novos em marcos seguintes (ex.: BOOKING no MK3)."
+      enum: [APPOINTMENT, EXAMINATION, BOOKING]
+      description: "Ato que abriu o processo. BOOKING (MK3, BR-MKT-55): marcação de um profissional do mercado (origin.id = id da marcação; a consulta gerada ao confirmar partilha este processo). O valor AUTHORIZATION do enum da BD é inerte (ADR-037) e nunca é devolvido. Conjunto aberto: os clientes tratam valores desconhecidos como genéricos."
     ProcessNextStepCode:
       type: string
-      enum: [AWAIT_CLINIC_RESPONSE, ATTEND, BEING_ATTENDED, RESCHEDULE, NOTHING_PENDING]
-      description: "Frase estruturada 'o que falta' (a UI traduz, lib/labels.ts). Conjunto aberto: os clientes tratam códigos desconhecidos como NOTHING_PENDING/genérico."
+      enum: [AWAIT_CLINIC_RESPONSE, ATTEND, BEING_ATTENDED, RESCHEDULE, NOTHING_PENDING, AWAIT_PROFESSIONAL_RESPONSE, SEND_PAYMENT_PROOF, AWAIT_PAYMENT_CONFIRMATION, AWAIT_PAYMENT_DISPUTE_DECISION, LEAVE_REVIEW]
+      description: "Frase estruturada 'o que falta' (a UI traduz, lib/labels.ts). Os cinco últimos valores são de marcações do mercado (MK3, state-machines.md Process 2b). Conjunto aberto: os clientes tratam códigos desconhecidos como NOTHING_PENDING/genérico."
     ProcessNextStepActor:
       type: string
-      enum: [FAMILY, CLINIC, NONE]
+      enum: [FAMILY, CLINIC, NONE, PROFESSIONAL, PLATFORM]
       description: "De quem falta. Clientes toleram valores desconhecidos."
     ProcessNextStep:
       type: object
@@ -11931,7 +13243,7 @@ components:
           required: [type, id]
           properties:
             type: { $ref: "#/components/schemas/ProcessOriginType" }
-            id: { type: string, format: uuid, description: "Id da consulta/exame; abre GET .../appointments/{id} ou .../examinations/{id}." }
+            id: { type: string, format: uuid, description: "Id da consulta/exame; abre GET .../appointments/{id} ou .../examinations/{id}. Em origin.type=BOOKING é o id da marcação (abre GET .../bookings/{id})." }
         scheduledAt: { type: string, format: date-time, nullable: true, description: "Quando o ato está/esteve marcado (facto do ato); nulo se o ato não tem hora." }
         openedAt: { type: string, format: date-time }
     ProcessPage:
@@ -13070,8 +14382,8 @@ components:
           format: uuid
         type:
           type: string
-          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED, APPOINTMENT_CONFIRM_REQUEST, FOLLOWUP_REMINDER, EXAM_ORDER_ADDED, MESSAGE_RECEIVED, AUTHORIZATION_APPROVED, AUTHORIZATION_NOT_APPROVED, AUTHORIZATION_INFO_REQUESTED, AUTHORIZATION_EXPIRING, AUTHORIZATION_WITHDRAWN]
-          description: "MESSAGE_RECEIVED (MK2, BR-MKT-41): nova mensagem de um profissional (sourceType=CONVERSATION, sourceId = conversa); um alerta por conversa até a família a ler; texto externo genérico. Os cinco AUTHORIZATION_* são **legado inerte** (arquivo do marco B, ADR-037): já não são gerados; mantêm-se no enum só para a leitura de alertas históricos (existem no enum do Postgres e o código ainda os tipa/traduz em GET /alerts). Os clientes tratam-nos como tipos desconhecidos/genéricos e não os criam nem os configuram."
+          enum: [MEDICATION_DUE, APPOINTMENT_REMINDER, EXAM_REMINDER, APPOINTMENT_OUTCOME_REQUEST, APPOINTMENT_CONFIRMED, APPOINTMENT_REJECTED, APPOINTMENT_CANCELLED, EXAM_CANCELLED, EXAM_RESULTS_AVAILABLE, RECOMMENDATION_ADDED, APPOINTMENT_CONFIRM_REQUEST, FOLLOWUP_REMINDER, EXAM_ORDER_ADDED, MESSAGE_RECEIVED, BOOKING_UPDATED, PAYMENT_UPDATED, AUTHORIZATION_APPROVED, AUTHORIZATION_NOT_APPROVED, AUTHORIZATION_INFO_REQUESTED, AUTHORIZATION_EXPIRING, AUTHORIZATION_WITHDRAWN]
+          description: "BOOKING_UPDATED / PAYMENT_UPDATED (MK3, BR-MKT-65): o profissional confirmou, recusou ou cancelou a marcação (ou o sistema a cancelou) / o comprovativo foi confirmado, rejeitado ou decidido em disputa (sourceType=BOOKING, sourceId = marcação); texto externo genérico, sem nome, valor nem motivo. MESSAGE_RECEIVED (MK2, BR-MKT-41): nova mensagem de um profissional (sourceType=CONVERSATION, sourceId = conversa); um alerta por conversa até a família a ler; texto externo genérico. Os cinco AUTHORIZATION_* são **legado inerte** (arquivo do marco B, ADR-037): já não são gerados; mantêm-se no enum só para a leitura de alertas históricos (existem no enum do Postgres e o código ainda os tipa/traduz em GET /alerts). Os clientes tratam-nos como tipos desconhecidos/genéricos e não os criam nem os configuram."
         familyId:
           type: string
           format: uuid
@@ -13084,7 +14396,7 @@ components:
           type: string
         sourceType:
           type: string
-          enum: [DOSE, APPOINTMENT, EXAMINATION, RECOMMENDATION, CONVERSATION, PROCESS]
+          enum: [DOSE, APPOINTMENT, EXAMINATION, RECOMMENDATION, CONVERSATION, PROCESS, BOOKING]
         sourceId:
           type: string
           format: uuid
@@ -13547,9 +14859,11 @@ components:
         reason: { type: string, nullable: true, maxLength: 200 }
     ProfessionalSlot:
       type: object
-      required: [id, offerId, startsAt, endsAt]
-      description: "Horário gerado (BR-MKT-25). Ocupação por marcações só a partir de MK3."
+      required: [id, offerId, startsAt, endsAt, booked]
+      description: "Horário gerado (BR-MKT-25). MK3 (BR-MKT-53): booked indica que uma marcação detém o horário (nunca se apaga nem aparece na pesquisa)."
       properties:
+        booked: { type: boolean }
+        bookingId: { type: string, format: uuid, nullable: true, description: "Marcação própria que detém o horário (BR-MKT-53)." }
         id: { type: string, format: uuid }
         offerId: { type: string, format: uuid }
         startsAt: { type: string, format: date-time }
@@ -13627,16 +14941,17 @@ components:
         note: { type: string, nullable: true, maxLength: 200 }
     RankingSignals:
       type: object
-      required: [profileCompleteness, availability, price, seniority]
-      description: "Sinais do ranking v1, cada um em [0,1] (BR-MKT-37). Lista fechada: nenhum sinal de pagamento, destaque ou ordem manual existe nem é aceite (BR-MKT-36)."
+      required: [profileCompleteness, availability, price, seniority, reviews]
+      description: "Sinais do ranking, cada um em [0,1] (BR-MKT-37; v2 acrescenta reviews, BR-MKT-61). Lista fechada: nenhum sinal de pagamento, destaque ou ordem manual existe nem é aceite (BR-MKT-36)."
       properties:
+        reviews: { type: number, minimum: 0, maximum: 1, description: "v2: (média suavizada das avaliações verificadas - 1) / 4; neutro 0,5 com menos de 3 avaliações («Novo»)." }
         profileCompleteness: { type: number, minimum: 0, maximum: 1 }
         availability: { type: number, minimum: 0, maximum: 1 }
         price: { type: number, minimum: 0, maximum: 1, description: "0,5 (neutro) quando a coorte tem menos de 3 profissionais." }
         seniority: { type: number, minimum: 0, maximum: 1 }
     RankingReason:
       type: string
-      enum: [COMPLETE_PROFILE, GOOD_AVAILABILITY, COMPETITIVE_PRICE, ESTABLISHED]
+      enum: [COMPLETE_PROFILE, GOOD_AVAILABILITY, COMPETITIVE_PRICE, ESTABLISHED, GOOD_REVIEWS]
       description: "Razões (sinais com valor ≥ 0,75, por ordem de peso, no máximo 3); a UI traduz. Conjunto aberto: clientes toleram valores desconhecidos."
     RankingExplanation:
       type: object
@@ -13644,11 +14959,11 @@ components:
       required: [version, score, signals, reasons, label]
       description: "Ranking por especialidade (função pura, BR-MKT-36/37). Só existe quando o pedido indica specialtyId."
       properties:
-        version: { type: string, example: "v1" }
+        version: { type: string, example: "v2" }
         score: { type: integer, minimum: 0, maximum: 100 }
         signals: { $ref: "#/components/schemas/RankingSignals" }
         reasons: { type: array, maxItems: 3, items: { $ref: "#/components/schemas/RankingReason" } }
-        label: { type: string, enum: [NEW], description: "NEW («Novo») enquanto não existirem avaliações verificadas (MK3, BR-MKT-04). Conjunto aberto." }
+        label: { type: string, enum: [NEW, RATED], description: "NEW («Novo») com menos de 3 avaliações verificadas nesta especialidade; RATED com 3 ou mais (BR-MKT-61). Conjunto aberto." }
     MarketplaceProfessionalItem:
       type: object
       required: [id, displayName, city, specialties, matchingOffers, fromPriceKz]
@@ -13662,6 +14977,7 @@ components:
         fromPriceKz: { type: integer, minimum: 0, description: "Menor preço entre as ofertas que correspondem aos filtros." }
         nextAvailableAt: { type: string, format: date-time, nullable: true, description: "Primeiro horário futuro das ofertas correspondentes." }
         ranking: { allOf: [{ $ref: "#/components/schemas/RankingExplanation" }], type: object, nullable: true, description: "Só com specialtyId no pedido." }
+        reviewSummary: { $ref: "#/components/schemas/ReviewSummary" }
     MarketplaceProfessionalPage:
       type: object
       required: [items, nextCursor]
@@ -13682,6 +14998,7 @@ components:
         nextAvailableAt: { type: string, format: date-time, nullable: true }
         memberSince: { type: string, format: date, description: "Primeiro dia do mês da primeira aprovação." }
         ranking: { allOf: [{ $ref: "#/components/schemas/RankingExplanation" }], type: object, nullable: true, description: "Só com ?specialtyId= de uma especialidade do profissional." }
+        reviewSummary: { $ref: "#/components/schemas/ReviewSummary" }
     ComparisonItem:
       type: object
       required: [professionalId, displayName, city, offers, fromPriceKz]
@@ -13736,14 +15053,14 @@ components:
       required: [version, signals, notUsed, statement]
       description: "Regras públicas do ranking («Como ordenamos», BR-MKT-36/37). Estático e versionado."
       properties:
-        version: { type: string, example: "v1" }
+        version: { type: string, example: "v2" }
         signals:
           type: array
           items:
             type: object
             required: [code, weightPercent, description]
             properties:
-              code: { type: string, enum: [PROFILE_COMPLETENESS, AVAILABILITY, PRICE, SENIORITY] }
+              code: { type: string, enum: [REVIEWS, PROFILE_COMPLETENESS, AVAILABILITY, PRICE, SENIORITY] }
               weightPercent: { type: integer, minimum: 0, maximum: 100 }
               description: { type: string }
         notUsed: { type: array, items: { type: string }, description: "O que nunca influencia a ordem (pagamento, destaques, ordem manual, dados pessoais)." }
@@ -13933,3 +15250,382 @@ components:
         decision: { type: string, nullable: true, enum: [DISMISS, HIDE_MESSAGE, HIDE_AND_CLOSE, null] }
         decidedAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
+    BookingStatus:
+      type: string
+      enum: [REQUESTED, CONFIRMED, REJECTED, CANCELLED, COMPLETED, NO_SHOW]
+      description: "Estado da marcação (BR-MKT-52; state-machines.md, Booking). Terminais: REJECTED, CANCELLED, COMPLETED, NO_SHOW. A família vê no processo os 4 estados simples; estes são os estados do mercado."
+    BookingPaymentStatus:
+      type: string
+      enum: [NOT_REQUIRED, AWAITING_PROOF, PROOF_SUBMITTED, CONFIRMED, REJECTED, DISPUTED]
+      description: "Estado declarativo do pagamento fora da app (BR-MKT-56). NOT_REQUIRED com preço 0 Kz. O Vita não custodia nem valida dinheiro."
+    BookingProfessional:
+      type: object
+      required: [id, displayName]
+      description: "Identidade pública do profissional (a mesma do perfil público)."
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        city: { type: string, nullable: true }
+    BookingOfferSummary:
+      type: object
+      required: [specialtyId, specialtyName, category, method, durationMinutes]
+      description: "Cópia da oferta à data da marcação (BR-MKT-51)."
+      properties:
+        specialtyId: { type: string, format: uuid }
+        specialtyName: { type: string }
+        category: { $ref: "#/components/schemas/SpecialtyCategory" }
+        method: { $ref: "#/components/schemas/OfferMethod" }
+        durationMinutes: { type: integer, enum: [15, 20, 30, 45, 60] }
+    BookableSlot:
+      type: object
+      required: [id, offerId, startsAt, endsAt]
+      description: "Horário futuro livre de uma oferta ativa de um profissional APPROVED (BR-MKT-53). Os ocupados nunca aparecem."
+      properties:
+        id: { type: string, format: uuid }
+        offerId: { type: string, format: uuid }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+    CreateBookingRequest:
+      type: object
+      additionalProperties: false
+      required: [offerId, slotId, participantLabel]
+      description: "BR-MKT-51. Sem motivo/queixa em texto livre (BR-MKT-10)."
+      properties:
+        offerId: { type: string, format: uuid }
+        slotId: { type: string, format: uuid }
+        participantLabel: { type: string, minLength: 1, maxLength: 40, description: "Como a família quer ser tratada; é tudo o que o profissional vê (OP-75)." }
+        clientRequestId: { type: string, format: uuid, description: "Idempotência da criação (por membro)." }
+    CancelBookingRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        note: { type: string, maxLength: 300, description: "Texto livre visto pelo profissional; fora de logs e auditoria (BR-MKT-52/63)." }
+    ConfirmBookingRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        meetingInfo: { type: string, maxLength: 300, description: "Ligação externa (VIDEO) ou número a ligar (PHONE); obrigatório nesses métodos (BR-MKT-52). Só a família da marcação o vê." }
+    RejectBookingRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      description: "Usado em reject e no cancelamento pelo profissional."
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 300, description: "Visível à família; fora de logs e auditoria; texto-guia: não escrever dados de saúde." }
+    FamilyBooking:
+      type: object
+      required: [id, memberId, professional, offer, participantLabel, priceKz, startsAt, endsAt, status, paymentStatus, cancelledLate, canCancel, canSendProof, canReview, hasReview, createdAt, updatedAt]
+      description: "Marcação vista pela família (BR-MKT-50/55/56). meetingInfo só com CONFIRMED/COMPLETED; paymentInstructions só com CONFIRMED/COMPLETED e priceKz > 0 (BR-MKT-26/56)."
+      properties:
+        id: { type: string, format: uuid }
+        memberId: { type: string, format: uuid }
+        professional: { $ref: "#/components/schemas/BookingProfessional" }
+        offer: { $ref: "#/components/schemas/BookingOfferSummary" }
+        participantLabel: { type: string, minLength: 1, maxLength: 40 }
+        priceKz: { type: integer, minimum: 0, maximum: 100000000, description: "Preço copiado à criação; não muda (BR-MKT-03)." }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/BookingStatus" }
+        paymentStatus: { $ref: "#/components/schemas/BookingPaymentStatus" }
+        statusReason: { type: string, nullable: true, maxLength: 300, description: "Motivo do profissional (recusa/cancelamento) ou nota da família." }
+        cancelledBy: { type: string, nullable: true, enum: [FAMILY, PROFESSIONAL, SYSTEM, null] }
+        systemReason: { type: string, nullable: true, enum: [REQUEST_EXPIRED, PROFESSIONAL_UNAVAILABLE, null], description: "Só com cancelledBy=SYSTEM (BR-MKT-54)." }
+        cancelledLate: { type: boolean, description: "Derivado: cancelada pela família com menos de 24 h até startsAt; só informativo." }
+        meetingInfo: { type: string, nullable: true, maxLength: 300 }
+        paymentInstructions: { type: string, nullable: true, maxLength: 500, description: "Instruções do profissional (BR-MKT-26); nunca na pesquisa nem no perfil público." }
+        processId: { type: string, format: uuid, nullable: true, description: "Process BOOKING (BR-MKT-55)." }
+        appointmentId: { type: string, format: uuid, nullable: true, description: "Consulta gerada no registo do membro ao confirmar." }
+        conversationId: { type: string, format: uuid, nullable: true, description: "Conversa do par membro+profissional, se existir (derivada, OP-106)." }
+        canCancel: { type: boolean }
+        canSendProof: { type: boolean }
+        canReview: { type: boolean }
+        hasReview: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    FamilyBookingPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/FamilyBooking" } }
+        nextCursor: { type: string, nullable: true }
+    ProfessionalBooking:
+      type: object
+      required: [id, participantLabel, offer, priceKz, startsAt, endsAt, status, paymentStatus, cancelledLate, createdAt, updatedAt]
+      description: "Marcação vista pelo profissional (BR-MKT-63). NUNCA devolve familyId, memberId, userId, nome nem dados de saúde: só o participantLabel."
+      properties:
+        id: { type: string, format: uuid }
+        participantLabel: { type: string, minLength: 1, maxLength: 40 }
+        offer: { $ref: "#/components/schemas/BookingOfferSummary" }
+        priceKz: { type: integer, minimum: 0, maximum: 100000000 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/BookingStatus" }
+        paymentStatus: { $ref: "#/components/schemas/BookingPaymentStatus" }
+        statusReason: { type: string, nullable: true, maxLength: 300 }
+        cancelledBy: { type: string, nullable: true, enum: [FAMILY, PROFESSIONAL, SYSTEM, null] }
+        systemReason: { type: string, nullable: true, enum: [REQUEST_EXPIRED, PROFESSIONAL_UNAVAILABLE, null] }
+        cancelledLate: { type: boolean }
+        meetingInfo: { type: string, nullable: true, maxLength: 300 }
+        conversationId: { type: string, format: uuid, nullable: true, description: "Conversa (do portal) do par, se existir." }
+        proof: { allOf: [{ $ref: "#/components/schemas/PaymentProof" }], type: object, nullable: true, description: "Comprovativo em curso ou o mais recente." }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProfessionalBookingPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ProfessionalBooking" } }
+        nextCursor: { type: string, nullable: true }
+    PaymentProofStatus:
+      type: string
+      enum: [SUBMITTED, CONFIRMED, REJECTED, DISPUTED, REJECTION_UPHELD]
+    PaymentProof:
+      type: object
+      required: [id, bookingId, status, scanStatus, contentType, sizeBytes, purged, createdAt]
+      description: "Metadados do comprovativo (BR-MKT-57/58); o ficheiro só se descarrega pelas rotas mediadas e auditadas."
+      properties:
+        id: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/PaymentProofStatus" }
+        scanStatus: { type: string, enum: [PENDING, CLEAN, INFECTED] }
+        contentType: { type: string, enum: [application/pdf, image/jpeg, image/png] }
+        sizeBytes: { type: integer, minimum: 1, maximum: 10485760 }
+        decisionReason: { type: string, nullable: true, maxLength: 300, description: "Motivo da rejeição pelo profissional." }
+        disputeNote: { type: string, nullable: true, maxLength: 300 }
+        disputeDecision: { type: string, nullable: true, enum: [CONFIRM_PAYMENT, UPHOLD_REJECTION, null] }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        disputedAt: { type: string, format: date-time, nullable: true }
+        purged: { type: boolean, description: "Ficheiro apagado pela retenção (BR-MKT-64)." }
+        createdAt: { type: string, format: date-time }
+    PaymentProofUploadRequest:
+      type: object
+      required: [file]
+      properties:
+        file: { type: string, format: binary }
+    DisputePaymentProofRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        note: { type: string, maxLength: 300 }
+    ProofDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [CONFIRM, REJECT] }
+        reason: { type: string, minLength: 1, maxLength: 300, description: "Obrigatório em REJECT; visível à família; fora de logs e auditoria." }
+    ReviewSummary:
+      type: object
+      required: [count, averageRating]
+      description: "Resumo das avaliações verificadas (BR-MKT-61). averageRating (uma casa decimal) só com count ≥ 3; senão nulo («Novo»)."
+      properties:
+        count: { type: integer, minimum: 0 }
+        averageRating: { type: number, nullable: true, minimum: 1, maximum: 5 }
+    ReviewInput:
+      type: object
+      additionalProperties: false
+      required: [rating]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, maxLength: 500, description: "Texto simples; aviso fixo na UI: não escreva dados de saúde (BR-MKT-59/63)." }
+    ReviewReply:
+      type: object
+      required: [text, repliedAt]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 500 }
+        repliedAt: { type: string, format: date-time }
+    FamilyReview:
+      type: object
+      required: [bookingId, rating, commentHidden, consultedMonth, createdAt, updatedAt, editableUntil]
+      description: "A avaliação própria (BR-MKT-59). Editável até editableUntil (7 dias após a criação)."
+      properties:
+        bookingId: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, nullable: true, maxLength: 500 }
+        commentHidden: { type: boolean }
+        reply: { allOf: [{ $ref: "#/components/schemas/ReviewReply" }], type: object, nullable: true }
+        consultedMonth: { type: string, format: date, description: "Primeiro dia do mês da consulta." }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        editableUntil: { type: string, format: date-time }
+    PublicReview:
+      type: object
+      required: [id, rating, commentHidden, specialty, method, consultedMonth, createdOn]
+      description: "Avaliação anónima (BR-MKT-59/63): nunca nome, rótulo, ids nem a data exata da consulta. Com commentHidden=true o comentário não é devolvido."
+      properties:
+        id: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, nullable: true, maxLength: 500 }
+        commentHidden: { type: boolean }
+        reply: { allOf: [{ $ref: "#/components/schemas/ReviewReply" }], type: object, nullable: true }
+        specialty:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        method: { $ref: "#/components/schemas/OfferMethod" }
+        consultedMonth: { type: string, format: date }
+        createdOn: { type: string, format: date }
+    PublicReviewPage:
+      type: object
+      required: [summary, items, nextCursor]
+      properties:
+        summary: { $ref: "#/components/schemas/ReviewSummary" }
+        items: { type: array, items: { $ref: "#/components/schemas/PublicReview" } }
+        nextCursor: { type: string, nullable: true }
+    ProfessionalReview:
+      type: object
+      required: [id, rating, commentHidden, specialty, method, consultedMonth, createdOn, reported]
+      description: "Avaliação recebida, vista pelo profissional (BR-MKT-59/60/63): anónima; reported indica se já a denunciou."
+      properties:
+        id: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, nullable: true, maxLength: 500 }
+        commentHidden: { type: boolean }
+        reply: { allOf: [{ $ref: "#/components/schemas/ReviewReply" }], type: object, nullable: true }
+        specialty:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        method: { $ref: "#/components/schemas/OfferMethod" }
+        consultedMonth: { type: string, format: date }
+        createdOn: { type: string, format: date }
+        reported: { type: boolean }
+    ProfessionalReviewPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ProfessionalReview" } }
+        nextCursor: { type: string, nullable: true }
+    ReviewReplyRequest:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 500 }
+    ReviewReportReason:
+      type: string
+      enum: [ABUSE, PERSONAL_DATA, OFF_TOPIC, OTHER]
+    ReviewReportRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { $ref: "#/components/schemas/ReviewReportReason" }
+        note: { type: string, maxLength: 300 }
+    ReviewReport:
+      type: object
+      required: [id, reviewId, status, reason, createdAt]
+      description: "O denunciante vê o estado, não o motivo da decisão (BR-MKT-60)."
+      properties:
+        id: { type: string, format: uuid }
+        reviewId: { type: string, format: uuid }
+        status: { type: string, enum: [OPEN, DECIDED] }
+        reason: { $ref: "#/components/schemas/ReviewReportReason" }
+        createdAt: { type: string, format: date-time }
+    AdminPaymentDisputeItem:
+      type: object
+      required: [proofId, status, professional, specialtyName, startsAt, priceKz, disputedAt]
+      description: "Item da fila de disputas (BR-MKT-58/63): sem ficheiro, sem textos livres, sem família."
+      properties:
+        proofId: { type: string, format: uuid, description: "Identifica a disputa." }
+        status: { type: string, enum: [DISPUTED, DECIDED] }
+        professional: { $ref: "#/components/schemas/BookingProfessional" }
+        specialtyName: { type: string }
+        startsAt: { type: string, format: date-time }
+        priceKz: { type: integer, minimum: 0 }
+        disputedAt: { type: string, format: date-time }
+    AdminPaymentDisputePage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AdminPaymentDisputeItem" } }
+        nextCursor: { type: string, nullable: true }
+    AdminPaymentDisputeDetail:
+      type: object
+      required: [proofId, status, booking, proof, disputedAt]
+      description: "BR-MKT-58/63: só a marcação e o comprovativo; nunca família, membro, participantLabel, conversas nem outros dados. O ficheiro descarrega-se por /admin/payment-disputes/{proofId}/file (auditado)."
+      properties:
+        proofId: { type: string, format: uuid }
+        status: { type: string, enum: [DISPUTED, DECIDED] }
+        booking:
+          type: object
+          required: [professional, specialtyName, method, durationMinutes, startsAt, priceKz, status, paymentStatus]
+          properties:
+            professional: { $ref: "#/components/schemas/BookingProfessional" }
+            specialtyName: { type: string }
+            method: { $ref: "#/components/schemas/OfferMethod" }
+            durationMinutes: { type: integer }
+            startsAt: { type: string, format: date-time }
+            priceKz: { type: integer, minimum: 0 }
+            status: { $ref: "#/components/schemas/BookingStatus" }
+            paymentStatus: { $ref: "#/components/schemas/BookingPaymentStatus" }
+        proof:
+          type: object
+          required: [contentType, sizeBytes, scanStatus, submittedAt]
+          properties:
+            contentType: { type: string, enum: [application/pdf, image/jpeg, image/png] }
+            sizeBytes: { type: integer }
+            scanStatus: { type: string, enum: [PENDING, CLEAN, INFECTED] }
+            submittedAt: { type: string, format: date-time }
+        professionalReason: { type: string, nullable: true, maxLength: 300 }
+        familyNote: { type: string, nullable: true, maxLength: 300 }
+        disputedAt: { type: string, format: date-time }
+        decision: { type: string, nullable: true, enum: [CONFIRM_PAYMENT, UPHOLD_REJECTION, null] }
+        decidedAt: { type: string, format: date-time, nullable: true }
+    AdminPaymentDisputeDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [CONFIRM_PAYMENT, UPHOLD_REJECTION] }
+    AdminReviewReportItem:
+      type: object
+      required: [id, status, reason, professional, rating, createdAt]
+      description: "Item da fila de denúncias de avaliações (BR-MKT-60/63): sem comentário."
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [OPEN, DECIDED] }
+        reason: { $ref: "#/components/schemas/ReviewReportReason" }
+        professional: { $ref: "#/components/schemas/BookingProfessional" }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        createdAt: { type: string, format: date-time }
+    AdminReviewReportPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/AdminReviewReportItem" } }
+        nextCursor: { type: string, nullable: true }
+    AdminReviewReportDetail:
+      type: object
+      required: [id, status, reason, professional, review, createdAt]
+      description: "BR-MKT-60/63: só a avaliação denunciada, o profissional (nome público) e o motivo/nota; nunca família, membro, marcação, rótulo nem outras avaliações. A leitura é auditada."
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [OPEN, DECIDED] }
+        reason: { $ref: "#/components/schemas/ReviewReportReason" }
+        note: { type: string, nullable: true, maxLength: 300 }
+        professional: { $ref: "#/components/schemas/BookingProfessional" }
+        review:
+          type: object
+          required: [rating, commentHidden, specialtyName, method, consultedMonth]
+          properties:
+            rating: { type: integer, minimum: 1, maximum: 5 }
+            comment: { type: string, nullable: true, maxLength: 500, description: "O admin vê o texto original mesmo se já estiver oculto." }
+            commentHidden: { type: boolean }
+            reply: { allOf: [{ $ref: "#/components/schemas/ReviewReply" }], type: object, nullable: true }
+            specialtyName: { type: string }
+            method: { $ref: "#/components/schemas/OfferMethod" }
+            consultedMonth: { type: string, format: date }
+        decision: { type: string, nullable: true, enum: [DISMISS, HIDE_COMMENT, null] }
+        decidedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    AdminReviewReportDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [DISMISS, HIDE_COMMENT] }

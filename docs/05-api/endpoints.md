@@ -2567,3 +2567,260 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 **MarketplaceOffer** — `id`, `specialtyId`, `method`, `durationMinutes`, `priceKz`: int (Kz), `note?` · **RankingExplanation** — `version` (`v1`), `score`: 0–100, `signals`: {`profileCompleteness`, `availability`, `price`, `seniority`} (0–1), `reasons`: [`COMPLETE_PROFILE`\|`GOOD_AVAILABILITY`\|`COMPETITIVE_PRICE`\|`ESTABLISHED`] (≤ 3), `label`: `NEW` · **MarketplaceProfessionalItem** — `id`, `displayName`, `city`, `specialties`, `matchingOffers`, `fromPriceKz`, `nextAvailableAt?`, `ranking?` · **MarketplaceProfessionalProfile** — `id`, `displayName`, `bio?`, `city`, `specialties`, `offers`, `nextAvailableAt?`, `memberSince`: date, `ranking?` (nunca e-mail, pagamento, credenciais, estado) · **ProfessionalComparison** — `specialtyId`, `items`: [`ComparisonItem`: `professionalId`, `displayName`, `city`, `offers`, `fromPriceKz`, `nextAvailableAt?`], `priceSummary`: [`method`, `minPriceKz`, `maxPriceKz`, `cheapestProfessionalIds`] · **MarketplaceFilters** — `specialties`: [`id`, `name`, `category`, `professionalCount`], `cities`: [`name`, `professionalCount`], `methods` · **RankingRules** — `version`, `signals`: [`code`, `weightPercent`, `description`], `notUsed`, `statement`
 
 **FamilyConversation** — `id`, `memberId`, `professional`: {`id`, `displayName`, `city?`}, `participantLabel`, `status`: OPEN|CLOSED, `closedBy?`: FAMILY|PROFESSIONAL|SYSTEM, `canSend` (derivado), `lastMessageAt`, `unreadCount`, `createdAt` · **ProfessionalConversation** — o mesmo **sem** `memberId` nem `professional` (nunca ids de família/membro/utilizador) · **ChatMessage** — `id`, `seq`, `side`: FAMILY|PROFESSIONAL, `mine`, `text?` (nulo se `hidden`), `hidden`, `createdAt`, `readByOtherSide` (nunca o id de quem escreveu) · **StartConversationRequest** — `professionalId`, `participantLabel`, `text`, `clientMessageId?` · **ConversationStarted** — `conversation`, `message` · **SendMessageRequest** — `text`, `clientMessageId?` · **MarkReadRequest** — `upToSeq?` · **ReportMessageRequest** — `reason`: ABUSE|SPAM|SCAM_OR_OFF_PLATFORM_PAYMENT|SENSITIVE_DATA|OTHER, `note?` · **MessageReportReceipt** — `id`, `status`: OPEN|DECIDED, `reason`, `createdAt` · **AdminMessageReportItem** — `id`, `status`, `reason`, `reportedSide`, `professionalId`, `professionalDisplayName`, `createdAt` · **AdminMessageReportDetail** — `id`, `status`, `reason`, `note?`, `reportedSide`, `professional`, `reportedUserId?`, `message`: {`id`, `text`, `hidden`, `createdAt`}, `contextBefore`: [`AdminReportContextMessage`: `id`, `seq`, `side`, `text?` (nulo se oculta), `hidden`, `createdAt`] (≤ 2), `decision?`, `decidedAt?`, `createdAt` · **MessageReportDecisionRequest** — `decision`: DISMISS|HIDE_MESSAGE|HIDE_AND_CLOSE · **Páginas** — `{ items, nextCursor? }`
+
+
+## Mercado de profissionais — MK3: marcação, comprovativo e avaliações (ADR-037) — CONTRATUAL
+
+> Acrescentado 2026-11-19 (contrato de MK3). **Só contrato: nada implementado.** Tag nova `Bookings` (rotas da família; as do profissional ficam em `Professional Portal`, as do admin em `Admin`, as públicas em `Marketplace`). **31 operações novas** (302 no total): 2 públicas (`/marketplace/professionals/{id}/slots` e `…/reviews`, só `AUTH`, sem `AccessPolicy`), 10 da família (`/families/{familyId}/members/{memberId}/bookings*`, ação nova `BOOK_PROFESSIONALS`), 12 do profissional (`/professional-portal/bookings*` e `/professional-portal/reviews*`, `professionalBearerAuth`; leitura em todos os estados, escritas só `APPROVED`) e 7 do admin (`/admin/payment-disputes*`, `/admin/review-reports*`). **Alterações a operações existentes (aditivas, sem mudar as de MK1/MK2):** `GET /professional-portal/slots` devolve `booked`/`bookingId`; `POST /professional-portal/time-off` pode devolver `409 CONFLICT` (BR-MKT-53); `Appointment.bookingId?`; `Process.origin.type=BOOKING` e novos `nextStep.code`/`actor`; `RankingExplanation`/`RankingSignals`/`RankingRules` passam a `v2` (sinal `reviews`, `label` `NEW`\|`RATED`, razão `GOOD_REVIEWS`); `reviewSummary` no cartão e no perfil público; `AlertType` + `BOOKING_UPDATED`, `PAYMENT_UPDATED`; `AlertSourceType` + `BOOKING`. Códigos de erro novos: `SLOT_UNAVAILABLE`, `SELF_BOOKING_NOT_ALLOWED`, `REVIEW_NOT_ALLOWED` (`errors.md`). Regras: `business-rules.md` §17 (BR-MKT-50..66); casos de uso `03-use-cases/consultations.md` (UC-MKT-26..47).
+
+### `GET /marketplace/professionals/{professionalId}/slots`  — listBookableSlots
+- **AUTHORIZATION:** AUTH (sem família; `authorization.md` §11.1/§12.4)
+- **DESCRIPTION:** Horários futuros livres de uma oferta ativa de um profissional `APPROVED`.
+- **REQUEST:** Query `offerId` (obrigatório), `from?`, `to?` (máx. 62 dias; omissão: 14 dias)
+- **RESPONSE:** `200` `[BookableSlot]`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `NOT_FOUND`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-53; UC-MKT-26. Não auditado.
+
+### `GET /marketplace/professionals/{professionalId}/reviews`  — listProfessionalReviews
+- **AUTHORIZATION:** AUTH (sem família; `authorization.md` §11.1/§12.4)
+- **DESCRIPTION:** Avaliações verificadas (anónimas) e resumo.
+- **REQUEST:** Query `specialtyId?`, `limit?`, `cursor?`
+- **RESPONSE:** `200` `PublicReviewPage`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `NOT_FOUND`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-59/60/63; UC-MKT-40. Não auditado.
+
+### `GET /families/{familyId}/members/{memberId}/bookings`  — listFamilyBookings
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Listar as marcações do membro.
+- **REQUEST:** Query `status?`, `limit?`, `cursor?`
+- **RESPONSE:** `200` `FamilyBookingPage`
+- **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-50/55; UC-MKT-28. Não auditado.
+
+### `POST /families/{familyId}/members/{memberId}/bookings`  — createBooking
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Marcar uma consulta (reserva atómica do horário; abre o `Process` `BOOKING`).
+- **REQUEST:** `CreateBookingRequest` (`offerId`, `slotId`, `participantLabel` 1–40, `clientRequestId?`); **sem motivo em texto livre**
+- **RESPONSE:** `201` `FamilyBooking` · `200` (clientRequestId repetido)
+- **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `SLOT_UNAVAILABLE`, `CONFLICT`, `LIMIT_EXCEEDED`, `SELF_BOOKING_NOT_ALLOWED`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-51/53/55/62/66; UC-MKT-27. Auditoria `BOOKING_CREATE`.
+
+### `GET /families/{familyId}/members/{memberId}/bookings/{bookingId}`  — getFamilyBooking
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Ver uma marcação (instruções de pagamento e `meetingInfo` só a partir de `CONFIRMED`).
+- **REQUEST:** —
+- **RESPONSE:** `200` `FamilyBooking`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-50/52/56; UC-MKT-28. Não auditado.
+
+### `POST /families/{familyId}/members/{memberId}/bookings/{bookingId}/cancel`  — cancelFamilyBooking
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Cancelar uma marcação antes da hora.
+- **REQUEST:** `CancelBookingRequest` (`note?` ≤ 300)
+- **RESPONSE:** `200` `FamilyBooking`
+- **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-MKT-52/53/55; UC-MKT-29. Auditoria `BOOKING_CANCEL`.
+
+### `GET /families/{familyId}/members/{memberId}/bookings/{bookingId}/payment-proofs`  — listFamilyPaymentProofs
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Metadados dos comprovativos da marcação.
+- **REQUEST:** —
+- **RESPONSE:** `200` `[PaymentProof]`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-57; UC-MKT-35. Não auditado.
+
+### `POST /families/{familyId}/members/{memberId}/bookings/{bookingId}/payment-proofs`  — uploadPaymentProof
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Carregar o comprovativo (multipart; quarentena + antivírus).
+- **REQUEST:** `PaymentProofUploadRequest` (`file` PDF/JPG/PNG ≤ 10 MB)
+- **RESPONSE:** `201` `PaymentProof`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `INVALID_STATE_TRANSITION`, `LIMIT_EXCEEDED`, `CONFLICT`, `FILE_TOO_LARGE`, `FILE_TYPE_NOT_ALLOWED`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-56/57/66; UC-MKT-35. Auditoria `PAYMENT_PROOF_UPLOAD`.
+
+### `GET /families/{familyId}/members/{memberId}/bookings/{bookingId}/payment-proofs/{proofId}/file`  — downloadFamilyPaymentProof
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Descarregar um comprovativo próprio (stream mediado, `no-store`).
+- **REQUEST:** —
+- **RESPONSE:** `200` binário
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `DOCUMENT_NOT_AVAILABLE`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-57. **Todo** o download é auditado (`PAYMENT_PROOF_DOWNLOAD`).
+
+### `POST /families/{familyId}/members/{memberId}/bookings/{bookingId}/payment-proofs/{proofId}/dispute`  — disputePaymentProof
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Disputar um comprovativo rejeitado (uma vez).
+- **REQUEST:** `DisputePaymentProofRequest` (`note?` ≤ 300)
+- **RESPONSE:** `200` `PaymentProof`
+- **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-MKT-58; UC-MKT-37. Auditoria `PAYMENT_PROOF_DISPUTE`.
+
+### `GET /families/{familyId}/members/{memberId}/bookings/{bookingId}/review`  — getFamilyBookingReview
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Ver a avaliação própria da marcação.
+- **REQUEST:** —
+- **RESPONSE:** `200` `FamilyReview`
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-59; UC-MKT-39. Não auditado.
+
+### `PUT /families/{familyId}/members/{memberId}/bookings/{bookingId}/review`  — putFamilyBookingReview
+- **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
+- **DESCRIPTION:** Avaliar (criar ou editar até 7 dias) — só com consulta `COMPLETED` e pagamento satisfeito, até 30 dias.
+- **REQUEST:** `ReviewInput` (`rating` 1–5, `comment?` ≤ 500)
+- **RESPONSE:** `201` `FamilyReview` (criada) · `200` (editada)
+- **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `REVIEW_NOT_ALLOWED`, `SELF_BOOKING_NOT_ALLOWED`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-59/62/66; UC-MKT-39. Auditoria `REVIEW_CREATE`/`REVIEW_UPDATE` (sem texto).
+
+### `GET /professional-portal/bookings`  — listProfessionalBookings
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Listar as marcações do profissional (só o rótulo do participante).
+- **REQUEST:** Query `status?`, `from?`, `to?`, `limit?`, `cursor?`
+- **RESPONSE:** `200` `ProfessionalBookingPage`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-50/63; UC-MKT-30. Leitura em todos os estados. Não auditado.
+
+### `GET /professional-portal/bookings/{bookingId}`  — getProfessionalBooking
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Ver uma marcação.
+- **REQUEST:** —
+- **RESPONSE:** `200` `ProfessionalBooking`
+- **ERRORS:** `NOT_FOUND`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-63; UC-MKT-30.
+
+### `POST /professional-portal/bookings/{bookingId}/confirm`  — confirmBooking
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Confirmar (cria a consulta no membro; `meetingInfo` obrigatório em `VIDEO`/`PHONE`).
+- **REQUEST:** `ConfirmBookingRequest` (`meetingInfo?` ≤ 300)
+- **RESPONSE:** `200` `ProfessionalBooking`
+- **ERRORS:** `MALFORMED_REQUEST`, `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-MKT-52/55/65; UC-MKT-31. Auditoria `PROFESSIONAL_BOOKING_CONFIRM`.
+
+### `POST /professional-portal/bookings/{bookingId}/reject`  — rejectBooking
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Recusar um pedido (motivo obrigatório; liberta o horário).
+- **REQUEST:** `RejectBookingRequest` (`reason` ≤ 300)
+- **RESPONSE:** `200` `ProfessionalBooking`
+- **ERRORS:** `MALFORMED_REQUEST`, `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-MKT-52/53; UC-MKT-31. Auditoria `PROFESSIONAL_BOOKING_REJECT`.
+
+### `POST /professional-portal/bookings/{bookingId}/cancel`  — cancelProfessionalBooking
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Cancelar antes da hora (motivo obrigatório).
+- **REQUEST:** `RejectBookingRequest` (`reason` ≤ 300)
+- **RESPONSE:** `200` `ProfessionalBooking`
+- **ERRORS:** `MALFORMED_REQUEST`, `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-MKT-52/53/55; UC-MKT-32. Auditoria `PROFESSIONAL_BOOKING_CANCEL`.
+
+### `POST /professional-portal/bookings/{bookingId}/complete`  — completeBooking
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Marcar concluída (só com `agora ≥ startsAt`).
+- **REQUEST:** —
+- **RESPONSE:** `200` `ProfessionalBooking`
+- **ERRORS:** `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`
+- **BUSINESS RULES:** BR-MKT-52/55/59; UC-MKT-33. Auditoria `PROFESSIONAL_BOOKING_COMPLETE`.
+
+### `POST /professional-portal/bookings/{bookingId}/no-show`  — markBookingNoShow
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Marcar falta (só com `agora ≥ startsAt`).
+- **REQUEST:** —
+- **RESPONSE:** `200` `ProfessionalBooking`
+- **ERRORS:** `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`
+- **BUSINESS RULES:** BR-MKT-52/55; UC-MKT-33. Auditoria `PROFESSIONAL_BOOKING_NO_SHOW`.
+
+### `GET /professional-portal/bookings/{bookingId}/payment-proofs/{proofId}/file`  — downloadProfessionalPaymentProof
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Descarregar o comprovativo da própria marcação (`no-store`; só `CLEAN`).
+- **REQUEST:** —
+- **RESPONSE:** `200` binário
+- **ERRORS:** `NOT_FOUND`, `DOCUMENT_NOT_AVAILABLE`, `RATE_LIMITED`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-57; UC-MKT-36. **Todo** o download é auditado (`PROFESSIONAL_PAYMENT_PROOF_DOWNLOAD`). Leitura em todos os estados.
+
+### `POST /professional-portal/bookings/{bookingId}/payment-proofs/{proofId}/decision`  — decidePaymentProof
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Confirmar ou rejeitar o comprovativo.
+- **REQUEST:** `ProofDecisionRequest` (`decision` `CONFIRM`\|`REJECT`, `reason` obrigatório em `REJECT`)
+- **RESPONSE:** `200` `PaymentProof`
+- **ERRORS:** `MALFORMED_REQUEST`, `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`, `DOCUMENT_NOT_AVAILABLE`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-MKT-57/58/65; UC-MKT-36. Auditoria `PROFESSIONAL_PAYMENT_PROOF_DECIDE`.
+
+### `GET /professional-portal/reviews`  — listProfessionalReviewsOwn
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Listar as avaliações recebidas (anónimas).
+- **REQUEST:** Query `unanswered?`, `limit?`, `cursor?`
+- **RESPONSE:** `200` `ProfessionalReviewPage`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`
+- **BUSINESS RULES:** BR-MKT-59/60; UC-MKT-41. Leitura em todos os estados.
+
+### `POST /professional-portal/reviews/{reviewId}/reply`  — replyToReview
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Responder uma vez a uma avaliação.
+- **REQUEST:** `ReviewReplyRequest` (`text` 1–500)
+- **RESPONSE:** `201` `ProfessionalReview`
+- **ERRORS:** `MALFORMED_REQUEST`, `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `CONFLICT`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-MKT-60; UC-MKT-41. Auditoria `PROFESSIONAL_REVIEW_REPLY` (sem texto).
+
+### `POST /professional-portal/reviews/{reviewId}/reports`  — reportReview
+- **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
+- **DESCRIPTION:** Denunciar uma avaliação (uma por avaliação).
+- **REQUEST:** `ReviewReportRequest` (`reason`, `note?` ≤ 300)
+- **RESPONSE:** `201` `ReviewReport` · `200` (já existia)
+- **ERRORS:** `MALFORMED_REQUEST`, `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-MKT-60/66; UC-MKT-42. Auditoria `PROFESSIONAL_REVIEW_REPORT_CREATE`.
+
+### `GET /admin/payment-disputes`  — adminListPaymentDisputes
+- **AUTHORIZATION:** `PLATFORM_ADMIN` (`authorization.md` §12.3)
+- **DESCRIPTION:** Fila de disputas (sem ficheiros nem textos livres).
+- **REQUEST:** Query `status?` (omissão `DISPUTED`), `limit?`, `cursor?`
+- **RESPONSE:** `200` `AdminPaymentDisputePage`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`
+- **BUSINESS RULES:** BR-MKT-58/63; UC-MKT-38.
+
+### `GET /admin/payment-disputes/{proofId}`  — adminGetPaymentDispute
+- **AUTHORIZATION:** `PLATFORM_ADMIN` (`authorization.md` §12.3)
+- **DESCRIPTION:** Detalhe: a marcação e o comprovativo (metadados) — **só** isto.
+- **REQUEST:** —
+- **RESPONSE:** `200` `AdminPaymentDisputeDetail`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`
+- **BUSINESS RULES:** BR-MKT-58/63; UC-MKT-38. **Toda** a abertura é auditada (`ADMIN_PAYMENT_DISPUTE_VIEW`).
+
+### `GET /admin/payment-disputes/{proofId}/file`  — adminDownloadPaymentProof
+- **AUTHORIZATION:** `PLATFORM_ADMIN` (`authorization.md` §12.3)
+- **DESCRIPTION:** Descarregar o comprovativo de uma disputa (`no-store`).
+- **REQUEST:** —
+- **RESPONSE:** `200` binário
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `DOCUMENT_NOT_AVAILABLE`
+- **BUSINESS RULES:** BR-MKT-57/58. **Todo** o download é auditado (`ADMIN_PAYMENT_PROOF_DOWNLOAD`).
+
+### `POST /admin/payment-disputes/{proofId}/decisions`  — adminDecidePaymentDispute
+- **AUTHORIZATION:** `PLATFORM_ADMIN` (`authorization.md` §12.3)
+- **DESCRIPTION:** Decidir: `CONFIRM_PAYMENT` ou `UPHOLD_REJECTION`.
+- **REQUEST:** `AdminPaymentDisputeDecisionRequest`
+- **RESPONSE:** `200` `AdminPaymentDisputeDetail`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-MKT-58; UC-MKT-38. Auditoria `ADMIN_PAYMENT_DISPUTE_DECIDE`.
+
+### `GET /admin/review-reports`  — adminListReviewReports
+- **AUTHORIZATION:** `PLATFORM_ADMIN` (`authorization.md` §12.3)
+- **DESCRIPTION:** Fila de denúncias de avaliações (sem comentário).
+- **REQUEST:** Query `status?` (omissão `OPEN`), `limit?`, `cursor?`
+- **RESPONSE:** `200` `AdminReviewReportPage`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`
+- **BUSINESS RULES:** BR-MKT-60/63; UC-MKT-43.
+
+### `GET /admin/review-reports/{reportId}`  — adminGetReviewReport
+- **AUTHORIZATION:** `PLATFORM_ADMIN` (`authorization.md` §12.3)
+- **DESCRIPTION:** Detalhe: só a avaliação denunciada, o profissional e o motivo.
+- **REQUEST:** —
+- **RESPONSE:** `200` `AdminReviewReportDetail`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`
+- **BUSINESS RULES:** BR-MKT-60/63; UC-MKT-43. **Toda** a abertura é auditada (`ADMIN_REVIEW_REPORT_VIEW`).
+
+### `POST /admin/review-reports/{reportId}/decisions`  — adminDecideReviewReport
+- **AUTHORIZATION:** `PLATFORM_ADMIN` (`authorization.md` §12.3)
+- **DESCRIPTION:** Decidir: `DISMISS` ou `HIDE_COMMENT` (a nota continua a contar).
+- **REQUEST:** `AdminReviewReportDecisionRequest`
+- **RESPONSE:** `200` `AdminReviewReportDetail`
+- **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-MKT-60; UC-MKT-43. Auditoria `ADMIN_REVIEW_REPORT_DECIDE`.
+
+### Schemas de MK3 (resumo; detalhe em `openapi.yaml`)
+
+**BookingStatus** — REQUESTED|CONFIRMED|REJECTED|CANCELLED|COMPLETED|NO_SHOW · **BookingPaymentStatus** — NOT_REQUIRED|AWAITING_PROOF|PROOF_SUBMITTED|CONFIRMED|REJECTED|DISPUTED · **BookableSlot** — `id`, `offerId`, `startsAt`, `endsAt` · **CreateBookingRequest** — `offerId`, `slotId`, `participantLabel` (1–40), `clientRequestId?` (**sem motivo**) · **FamilyBooking** — `id`, `memberId`, `professional` {`id`, `displayName`, `city?`}, `offer` {`specialtyId`, `specialtyName`, `category`, `method`, `durationMinutes`}, `participantLabel`, `priceKz` (copiado), `startsAt`, `endsAt`, `status`, `paymentStatus`, `statusReason?`, `cancelledBy?`, `systemReason?`, `cancelledLate`, `meetingInfo?`, `paymentInstructions?` (só `CONFIRMED`/`COMPLETED` com preço > 0), `processId?`, `appointmentId?`, `conversationId?`, `canCancel`, `canSendProof`, `canReview`, `hasReview`, `createdAt`, `updatedAt` · **ProfessionalBooking** — o mesmo **sem** `memberId`, `professional`, `paymentInstructions`, `processId`, `appointmentId`, `canCancel`/`canSendProof`/`canReview`/`hasReview` e com `proof?` (nunca ids de família/membro/utilizador, BR-MKT-63) · **PaymentProof** — `id`, `bookingId`, `status` (SUBMITTED|CONFIRMED|REJECTED|DISPUTED|REJECTION_UPHELD), `scanStatus`, `contentType`, `sizeBytes`, `decisionReason?`, `disputeNote?`, `disputeDecision?`, `decidedAt?`, `disputedAt?`, `purged`, `createdAt` · **ReviewSummary** — `count`, `averageRating?` (só com ≥ 3) · **FamilyReview** — `bookingId`, `rating`, `comment?`, `commentHidden`, `reply?`, `consultedMonth`, `createdAt`, `updatedAt`, `editableUntil` · **PublicReview**/**ProfessionalReview** — `id`, `rating`, `comment?`, `commentHidden`, `reply?`, `specialty`, `method`, `consultedMonth`, `createdOn` (+ `reported` no profissional); **anónimas** · **PublicReviewPage** — `summary`, `items`, `nextCursor` · **AdminPaymentDisputeItem/Detail** — marcação (profissional pelo nome público, especialidade, método, hora, preço, estados) + metadados do comprovativo + `professionalReason?` + `familyNote?` (nunca família, membro, rótulo) · **AdminReviewReportItem/Detail** — avaliação (nota, comentário, resposta, mês, especialidade, método) + profissional + motivo/nota (nunca família, membro, marcação).

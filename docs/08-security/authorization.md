@@ -74,6 +74,8 @@ Notas:
 | Ler processos de um membro (lista/detalhe, marco B fatia 1) | READ da categoria da origem de cada processo (APPOINTMENTS/EXAMS), ver §6.8. Sem ações de escrita. |
 | Responder ao pedido de confirmação de uma consulta ("Vou" / "Não posso", `PUT …/appointments/{id}/confirmation`; M14 Q, BR-CLN-26) | WRITE(APPOINTMENTS): a mesma permissão de `setAppointmentStatus` (SELF, TUTOR_OF; `DEPENDENT_SELF` com conta, FR-ALR-08); `OTHER` ⇒ `FORBIDDEN`. Sem categoria nova. Ler `confirmationStatus`/`followUpDueOn`: READ(APPOINTMENTS). |
 | Abrir/continuar, ler, enviar, marcar como lida, fechar/reabrir e denunciar numa conversa com um profissional (`/families/{f}/members/{m}/conversations*`; MK2, BR-MKT-38) | Ação nova `MESSAGE_PROFESSIONALS`: `SELF` (adulto) ou `TUTOR_OF` do membro-sujeito; `DEPENDENT_SELF`/`OTHER` ⇒ `FORBIDDEN` — ver §11.2. Sem categoria de dados nem `SharingGrant`. |
+| Marcar, ver, cancelar marcações, carregar/descarregar/disputar comprovativos, avaliar (`/families/{f}/members/{m}/bookings*`; MK3, BR-MKT-50) | Ação nova `BOOK_PROFESSIONALS`: `SELF` (adulto) ou `TUTOR_OF` do membro-sujeito; `DEPENDENT_SELF`/`OTHER` ⇒ `FORBIDDEN` — ver §12.1. Sem categoria de dados nem `SharingGrant`. A consulta gerada e o `Process` `BOOKING` leem-se pelas regras existentes (APPOINTMENTS, §3). |
+| Horários livres e avaliações públicas de um profissional (`/marketplace/professionals/{id}/slots`, `…/reviews`; MK3) | Qualquer User autenticado (`AUTH`), sem família nem `AccessPolicy` — ver §12.4. |
 | Pesquisar, ver perfil, comparar profissionais (`/marketplace/*`; MK2) | Qualquer User autenticado (`AUTH`), sem família nem `AccessPolicy` — ver §11.1. |
 | Pesquisar/ver utilizador, repor acesso, listar/suspender contas de clínica | PLATFORM_ADMIN — ver §7 (nunca dados de saúde). |
 
@@ -263,7 +265,11 @@ Os testes de autorização são **gerados a partir da matriz** acima (incl. §7:
 | **MK2** Ler conversas e mensagens próprias; marcar como lida; denunciar uma mensagem recebida | sim (sem conversas em `DRAFT`/`PENDING_REVIEW` na prática) | sim | sim | sim | sim | sim |
 | **MK2** Responder (enviar), fechar e reabrir conversas | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` | **sim** | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` |
 | **MK2** Ser contactado por famílias (nova conversa) | não (`404` à família) | não | não | **sim** | não | não |
-Login, refresh, logout e recuperação de palavra-passe funcionam em todos os estados (OP-59). Operações dependentes de marcações (MK3) acrescentam colunas na matriz do respetivo marco.
+| **MK3** Ler marcações, comprovativos (descarregar os `CLEAN` das suas marcações) e avaliações recebidas | sim (sem marcações em `DRAFT`/`PENDING_REVIEW` na prática) | sim | sim | sim | sim | sim |
+| **MK3** Confirmar, recusar, cancelar, concluir e marcar falta; confirmar/rejeitar comprovativos; responder e denunciar avaliações | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` | **sim** | `PROFESSIONAL_LOCKED` | `PROFESSIONAL_LOCKED` |
+| **MK3** Receber marcações (famílias marcam) e ter horários oferecidos | não (`404` à família) | não | não | **sim** | não | não |
+| **MK3** Criar bloqueio sobre horários **marcados** | — | — | — | `409 CONFLICT` (BR-MKT-53) | — | — |
+Login, refresh, logout e recuperação de palavra-passe funcionam em todos os estados (OP-59). As operações de marcações (MK3) estão nas linhas «MK3» acima e em §12.2; as marcações futuras de um profissional que deixa de estar `APPROVED` são canceladas pelo sistema (BR-MKT-54).
 
 ### 10.3 Platform Admin (`/admin/professionals*`, `/admin/specialties*`) — complementa §7
 | Ação | PLATFORM_ADMIN | Outros atores |
@@ -275,11 +281,14 @@ Login, refresh, logout e recuperação de palavra-passe funcionam em todos os es
 | Editar perfil, ofertas, horários, credenciais ou palavra-passe de um profissional; ler `paymentInstructions`; criar contas de profissional | **não** (não há rota) | — |
 | **MK2** Listar denúncias de mensagens, ver o detalhe (**a mensagem denunciada + as 2 anteriores da mesma conversa**, auditado) e decidir (`DISMISS`, `HIDE_MESSAGE`, `HIDE_AND_CLOSE`) (`/admin/message-reports*`) | sim | idem |
 | **MK2** Ler conversas, mensagens além da denunciada e das 2 imediatamente anteriores (nem posteriores, nem de outras conversas), `participantLabel`, família ou membro de uma conversa | **não** (não há rota; BR-MKT-44/48) | — |
+| **MK3** Listar disputas de comprovativos, ver o detalhe (**a marcação e os metadados do comprovativo**, auditado), descarregar o comprovativo **disputado** (auditado) e decidir (`CONFIRM_PAYMENT`, `UPHOLD_REJECTION`) (`/admin/payment-disputes*`) | sim | idem |
+| **MK3** Listar denúncias de avaliações, ver o detalhe (**a avaliação denunciada**, auditado) e decidir (`DISMISS`, `HIDE_COMMENT`) (`/admin/review-reports*`) | sim | idem |
+| **MK3** Ler marcações fora de uma disputa, comprovativos não disputados, avaliações não denunciadas, `participantLabel`, família ou membro; alterar preços, estados de marcação, avaliações ou o ranking | **não** (não há rota; BR-MKT-58/60/61/63) | — |
 | Ler qualquer dado de saúde ou de família | **não** (BR-MKT-27; `admin`/`professionals` não importam módulos de saúde) | — |
 Um token de `ProfessionalAccount` nunca autoriza `/admin/*`.
 
 ### 10.4 Lado família (User) em MK1
-(MK2 acrescenta as rotas da família em §11.) Em MK1 sem rotas. O único leitor é a **raiz** de `professionals` (`ProfessionalDirectory`, BR-MKT-19), a consumir por MK2/MK3: devolve **só** `APPROVED`, só dados públicos; estados não `APPROVED` ⇒ ausente/`NOT_FOUND` (indistinguível de inexistente); **nunca** `paymentInstructions`, e-mail, credenciais nem estado de validação. A decisão de «pode esta família ver este profissional» é só a de visibilidade (não há dados de saúde em causa, logo **não** há `AccessPolicy`); a autorização de **ações** da família sobre o mercado (marcar, partilhar) fica para MK3/MK4.
+(MK2 acrescenta as rotas da família em §11.) Em MK1 sem rotas. O único leitor é a **raiz** de `professionals` (`ProfessionalDirectory`, BR-MKT-19), a consumir por MK2/MK3: devolve **só** `APPROVED`, só dados públicos; estados não `APPROVED` ⇒ ausente/`NOT_FOUND` (indistinguível de inexistente); **nunca** `paymentInstructions`, e-mail, credenciais nem estado de validação. A decisão de «pode esta família ver este profissional» é só a de visibilidade (não há dados de saúde em causa, logo **não** há `AccessPolicy`); a autorização de **ações** da família sobre o mercado: conversar (§11.2), marcar/pagar/avaliar (MK3, §12.1); partilhar fica para MK4.
 
 Testes gerados desta secção: `TC-AZ-MKT-01..08`.
 
@@ -310,3 +319,28 @@ Algoritmo de §10.1 (token, conta, isolamento por `professionalId` do token, est
 `PLATFORM_ADMIN` (§7/§10.3); User não-admin ⇒ `403`; token de profissional ⇒ `401`. **Só** a mensagem denunciada e as 2 mensagens imediatamente anteriores da mesma conversa (contexto, BR-MKT-44/OP-76; o servidor limita a consulta por `conversation_id` e `seq`); sem rota para listar/ler conversas ou outras mensagens; cada leitura de detalhe é **auditada**. `messaging` não importa `admin` e `admin` não importa `messaging` (o guard `PLATFORM_ADMIN` é injetado em `main/api.ts`, como em `professionals`/`clinics`).
 
 Testes gerados desta secção: `TC-AZ-MKT-09..16`.
+
+## 12. Mercado de profissionais — MK3: marcação, comprovativo e avaliações (ADR-037; contrato 2026-11-19, **nada implementado**)
+
+> Complementa §4 (`access`), §10 (portal do profissional) e §7 (admin). Regras: BR-MKT-50..66.
+
+### 12.1 Marcações — lado família (`/families/{f}/members/{m}/bookings*`)
+Ação nova de `access`: **`BOOK_PROFESSIONALS`** (alteração mínima ao módulo `access`: uma ação na `AccessPolicy` + teste da matriz; **sem** categoria de dados nem `SharingGrant`, como `MESSAGE_PROFESSIONALS`). `consultations` não importa `access`: autoriza pela porta **`BookingAccess`** (definida na sua `application`, implementada no composition root sobre `access`).
+| Ação | `SELF` (adulto) | `TUTOR_OF` | `DEPENDENT_SELF` | `OTHER` / Family Admin como `OTHER` |
+|---|---|---|---|---|
+| Listar e ver marcações do membro (incl. instruções de pagamento e `meetingInfo` quando `CONFIRMED`) | sim (do próprio) | sim (do dependente) | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Marcar, cancelar | sim | sim | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Carregar, listar, descarregar e disputar comprovativos | sim | sim | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+| Ver, criar e editar a avaliação da marcação | sim | sim | não (`FORBIDDEN`) | não (`FORBIDDEN`) |
+Critério: relação `SELF`/`TUTOR_OF` com o membro-sujeito (nunca `SharingGrant`: a marcação e o comprovativo têm dados pessoais e financeiros); `DEPENDENT_SELF` não marca (só o tutor; coerente com OP-77). Os dois tutores partilham as mesmas marcações. Membro `BLOCKED` ⇒ `MEMBER_BLOCKED`. **Isolamento:** a marcação procura-se **por (`familyId`, `memberId`, `bookingId`)**; o comprovativo e a avaliação **sempre através da marcação** (nunca por id solto); de outra família/membro ou inexistente ⇒ `404` sem enumeração; `403` só quando o membro existe na família mas a relação é insuficiente. O `Process` `BOOKING` e a consulta gerada leem-se pelas regras da categoria APPOINTMENTS (§3/§6.8) — o `DEPENDENT_SELF` vê a **consulta** (como qualquer consulta) mas não a marcação, o pagamento nem o comprovativo. Auditoria das ações sensíveis e das negações (`ACCESS_DENIED`) com `family_id` e `subject_member_id` (`audit.md` §3). A verificação **`SelfDealingGuard`** (BR-MKT-62) corre **depois** da autorização e antes de qualquer escrita.
+
+### 12.2 Marcações — lado do profissional
+Algoritmo de §10.1 (token, conta, isolamento por `professionalId` do token, estado de validação lido da BD por pedido). Matriz por estado em §10.2 (linhas «MK3»): **leitura sempre**; **confirmar, recusar, cancelar, concluir, falta, decidir comprovativos, responder e denunciar avaliações só `APPROVED`** (`PROFESSIONAL_LOCKED` nos outros). A marcação, o comprovativo e a avaliação procuram-se **por `professionalId` do token** (de outro profissional ou inexistente ⇒ `404` idêntico). O profissional **nunca** recebe ids de família, membro nem utilizador em nenhuma resposta (BR-MKT-10/63; teste de chaves proibidas, TC-AZ-MKT-21) e só descarrega comprovativos `CLEAN` das **suas** marcações (download auditado).
+
+### 12.3 Admin — `/admin/payment-disputes*` e `/admin/review-reports*`
+`PLATFORM_ADMIN` (§7/§10.3); User não-admin ⇒ `403`; token de profissional ⇒ `401`. **Disputas:** só comprovativos que foram disputados; o detalhe devolve a marcação e os metadados do comprovativo, o ficheiro descarrega-se por rota própria **só se disputado** (ambos **auditados**); **denúncias de avaliações:** só a avaliação denunciada. Sem rota para listar marcações, comprovativos ou avaliações fora destes conjuntos, nem para alterar preços, estados de marcação, notas ou o ranking (BR-MKT-61). `consultations` não importa `admin` e `admin` não importa `consultations` (o guard `PLATFORM_ADMIN` é injetado em `main/api.ts`, como em `messaging`).
+
+### 12.4 Rotas públicas de MK3 (`/marketplace/professionals/{id}/slots` e `…/reviews`)
+`AUTH` sem família, como §11.1: só `User` autenticado (`bearerAuth`); só dados públicos de `APPROVED` (horários livres; avaliações anónimas). Entram na lista fechada **`PUBLIC_DATA_ROUTES`** (`listBookableSlots`, `listProfessionalReviews`); a CI continua a verificar que nenhuma rota `/families/*` lá está. 60 pedidos/min por utilizador (BR-MKT-66). Não auditadas.
+
+Testes gerados desta secção: `TC-AZ-MKT-17..25`.

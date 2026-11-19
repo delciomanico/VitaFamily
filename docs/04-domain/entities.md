@@ -71,6 +71,7 @@ Tem 1+ MedicationPlan e 0..5 Documents.
 `scheduledAt` (UTC) · `status` (REQUESTED | SCHEDULED | REJECTED | COMPLETED | NO_SHOW | CANCELLED) · `professionalName?` · `specialty?` · `clinicId?` · `clinicName?` (texto de reserva, BR-CLN-02) · `slotId?` (horário da clínica parceira, D17) · `responseNote?` (motivo da clínica ao recusar/cancelar, D17) · `reason?` · `notes?` · `outcomeRequestedAt?`
 **M14 Q (BR-CLN-25..30):** `confirmationStatus` (PENDING | CONFIRMED | DECLINED; omissão PENDING) · `confirmationSource?` (PATIENT | CLINIC) · `confirmedAt?` · `arrivedAt?` · `startedAt?` (fluxo do dia; **sem estados Vita novos**) · `followUpDueOn?` (date; `patientNotified` na API é derivado: consulta Vita e hoje ≥ `followUpDueOn` − 7 dias). Estados de dia derivados (`dayState`) em `state-machines.md`.
 **Marco B fatia 1 (ADR-032):** `processId?` (uuid do `Process` aberto com a consulta; só leitura; BR-PRC-01).
+**MK3 (BR-MKT-55):** `bookingId?` (uuid da `Booking` que gerou a consulta; só leitura; nulo nas consultas da família/clínica). Uma consulta com `bookingId` **partilha o `Process` da marcação** (`processId` = o da marcação) e é **gerida pela marcação** (estado, data e profissional não se alteram pelas rotas genéricas; só `notes`).
 
 ### Examination — categoria C6
 `name` · `examDate` (date) · `scheduledAt?` (UTC; só em exame de horário da clínica, D19) · `status` (SCHEDULED | COMPLETED | CANCELLED; `REQUESTED`/`REJECTED` obsoletos, só no enum de BD, state-machines.md) · `clinicId?` · `clinicName?` · `slotId?` (horário `EXAM` de origem, D19) · `responseNote?` (motivo da clínica ao cancelar) · `notes?` · `issuedBy` (FAMILY | CLINIC, default FAMILY) · `issuedByClinicAccountId?` · `resultsIssuedAt?` · `clinicResultNote?` (nota livre da clínica ao completar)
@@ -176,7 +177,7 @@ Documento **gerado, sem entidade nem tabela**: derivado de uma marcação `COMPL
 ## Processos (ADR-032, marco B fatia 1) — categoria da **origem** (APPOINTMENTS ou EXAMS); sem categoria de partilha própria
 
 ### Process
-`id` (= `processId`) · `familyId` · `memberId` · `kind` (ROUTINE; `AUTHORIZED` inerte na BD, ADR-037) · `originType` (APPOINTMENT | EXAMINATION; `AUTHORIZATION` inerte na BD) · `originId` (ato âncora) · `clinicId?` (clínica do ato à abertura) · `openedAt`
+`id` (= `processId`) · `familyId` · `memberId` · `kind` (ROUTINE; `AUTHORIZED` inerte na BD, ADR-037) · `originType` (APPOINTMENT | EXAMINATION | **BOOKING** (MK3, `ADD VALUE`); `AUTHORIZATION` inerte na BD) · `originId` (ato âncora) · `clinicId?` (clínica do ato à abertura) · `openedAt`
 **Derivados em leitura (nunca persistidos, BR-PRC-02/03):** `familyStatus` (SCHEDULED | IN_PROGRESS | DONE | CANCELLED) e `nextStep { code, actor }` por `deriveFamilyStatus(facts)` (`facts` = o facto do ato; sem cobertura). `scheduledAt?` e `phase` vêm do facto do ato (`ActFact { source, phase, scheduledAt?, changedAt }`, publicado pelo módulo dono, `state-machines.md` Process).
 **Agregador, não dono:** não tem máquina de estados, não duplica estados dos atos, não guarda dados clínicos. Relações: 1 `Process` : 1 ato (`appointments.process_id`/`examinations.process_id`). Registos da clínica sem ids Vita (BR-CLN-24) não têm `Process`. Regras: BR-PRC-01..11.
 
@@ -203,7 +204,7 @@ Documento **gerado, sem entidade nem tabela**: derivado de uma marcação `COMPL
 `professionalId` · `specialtyId` (do próprio profissional) · `method` (IN_PERSON | VIDEO | CHAT | PHONE) · `durationMinutes` (15|20|30|45|60) · `priceKz` (inteiro 0–100 000 000) · `note?` (≤ 200) · `active`. Imutáveis: especialidade, método, duração (BR-MKT-24).
 
 ### ProfessionalScheduleRule / ProfessionalTimeOff / ProfessionalSlot — horários
-`ProfessionalScheduleRule`: `professionalId` · `offerId` · `weekdays` (ISO 1–7) · `startTime`/`endTime` (hora local de `Africa/Luanda`) · `validFrom?`/`validUntil?` · `active`. `ProfessionalTimeOff`: `professionalId` · `startsAt` · `endsAt` · `reason?` (nota interna). `ProfessionalSlot`: `professionalId` · `offerId` · `ruleId` · `startsAt` · `endsAt` (instantes UTC; gerados idempotentemente numa janela de 8 semanas, sem sobreposição por profissional; só para `APPROVED`; BR-MKT-25). Ocupação (marcações): MK3.
+`ProfessionalScheduleRule`: `professionalId` · `offerId` · `weekdays` (ISO 1–7) · `startTime`/`endTime` (hora local de `Africa/Luanda`) · `validFrom?`/`validUntil?` · `active`. `ProfessionalTimeOff`: `professionalId` · `startsAt` · `endsAt` · `reason?` (nota interna). `ProfessionalSlot`: `professionalId` · `offerId` · `ruleId` · `startsAt` · `endsAt` (instantes UTC; gerados idempotentemente numa janela de 8 semanas, sem sobreposição por profissional; só para `APPROVED`; BR-MKT-25). **MK3 (BR-MKT-53):** `bookingId?` (a marcação que detém o horário; nulo = livre; um horário com `bookingId` nunca se apaga nem aparece na pesquisa).
 
 ## Mercado de profissionais — MK2: conversas (ADR-037; contrato 2026-11-17, **nada implementado**)
 
@@ -220,6 +221,25 @@ Documento **gerado, sem entidade nem tabela**: derivado de uma marcação `COMPL
 
 ### Estruturas só de contrato (sem tabela) — descoberta
 `MarketplaceProfessionalItem` (cartão da pesquisa) · `MarketplaceProfessionalProfile` (perfil público) · `ProfessionalComparison` (lado a lado) · `RankingExplanation` (`version`, `score` 0–100, `signals` {`profileCompleteness`, `availability`, `price`, `seniority`} em [0,1], `reasons[]`, `label` `NEW`) · `RankingRules` (versão, sinais, pesos, exclusões) · `MarketplaceFilters` (especialidades com nº de profissionais, cidades, métodos). Ver `openapi.yaml`.
+
+## Mercado de profissionais — MK3: marcação, comprovativo e avaliações (ADR-037; contrato 2026-11-19, **nada implementado**)
+
+> Dados em `schema.md` §13. As marcações e os comprovativos são do **membro** (FK composta `(family_id, member_id)`, `CASCADE`); a avaliação é **independente** do membro (anónima, BR-MKT-59/64). O profissional nunca recebe ids de família/membro/utilizador (BR-MKT-63).
+
+### Booking — marcação de uma consulta (tabela `bookings`; módulo `consultations`)
+`familyId` · `memberId` (membro-sujeito) · `professionalId` · `offerId` · **cópias (imutáveis, BR-MKT-03/51):** `specialtyId` · `method` · `durationMinutes` · `priceKz` · `startsAt` · `endsAt` · `slotId?` (só enquanto detém o horário) · `status` (REQUESTED | CONFIRMED | REJECTED | CANCELLED | COMPLETED | NO_SHOW; `state-machines.md`) · `paymentStatus` (NOT_REQUIRED | AWAITING_PROOF | PROOF_SUBMITTED | CONFIRMED | REJECTED | DISPUTED) · `participantLabel` (1–40; tudo o que o profissional vê da família) · `statusReason?` (≤ 300; motivo do profissional ao recusar/cancelar ou nota da família ao cancelar) · `cancelledBy?` (FAMILY | PROFESSIONAL | SYSTEM) · `systemReason?` (REQUEST_EXPIRED | PROFESSIONAL_UNAVAILABLE) · `cancelledAt?` · `confirmedAt?` · `completedAt?` · `meetingInfo?` (≤ 300; ligação externa/número, BR-MKT-52) · `processId` (o `Process` `BOOKING`) · `createdByUserId?` (só servidor) · `clientRequestId?`. **Derivados na leitura:** `cancelledLate`, `canCancel`, `canSendProof`, `canReview`, `appointmentId?`, `conversationId?`. **Sem motivo/queixa em texto livre** (BR-MKT-51). Regras: BR-MKT-50..58, 62..66.
+
+### PaymentProof — comprovativo de pagamento (tabela `payment_proofs`)
+`bookingId` · ficheiro (`storageKey`, `contentType` PDF/JPG/PNG, `sizeBytes` ≤ 10 MB) · `scanStatus` (PENDING | CLEAN | INFECTED) · `status` (SUBMITTED | CONFIRMED | REJECTED | DISPUTED | REJECTION_UPHELD) · `decidedAt?` · `decisionReason?` (≤ 300; motivo do profissional) · `disputeNote?` (≤ 300) · `disputedAt?` · `disputeDecision?` (CONFIRM_PAYMENT | UPHOLD_REJECTION) · `disputeDecidedAt?` · `purgedAt?` (ficheiro apagado pela retenção). Só um em curso (SUBMITTED | DISPUTED) por marcação, máx. 5. Descarrega-se só pela família da marcação, pelo profissional da marcação e, se `DISPUTED`, pelo admin (BR-MKT-57). Regras: BR-MKT-56..58.
+
+### Review — avaliação verificada (tabela `reviews`)
+`bookingId?` (nulo depois de o membro/marcação desaparecer: anónima) · `professionalId` · `specialtyId` · `method` · `consultedMonth` (primeiro dia do mês da consulta, Luanda) · `rating` (1–5) · `comment?` (≤ 500) · `commentHiddenAt?` (moderação; a nota continua a contar) · `replyText?` (≤ 500) · `repliedAt?` · `createdAt` · `updatedAt`. **Sem** `familyId`/`memberId`/`userId` (a autoria prova-se pela marcação). Uma por marcação (UNIQUE `bookingId`); editável até 7 dias após a criação. Regras: BR-MKT-59/60/61.
+
+### ReviewReport — denúncia de uma avaliação (tabela `review_reports`)
+`reviewId` (única por avaliação) · `reason` (ABUSE | PERSONAL_DATA | OFF_TOPIC | OTHER) · `note?` (≤ 300) · `status` (OPEN | DECIDED) · `decision?` (DISMISS | HIDE_COMMENT) · `decidedBy?` (id do admin) · `decidedAt?` · `createdAt`. Não guarda o denunciante (só o profissional avaliado denuncia). Regras: BR-MKT-60.
+
+### Estruturas só de contrato (sem tabela) — ranking `v2`
+`RankingInputV2` (fechado: os de `v1` mais `reviewCount`/`ratingSum` por profissional e a média `C` da coorte, BR-MKT-61), `ReviewStats` (`{professionalId, count, sum}` por especialidade, devolvido por `consultations` a `discovery` sem textos nem ids de família), `RANKING_V2` (pesos 40/20/20/10/10, `m = 5`, N = 3).
 
 ## Alertas
 

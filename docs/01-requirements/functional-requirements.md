@@ -224,9 +224,9 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-MKT-09 | O admin da plataforma **nunca acede a dados de saúde** nem a campos além da identificação profissional; o módulo de profissionais não contém dados de saúde (BR-MKT-10/27). | ADR-037 §11 |
 | FR-MKT-10 | As ações sensíveis do mercado (conta, credenciais, decisões, catálogo) são **auditadas** sem PII em `metadata` (BR-MKT-28). | ADR-037 |
 
-## 16. Mercado de profissionais — MK2: descoberta, comparação, ranking e conversas (MKT)
+## 16. Mercado de profissionais — MK2 (descoberta, comparação, ranking e conversas) e MK3 (marcação, comprovativo e avaliações) (MKT)
 
-> Acrescentada 2026-11-17 (ADR-037, contrato de MK2; **nada implementado**). Regras: `business-rules.md` §17 (BR-MKT-32..49). Casos de uso: `03-use-cases/marketplace.md` (UC-MKT-13..25).
+> Acrescentada 2026-11-17 (ADR-037, contrato de MK2; **nada implementado** à data do contrato) e 2026-11-19 (**FR-MKT-23..36: contrato de MK3**; nada implementado). Regras: `business-rules.md` §17 (BR-MKT-32..49; MK3: BR-MKT-50..66). Casos de uso: `03-use-cases/marketplace.md` (UC-MKT-13..25) e `03-use-cases/consultations.md` (UC-MKT-26..47).
 
 | ID | Requisito | Origem |
 |---|---|---|
@@ -242,6 +242,20 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-MKT-20 | O chat tem **limites e anti-abuso** (tamanho, taxa, conversas novas, mensagens sem resposta) e aviso fixo de não enviar dados de saúde sensíveis (BR-MKT-42/46). | marketplace §4.3 |
 | FR-MKT-21 | As conversas têm **retenção de 24 meses** desde a última mensagem, apagam-se com o membro/família e entram na exportação do titular (BR-MKT-45). | ADR-037 §7 |
 | FR-MKT-22 | As ações sensíveis de MK2 (abrir conversa, fechar/reabrir, denunciar, moderar, ver denúncia) são **auditadas sem conteúdo** (BR-MKT-43/44; `audit.md` §3). | ADR-037 |
+| FR-MKT-23 | A família vê os **horários livres** de um profissional por oferta (só `APPROVED`; sem os ocupados) e **marca** uma oferta e um horário em nome de um membro (titular ou tutor), com preço em Kz copiado e rótulo do participante; a marcação nasce `REQUESTED` (BR-MKT-50/51/53). | ADR-037 §4, plan MK3 |
+| FR-MKT-24 | A família vê as marcações do membro (estado, preço, pagamento, o que falta) e **cancela** uma marcação antes da hora, com a antecedência mostrada (BR-MKT-52). | marketplace §4.4 |
+| FR-MKT-25 | O profissional vê as suas marcações (só o rótulo do participante), **confirma** (com a ligação/número em vídeo e telefone), **recusa** com motivo, **cancela**, e marca **concluída** ou **falta** depois da hora (BR-MKT-52). | marketplace §4.4/4.5 |
+| FR-MKT-26 | Cada marcação abre um **processo** (`BOOKING`) que a família vê com os 4 estados e «o que falta»; ao ser confirmada cria a **consulta no registo do membro** (privada ao membro, com lembretes) e acompanha o estado da marcação (BR-MKT-55). | ADR-037 §13 |
+| FR-MKT-27 | Pedidos sem resposta expiram e as marcações futuras de um profissional que deixa de estar `APPROVED` são **canceladas com aviso à família**, libertando o horário (BR-MKT-54). | BR-MKT-01 |
+| FR-MKT-28 | A família vê as **instruções de pagamento** do profissional depois da confirmação, paga **fora da app** e **carrega o comprovativo** (PDF/imagem, antivírus); o Vita regista estado, quem e quando, e **não valida o dinheiro** (BR-MKT-56/57). | ADR-037 §4 |
+| FR-MKT-29 | O profissional **confirma ou rejeita** o comprovativo (com motivo); a família pode **disputar** uma rejeição e o admin decide vendo **só o comprovativo e a marcação** (BR-MKT-58). | marketplace §4.6 |
+| FR-MKT-30 | A família **avalia** o profissional (1–5 e comentário curto) **só** depois de uma consulta concluída com pagamento satisfeito, **uma vez por marcação**, anónima, editável 7 dias; as avaliações são públicas para famílias autenticadas (BR-MKT-59). | ADR-037 §6 |
+| FR-MKT-31 | O profissional **responde uma vez** a cada avaliação e pode **denunciá-la**; o admin vê só a avaliação e decide ocultar o comentário ou arquivar (BR-MKT-60). | marketplace §4.7 |
+| FR-MKT-32 | O **ranking** passa a usar as avaliações verificadas (média suavizada, mínimo 3, «Novo» abaixo), continua **independente de pagamento, destaques e ordem manual**, e as regras públicas («Como ordenamos») descrevem a versão `v2` (BR-MKT-61). | ADR-037 §6 |
+| FR-MKT-33 | Um profissional **não marca nem avalia** consigo próprio (mesmo e-mail), verificado por porta, sem leitura cruzada de tabelas (BR-MKT-62). | marketplace §6 |
+| FR-MKT-34 | As marcações, comprovativos e avaliações cumprem **minimização** (o profissional nunca vê ids da família; o admin só vê o que BR-MKT-63 define), **retenção** de comprovativos, cascatas e **exportação do titular** (BR-MKT-63/64). | ADR-037 §11 |
+| FR-MKT-35 | A família é avisada (alerta e canais, texto genérico) das atualizações de marcação e de comprovativo; o profissional recebe um e-mail genérico por evento (BR-MKT-65). | plan MK3 |
+| FR-MKT-36 | As ações sensíveis de MK3 (marcar, cancelar, comprovativos e downloads, decisões, disputas, avaliações, moderação) são **auditadas sem conteúdo** (`audit.md` §3). | ADR-037 |
 
 ---
 

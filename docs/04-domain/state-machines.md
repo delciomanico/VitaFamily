@@ -166,6 +166,33 @@ Os movimentos fazem-se pela porta `ExamOrderLinker` na mesma transação do `Exa
 | `examinations` | `REQUESTED`, `REJECTED` (obsoletos, ADR-023) | erro de integridade (nunca ocorre; CHECK da BD) |
 `changedAt` = `updated_at` da linha do ato; `scheduledAt` = `scheduled_at` do ato (nulo num exame sem horário).
 
+**1b) MK3 — projeção de `bookings` (`source=BOOKING`; função pura de `consultations/domain`, TC-MKT-88)**
+| Módulo | Estado da marcação | `phase` |
+|---|---|---|
+| `consultations` | `REQUESTED` | `PENDING` |
+| `consultations` | `CONFIRMED` | `SCHEDULED` |
+| `consultations` | `COMPLETED` | `DONE` |
+| `consultations` | `NO_SHOW` | `NO_SHOW` |
+| `consultations` | `CANCELLED`, `REJECTED` | `CANCELLED` |
+O `ActFact` de `BOOKING` leva ainda um **`hint?`** de lista fechada (`PAYMENT_PROOF_DUE` · `PAYMENT_UNDER_REVIEW` · `PAYMENT_DISPUTED` · `REVIEW_DUE`), também calculado por `consultations` (`CONFIRMED`/`COMPLETED` com `paymentStatus` `AWAITING_PROOF`/`REJECTED` ⇒ `PAYMENT_PROOF_DUE`; `PROOF_SUBMITTED` ⇒ `PAYMENT_UNDER_REVIEW`; `DISPUTED` ⇒ `PAYMENT_DISPUTED`; `COMPLETED` com pagamento satisfeito, janela de 30 dias aberta e sem avaliação ⇒ `REVIEW_DUE`; senão nulo). `changedAt` = `updated_at` da marcação; `scheduledAt` = `startsAt`. O `hint` é aditivo e opcional: os atos `APPOINTMENT`/`EXAMINATION` nunca o têm.
+
+**2b) Tabela de verdade de `deriveFamilyStatus` — linhas acrescentadas por MK3 (só `source=BOOKING`; as 6 linhas de cima mantêm-se para os restantes)**
+| `phase` | `hint` | `familyStatus` | `nextStep.code` | `nextStep.actor` |
+|---|---|---|---|---|
+| `PENDING` | — | `SCHEDULED` | `AWAIT_PROFESSIONAL_RESPONSE` | `PROFESSIONAL` |
+| `SCHEDULED` | — | `SCHEDULED` | `ATTEND` | `FAMILY` |
+| `SCHEDULED` | `PAYMENT_PROOF_DUE` | `SCHEDULED` | `SEND_PAYMENT_PROOF` | `FAMILY` |
+| `SCHEDULED` | `PAYMENT_UNDER_REVIEW` | `SCHEDULED` | `AWAIT_PAYMENT_CONFIRMATION` | `PROFESSIONAL` |
+| `SCHEDULED` | `PAYMENT_DISPUTED` | `SCHEDULED` | `AWAIT_PAYMENT_DISPUTE_DECISION` | `PLATFORM` |
+| `DONE` | — | `DONE` | `NOTHING_PENDING` | `NONE` |
+| `DONE` | `PAYMENT_PROOF_DUE` | `DONE` | `SEND_PAYMENT_PROOF` | `FAMILY` |
+| `DONE` | `PAYMENT_UNDER_REVIEW` | `DONE` | `AWAIT_PAYMENT_CONFIRMATION` | `PROFESSIONAL` |
+| `DONE` | `PAYMENT_DISPUTED` | `DONE` | `AWAIT_PAYMENT_DISPUTE_DECISION` | `PLATFORM` |
+| `DONE` | `REVIEW_DUE` | `DONE` | `LEAVE_REVIEW` | `FAMILY` |
+| `CANCELLED` | — | `CANCELLED` | `NOTHING_PENDING` | `NONE` |
+| `NO_SHOW` | — | `CANCELLED` | `RESCHEDULE` | `FAMILY` |
+Combinações não listadas (p. ex. `hint` com `PENDING`/`CANCELLED`) são **ignoradas** (tratam-se como `hint` nulo; a função é total). `IN_PROGRESS` não existe para marcações (sem chegada/início). Os conjuntos `nextStep.code`/`actor` continuam **abertos** (BR-PRC-03): os valores novos são `AWAIT_PROFESSIONAL_RESPONSE`, `SEND_PAYMENT_PROOF`, `AWAIT_PAYMENT_CONFIRMATION`, `AWAIT_PAYMENT_DISPUTE_DECISION`, `LEAVE_REVIEW` e os atores `PROFESSIONAL`, `PLATFORM`. A leitura de um `Process` `BOOKING` exige READ(APPOINTMENTS) (BR-MKT-55).
+
 **2) Tabela de verdade de `deriveFamilyStatus` (fatia 1, 6 linhas, totalidade verificada)**
 | `phase` | `familyStatus` | `nextStep.code` | `nextStep.actor` |
 |---|---|---|---|
@@ -232,6 +259,45 @@ Decisões concorrentes: bloqueio da denúncia; a segunda ⇒ `INVALID_STATE_TRAN
 
 ## Message (MK2) — imutável
 Não tem máquina de estados: `body` e `seq` nunca mudam; o único efeito é `hiddenAt` (nulo → data, por moderação, irreversível em MK2).
+
+## Booking — marcação (MK3, BR-MKT-51..55; contrato 2026-11-19)
+```text
+(nova)    → REQUESTED   [família marca; horário reservado; Process BOOKING aberto]
+REQUESTED → CONFIRMED   [profissional APPROVED confirma; cria a consulta no membro]
+REQUESTED → REJECTED    [profissional recusa; motivo obrigatório; horário libertado]
+REQUESTED → CANCELLED   [família (antes da hora) | profissional (antes da hora, motivo) | sistema (48 h sem resposta ou hora passada)]
+CONFIRMED → COMPLETED   [profissional, com agora ≥ startsAt; grava completedAt]
+CONFIRMED → NO_SHOW     [profissional, com agora ≥ startsAt]
+CONFIRMED → CANCELLED   [família | profissional (antes da hora) | sistema: profissional deixou de estar APPROVED]
+REJECTED | CANCELLED | COMPLETED | NO_SHOW → (terminais; sem correção em MK3, OP-108)
+```
+Cada transição corre numa transação com `SELECT … FOR UPDATE` da marcação; a corrida (duas decisões) ⇒ a segunda recebe `INVALID_STATE_TRANSITION`. **Efeitos na mesma transação:** `REJECTED`/`CANCELLED` libertam o horário (`slot.booking_id`, `bookings.slot_id` → nulo); `CONFIRMED` cria a consulta no membro (`FamilyAppointmentWriter`); `COMPLETED`/`NO_SHOW`/`CANCELLED` atualizam a consulta (se existir); toda a transição atualiza o `ActFact` (lido por pedido, BR-PRC modelo *pull*) e gera o aviso (BR-MKT-65). Quem pode cada transição e em que estado do profissional: `authorization.md` §12. **Derivado, sem transição:** um profissional que deixa de estar `APPROVED` não confirma, recusa, conclui nem decide comprovativos (`PROFESSIONAL_LOCKED`); o job `consultations.reconcile-bookings` cancela depois as futuras (BR-MKT-54).
+
+## PaymentStatus da marcação e PaymentProof (MK3, BR-MKT-56..58)
+```text
+Marcação com preço 0 Kz                      → NOT_REQUIRED (fixo)
+Marcação com preço > 0                       → AWAITING_PROOF (à criação)
+AWAITING_PROOF | REJECTED → PROOF_SUBMITTED  [família carrega um comprovativo; marcação CONFIRMED ou COMPLETED]
+PROOF_SUBMITTED → CONFIRMED                  [profissional CONFIRM]
+PROOF_SUBMITTED → REJECTED                   [profissional REJECT; motivo obrigatório]
+REJECTED        → DISPUTED                   [família disputa o comprovativo rejeitado (uma vez por comprovativo)]
+DISPUTED        → CONFIRMED                  [admin CONFIRM_PAYMENT]
+DISPUTED        → REJECTED                   [admin UPHOLD_REJECTION; o comprovativo fica REJECTION_UPHELD]
+CONFIRMED       → (terminal)
+```
+`PaymentProof.status`: `SUBMITTED → CONFIRMED | REJECTED`; `REJECTED → DISPUTED`; `DISPUTED → CONFIRMED | REJECTION_UPHELD`. Um só comprovativo em curso (`SUBMITTED`/`DISPUTED`) por marcação; máx. 5. O estado do pagamento **congela** com a marcação `CANCELLED`/`REJECTED`/`NO_SHOW`. Não existe `PAID` nem transição por silêncio/tempo.
+
+## Review e ReviewReport (MK3, BR-MKT-59/60)
+```text
+Review: (nova) → criada [marcação COMPLETED + pagamento CONFIRMED|NOT_REQUIRED, ≤ 30 dias após completedAt]
+        criada → editada [família, ≤ 7 dias após a criação; rating e comment]
+        sem resposta → com resposta [profissional, uma vez; sem edição]
+        comentário visível → oculto (commentHiddenAt) [admin HIDE_COMMENT; irreversível em MK3; a nota continua a contar]
+ReviewReport: (nova) → OPEN [profissional denuncia; uma por avaliação]
+              OPEN → DECIDED(DISMISS)       [admin arquiva]
+              OPEN → DECIDED(HIDE_COMMENT)  [admin oculta o comentário]
+```
+Decisões concorrentes: bloqueio da denúncia; a segunda ⇒ `INVALID_STATE_TRANSITION`. A decisão é definitiva em MK3.
 
 ## Alert / Notification
 ```text

@@ -107,6 +107,25 @@ Todas com justificação de consulta (nada sem consulta concreta). A descoberta 
 | `messages` | `(sender_user_id, created_at DESC) WHERE sender_user_id IS NOT NULL` | Limite de 200 mensagens/dia por utilizador (BR-MKT-42). |
 | `message_reports` | UNIQUE `(message_id, reporter_side)` · `(status, created_at, id) WHERE status = 'OPEN'` | Denúncia única por lado; **fila do admin** (mais antigas primeiro, cursor por `id`). |
 
+## Mercado de profissionais — MK3 (ADR-037; `schema.md` §13, migração proposta `0045`)
+Todos com justificação de consulta. O ranking `v2` **não** cria tabelas: agrega `reviews` no pedido com o índice abaixo (OP-86, OP-103).
+
+| Tabela | Índice | Consulta que serve |
+|---|---|---|
+| `professional_slots` | UNIQUE `(booking_id)` (da coluna nova) · `(professional_id, starts_at) WHERE booking_id IS NULL` | Ocupação lida por `professionals`/`discovery` (`slotStats`, `listBookableSlots`, `availableWithinDays` só com horários livres) e veto de remoção/bloqueio (`booking_id IS NOT NULL`). |
+| `bookings` | UNIQUE `(slot_id)` · UNIQUE parcial `(process_id)` · UNIQUE parcial `(member_id, client_request_id)` | Um horário, uma marcação; ligação ao `Process`; idempotência da criação. |
+| `bookings` | `EXCLUDE USING gist (member_id WITH =, tstzrange(starts_at, ends_at) WITH &&) WHERE status IN ('REQUESTED','CONFIRMED')` | Marcações ativas do membro não se sobrepõem (também serve a verificação prévia). |
+| `bookings` | `(family_id, member_id, starts_at DESC, id DESC)` | Lista de marcações do membro (família), com cursor. |
+| `bookings` | `(professional_id, starts_at DESC, id DESC)` · `(professional_id, status, starts_at)` | Lista do profissional no portal e filtro por estado. |
+| `bookings` | `(status, starts_at, created_at) WHERE status IN ('REQUESTED','CONFIRMED')` | Job `consultations.reconcile-bookings` (pedidos sem resposta, hora passada, profissional indisponível). |
+| `bookings` | `(created_by_user_id, created_at DESC) WHERE created_by_user_id IS NOT NULL` | Limite de 10 marcações criadas/dia por utilizador (BR-MKT-66). |
+| `payment_proofs` | UNIQUE `(storage_key)` · UNIQUE parcial `(booking_id) WHERE status IN ('SUBMITTED','DISPUTED')` | Download mediado; um só comprovativo em curso. |
+| `payment_proofs` | `(booking_id, created_at DESC)` · `(status, disputed_at, id) WHERE status = 'DISPUTED'` | Lista por marcação; **fila de disputas do admin** (mais antigas primeiro, cursor por `id`). |
+| `payment_proofs` | `(created_at) WHERE purged_at IS NULL` | Job `consultations.purge-expired` (junta com `bookings.starts_at`; retenção de 24 meses). |
+| `reviews` | UNIQUE `(booking_id)` · `(specialty_id, professional_id)` · `(professional_id, created_at DESC, id DESC)` | Uma por marcação; agregação `{count, sum}` do ranking `v2` por especialidade e coorte; lista pública do profissional. |
+| `review_reports` | UNIQUE `(review_id)` · `(status, created_at, id) WHERE status = 'OPEN'` | Uma denúncia por avaliação; **fila do admin** (mais antigas primeiro). |
+| `consultation_file_deletions` | `(created_at) WHERE deleted_at IS NULL` | Job `consultations.delete-files`. |
+
 ## Regras
 1. Índices parciais exigem SQL manual nas migrações (ADR-003).
 2. Antes de M10, validar os 5 caminhos quentes: scanner, agenda do dia, lista de alertas, resolução de membership, relatório individual.
