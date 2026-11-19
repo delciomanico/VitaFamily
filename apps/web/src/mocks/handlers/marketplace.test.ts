@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { resetConsultationsDb } from '../consultationsDb'
 import { marketplaceDb, resetMarketplaceDb } from '../marketplaceDb'
 import { resetProfessionalDb } from '../professionalDb'
 import * as mkt from './marketplace'
@@ -6,6 +7,7 @@ import * as mkt from './marketplace'
 beforeEach(() => {
   resetMarketplaceDb()
   resetProfessionalDb()
+  resetConsultationsDb()
   window.sessionStorage.clear()
 })
 
@@ -47,13 +49,16 @@ describe('filtros do mercado', () => {
     expect(ids(page.items).sort()).toEqual(['pro_pub_nutri1', 'pro_pub_psico1', 'pro_pub_psico2'])
   })
 
-  it('specialtyId=spc_psico devolve ranking com label NEW, reasons em array e score entre 0 e 100, ordenado por ranking', async () => {
+  it('specialtyId=spc_psico devolve ranking v2 com label RATED/NEW, reasons em array e score entre 0 e 100, ordenado por ranking', async () => {
     const page = await mkt.searchProfessionals({ specialtyId: 'spc_psico' })
     expect(ids(page.items).sort()).toEqual(['pro_pub_psico1', 'pro_pub_psico2', 'pro_pub_psico3'])
 
-    expect(page.items[0]?.ranking?.label).toBe('NEW')
     for (const item of page.items) {
       const r = item.ranking!
+      expect(r.version).toBe('v2')
+      expect(Object.keys(r.signals).sort()).toEqual(['availability', 'price', 'profileCompleteness', 'reviews', 'seniority'])
+      // «Novo» só abaixo de 3 avaliações verificadas nesta especialidade (BR-MKT-61).
+      expect(r.label).toBe((item.reviewSummary?.count ?? 0) >= 3 ? 'RATED' : 'NEW')
       expect(Array.isArray(r.reasons)).toBe(true)
       expect(r.score).toBeGreaterThanOrEqual(0)
       expect(r.score).toBeLessThanOrEqual(100)
@@ -168,7 +173,8 @@ describe('perfil público', () => {
     expect(other.ranking).toBeUndefined()
 
     const own = await mkt.getMarketplaceProfessional('pro_pub_psico1', 'spc_psico')
-    expect(own.ranking?.label).toBe('NEW')
+    expect(own.ranking?.label).toBe('RATED')
+    expect(own.reviewSummary).toEqual({ count: 4, averageRating: 4.8 })
     expect(own.ranking?.score).toBeGreaterThanOrEqual(0)
   })
 
@@ -222,9 +228,11 @@ describe('comparação de profissionais', () => {
 // ───── Regras de ranking ─────
 
 describe('regras de ranking', () => {
-  it('4 sinais cuja soma de pesos é 100 e notUsed não vazio', async () => {
+  it('v2: 5 sinais (avaliações 40 %) cuja soma de pesos é 100 e notUsed não vazio', async () => {
     const rules = await mkt.getRankingRules()
-    expect(rules.signals).toHaveLength(4)
+    expect(rules.version).toBe('v2')
+    expect(rules.signals.map((s) => s.code)).toEqual(['REVIEWS', 'PROFILE_COMPLETENESS', 'AVAILABILITY', 'PRICE', 'SENIORITY'])
+    expect(rules.signals.find((s) => s.code === 'REVIEWS')?.weightPercent).toBe(40)
     expect(rules.signals.reduce((sum, s) => sum + s.weightPercent, 0)).toBe(100)
     expect(rules.notUsed.length).toBeGreaterThan(0)
   })

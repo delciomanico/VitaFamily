@@ -183,6 +183,9 @@ export interface ProfessionalSlot {
   offerId: string
   startsAt: string
   endsAt: string
+  /** MK3 (BR-MKT-53): uma marcação detém o horário; nunca se apaga nem aparece na pesquisa. */
+  booked?: boolean
+  bookingId?: string
 }
 
 /** `ProfessionalTokenResponse` reduzido ao que a UI guarda (o token vive só em memória). */

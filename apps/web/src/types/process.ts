@@ -6,7 +6,8 @@ export type ProcessFamilyStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'DONE' | 'CANCEL
 
 export interface ProcessNextStep {
   code: string
-  actor: 'FAMILY' | 'CLINIC' | 'NONE'
+  /** Conjunto aberto: `PROFESSIONAL` e `PLATFORM` são de marcações do mercado (MK3). */
+  actor: 'FAMILY' | 'CLINIC' | 'NONE' | 'PROFESSIONAL' | 'PLATFORM'
 }
 
 export interface FamilyProcess {
@@ -15,7 +16,7 @@ export interface FamilyProcess {
   kind: string
   familyStatus: ProcessFamilyStatus
   nextStep: ProcessNextStep
-  origin: { type: 'APPOINTMENT' | 'EXAMINATION'; id: string }
+  origin: { type: 'APPOINTMENT' | 'EXAMINATION' | 'BOOKING'; id: string }
   scheduledAt: string | null
   openedAt: string
 }

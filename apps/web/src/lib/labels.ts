@@ -200,6 +200,17 @@ export function nextStepSentence(step: { code: string; actor: string }): string 
       return 'Pode voltar a marcar.'
     case 'NOTHING_PENDING':
       return 'Não falta nada.'
+    // Marcações do mercado (MK3): a frase nunca nomeia o decisor técnico.
+    case 'AWAIT_PROFESSIONAL_RESPONSE':
+      return 'O profissional ainda tem de responder.'
+    case 'SEND_PAYMENT_PROOF':
+      return 'Falta enviar o comprovativo de pagamento.'
+    case 'AWAIT_PAYMENT_CONFIRMATION':
+      return 'O profissional ainda tem de confirmar o pagamento.'
+    case 'AWAIT_PAYMENT_DISPUTE_DECISION':
+      return 'A Vita Family está a analisar o pagamento.'
+    case 'LEAVE_REVIEW':
+      return 'Pode avaliar esta consulta.'
     default:
       return 'Estamos a tratar do assunto.'
   }

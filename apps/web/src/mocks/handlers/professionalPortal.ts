@@ -26,6 +26,7 @@ import {
   type Specialty,
 } from '@/types/professional'
 import { DEMO_PROFESSIONAL_CODE, newProfessional, professionalDb, proId, type MockProfessional, type MockProfessionalCredential } from '../professionalDb'
+import { activeBookingsOverlapping, bookingHoldingSlot } from '../consultationsDb'
 import { respond, respondBlob } from '../respond'
 
 /*
@@ -545,6 +546,8 @@ export function createProfessionalTimeOff(input: ProfessionalTimeOffInput): Prom
     if (Number.isNaN(start) || Number.isNaN(end) || end <= start || end - start > 366 * 86_400_000 || end < Date.now()) throw new AppError('VALIDATION_ERROR')
     if ((input.reason?.length ?? 0) > 200) throw new AppError('VALIDATION_ERROR')
     if (record.timeOffs.some((t) => Date.parse(t.startsAt) < end && start < Date.parse(t.endsAt))) throw new AppError('CONFLICT')
+    // Um bloqueio que cubra uma marcação ativa futura é recusado: primeiro recusa/cancela-se (BR-MKT-53).
+    if (activeBookingsOverlapping(record.id, start, end).length > 0) throw new AppError('CONFLICT')
     const timeOff: ProfessionalTimeOff = {
       id: proId('tof'),
       startsAt: new Date(start).toISOString(),
@@ -577,7 +580,10 @@ export function listProfessionalSlots(from: string, to: string): Promise<Profess
     return record.slots
       .filter((s) => Date.parse(s.startsAt) >= a && Date.parse(s.startsAt) < b)
       .sort((x, y) => x.startsAt.localeCompare(y.startsAt))
-      .map(({ ruleId: _r, ...slot }) => slot)
+      .map(({ ruleId: _r, ...slot }) => {
+        const booking = bookingHoldingSlot(slot.id)
+        return { ...slot, booked: booking !== undefined, bookingId: booking?.id }
+      })
   })
 }
 

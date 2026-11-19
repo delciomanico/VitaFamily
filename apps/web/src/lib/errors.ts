@@ -28,6 +28,9 @@ export type ErrorCode =
   | 'PROFESSIONAL_LOCKED'
   | 'DOCUMENT_NOT_AVAILABLE'
   | 'CONVERSATION_CLOSED'
+  | 'SLOT_UNAVAILABLE'
+  | 'SELF_BOOKING_NOT_ALLOWED'
+  | 'REVIEW_NOT_ALLOWED'
   | 'UNKNOWN'
 
 export class AppError extends Error {
@@ -73,6 +76,9 @@ const messages: Record<ErrorCode, string> = {
   PROFESSIONAL_LOCKED: 'Neste estado não pode alterar isto. Se precisar, peça ao administrador para reabrir o perfil.',
   DOCUMENT_NOT_AVAILABLE: 'Este ficheiro ainda não está disponível para descarregar.',
   CONVERSATION_CLOSED: 'Esta conversa já não aceita mensagens: está fechada ou o profissional está indisponível.',
+  SLOT_UNAVAILABLE: 'Esse horário acabou de ser ocupado. Escolha outro.',
+  SELF_BOOKING_NOT_ALLOWED: 'Não pode marcar nem avaliar o seu próprio serviço.',
+  REVIEW_NOT_ALLOWED: 'Já não é possível avaliar esta consulta.',
   UNKNOWN: 'Algo correu mal. Tente novamente.',
 }
 

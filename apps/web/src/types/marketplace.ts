@@ -6,7 +6,7 @@
  */
 import type { OfferMethod, Specialty, SpecialtyCategory } from './professional'
 
-export type RankingReason = 'COMPLETE_PROFILE' | 'GOOD_AVAILABILITY' | 'COMPETITIVE_PRICE' | 'ESTABLISHED'
+export type RankingReason = 'GOOD_REVIEWS' | 'COMPLETE_PROFILE' | 'GOOD_AVAILABILITY' | 'COMPETITIVE_PRICE' | 'ESTABLISHED'
 
 export interface MarketplaceOffer {
   id: string
@@ -20,10 +20,18 @@ export interface MarketplaceOffer {
 export interface RankingExplanation {
   version: string
   score: number
-  signals: { profileCompleteness: number; availability: number; price: number; seniority: number }
+  /** `reviews` é de `v2` (BR-MKT-61); com menos de 3 avaliações é neutro (0,5). */
+  signals: { reviews: number; profileCompleteness: number; availability: number; price: number; seniority: number }
   /** Conjunto aberto: tolerar valores desconhecidos. */
   reasons: string[]
+  /** `NEW` («Novo») com menos de 3 avaliações verificadas; `RATED` com 3 ou mais. Conjunto aberto. */
   label: string
+}
+
+/** Resumo das avaliações verificadas (BR-MKT-61): a média só existe com 3 ou mais avaliações. */
+export interface ReviewSummary {
+  count: number
+  averageRating?: number
 }
 
 export interface MarketplaceProfessionalItem {
@@ -35,6 +43,7 @@ export interface MarketplaceProfessionalItem {
   fromPriceKz: number
   nextAvailableAt?: string
   ranking?: RankingExplanation
+  reviewSummary?: ReviewSummary
 }
 
 export interface MarketplaceProfessionalPage {
@@ -53,6 +62,7 @@ export interface MarketplaceProfessionalProfile {
   /** Primeiro dia do mês da primeira aprovação (AAAA-MM-DD). */
   memberSince?: string
   ranking?: RankingExplanation
+  reviewSummary?: ReviewSummary
 }
 
 export type MarketplaceSort = 'RANKING' | 'PRICE_ASC' | 'PRICE_DESC' | 'NEXT_AVAILABLE'
@@ -94,7 +104,7 @@ export interface ProfessionalComparison {
 
 export interface RankingRules {
   version: string
-  signals: Array<{ code: 'PROFILE_COMPLETENESS' | 'AVAILABILITY' | 'PRICE' | 'SENIORITY'; weightPercent: number; description: string }>
+  signals: Array<{ code: 'REVIEWS' | 'PROFILE_COMPLETENESS' | 'AVAILABILITY' | 'PRICE' | 'SENIORITY'; weightPercent: number; description: string }>
   notUsed: string[]
   statement: string
 }

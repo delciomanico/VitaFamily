@@ -53,6 +53,9 @@ export function toErrorCode(code: string): ErrorCode {
     'PROFESSIONAL_LOCKED',
     'DOCUMENT_NOT_AVAILABLE',
     'CONVERSATION_CLOSED',
+    'SLOT_UNAVAILABLE',
+    'SELF_BOOKING_NOT_ALLOWED',
+    'REVIEW_NOT_ALLOWED',
   ]
   return (known as string[]).includes(code) ? (code as ErrorCode) : 'UNKNOWN'
 }

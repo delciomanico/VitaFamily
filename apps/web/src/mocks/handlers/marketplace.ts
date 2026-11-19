@@ -11,8 +11,10 @@ import type {
   ProfessionalComparison,
   RankingExplanation,
   RankingRules,
+  ReviewSummary,
 } from '@/types/marketplace'
 import type { OfferMethod, ProfessionalOffer, Specialty } from '@/types/professional'
+import { reviewStats } from '../consultationsDb'
 import { marketplaceDb } from '../marketplaceDb'
 import { professionalDb } from '../professionalDb'
 import { respond } from '../respond'
@@ -27,8 +29,10 @@ const PAGE_SIZE = 20
 const DAY = 86_400_000
 const MAX_PRICE = 100_000_000
 
-/** Pesos do ranking v1 (BR-MKT-37): mudar é mudança de contrato. */
-export const RANKING_V1 = { completeness: 40, availability: 30, price: 15, seniority: 15 } as const
+/** Pesos do ranking v2 (BR-MKT-37/61, OP-103): mudar é mudança de contrato. */
+export const RANKING_V2 = { reviews: 40, completeness: 20, availability: 20, price: 10, seniority: 10 } as const
+/** Avaliações verificadas: mínimo para deixar de ser «Novo», peso da média da coorte (suavização) e valor neutro. */
+const REVIEWS = { minCount: 3, priorWeight: 5, neutral: 0.5, fallbackMean: 3 } as const
 
 interface DiscoveryProfessional {
   id: string
@@ -105,7 +109,7 @@ const toOffer = ({ id, specialtyId, method, durationMinutes, priceKz, note }: Pr
 const activeOffers = (p: DiscoveryProfessional, specialtyId?: string) =>
   p.offers.filter((o) => o.active && (specialtyId === undefined || o.specialtyId === specialtyId))
 
-// ───── Ranking v1 (função pura) ─────
+// ───── Ranking v2 (função pura; pagamento, destaques e ordem manual não entram) ─────
 
 interface Scored {
   id: string
@@ -116,6 +120,9 @@ interface Scored {
 }
 
 export function rankCohort(cohort: DiscoveryProfessional[], specialtyId: string, now: number): Map<string, Scored> {
+  const stats = new Map(cohort.map((p) => [p.id, reviewStats(p.id, specialtyId)]))
+  const totalCount = [...stats.values()].reduce((sum, x) => sum + x.count, 0)
+  const cohortMean = totalCount === 0 ? REVIEWS.fallbackMean : [...stats.values()].reduce((sum, x) => sum + x.sum, 0) / totalCount
   const lowest = new Map(cohort.map((p) => [p.id, Math.min(...activeOffers(p, specialtyId).map((o) => o.priceKz))]))
   const result = new Map<string, Scored>()
   for (const p of cohort) {
@@ -141,11 +148,22 @@ export function rankCohort(cohort: DiscoveryProfessional[], specialtyId: string,
         ? 1 - (others.filter((x) => x < mine).length + 0.5 * others.filter((x) => x === mine).length) / (cohort.length - 1)
         : 0.5
     const seniority = Math.min(Math.max(Math.floor((now - Date.parse(p.approvedAt)) / DAY), 0), 180) / 180
+    const mineStats = stats.get(p.id) as { count: number; sum: number }
+    const reviews =
+      mineStats.count < REVIEWS.minCount
+        ? REVIEWS.neutral
+        : Math.min(1, Math.max(0, ((REVIEWS.priorWeight * cohortMean + mineStats.sum) / (REVIEWS.priorWeight + mineStats.count) - 1) / 4))
     const score = Math.round(
-      (RANKING_V1.completeness * completeness + RANKING_V1.availability * availability + RANKING_V1.price * price + RANKING_V1.seniority * seniority),
+      RANKING_V2.reviews * reviews +
+        RANKING_V2.completeness * completeness +
+        RANKING_V2.availability * availability +
+        RANKING_V2.price * price +
+        RANKING_V2.seniority * seniority +
+        1e-9,
     )
     const reasons = (
       [
+        ['GOOD_REVIEWS', mineStats.count >= REVIEWS.minCount ? reviews : 0],
         ['COMPLETE_PROFILE', completeness],
         ['GOOD_AVAILABILITY', availability],
         ['COMPETITIVE_PRICE', price],
@@ -161,15 +179,21 @@ export function rankCohort(cohort: DiscoveryProfessional[], specialtyId: string,
       availability,
       approvedAt: p.approvedAt,
       explanation: {
-        version: 'v1',
+        version: 'v2',
         score,
-        signals: { profileCompleteness: completeness, availability, price, seniority },
+        signals: { reviews, profileCompleteness: completeness, availability, price, seniority },
         reasons,
-        label: 'NEW',
+        label: mineStats.count >= REVIEWS.minCount ? 'RATED' : 'NEW',
       },
     })
   }
   return result
+}
+
+/** Resumo das avaliações verificadas (BR-MKT-61): a média só existe com 3 ou mais avaliações; uma casa decimal. */
+export function reviewSummaryOf(professionalId: string, specialtyId?: string): ReviewSummary {
+  const { count, sum } = reviewStats(professionalId, specialtyId)
+  return count >= REVIEWS.minCount ? { count, averageRating: Math.round((sum / count) * 10) / 10 } : { count }
 }
 
 const cohortOf = (specialtyId: string) => visible().filter((p) => activeOffers(p, specialtyId).length > 0)
@@ -194,14 +218,15 @@ export function getMarketplaceFilters(): Promise<MarketplaceFilters> {
 
 export function getRankingRules(): Promise<RankingRules> {
   return respond(() => ({
-    version: 'v1',
+    version: 'v2',
     signals: [
-      { code: 'PROFILE_COMPLETENESS', weightPercent: RANKING_V1.completeness, description: 'Perfil descrito, com notas nos serviços, mais de um método e mais de um serviço.' },
-      { code: 'AVAILABILITY', weightPercent: RANKING_V1.availability, description: 'Horários livres nos próximos 14 dias.' },
-      { code: 'PRICE', weightPercent: RANKING_V1.price, description: 'Preço relativo aos outros profissionais da mesma especialidade.' },
-      { code: 'SENIORITY', weightPercent: RANKING_V1.seniority, description: 'Tempo na plataforma, até 6 meses.' },
+      { code: 'REVIEWS', weightPercent: RANKING_V2.reviews, description: 'Avaliações: nota das avaliações verificadas (só de quem consultou), suavizada pela média da especialidade; com menos de 3 avaliações o profissional é «Novo» e este sinal é neutro.' },
+      { code: 'PROFILE_COMPLETENESS', weightPercent: RANKING_V2.completeness, description: 'Perfil completo: apresentação preenchida, notas nas ofertas e mais do que um método ou oferta.' },
+      { code: 'AVAILABILITY', weightPercent: RANKING_V2.availability, description: 'Disponibilidade: horários livres nos próximos 14 dias.' },
+      { code: 'PRICE', weightPercent: RANKING_V2.price, description: 'Preço: o preço mais baixo do profissional face aos restantes da mesma especialidade.' },
+      { code: 'SENIORITY', weightPercent: RANKING_V2.seniority, description: 'Antiguidade: tempo desde a aprovação do perfil na Vita Family.' },
     ],
-    notUsed: ['Pagamentos ou comissões', 'Destaques pagos', 'Ordem manual', 'Dados pessoais ou de saúde'],
+    notUsed: ['Pagamento ou subscrição', 'Destaques pagos', 'Ordem definida manualmente (nem pela equipa da Vita Family)', 'Dados pessoais, nome ou cidade do profissional'],
     statement: 'O pagamento e os destaques pagos nunca influenciam a ordem.',
   }))
 }
@@ -259,6 +284,7 @@ export function searchProfessionals(params: MarketplaceSearchParams = {}): Promi
         fromPriceKz: Math.min(...matching.map((o) => o.priceKz)),
         nextAvailableAt: nexts[0],
         ranking: ranks?.get(p.id)?.explanation,
+        reviewSummary: reviewSummaryOf(p.id, params.specialtyId),
       }
       return item
     })
@@ -270,7 +296,7 @@ export function searchProfessionals(params: MarketplaceSearchParams = {}): Promi
       if (sort === 'RANKING') {
         const ra = ranks?.get(a.id)
         const rb = ranks?.get(b.id)
-        diff = (rb?.score ?? 0) - (ra?.score ?? 0) || (rb?.availability ?? 0) - (ra?.availability ?? 0) || (ra?.approvedAt ?? '').localeCompare(rb?.approvedAt ?? '')
+        diff = (rb?.score ?? 0) - (ra?.score ?? 0) || (rb?.explanation.signals.reviews ?? 0) - (ra?.explanation.signals.reviews ?? 0) || (rb?.availability ?? 0) - (ra?.availability ?? 0) || (ra?.approvedAt ?? '').localeCompare(rb?.approvedAt ?? '')
       } else if (sort === 'PRICE_ASC') diff = a.fromPriceKz - b.fromPriceKz
       else if (sort === 'PRICE_DESC') diff = b.fromPriceKz - a.fromPriceKz
       else diff = (a.nextAvailableAt ?? '9999').localeCompare(b.nextAvailableAt ?? '9999')
@@ -306,6 +332,7 @@ export function getMarketplaceProfessional(professionalId: string, specialtyId?:
       nextAvailableAt: nexts[0],
       memberSince,
       ranking,
+      reviewSummary: reviewSummaryOf(p.id, specialtyId && p.specialtyIds.includes(specialtyId) ? specialtyId : undefined),
     }
   })
 }

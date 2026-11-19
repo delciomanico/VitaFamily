@@ -25,15 +25,18 @@ export const sortLabel: Record<MarketplaceSort, string> = {
 
 /** Conjunto aberto: razões desconhecidas ficam sem texto (a UI ignora-as). */
 export const rankingReasonLabel: Record<string, string> = {
+  GOOD_REVIEWS: 'Bem avaliado',
   COMPLETE_PROFILE: 'Perfil completo',
   GOOD_AVAILABILITY: 'Boa disponibilidade',
   COMPETITIVE_PRICE: 'Preço competitivo',
   ESTABLISHED: 'Na plataforma há algum tempo',
 }
 
+/** `RATED` não leva etiqueta: a nota é mostrada à parte (resumo das avaliações). */
 export const rankingLabelText: Record<string, string> = { NEW: 'Novo' }
 
 export const rankingSignalLabel: Record<RankingRules['signals'][number]['code'], string> = {
+  REVIEWS: 'Avaliações de quem consultou',
   PROFILE_COMPLETENESS: 'Perfil completo',
   AVAILABILITY: 'Disponibilidade',
   PRICE: 'Preço',

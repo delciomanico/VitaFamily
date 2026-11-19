@@ -193,6 +193,8 @@ export function updateAppointment(
 ) {
   return respond((): Appointment => {
     const appointment = findAppointment(familyId, userId, id)
+    // Consulta gerada por uma marcação do mercado: gerida pela marcação (BR-MKT-55).
+    if (appointment.bookingId) throw new AppError('CONFLICT')
     // As de clínica parceira mudam-se cancelando e pedindo outro horário (BR-APT-09).
     if (appointment.status !== 'SCHEDULED' || appointment.slotId) throw new AppError('VALIDATION_ERROR')
     // Os lembretes seguem a nova data (a chave de cada alerta inclui a data da consulta).
@@ -215,6 +217,7 @@ export function setAppointmentStatus(
   return respond((): Appointment => {
     expireRequests(now)
     const appointment = findAppointment(familyId, userId, id)
+    if (appointment.bookingId) throw new AppError('CONFLICT')
     const cancellable = appointment.status === 'SCHEDULED' || appointment.status === 'REQUESTED'
     if (status === 'CANCELLED' ? !cancellable : appointment.status !== 'SCHEDULED')
       throw new AppError('VALIDATION_ERROR')
