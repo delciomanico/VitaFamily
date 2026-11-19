@@ -4,25 +4,19 @@
 // bloqueio da LINHA da conversa (`FOR UPDATE`), pelo que `seq` nunca tem lacunas nem repetições e `clientMessageId` repetido nunca duplica.
 // Ordem dos bloqueios (sem deadlocks): `conversation-open:*` < `message-user:*` < linha da conversa. Privacidade (BR-MKT-46): erros e
 // auditoria nunca levam texto, rótulo nem nota; os erros de validação só nomeiam o campo.
-import { DomainError, NotFoundError, RateLimitedError, ValidationError } from "../../../platform/errors/index.js";
+import { DomainError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { advanceRead, closeConversation, nextSeq, reopenConversation, sendBlock } from "../domain/conversation.js";
-import { checkOpenLimits, checkReportLimit, checkSendLimits, DAY_MS, HOUR_MS, type LimitDecision } from "../domain/limits.js";
+import { checkOpenLimits, checkReportLimit, checkSendLimits, DAY_MS, HOUR_MS } from "../domain/limits.js";
 import type { Message } from "../domain/message.js";
 import { canReport, REPORT_REASONS, type ReportReason } from "../domain/report.js";
-import { validateMessageText, validateParticipantLabel, validateReportNote, type TextError } from "../domain/text.js";
+import { validateMessageText, validateParticipantLabel, validateReportNote } from "../domain/text.js";
+import { enforce, invalid, parseLimit, type Page } from "./shared.js";
+export type { Page };
 import { decodeConversationCursor, decodeSeqCursor, encodeConversationCursor, encodeSeqCursor } from "./cursor.js";
 import type { ActorIdentity, ConversationRecord, MessagingDeps, ProfessionalIdentity, RequestContext } from "./ports.js";
 import { toConversationView, toMessageView, toState, type ChatMessageView, type FamilyConversationView } from "./views.js";
-
-const DEFAULT_LIMIT = 25;
-const MAX_LIMIT = 100;
-
-export interface Page<T> {
-  items: T[];
-  nextCursor: string | null;
-}
 
 export interface StartConversationInput {
   professionalId: string;
@@ -39,24 +33,6 @@ export interface SendMessageInput {
 export interface ReportInput {
   reason: string;
   note?: string;
-}
-
-const TEXT_ERRORS: Record<TextError, string> = { EMPTY: "não pode ser vazio", TOO_LONG: "excede o tamanho máximo", CONTROL_CHARACTER: "contém caracteres de controlo" };
-
-function invalid(field: string, error: TextError): ValidationError {
-  return new ValidationError([{ field, message: TEXT_ERRORS[error] }], { detail: "Dados inválidos." });
-}
-
-function enforce(decision: LimitDecision): void {
-  if (decision.ok) return;
-  if (decision.kind === "RATE_LIMITED") throw new RateLimitedError(decision.retryAfterMs);
-  throw new DomainError("LIMIT_EXCEEDED", { detail: decision.detail });
-}
-
-function parseLimit(limit: number | undefined): number {
-  const value = limit ?? DEFAULT_LIMIT;
-  if (!Number.isInteger(value) || value < 1 || value > MAX_LIMIT) throw new DomainError("MALFORMED_REQUEST", { detail: "Limite inválido." });
-  return value;
 }
 
 export function createFamilyMessaging<Trx>(deps: MessagingDeps<Trx>) {
@@ -93,7 +69,7 @@ export function createFamilyMessaging<Trx>(deps: MessagingDeps<Trx>) {
     const seq = nextSeq(conversation.lastSeq);
     const message: Message = { id: newId(), conversationId: conversation.id, seq, side: "FAMILY", senderUserId: actor.userId, body: text, clientMessageId, hiddenAt: null, createdAt: at };
     await messages.insert(trx, message);
-    await conversations.applyMessage(trx, conversation.id, { lastSeq: seq, at });
+    await conversations.applyMessage(trx, conversation.id, { lastSeq: seq, at, side: "FAMILY" });
     return { message, conversation: { ...conversation, lastSeq: seq, lastMessageAt: at } };
   }
 

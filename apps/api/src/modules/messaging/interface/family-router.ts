@@ -6,30 +6,12 @@ import { UnauthenticatedError } from "../../../platform/errors/index.js";
 import { asyncHandler, buildRequestContext, requireParam } from "../../../platform/http/index.js";
 import type { FamilyMessaging } from "../application/family-conversations.js";
 import type { ActorIdentity } from "../application/ports.js";
+import { body, optionalString, queryInt, queryString } from "./http-helpers.js";
 
 function requireActor(): ActorIdentity {
   const actor = getActor();
   if (!actor) throw new UnauthenticatedError({ detail: "Sem sessão válida." });
   return { userId: actor.userId, platformAdmin: actor.platformAdmin };
-}
-
-function queryInt(req: Request, name: string): number | undefined {
-  const value = req.query[name];
-  if (typeof value === "number") return value;
-  return typeof value === "string" && /^\d+$/.test(value) ? Number(value) : undefined;
-}
-
-function queryString(req: Request, name: string): string | undefined {
-  const value = req.query[name];
-  return typeof value === "string" ? value : undefined;
-}
-
-function body(req: Request): Record<string, unknown> {
-  return typeof req.body === "object" && req.body !== null ? (req.body as Record<string, unknown>) : {};
-}
-
-function optionalString(value: unknown): { v?: string } {
-  return typeof value === "string" ? { v: value } : {};
 }
 
 const BASE = "/families/:familyId/members/:memberId/conversations";

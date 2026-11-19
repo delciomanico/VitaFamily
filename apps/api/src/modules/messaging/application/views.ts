@@ -59,3 +59,41 @@ export function toMessageView(message: Message, conversation: ConversationRecord
     readByOtherSide: readByOtherSide(toState(conversation), message),
   };
 }
+
+/** Vista do PROFISSIONAL (openapi.yaml: ProfessionalConversation): NUNCA ids de família, membro ou utilizador (BR-MKT-10/38). */
+export interface ProfessionalConversationView {
+  id: string;
+  participantLabel: string;
+  status: "OPEN" | "CLOSED";
+  closedBy: "FAMILY" | "PROFESSIONAL" | "SYSTEM" | null;
+  canSend: boolean;
+  lastMessageAt: string;
+  unreadCount: number;
+  createdAt: string;
+}
+
+export function toProfessionalConversationView(conversation: ConversationRecord, approved: boolean, unreadCount: number): ProfessionalConversationView {
+  return {
+    id: conversation.id,
+    participantLabel: conversation.participantLabel,
+    status: conversation.status,
+    closedBy: conversation.closedBy,
+    canSend: canSend(conversation, approved),
+    lastMessageAt: conversation.lastMessageAt.toISOString(),
+    unreadCount,
+    createdAt: conversation.createdAt.toISOString(),
+  };
+}
+
+export function toProfessionalMessageView(message: Message, conversation: ConversationRecord): ChatMessageView {
+  return {
+    id: message.id,
+    seq: message.seq,
+    side: message.side,
+    mine: message.side === "PROFESSIONAL",
+    text: visibleBody(message),
+    hidden: message.hiddenAt !== null,
+    createdAt: message.createdAt.toISOString(),
+    readByOtherSide: readByOtherSide(toState(conversation), message),
+  };
+}

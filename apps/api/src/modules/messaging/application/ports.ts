@@ -15,6 +15,12 @@ export interface ActorIdentity {
   platformAdmin: boolean;
 }
 
+/** Ator do portal do profissional (token de `ProfessionalAccount`); o estado de validação NÃO vem do token (lê-se por pedido). */
+export interface ProfessionalActor {
+  professionalId: string;
+  professionalAccountId: string;
+}
+
 export interface RequestContext {
   requestId: string;
   ip?: string;
@@ -91,6 +97,11 @@ export interface ConversationWithUnread extends ConversationRecord {
   unreadForFamily: number;
 }
 
+export interface ConversationWithUnreadProfessional extends ConversationRecord {
+  /** Mensagens da família com `seq` > `professionalReadSeq`. */
+  unreadForProfessional: number;
+}
+
 export interface ConversationListFilter {
   status?: ConversationStatus;
   limit: number;
@@ -110,8 +121,14 @@ export interface ConversationRepository<Trx> {
   countOpenForSubject(trx: Trx, familyId: string, memberId: string): Promise<number>;
   /** Criação das conversas novas abertas por este utilizador desde `since`. */
   newConversationTimes(trx: Trx, userId: string, since: Date): Promise<Date[]>;
-  applyMessage(trx: Trx, conversationId: string, change: { lastSeq: number; at: Date }): Promise<void>;
+  /** `side = PROFESSIONAL` atualiza também `lastProfessionalSeq` (base do limite de 3 mensagens da família sem resposta). */
+  applyMessage(trx: Trx, conversationId: string, change: { lastSeq: number; at: Date; side: "FAMILY" | "PROFESSIONAL" }): Promise<void>;
   setFamilyReadSeq(trx: Trx, conversationId: string, seq: number, at: Date): Promise<void>;
+  setProfessionalReadSeq(trx: Trx, conversationId: string, seq: number, at: Date): Promise<void>;
+  /** Lado do PROFISSIONAL: procurada SEMPRE por (professionalId do token, id): de outro profissional ⇒ `null` (BR-MKT-48). */
+  findForProfessional(trx: Trx, professionalId: string, conversationId: string, forUpdate: boolean): Promise<ConversationRecord | null>;
+  unreadForProfessional(trx: Trx, conversationId: string, professionalReadSeq: number): Promise<number>;
+  listForProfessional(trx: Trx, professionalId: string, filter: ConversationListFilter): Promise<ConversationWithUnreadProfessional[]>;
   /**
    * Reserva o aviso ao profissional (BR-MKT-41): só se a última mensagem é da família, o profissional ainda não a leu e não houve aviso
    * nos últimos 30 min. Sob `FOR UPDATE` (jobs repetidos/concorrentes ⇒ um só vence). Devolve o profissional e o carimbo anterior.
@@ -130,6 +147,10 @@ export interface MessageRepository<Trx> {
   listPage(trx: Trx, conversationId: string, limit: number, beforeSeq?: number): Promise<Message[]>;
   /** Carimbos das mensagens FAMILY da conversa desde `since`. */
   familyTimesInConversation(trx: Trx, conversationId: string, since: Date): Promise<Date[]>;
+  /** Carimbos das mensagens PROFESSIONAL da conversa desde `since`. */
+  professionalTimesInConversation(trx: Trx, conversationId: string, since: Date): Promise<Date[]>;
+  /** Carimbos das mensagens do profissional (todas as suas conversas) desde `since`. */
+  professionalTimes(trx: Trx, professionalId: string, since: Date): Promise<Date[]>;
   /** Carimbos das mensagens enviadas por este utilizador (todas as conversas) desde `since`. */
   senderTimes(trx: Trx, userId: string, since: Date): Promise<Date[]>;
 }
@@ -148,6 +169,8 @@ export interface ReportRepository<Trx> {
   findBySide(trx: Trx, messageId: string, side: "FAMILY" | "PROFESSIONAL"): Promise<MessageReportRecord | null>;
   insert(trx: Trx, report: MessageReportRecord): Promise<void>;
   /** Denúncias do lado da família feitas nas conversas deste membro-sujeito desde `since` (não se guarda o denunciante: minimização). */
+  /** Denúncias do lado do profissional feitas nas suas conversas desde `since`. */
+  professionalReportTimes(trx: Trx, professionalId: string, since: Date): Promise<Date[]>;
   familyReportTimesForSubject(trx: Trx, familyId: string, memberId: string, since: Date): Promise<Date[]>;
 }
 

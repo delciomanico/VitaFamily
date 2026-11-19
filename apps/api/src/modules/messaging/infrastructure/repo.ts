@@ -10,6 +10,7 @@ import type {
   ConversationRecord,
   ConversationRepository,
   ConversationWithUnread,
+  ConversationWithUnreadProfessional,
   MessageReportRecord,
   MessageRepository,
   ReportRepository,
@@ -188,8 +189,66 @@ export class KyselyConversationRepository implements ConversationRepository<Db> 
     return rows.map((r) => r.created_at);
   }
 
-  async applyMessage(trx: Db, conversationId: string, change: { lastSeq: number; at: Date }): Promise<void> {
-    await trx.updateTable("conversations").set({ last_seq: change.lastSeq, last_message_at: change.at, updated_at: change.at }).where("id", "=", conversationId).execute();
+  async applyMessage(trx: Db, conversationId: string, change: { lastSeq: number; at: Date; side: "FAMILY" | "PROFESSIONAL" }): Promise<void> {
+    await trx
+      .updateTable("conversations")
+      .set({ last_seq: change.lastSeq, last_message_at: change.at, updated_at: change.at, ...(change.side === "PROFESSIONAL" ? { last_professional_seq: change.lastSeq } : {}) })
+      .where("id", "=", conversationId)
+      .execute();
+  }
+
+  async setProfessionalReadSeq(trx: Db, conversationId: string, seq: number, at: Date): Promise<void> {
+    await trx.updateTable("conversations").set({ professional_read_seq: seq, updated_at: at }).where("id", "=", conversationId).execute();
+  }
+
+  async findForProfessional(trx: Db, professionalId: string, conversationId: string, forUpdate: boolean): Promise<ConversationRecord | null> {
+    let query = trx.selectFrom("conversations").select(CONVERSATION_COLUMNS).where("id", "=", conversationId).where("professional_id", "=", professionalId);
+    if (forUpdate) query = query.forUpdate();
+    const row = await query.executeTakeFirst();
+    return row ? toConversation(row) : null;
+  }
+
+  async unreadForProfessional(trx: Db, conversationId: string, professionalReadSeq: number): Promise<number> {
+    const row = await trx
+      .selectFrom("messages")
+      .select(sql<string>`count(*)`.as("n"))
+      .where("conversation_id", "=", conversationId)
+      .where("side", "=", "FAMILY")
+      .where("seq", ">", professionalReadSeq)
+      .executeTakeFirst();
+    return Number(row?.n ?? 0);
+  }
+
+  async listForProfessional(trx: Db, professionalId: string, filter: ConversationListFilter): Promise<ConversationWithUnreadProfessional[]> {
+    let query = trx
+      .selectFrom("conversations as c")
+      .select([
+        "c.id",
+        "c.family_id",
+        "c.member_id",
+        "c.professional_id",
+        "c.opened_by_user_id",
+        "c.participant_label",
+        "c.status",
+        "c.closed_by",
+        "c.closed_at",
+        "c.last_seq",
+        "c.last_professional_seq",
+        "c.last_message_at",
+        "c.family_read_seq",
+        "c.professional_read_seq",
+        "c.professional_notified_at",
+        "c.created_at",
+        sql<string>`(SELECT count(*) FROM messages m WHERE m.conversation_id = c.id AND m.side = 'FAMILY' AND m.seq > c.professional_read_seq)`.as("unread"),
+      ])
+      .where("c.professional_id", "=", professionalId);
+    if (filter.status) query = query.where("c.status", "=", filter.status);
+    if (filter.after) {
+      const { lastMessageAt, id } = filter.after;
+      query = query.where(sql<boolean>`(c.last_message_at, c.id) < (${lastMessageAt}, ${id}::uuid)`);
+    }
+    const rows = await query.orderBy("c.last_message_at", "desc").orderBy("c.id", "desc").limit(filter.limit).execute();
+    return rows.map((r) => ({ ...toConversation(r), unreadForProfessional: Number(r.unread) }));
   }
 
   async setFamilyReadSeq(trx: Db, conversationId: string, seq: number, at: Date): Promise<void> {
@@ -286,6 +345,23 @@ export class KyselyMessageRepository implements MessageRepository<Db> {
     return rows.map((r) => r.created_at);
   }
 
+  async professionalTimesInConversation(trx: Db, conversationId: string, since: Date): Promise<Date[]> {
+    const rows = await trx.selectFrom("messages").select("created_at").where("conversation_id", "=", conversationId).where("side", "=", "PROFESSIONAL").where("created_at", ">", since).execute();
+    return rows.map((r) => r.created_at);
+  }
+
+  async professionalTimes(trx: Db, professionalId: string, since: Date): Promise<Date[]> {
+    const rows = await trx
+      .selectFrom("messages as m")
+      .innerJoin("conversations as c", "c.id", "m.conversation_id")
+      .select("m.created_at")
+      .where("c.professional_id", "=", professionalId)
+      .where("m.side", "=", "PROFESSIONAL")
+      .where("m.created_at", ">", since)
+      .execute();
+    return rows.map((r) => r.created_at);
+  }
+
   async senderTimes(trx: Db, userId: string, since: Date): Promise<Date[]> {
     const rows = await trx.selectFrom("messages").select("created_at").where("sender_user_id", "=", userId).where("created_at", ">", since).execute();
     return rows.map((r) => r.created_at);
@@ -300,6 +376,19 @@ export class KyselyReportRepository implements ReportRepository<Db> {
 
   async insert(trx: Db, report: MessageReportRecord): Promise<void> {
     await trx.insertInto("message_reports").values({ id: report.id, message_id: report.messageId, reporter_side: report.reporterSide, reason: report.reason, note: report.note, status: "OPEN", created_at: report.createdAt }).execute();
+  }
+
+  async professionalReportTimes(trx: Db, professionalId: string, since: Date): Promise<Date[]> {
+    const rows = await trx
+      .selectFrom("message_reports as r")
+      .innerJoin("messages as m", "m.id", "r.message_id")
+      .innerJoin("conversations as c", "c.id", "m.conversation_id")
+      .select("r.created_at")
+      .where("c.professional_id", "=", professionalId)
+      .where("r.reporter_side", "=", "PROFESSIONAL")
+      .where("r.created_at", ">", since)
+      .execute();
+    return rows.map((r) => r.created_at);
   }
 
   async familyReportTimesForSubject(trx: Db, familyId: string, memberId: string, since: Date): Promise<Date[]> {

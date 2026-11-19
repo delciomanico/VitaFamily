@@ -9,11 +9,13 @@ import { newId } from "../../platform/ids/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type PgBoss from "pg-boss";
 import { createFamilyMessaging, type FamilyMessaging } from "./application/family-conversations.js";
+import { createProfessionalMessaging, type ProfessionalMessaging } from "./application/professional-conversations.js";
 import { createNotifyProfessional, type NotifyProfessional } from "./application/notify-professional.js";
-import type { ConversationAccess, MessageAlerts, ProfessionalLookup, ProfessionalMailer, ProfessionalNoticeQueue } from "./application/ports.js";
+import type { ConversationAccess, MessageAlerts, MessagingDeps, ProfessionalLookup, ProfessionalMailer, ProfessionalNoticeQueue } from "./application/ports.js";
 import { PgBossProfessionalNoticeQueue, registerNotifyProfessionalWorker } from "./infrastructure/jobs.js";
 import { KyselyConversationRepository, KyselyMessageRepository, KyselyReportRepository } from "./infrastructure/repo.js";
 import { createFamilyMessagingRouter } from "./interface/family-router.js";
+import { createProfessionalMessagingRouter } from "./interface/professional-router.js";
 
 export { SmtpProfessionalMailer } from "./infrastructure/mailer-smtp.js";
 export { PgBossProfessionalNoticeQueue };
@@ -35,10 +37,13 @@ export interface MessagingModule {
   /** `/families/{f}/members/{m}/conversations*` (User autenticado; ação `MESSAGE_PROFESSIONALS`). */
   router: Router;
   familyUseCases: FamilyMessaging;
+  /** `/professional-portal/conversations*` (token de `ProfessionalAccount`; MK2 S8). */
+  professionalRouter: Router;
+  professionalUseCases: ProfessionalMessaging;
 }
 
 export function createMessagingModule(deps: MessagingModuleDeps): MessagingModule {
-  const familyUseCases = createFamilyMessaging<Kysely<Database>>({
+  const messagingDeps: MessagingDeps<Kysely<Database>> = {
     conversations: new KyselyConversationRepository(),
     messages: new KyselyMessageRepository(),
     reports: new KyselyReportRepository(),
@@ -50,8 +55,10 @@ export function createMessagingModule(deps: MessagingModuleDeps): MessagingModul
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
     newId,
-  });
-  return { router: createFamilyMessagingRouter(familyUseCases), familyUseCases };
+  };
+  const familyUseCases = createFamilyMessaging<Kysely<Database>>(messagingDeps);
+  const professionalUseCases = createProfessionalMessaging<Kysely<Database>>(messagingDeps);
+  return { router: createFamilyMessagingRouter(familyUseCases), familyUseCases, professionalRouter: createProfessionalMessagingRouter(professionalUseCases), professionalUseCases };
 }
 
 export interface MessagingWorkerModuleDeps {
