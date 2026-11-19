@@ -158,9 +158,13 @@ export function createCreateTimeOffUseCase<Trx>(deps: ProfessionalsDeps<Trx>) {
         const professional = await deps.profileRepo.findByIdForUpdate(trx, actor.professionalId);
         if (!professional) throw new NotFoundError();
         assertCanWrite(professional.validationStatus, "EDIT_COMMERCIAL");
+        // Veto (BR-MKT-53, OP-98): um bloqueio sobre horários com marcação futura é recusado; o `detail` só leva a contagem (nunca ids de família).
+        const booked = await deps.slotRepo.countBookedIntersecting(trx, professional.id, startsAt, endsAt, now);
+        if (booked > 0) {
+          throw new ConflictError({ detail: `O bloqueio cobre ${String(booked)} horário(s) com marcação; recuse ou cancele essas marcações primeiro.` });
+        }
         const created = await deps.timeOffRepo.insert(trx, { id: newId(), professionalId: professional.id, startsAt, endsAt, reason, createdAt: now });
-        // Remove os horários livres do intervalo (em MK1 todos são livres; MK3 passa a listar as marcações afetadas).
-        // Só os FUTUROS: o que já passou é histórico e não se apaga (MK3 acrescenta marcações).
+        // Remove os horários livres do intervalo (os ocupados já foram vetados acima). Só os FUTUROS: o passado é histórico e não se apaga.
         const removed = await deps.slotRepo.deleteIntersecting(trx, professional.id, new Date(Math.max(startsAt.getTime(), now.getTime())), endsAt);
         await deps.audit.record(trx, {
           occurredAt: now,

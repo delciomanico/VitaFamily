@@ -26,10 +26,11 @@ export async function reconcileSchedule<Trx>(
   for (const rule of rules) {
     const counts = emptyGeneration();
     const future = await deps.slotRepo.listFuture(trx, professionalId, now);
-    const own = future.filter((s) => s.ruleId === rule.id && s.startsAt.getTime() > now.getTime());
+    // Só os LIVRES são removíveis (BR-MKT-53): um horário ocupado mantém-se e continua a contar como existente na geração.
+    const own = future.filter((s) => s.ruleId === rule.id && s.startsAt.getTime() > now.getTime() && s.bookingId === null);
 
     if (!isEffective(approved, rule)) {
-      // Inativa (regra, oferta ou profissional não APPROVED): remove TODOS os horários futuros livres que gerou (em MK1 todos são livres).
+      // Inativa (regra, oferta ou profissional não APPROVED): remove os horários futuros livres que gerou (os ocupados ficam, BR-MKT-53).
       counts.removed = await deps.slotRepo.deleteByIds(trx, professionalId, own.map((s) => s.id));
       total = addGeneration(total, counts);
       continue;

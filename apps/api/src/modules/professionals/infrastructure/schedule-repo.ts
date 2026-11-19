@@ -151,13 +151,13 @@ export class KyselyTimeOffRepository implements TimeOffRepository<Kysely<Databas
 
 export class KyselySlotRepository implements SlotRepository<Kysely<Database>> {
   async listInRange(trx: Kysely<Database>, professionalId: string, from: Date, to: Date): Promise<SlotRecord[]> {
-    const rows = await trx.selectFrom("professional_slots").select(["id", "offer_id", "rule_id", "starts_at", "ends_at"]).where("professional_id", "=", professionalId).where("starts_at", ">=", from).where("starts_at", "<", to).orderBy("starts_at").orderBy("id").execute();
-    return rows.map((r) => ({ id: r.id, offerId: r.offer_id, ruleId: r.rule_id, startsAt: r.starts_at, endsAt: r.ends_at }));
+    const rows = await trx.selectFrom("professional_slots").select(["id", "offer_id", "rule_id", "starts_at", "ends_at", "booking_id"]).where("professional_id", "=", professionalId).where("starts_at", ">=", from).where("starts_at", "<", to).orderBy("starts_at").orderBy("id").execute();
+    return rows.map((r) => ({ id: r.id, offerId: r.offer_id, ruleId: r.rule_id, startsAt: r.starts_at, endsAt: r.ends_at, bookingId: r.booking_id }));
   }
 
   async listFuture(trx: Kysely<Database>, professionalId: string, after: Date): Promise<SlotRecord[]> {
-    const rows = await trx.selectFrom("professional_slots").select(["id", "offer_id", "rule_id", "starts_at", "ends_at"]).where("professional_id", "=", professionalId).where("ends_at", ">", after).orderBy("starts_at").execute();
-    return rows.map((r) => ({ id: r.id, offerId: r.offer_id, ruleId: r.rule_id, startsAt: r.starts_at, endsAt: r.ends_at }));
+    const rows = await trx.selectFrom("professional_slots").select(["id", "offer_id", "rule_id", "starts_at", "ends_at", "booking_id"]).where("professional_id", "=", professionalId).where("ends_at", ">", after).orderBy("starts_at").execute();
+    return rows.map((r) => ({ id: r.id, offerId: r.offer_id, ruleId: r.rule_id, startsAt: r.starts_at, endsAt: r.ends_at, bookingId: r.booking_id }));
   }
 
   async insertMany(trx: Kysely<Database>, professionalId: string, slots: { id: string; offerId: string; ruleId: string; startsAt: Date; endsAt: Date; createdAt: Date }[]): Promise<number> {
@@ -173,12 +173,25 @@ export class KyselySlotRepository implements SlotRepository<Kysely<Database>> {
 
   async deleteByIds(trx: Kysely<Database>, professionalId: string, ids: string[]): Promise<number> {
     if (ids.length === 0) return 0;
-    const result = await trx.deleteFrom("professional_slots").where("professional_id", "=", professionalId).where("id", "in", ids).executeTakeFirst();
+    const result = await trx.deleteFrom("professional_slots").where("professional_id", "=", professionalId).where("id", "in", ids).where("booking_id", "is", null).executeTakeFirst();
     return Number(result.numDeletedRows);
   }
 
   async deleteIntersecting(trx: Kysely<Database>, professionalId: string, from: Date, to: Date): Promise<number> {
-    const result = await trx.deleteFrom("professional_slots").where("professional_id", "=", professionalId).where("starts_at", "<", to).where("ends_at", ">", from).executeTakeFirst();
+    const result = await trx.deleteFrom("professional_slots").where("professional_id", "=", professionalId).where("starts_at", "<", to).where("ends_at", ">", from).where("booking_id", "is", null).executeTakeFirst();
     return Number(result.numDeletedRows);
+  }
+
+  async countBookedIntersecting(trx: Kysely<Database>, professionalId: string, from: Date, to: Date, now: Date): Promise<number> {
+    const row = await trx
+      .selectFrom("professional_slots")
+      .select(sql<number>`count(*)::int`.as("n"))
+      .where("professional_id", "=", professionalId)
+      .where("booking_id", "is not", null)
+      .where("starts_at", ">", now)
+      .where("starts_at", "<", to)
+      .where("ends_at", ">", from)
+      .executeTakeFirstOrThrow();
+    return row.n;
   }
 }

@@ -1,7 +1,7 @@
 // `DirectoryRepository` e `MaintenanceRepository` (Kysely/pg). O leitor público filtra `APPROVED` em CADA consulta (BR-MKT-19).
 import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
-import type { ApprovedFactsRow, ConversationIdentityRow, DirectoryFilter, FactsFilter, SlotStatRecord, DirectoryRepository, MaintenanceRepository, PublicOffer, PublicProfessionalRow, SlotRecord } from "../application/ports.js";
+import type { ApprovedFactsRow, BookingFactsRow, ConversationIdentityRow, DirectoryFilter, FactsFilter, SlotStatRecord, DirectoryRepository, MaintenanceRepository, PublicOffer, PublicProfessionalRow, SlotRecord } from "../application/ports.js";
 import "./schema.js";
 
 export class KyselyDirectoryRepository implements DirectoryRepository<Kysely<Database>> {
@@ -81,6 +81,7 @@ export class KyselyDirectoryRepository implements DirectoryRepository<Kysely<Dat
       .where("sl.professional_id", "in", professionalIds)
       .where("p.validation_status", "=", "APPROVED")
       .where("o.active", "=", true)
+      .where("sl.booking_id", "is", null)
       .where("sl.starts_at", ">", now)
       .groupBy(["sl.professional_id", "sl.offer_id"])
       .orderBy("sl.offer_id")
@@ -98,17 +99,68 @@ export class KyselyDirectoryRepository implements DirectoryRepository<Kysely<Dat
       .selectFrom("professional_slots as sl")
       .innerJoin("professionals as p", "p.id", "sl.professional_id")
       .innerJoin("professional_offers as o", (join) => join.onRef("o.id", "=", "sl.offer_id").onRef("o.professional_id", "=", "sl.professional_id"))
-      .select(["sl.id", "sl.offer_id", "sl.rule_id", "sl.starts_at", "sl.ends_at"])
+      .select(["sl.id", "sl.offer_id", "sl.rule_id", "sl.starts_at", "sl.ends_at", "sl.booking_id"])
       .where("sl.professional_id", "=", professionalId)
       .where("p.validation_status", "=", "APPROVED")
       .where("o.active", "=", true)
+      .where("sl.booking_id", "is", null)
       .where("sl.starts_at", ">", now)
       .where("sl.starts_at", ">=", from)
       .where("sl.starts_at", "<", to)
       .orderBy("sl.starts_at")
       .orderBy("sl.id")
       .execute();
-    return rows.map((r) => ({ id: r.id, offerId: r.offer_id, ruleId: r.rule_id, startsAt: r.starts_at, endsAt: r.ends_at }));
+    return rows.map((r) => ({ id: r.id, offerId: r.offer_id, ruleId: r.rule_id, startsAt: r.starts_at, endsAt: r.ends_at, bookingId: r.booking_id }));
+  }
+
+  async findBookingFacts(trx: Kysely<Database>, offerId: string, slotId: string): Promise<BookingFactsRow | null> {
+    // APPROVED e oferta ativa lidos agora; o horário só se procura entre os do MESMO profissional (outro ⇒ como inexistente).
+    const row = await trx
+      .selectFrom("professional_offers as o")
+      .innerJoin("professionals as p", "p.id", "o.professional_id")
+      .select(["p.id as professional_id", "p.display_name", "p.city", "o.id as offer_id", "o.specialty_id", "o.method", "o.duration_minutes", "o.price_kz"])
+      .where("o.id", "=", offerId)
+      .where("o.active", "=", true)
+      .where("p.validation_status", "=", "APPROVED")
+      .executeTakeFirst();
+    if (!row?.display_name || !row.city) return null;
+    const slot = await trx
+      .selectFrom("professional_slots")
+      .select(["id", "offer_id", "starts_at", "ends_at", "booking_id"])
+      .where("id", "=", slotId)
+      .where("professional_id", "=", row.professional_id)
+      .executeTakeFirst();
+    return {
+      professionalId: row.professional_id,
+      displayName: row.display_name,
+      city: row.city,
+      offer: { id: row.offer_id, specialtyId: row.specialty_id, method: row.method, durationMinutes: row.duration_minutes, priceKz: row.price_kz },
+      slot: slot ? { id: slot.id, offerId: slot.offer_id, startsAt: slot.starts_at, endsAt: slot.ends_at, booked: slot.booking_id !== null } : null,
+    };
+  }
+
+  async reserveSlot(trx: Kysely<Database>, input: { bookingId: string; slotId: string; offerId: string; minStart: Date }): Promise<boolean> {
+    // UPDATE condicional atómico (BR-MKT-53): a linha só muda se o horário continua livre, é da oferta, da oferta ativa de um APPROVED e com antecedência.
+    const result = await trx
+      .updateTable("professional_slots")
+      .set({ booking_id: input.bookingId })
+      .where("id", "=", input.slotId)
+      .where("offer_id", "=", input.offerId)
+      .where("booking_id", "is", null)
+      .where("starts_at", ">=", input.minStart)
+      .where(sql<boolean>`EXISTS (SELECT 1 FROM professionals p JOIN professional_offers o ON o.professional_id = p.id WHERE p.id = professional_slots.professional_id AND p.validation_status = 'APPROVED' AND o.id = professional_slots.offer_id AND o.active)`)
+      .executeTakeFirst();
+    return Number(result.numUpdatedRows) === 1;
+  }
+
+  async releaseSlot(trx: Kysely<Database>, bookingId: string): Promise<boolean> {
+    const result = await trx.updateTable("professional_slots").set({ booking_id: null }).where("booking_id", "=", bookingId).executeTakeFirst();
+    return Number(result.numUpdatedRows) > 0;
+  }
+
+  async findPaymentInstructions(trx: Kysely<Database>, professionalId: string): Promise<string | null> {
+    const row = await trx.selectFrom("professionals").select("payment_instructions").where("id", "=", professionalId).executeTakeFirst();
+    return row?.payment_instructions && row.payment_instructions.trim() !== "" ? row.payment_instructions : null;
   }
 }
 

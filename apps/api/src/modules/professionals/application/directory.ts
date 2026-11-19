@@ -2,7 +2,7 @@
 // `APPROVED` em cada leitura (sem cache de estado) e devolve só dados públicos: nunca `paymentInstructions`, e-mail, credenciais nem estado
 // de validação. `DRAFT`/`PENDING_REVIEW`/`NEEDS_INFO`/`REJECTED`/`SUSPENDED` são indistinguíveis de «inexistente» (`null`/ausente).
 import type { SpecialtyCategory } from "../domain/requirements.js";
-import type { ApprovedFactsRow, DirectoryFilter, FactsFilter, ProfessionalsDeps, PublicOffer, SlotRecord } from "./ports.js";
+import type { ApprovedFactsRow, BookingFactsRow, DirectoryFilter, FactsFilter, ProfessionalsDeps, PublicOffer, SlotRecord } from "./ports.js";
 
 export interface PublicProfessionalProfile {
   id: string;
@@ -147,7 +147,28 @@ export function createProfessionalDirectory<Trx>(deps: ProfessionalsDeps<Trx>) {
       const slots: SlotRecord[] = await deps.withTransaction((trx) => deps.directoryRepo.bookableSlots(trx, professionalId, from, to, now));
       return slots.map((s) => ({ id: s.id, offerId: s.offerId, startsAt: s.startsAt, endsAt: s.endsAt }));
     },
+
+    /** MK3 (UC-MKT-27): oferta ativa e horário de um APPROVED lidos agora; `null` se a oferta/profissional não servem; `slot: null` se o horário não existe. */
+    async getBookingFacts(offerId: string, slotId: string): Promise<BookingFactsRow | null> {
+      return deps.withTransaction((trx) => deps.directoryRepo.findBookingFacts(trx, offerId, slotId));
+    },
+
+    /** MK3 (BR-MKT-53): reserva atómica NA transação do chamador (como `ProcessLinker.open`); falso ⇒ `SLOT_UNAVAILABLE`. */
+    async reserveSlot(trx: Trx, input: { bookingId: string; slotId: string; offerId: string; minStart: Date }): Promise<boolean> {
+      return deps.directoryRepo.reserveSlot(trx, input);
+    },
+
+    /** MK3: liberta o horário da marcação NA transação do chamador (rejeitar/cancelar). */
+    async releaseSlot(trx: Trx, bookingId: string): Promise<boolean> {
+      return deps.directoryRepo.releaseSlot(trx, bookingId);
+    },
+
+    /** MK3 (BR-MKT-26/56): ÚNICA via por que `paymentInstructions` sai de `professionals` (só `consultations`, só em `CONFIRMED`/`COMPLETED`). */
+    async readPaymentInstructions(professionalId: string): Promise<string | null> {
+      return deps.withTransaction((trx) => deps.directoryRepo.findPaymentInstructions(trx, professionalId));
+    },
   };
 }
 
-export type ProfessionalDirectory = ReturnType<typeof createProfessionalDirectory>;
+/** O tipo concreto (com a transação do composition root) exporta-se em `index.ts`. */
+export type ProfessionalDirectoryOf<Trx> = ReturnType<typeof createProfessionalDirectory<Trx>>;

@@ -148,6 +148,8 @@ export interface ProfessionalSlotsTable {
   rule_id: string;
   starts_at: Date;
   ends_at: Date;
+  /** MK3 (BR-MKT-53): marcação que detém o horário; escrita só por `reserveSlot`/`releaseSlot`. */
+  booking_id: Nullable<string>;
   created_at: Timestamp;
   updated_at: Timestamp;
 }

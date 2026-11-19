@@ -54,7 +54,7 @@ import {
 import { reconcileSchedule } from "./application/schedule-sync.js";
 import { KyselyScheduleRuleRepository, KyselySlotRepository, KyselyTimeOffRepository } from "./infrastructure/schedule-repo.js";
 import { createScheduleRouter } from "./interface/schedule-router.js";
-import { createProfessionalDirectory, type ProfessionalDirectory } from "./application/directory.js";
+import { createProfessionalDirectory, type ProfessionalDirectoryOf } from "./application/directory.js";
 import { createCleanupUseCase, createExpireCredentialsUseCase, createGenerateSlotsUseCase } from "./application/maintenance-jobs.js";
 import { KyselyDirectoryRepository, KyselyMaintenanceRepository } from "./infrastructure/directory-repo.js";
 import { CLEANUP_QUEUE, EXPIRE_CREDENTIALS_QUEUE, GENERATE_SLOTS_QUEUE, registerDailyWorker } from "./infrastructure/jobs.js";
@@ -68,10 +68,13 @@ import { createSpecialtiesRouter } from "./interface/specialties-router.js";
 export { parseProfessionalSigningKeys, type ProfessionalSigningKey } from "./domain/jwt.js";
 export { ProfessionalSmtpMailer } from "./infrastructure/mailer-smtp.js";
 export { ProfessionalFakeMailer } from "./infrastructure/mailer-fake.js";
-export type { ProfessionalMailer, CredentialScanner, CredentialScanQueue } from "./application/ports.js";
-export type { ProfessionalDirectory, PublicProfessionalProfile, BookableSlot, DirectoryQuery, ProfessionalFacts, FactsQuery } from "./application/directory.js";
+export type { ProfessionalMailer, CredentialScanner, CredentialScanQueue, BookingFactsRow } from "./application/ports.js";
+export type { PublicProfessionalProfile, BookableSlot, DirectoryQuery, ProfessionalFacts, FactsQuery } from "./application/directory.js";
 export { CredentialClamAvScanner } from "./infrastructure/clamav-client.js";
 export { PgBossCredentialScanQueue } from "./infrastructure/jobs.js";
+
+/** Leitor público com a transação do composition root (`Kysely`); as portas de `consultations` recebem-na (como `ProcessLinker.open`). */
+export type ProfessionalDirectory = ProfessionalDirectoryOf<Kysely<Database>>;
 
 /** Estado da conta do portal por pedido, cache ≤60 s (BR-MKT-29). */
 const ACCOUNT_STATE_CACHE_TTL_MS = 60_000;

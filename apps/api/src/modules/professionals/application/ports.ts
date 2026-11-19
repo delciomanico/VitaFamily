@@ -329,6 +329,24 @@ export interface DirectoryRepository<Trx> {
   slotStatsFor(trx: Trx, professionalIds: string[], now: Date): Promise<Map<string, SlotStatRecord[]>>;
   /** Horários futuros livres (`starts_at > now`, em `[from, to)`) de um APPROVED, só de ofertas ativas. */
   bookableSlots(trx: Trx, professionalId: string, from: Date, to: Date, now: Date): Promise<SlotRecord[]>;
+  /** MK3: oferta ativa de um `APPROVED` e o horário (do mesmo profissional) pedido; `null` se a oferta não serve (inexistente/inativa/não APPROVED). */
+  findBookingFacts(trx: Trx, offerId: string, slotId: string): Promise<BookingFactsRow | null>;
+  /** MK3 (BR-MKT-53): `UPDATE` condicional atómico; verdadeiro se este pedido ficou com o horário. */
+  reserveSlot(trx: Trx, input: { bookingId: string; slotId: string; offerId: string; minStart: Date }): Promise<boolean>;
+  /** MK3: liberta o horário detido pela marcação; verdadeiro se havia algum. */
+  releaseSlot(trx: Trx, bookingId: string): Promise<boolean>;
+  /** MK3 (BR-MKT-26/56): única leitura de `payment_instructions` (qualquer estado de validação); `null` se vazio ou inexistente. */
+  findPaymentInstructions(trx: Trx, professionalId: string): Promise<string | null>;
+}
+
+/** Factos de uma oferta e de um horário para marcar (só o servidor; nunca e-mail/`paymentInstructions`/estado). */
+export interface BookingFactsRow {
+  professionalId: string;
+  displayName: string;
+  city: string;
+  offer: { id: string; specialtyId: string; method: OfferMethod; durationMinutes: number; priceKz: number };
+  /** `null` se o horário não existe para este profissional; `offerId` permite distinguir «não é da oferta» (422). */
+  slot: { id: string; offerId: string; startsAt: Date; endsAt: Date; booked: boolean } | null;
 }
 
 export interface MaintenanceRepository<Trx> {
@@ -507,6 +525,8 @@ export interface SlotRecord {
   ruleId: string;
   startsAt: Date;
   endsAt: Date;
+  /** MK3 (BR-MKT-53): marcação que detém o horário (`null` = livre). */
+  bookingId: string | null;
 }
 
 export interface SlotRepository<Trx> {
@@ -516,9 +536,12 @@ export interface SlotRepository<Trx> {
   listFuture(trx: Trx, professionalId: string, after: Date): Promise<SlotRecord[]>;
   /** Idempotente (`ON CONFLICT DO NOTHING`: também cobre a exclusão de sobreposição); devolve quantos criou. */
   insertMany(trx: Trx, professionalId: string, slots: { id: string; offerId: string; ruleId: string; startsAt: Date; endsAt: Date; createdAt: Date }[]): Promise<number>;
+  /** Só remove horários LIVRES (`booking_id IS NULL`, BR-MKT-53): um horário ocupado nunca se apaga. */
   deleteByIds(trx: Trx, professionalId: string, ids: string[]): Promise<number>;
-  /** Remove os horários do profissional que intersectam `[from, to)` (bloqueio); devolve quantos. */
+  /** Remove os horários LIVRES do profissional que intersectam `[from, to)` (bloqueio); devolve quantos. */
   deleteIntersecting(trx: Trx, professionalId: string, from: Date, to: Date): Promise<number>;
+  /** MK3 (BR-MKT-53): quantos horários OCUPADOS futuros (`starts_at > now`) intersectam `[from, to)` (veto do bloqueio). */
+  countBookedIntersecting(trx: Trx, professionalId: string, from: Date, to: Date, now: Date): Promise<number>;
 }
 
 /** Efeitos de uma oferta nos horários gerados (BR-MKT-25): desativar remove os futuros livres; reativar repõe o que as regras prevêem. Fatia S9. */
