@@ -2,7 +2,7 @@
 import { sql, type Kysely } from "kysely";
 import { ConflictError } from "../../../platform/errors/index.js";
 import type { Database } from "../../../platform/db/index.js";
-import type { BookingCancellation, BookingListFilter, BookingRecord, BookingRepository } from "../application/ports.js";
+import type { BookingCancellation, BookingListFilter, BookingRecord, BookingRepository, ProfessionalBookingListFilter } from "../application/ports.js";
 import "./schema.js";
 
 type Db = Kysely<Database>;
@@ -154,6 +154,41 @@ export class KyselyBookingRepository implements BookingRepository<Db> {
     await trx
       .updateTable("bookings")
       .set({ status: "CANCELLED", cancelled_by: change.cancelledBy, cancelled_at: change.at, status_reason: change.statusReason, slot_id: null, updated_at: change.at })
+      .where("id", "=", bookingId)
+      .execute();
+  }
+
+  async findForProfessional(trx: Db, professionalId: string, bookingId: string, forUpdate: boolean): Promise<BookingRecord | null> {
+    let query = trx.selectFrom("bookings").select(COLUMNS).where("professional_id", "=", professionalId).where("id", "=", bookingId);
+    if (forUpdate) query = query.forUpdate();
+    const row = await query.executeTakeFirst();
+    return row ? toBooking(row) : null;
+  }
+
+  async listForProfessional(trx: Db, professionalId: string, filter: ProfessionalBookingListFilter): Promise<BookingRecord[]> {
+    let query = trx.selectFrom("bookings").select(COLUMNS).where("professional_id", "=", professionalId);
+    if (filter.statuses.length > 0) query = query.where("status", "in", filter.statuses);
+    if (filter.from) query = query.where("starts_at", ">=", filter.from);
+    if (filter.to) query = query.where("starts_at", "<", filter.to);
+    if (filter.after) {
+      const { startsAt, id } = filter.after;
+      query = query.where((eb) => eb.or([eb("starts_at", ">", startsAt), eb.and([eb("starts_at", "=", startsAt), eb("id", ">", id)])]));
+    }
+    return (await query.orderBy("starts_at", "asc").orderBy("id", "asc").limit(filter.limit).execute()).map(toBooking);
+  }
+
+  async markConfirmed(trx: Db, bookingId: string, change: { at: Date; meetingInfo: string | null }): Promise<void> {
+    await trx.updateTable("bookings").set({ status: "CONFIRMED", confirmed_at: change.at, meeting_info: change.meetingInfo, updated_at: change.at }).where("id", "=", bookingId).execute();
+  }
+
+  async markRejected(trx: Db, bookingId: string, change: { at: Date; reason: string }): Promise<void> {
+    await trx.updateTable("bookings").set({ status: "REJECTED", status_reason: change.reason, slot_id: null, updated_at: change.at }).where("id", "=", bookingId).execute();
+  }
+
+  async markFinished(trx: Db, bookingId: string, change: { status: "COMPLETED" | "NO_SHOW"; at: Date }): Promise<void> {
+    await trx
+      .updateTable("bookings")
+      .set({ status: change.status, ...(change.status === "COMPLETED" ? { completed_at: change.at } : {}), updated_at: change.at })
       .where("id", "=", bookingId)
       .execute();
   }

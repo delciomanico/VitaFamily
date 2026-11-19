@@ -7,6 +7,7 @@ import type { Clock } from "../../platform/clock/index.js";
 import type { AuditModule } from "../audit/index.js";
 import { createGetBookingActFacts } from "./application/act-facts.js";
 import { createFamilyBookings } from "./application/family-bookings.js";
+import { createProfessionalBookings } from "./application/professional-bookings.js";
 import type {
   BookingAccess,
   ConsultationsDeps,
@@ -18,6 +19,7 @@ import type {
 } from "./application/ports.js";
 import { KyselyBookingRepository } from "./infrastructure/repo.js";
 import { createFamilyBookingsRouter } from "./interface/family-router.js";
+import { createProfessionalBookingsRouter } from "./interface/professional-router.js";
 
 export * from "./domain/index.js";
 export { createSelfDealingGuard } from "./application/self-dealing.js";
@@ -40,6 +42,8 @@ export interface ConsultationsModuleDeps {
 export interface ConsultationsModule {
   /** `/families/{f}/members/{m}/bookings*` e `/marketplace/professionals/{id}/slots` (User autenticado). */
   familyRouter: Router;
+  /** `/professional-portal/bookings*` (token de `ProfessionalAccount`). */
+  professionalRouter: Router;
   /** `ProcessFacts` de `originType=BOOKING` (ligado no adaptador composto de `main/api.ts`). */
   getActFacts: ReturnType<typeof createGetBookingActFacts<Trx>>;
 }
@@ -61,6 +65,7 @@ export function createConsultationsModule(deps: ConsultationsModuleDeps): Consul
   };
   return {
     familyRouter: createFamilyBookingsRouter(createFamilyBookings(consultationsDeps)),
+    professionalRouter: createProfessionalBookingsRouter(createProfessionalBookings(consultationsDeps)),
     getActFacts: createGetBookingActFacts({ bookings, clock: deps.clock }),
   };
 }

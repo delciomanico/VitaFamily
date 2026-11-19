@@ -12,6 +12,7 @@ import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createConsultationsModule, createSelfDealingGuard } from "../../src/modules/consultations/index.js";
 import { createDiscoveryModule } from "../../src/modules/discovery/index.js";
 import { createFamiliesModule } from "../../src/modules/families/index.js";
+import { signProfessionalAccessToken } from "../../src/modules/professionals/domain/jwt.js";
 import { createMessagingModule } from "../../src/modules/messaging/index.js";
 import { createUsersModule } from "../../src/modules/users/index.js";
 import { withTransaction, type Database } from "../../src/platform/db/index.js";
@@ -73,6 +74,8 @@ export interface ConsultationsHarness {
   slot(offer: OfferFixture, startsAt: Date, minutes?: number): Promise<string>;
   /** Marcação `REQUESTED`/`CONFIRMED` gerada por SQL (horário ocupado, sem `Process`), para montar limites e listagens sem a API. */
   seedBooking(input: { familyId: string; memberId: string; offer: OfferFixture; startsAt: Date; status?: "REQUESTED" | "CONFIRMED"; createdByUserId?: string | null; label?: string }): Promise<{ bookingId: string; slotId: string }>;
+  /** Token de ProfessionalAccount de vida longa (120 dias), para avançar o relógio sem o expirar (o `token` de `professional()` expira em 900 s). */
+  professionalToken(professionalId: string): Promise<string>;
   stop(): Promise<void>;
 }
 
@@ -142,7 +145,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         appointments: writer,
         conversations: messaging.lookup,
       });
-      return [discovery.router, consultations.familyRouter];
+      return [discovery.router, consultations.familyRouter, consultations.professionalRouter];
     },
     options.logStream ? { logStream: options.logStream } : {},
   );
@@ -265,6 +268,12 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
       );
       await pool.query("UPDATE professional_slots SET booking_id = $2 WHERE id = $1", [slotId, bookingId]);
       return { bookingId, slotId };
+    },
+    async professionalToken(professionalId) {
+      const row = await pool.query<{ account_id: string }>("SELECT account_id FROM professionals WHERE id = $1", [professionalId]);
+      const professionalAccountId = row.rows[0]?.account_id;
+      if (!professionalAccountId) throw new Error("profissional sem conta");
+      return (await signProfessionalAccessToken({ subject: { professionalAccountId, professionalId, sessionId: randomUUID() }, now: clock.now(), ttlSeconds: TOKEN_TTL_SECONDS, signingKeys: SIGNING_KEYS })).token;
     },
     async stop() {
       await h.stop();

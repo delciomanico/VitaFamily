@@ -15,6 +15,12 @@ export interface ActorIdentity {
   platformAdmin: boolean;
 }
 
+/** Ator do portal do profissional (token de `ProfessionalAccount`); o estado de validação NÃO vem do token (lê-se por pedido). */
+export interface ProfessionalActor {
+  professionalId: string;
+  professionalAccountId: string;
+}
+
 export interface RequestContext {
   requestId: string;
   ip?: string;
@@ -138,6 +144,15 @@ export interface BookingListFilter {
   after?: { startsAt: Date; id: string };
 }
 
+export interface ProfessionalBookingListFilter {
+  statuses: BookingStatus[];
+  from?: Date;
+  to?: Date;
+  limit: number;
+  /** Mantém só as que vêm DEPOIS (ordem `startsAt ASC, id ASC`). */
+  after?: { startsAt: Date; id: string };
+}
+
 export interface BookingCancellation {
   cancelledBy: BookingCancelledBy;
   at: Date;
@@ -159,6 +174,16 @@ export interface BookingRepository<Trx> {
   insert(trx: Trx, record: BookingRecord): Promise<void>;
   /** `status = CANCELLED` com quem/quando/nota; liberta `slot_id` (a libertação do horário é da porta `ProfessionalAgenda`). */
   markCancelled(trx: Trx, bookingId: string, change: BookingCancellation): Promise<void>;
+  /** Lado do PROFISSIONAL: procurada SEMPRE por (`professionalId` do token, id); de outro ⇒ `null`. */
+  findForProfessional(trx: Trx, professionalId: string, bookingId: string, forUpdate: boolean): Promise<BookingRecord | null>;
+  /** Ordem `startsAt ASC, id ASC`; `from`/`to` sobre `startsAt` (`from` inclusive, `to` exclusive); `statuses` vazio = todos. */
+  listForProfessional(trx: Trx, professionalId: string, filter: ProfessionalBookingListFilter): Promise<BookingRecord[]>;
+  /** `REQUESTED → CONFIRMED` (grava `confirmed_at` e a ligação/número). */
+  markConfirmed(trx: Trx, bookingId: string, change: { at: Date; meetingInfo: string | null }): Promise<void>;
+  /** `REQUESTED → REJECTED` com o motivo; liberta `slot_id` (a libertação do horário é da porta `ProfessionalAgenda`). */
+  markRejected(trx: Trx, bookingId: string, change: { at: Date; reason: string }): Promise<void>;
+  /** `CONFIRMED → COMPLETED | NO_SHOW` (`completed_at` só em `COMPLETED`). */
+  markFinished(trx: Trx, bookingId: string, change: { status: "COMPLETED" | "NO_SHOW"; at: Date }): Promise<void>;
   /** Marcações que já têm avaliação (para `hasReview`/`REVIEW_DUE`). */
   bookingIdsWithReview(trx: Trx, bookingIds: string[]): Promise<Set<string>>;
   /** Factos de `Process` (`phase`/`hint`) das marcações da família. */

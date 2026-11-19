@@ -765,6 +765,7 @@ export function main(): void {
       router.use(messaging.professionalRouter);
       router.use(messaging.adminRouter);
       router.use(consultations.familyRouter);
+      router.use(consultations.professionalRouter);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);
