@@ -15417,7 +15417,7 @@ components:
     ReviewSummary:
       type: object
       required: [count, averageRating]
-      description: "Resumo das avaliações verificadas (BR-MKT-61). averageRating (uma casa decimal) só com count ≥ 3; senão nulo («Novo»)."
+      description: "Resumo das avaliações verificadas (BR-MKT-61). averageRating (uma casa decimal) só com count ≥ 3; senão nulo («Novo»). Sem specialtyId no pedido agrega as avaliações de todas as especialidades do profissional."
       properties:
         count: { type: integer, minimum: 0 }
         averageRating: { type: number, nullable: true, minimum: 1, maximum: 5 }
