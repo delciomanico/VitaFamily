@@ -64,7 +64,7 @@
 ### UC-MKT-35 Ver as instruções e carregar o comprovativo
 - **Ator:** `SELF`/`TUTOR_OF` · **FR:** MKT-28 · **BR:** MKT-56, MKT-57, MKT-63 · **Rotas:** `GET …/bookings/{bookingId}` (instruções), `POST …/payment-proofs` (multipart), `GET …/payment-proofs`, `GET …/payment-proofs/{proofId}/file`.
 - **Fluxo:** com a marcação `CONFIRMED` (ou `COMPLETED`) e preço > 0, a família lê as instruções (IBAN, referência, telemóvel… texto do profissional), **paga fora da app** e carrega o ficheiro (PDF/JPG/PNG ≤ 10 MB) → quarentena e antivírus (`PENDING` → `CLEAN`) → comprovativo `SUBMITTED`, `paymentStatus=PROOF_SUBMITTED`, aviso ao profissional, auditoria `PAYMENT_PROOF_UPLOAD`. Pode descarregar os seus próprios comprovativos (auditado).
-- **Alternativos:** preço 0 ⇒ `INVALID_STATE_TRANSITION` (`NOT_REQUIRED`); marcação `REQUESTED`/`CANCELLED`/`REJECTED`/`NO_SHOW` ⇒ `INVALID_STATE_TRANSITION`; já há comprovativo em curso ou 5 enviados ⇒ `LIMIT_EXCEEDED`/`CONFLICT`; ficheiro > 10 MB ⇒ `FILE_TOO_LARGE`; tipo ⇒ `FILE_TYPE_NOT_ALLOWED`; infetado ⇒ nunca descarregável (`DOCUMENT_NOT_AVAILABLE`); `RATE_LIMITED` (20/h).
+- **Alternativos:** preço 0 ⇒ `INVALID_STATE_TRANSITION` (`NOT_REQUIRED`); marcação `REQUESTED`/`CANCELLED`/`REJECTED`/`NO_SHOW` ⇒ `INVALID_STATE_TRANSITION`; já há comprovativo em curso ou 5 enviados ⇒ `LIMIT_EXCEEDED`/`CONFLICT`; ficheiro > 10 MB ⇒ `FILE_TOO_LARGE`; tipo ⇒ `FILE_TYPE_NOT_ALLOWED`; infetado ⇒ nunca descarregável (`DOCUMENT_NOT_AVAILABLE`); `RATE_LIMITED` (20/h); infetado ⇒ a linha é apagada e o pagamento volta a `AWAITING_PROOF`/`REJECTED` (OP-114).
 - **Pós-condição:** o Vita **não** confirma que o dinheiro existe; o estado é declarativo (BR-MKT-56).
 
 ### UC-MKT-36 Decidir o comprovativo (profissional)
@@ -80,7 +80,7 @@
 ### UC-MKT-38 Resolver uma disputa (admin)
 - **Ator:** Platform Admin · **FR:** MKT-29 · **BR:** MKT-58, MKT-63 · **Rotas:** `GET /admin/payment-disputes`, `…/{proofId}`, `…/{proofId}/file`, `POST …/{proofId}/decisions` (`CONFIRM_PAYMENT` | `UPHOLD_REJECTION`).
 - **Fluxo:** **Administração → Disputas de pagamento** (fila `DISPUTED`, mais antigas primeiro; a lista não mostra ficheiros) → abre o detalhe (**a marcação** — profissional pelo nome público, especialidade, método, hora, preço, estados, motivo do profissional e nota da família — e **o comprovativo**, que descarrega por rota própria) — cada abertura e cada descarregamento são **auditados** → decide.
-- **Alternativos:** disputa já decidida ⇒ `INVALID_STATE_TRANSITION`; não-admin ⇒ `FORBIDDEN`; token de profissional ⇒ `401`; inexistente ⇒ `NOT_FOUND`.
+- **Alternativos:** disputa já decidida ⇒ `INVALID_STATE_TRANSITION` (e o download do ficheiro ⇒ `DOCUMENT_NOT_AVAILABLE`: o admin só descarrega com o comprovativo `DISPUTED`); marcação cancelada depois da disputa ⇒ sai da fila, detalhe `NOT_FOUND`, ficheiro `DOCUMENT_NOT_AVAILABLE`, decisão `INVALID_STATE_TRANSITION` (OP-114); não-admin ⇒ `FORBIDDEN`; token de profissional ⇒ `401`; inexistente ⇒ `NOT_FOUND`.
 - **Pós-condição:** transação com bloqueio; `CONFIRM_PAYMENT` ⇒ comprovativo `CONFIRMED`, `paymentStatus=CONFIRMED`; `UPHOLD_REJECTION` ⇒ `REJECTION_UPHELD`, `paymentStatus=REJECTED`; alerta `PAYMENT_UPDATED` à família e e-mail ao profissional; auditoria `ADMIN_PAYMENT_DISPUTE_DECIDE`. O admin **não** vê família, membro, rótulo nem conversas.
 
 ## Avaliar

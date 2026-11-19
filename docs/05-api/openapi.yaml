@@ -10495,6 +10495,11 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
     post:
       tags: [Bookings]
       operationId: uploadPaymentProof
@@ -11300,7 +11305,7 @@ paths:
       tags: [Admin]
       operationId: adminDownloadPaymentProof
       summary: "Descarregar o comprovativo de uma disputa (stream mediado)."
-      description: "Autorização: PLATFORM_ADMIN (authorization.md §12.3); User não-admin ⇒ FORBIDDEN; token de profissional ⇒ UNAUTHENTICATED. UC-MKT-38, BR-MKT-57/58: só de comprovativos disputados (DISPUTED ou já decididos); Cache-Control: private, no-store; Content-Disposition: attachment; só com scan CLEAN. Todo o download é AUDITADO (ADMIN_PAYMENT_PROOF_DOWNLOAD)."
+      description: "Autorização: PLATFORM_ADMIN (authorization.md §12.3); User não-admin ⇒ FORBIDDEN; token de profissional ⇒ UNAUTHENTICATED. UC-MKT-38, BR-MKT-57/58: só de comprovativos com a marcação em disputa, isto é, com o comprovativo em estado DISPUTED (BR-MKT-57; entities.md); depois de decidida a disputa, ou fora da fila (marcação cancelada, OP-114), ⇒ 409 DOCUMENT_NOT_AVAILABLE; Cache-Control: private, no-store; Content-Disposition: attachment; só com scan CLEAN. Excesso de 60 descarregamentos/min ⇒ 429 RATE_LIMITED (BR-MKT-66). Todo o download é AUDITADO (ADMIN_PAYMENT_PROOF_DOWNLOAD)."
       parameters:
         - { name: proofId, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
@@ -11326,6 +11331,11 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '409':
           description: "DOCUMENT_NOT_AVAILABLE"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }

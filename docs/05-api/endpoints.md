@@ -2626,8 +2626,8 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **DESCRIPTION:** Metadados dos comprovativos da marcação.
 - **REQUEST:** —
 - **RESPONSE:** `200` `[PaymentProof]`
-- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** BR-MKT-57; UC-MKT-35. Não auditado.
+- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `UNAUTHENTICATED`, `RATE_LIMITED` (≤ 60/min, BR-MKT-66)
+- **BUSINESS RULES:** BR-MKT-57/66; UC-MKT-35. Não auditado.
 
 ### `POST /families/{familyId}/members/{memberId}/bookings/{bookingId}/payment-proofs`  — uploadPaymentProof
 - **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
@@ -2767,7 +2767,7 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 
 ### `GET /admin/payment-disputes`  — adminListPaymentDisputes
 - **AUTHORIZATION:** `PLATFORM_ADMIN` (`authorization.md` §12.3)
-- **DESCRIPTION:** Fila de disputas (sem ficheiros nem textos livres).
+- **DESCRIPTION:** Fila de disputas (sem ficheiros nem textos livres); com `status=DISPUTED` só as de marcações não `CANCELLED`/`REJECTED`/`NO_SHOW` (OP-114).
 - **REQUEST:** Query `status?` (omissão `DISPUTED`), `limit?`, `cursor?`
 - **RESPONSE:** `200` `AdminPaymentDisputePage`
 - **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN`
@@ -2786,8 +2786,8 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **DESCRIPTION:** Descarregar o comprovativo de uma disputa (`no-store`).
 - **REQUEST:** —
 - **RESPONSE:** `200` binário
-- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `DOCUMENT_NOT_AVAILABLE`
-- **BUSINESS RULES:** BR-MKT-57/58. **Todo** o download é auditado (`ADMIN_PAYMENT_PROOF_DOWNLOAD`).
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `DOCUMENT_NOT_AVAILABLE` (comprovativo que não está `DISPUTED`, ou `PENDING`/purgado), `RATE_LIMITED` (≤ 60/min)
+- **BUSINESS RULES:** BR-MKT-57/58/66. **Todo** o download é auditado (`ADMIN_PAYMENT_PROOF_DOWNLOAD`).
 
 ### `POST /admin/payment-disputes/{proofId}/decisions`  — adminDecidePaymentDispute
 - **AUTHORIZATION:** `PLATFORM_ADMIN` (`authorization.md` §12.3)

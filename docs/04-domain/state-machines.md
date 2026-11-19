@@ -285,7 +285,7 @@ DISPUTED        → CONFIRMED                  [admin CONFIRM_PAYMENT]
 DISPUTED        → REJECTED                   [admin UPHOLD_REJECTION; o comprovativo fica REJECTION_UPHELD]
 CONFIRMED       → (terminal)
 ```
-`PaymentProof.status`: `SUBMITTED → CONFIRMED | REJECTED`; `REJECTED → DISPUTED`; `DISPUTED → CONFIRMED | REJECTION_UPHELD`. Um só comprovativo em curso (`SUBMITTED`/`DISPUTED`) por marcação; máx. 5. O estado do pagamento **congela** com a marcação `CANCELLED`/`REJECTED`/`NO_SHOW`. Não existe `PAID` nem transição por silêncio/tempo.
+`PaymentProof.status`: `SUBMITTED → CONFIRMED | REJECTED`; `REJECTED → DISPUTED`; `DISPUTED → CONFIRMED | REJECTION_UPHELD`. Um só comprovativo em curso (`SUBMITTED`/`DISPUTED`) por marcação; máx. 5. O estado do pagamento **congela** com a marcação `CANCELLED`/`REJECTED`/`NO_SHOW`. **Comprovativo infetado (OP-114):** o antivírus apaga a linha (não há estado `INFECTED` em `PaymentProof.status`) e `paymentStatus` volta a `AWAITING_PROOF` (ou `REJECTED` se já houve rejeição); sem aviso à família. **Marcação cancelada com uma disputa aberta (OP-114):** o comprovativo permanece `DISPUTED` mas sai da fila do admin (sem transição). Não existe `PAID` nem transição por silêncio/tempo.
 
 ## Review e ReviewReport (MK3, BR-MKT-59/60)
 ```text
