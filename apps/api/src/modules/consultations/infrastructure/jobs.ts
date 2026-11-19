@@ -1,6 +1,6 @@
 // Jobs de `consultations` (pg-boss, modules.md §5) — só esta camada importa "pg-boss" (conventions.md §3.9).
 import type PgBoss from "pg-boss";
-import type { ProofScanQueue } from "../application/ports.js";
+import type { ProfessionalNoticeEvent, ProfessionalNotices, ProofScanQueue } from "../application/ports.js";
 
 export const SCAN_PROOF_QUEUE = "consultations.scan-proof";
 export const DELETE_FILES_QUEUE = "consultations.delete-files";
@@ -44,6 +44,47 @@ export async function registerDailyWorker(boss: PgBoss, queue: string, cron: str
   // `schedule` exige a fila criada (FK pgboss.schedule → pgboss.queue).
   await boss.createQueue(queue);
   await boss.schedule(queue, cron, {});
+  return boss.work(queue, async () => {
+    await handler();
+  });
+}
+
+export const NOTIFY_PROFESSIONAL_QUEUE = "consultations.notify-professional";
+export const RECONCILE_BOOKINGS_QUEUE = "consultations.reconcile-bookings";
+export const REQUEUE_PENDING_PROOFS_QUEUE = "consultations.requeue-pending-proofs";
+/** A cada 5 minutos (BR-MKT-54; OP-114 iii). */
+export const EVERY_5_MIN_CRON = "*/5 * * * *";
+
+interface NoticeJob {
+  professionalId: string;
+  bookingId: string;
+  event: ProfessionalNoticeEvent;
+}
+
+/** Fila do aviso ao profissional: `singletonKey` = marcação+evento (idempotente); retry com recuo. Só leva ids e o tipo do evento. */
+export class PgBossProfessionalNotices implements ProfessionalNotices {
+  private ready: Promise<void> | undefined;
+
+  constructor(private readonly boss: PgBoss) {}
+
+  async enqueue(input: NoticeJob): Promise<void> {
+    this.ready ??= this.boss.createQueue(NOTIFY_PROFESSIONAL_QUEUE);
+    await this.ready;
+    await this.boss.send(NOTIFY_PROFESSIONAL_QUEUE, input satisfies NoticeJob, { retryLimit: 5, retryDelay: 60, retryBackoff: true, singletonKey: `${input.bookingId}:${input.event}` });
+  }
+}
+
+export async function registerNotifyProfessionalWorker(boss: PgBoss, handler: (job: { professionalId: string }) => Promise<unknown>): Promise<string> {
+  await boss.createQueue(NOTIFY_PROFESSIONAL_QUEUE);
+  return boss.work<NoticeJob>(NOTIFY_PROFESSIONAL_QUEUE, async (jobs) => {
+    for (const job of jobs) await handler({ professionalId: job.data.professionalId });
+  });
+}
+
+/** Job agendado a cada 5 min (`schedule` exige a fila criada). */
+export async function registerEvery5MinWorker(boss: PgBoss, queue: string, handler: () => Promise<unknown>): Promise<string> {
+  await boss.createQueue(queue);
+  await boss.schedule(queue, EVERY_5_MIN_CRON, {});
   return boss.work(queue, async () => {
     await handler();
   });

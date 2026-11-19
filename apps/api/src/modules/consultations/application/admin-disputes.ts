@@ -3,6 +3,7 @@
 // conversas nem utilizador que carregou — as consultas do repositório nem selecionam essas colunas. Abrir o detalhe e descarregar são AUDITADOS
 // na mesma transação (falha ⇒ a leitura falha). A decisão é definitiva e serializa-se bloqueando a marcação e depois o comprovativo (a mesma
 // ordem do upload, da decisão do profissional e da disputa); a segunda decisão ⇒ `INVALID_STATE_TRANSITION`. O admin não valida dinheiro.
+import { sendProfessionalNotice } from "./notices.js";
 import type { Readable } from "node:stream";
 import { DomainError, ForbiddenError, NotFoundError, RateLimitedError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
@@ -169,7 +170,8 @@ export function createAdminDisputes<Trx>(deps: ConsultationsDeps<Trx>) {
       assertAdmin(actor);
       const decision = DECISIONS.find((d) => d === input.decision);
       if (!decision) throw new DomainError("VALIDATION_ERROR", { detail: "Decisão inválida." });
-      return deps.withTransaction(async (trx) => {
+      let notice: { professionalId: string; bookingId: string } | undefined;
+      const view = await deps.withTransaction(async (trx) => {
         // Ordem de bloqueios: marcação < comprovativo.
         const peek = await deps.proofs.findDispute(trx, proofId);
         if (!peek) throw notFound();
@@ -195,11 +197,14 @@ export function createAdminDisputes<Trx>(deps: ConsultationsDeps<Trx>) {
           metadata: { bookingId: booking.id, decision },
           ...auditContextFields(context),
         });
-        // O alerta `PAYMENT_UPDATED` à família e o e-mail ao profissional ligam-se na fatia S11.
+        await deps.alerts.raise(trx, { kind: "PAYMENT_UPDATED", bookingId: booking.id, familyId: booking.familyId, memberId: booking.memberId, stateVersion: at.toISOString() });
+        notice = { professionalId: booking.professionalId, bookingId: booking.id };
         const row = await deps.proofs.findDispute(trx, proofId);
         if (!row) throw notFound();
         return detail(row, await present([row]));
       });
+      if (notice) await sendProfessionalNotice(deps.notices, { ...notice, event: "DISPUTE_DECIDED" });
+      return view;
     },
   };
 }

@@ -306,6 +306,11 @@ export interface ProfessionalsWorkerModule {
   jobs: ProfessionalsJobs;
   /** MK2 (BR-MKT-41): e-mail da conta SÓ para o aviso genérico de nova mensagem do job `messaging.notify-professional` (ligado em `main/worker.ts`). */
   notificationEmail: (professionalId: string) => Promise<string | null>;
+  /** MK3 (BR-MKT-54): identidade/estado e libertação do horário SÓ para o job `consultations.reconcile-bookings` (ligado em `main/worker.ts`). */
+  agenda: {
+    findIdentities: (ids: readonly string[]) => Promise<{ id: string; displayName: string; city: string | null; approved: boolean }[]>;
+    releaseSlot: (trx: Kysely<Database>, bookingId: string) => Promise<boolean>;
+  };
   registerWorkers: () => Promise<void>;
 }
 
@@ -316,6 +321,10 @@ export function createProfessionalsWorkerModule(deps: ProfessionalsWorkerModuleD
   return {
     jobs,
     notificationEmail: (professionalId) => withTransaction(deps.db, (trx) => directoryRepo.findNotificationEmail(trx, professionalId)),
+    agenda: {
+      findIdentities: (ids) => withTransaction(deps.db, (trx) => directoryRepo.findConversationIdentities(trx, [...new Set(ids)])),
+      releaseSlot: (trx, bookingId) => directoryRepo.releaseSlot(trx, bookingId),
+    },
     registerWorkers: async () => {
       await registerScanCredentialWorker(deps.boss, jobs.scanCredential);
       await registerDeleteFilesWorker(deps.boss, jobs.deleteFiles);

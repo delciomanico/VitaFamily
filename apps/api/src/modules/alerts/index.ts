@@ -27,6 +27,7 @@ import { createMarkAllAlertsReadUseCase } from "./application/mark-all-alerts-re
 import type { AlertsApiDeps, AlertsWorkerDeps } from "./application/ports.js";
 import { createRaiseExamEventUseCase, type RaiseExamEventInput } from "./application/raise-exam-event.js";
 import { createRaiseRecommendationEventUseCase, type RaiseRecommendationEventInput } from "./application/raise-recommendation-event.js";
+import { createRaiseBookingEventUseCase, type RaiseBookingEventInput } from "./application/raise-booking-event.js";
 import { createMarkSourceReadUseCase, createRaiseMessageEventUseCase, type MarkSourceReadInput, type RaiseMessageEventInput } from "./application/raise-message-event.js";
 import { createRaiseExamOrderEventUseCase, type RaiseExamOrderEventInput } from "./application/raise-exam-order-event.js";
 import { createScanJobUseCase } from "./application/scan-job.js";
@@ -53,11 +54,13 @@ export interface AlertsModule {
   raiseExamOrderEvent: (trx: Kysely<Database>, input: RaiseExamOrderEventInput) => Promise<number>;
   /** MK2 (BR-MKT-41): alerta `message.received` na transação do chamador (ligado no composition root a `messaging`). */
   raiseMessageEvent: (trx: Kysely<Database>, input: RaiseMessageEventInput) => Promise<number>;
+  /** MK3 (BR-MKT-65): alerta `booking.updated`/`payment.updated` na transação do chamador (ligado no composition root a `consultations`). */
+  raiseBookingEvent: (trx: Kysely<Database>, input: RaiseBookingEventInput) => Promise<number>;
   /** MK2 (BR-MKT-41): marca como lidos os alertas de uma conversa (ligado no composition root a `messaging`). */
   markSourceRead: (trx: Kysely<Database>, input: MarkSourceReadInput) => Promise<number>;
 }
 
-export type { MarkSourceReadInput, RaiseMessageEventInput };
+export type { MarkSourceReadInput, RaiseBookingEventInput, RaiseMessageEventInput };
 
 export type { RaiseExamOrderEventInput } from "./application/raise-exam-order-event.js";
 export type { RaiseRecommendationEventInput } from "./application/raise-recommendation-event.js";
@@ -95,6 +98,7 @@ export function createAlertsModule(deps: AlertsModuleDeps): AlertsModule {
     raiseRecommendationEvent: createRaiseRecommendationEventUseCase(alertsDeps),
     raiseExamOrderEvent: createRaiseExamOrderEventUseCase(alertsDeps),
     raiseMessageEvent: createRaiseMessageEventUseCase(alertsDeps),
+    raiseBookingEvent: createRaiseBookingEventUseCase(alertsDeps),
     markSourceRead: createMarkSourceReadUseCase(alertsDeps),
   };
 }
@@ -115,6 +119,8 @@ export interface AlertsWorkerModule {
   registerWorkers: () => Promise<string[]>;
   /** D19/BR-EXM-07: o job de expiração de pedidos (processo worker) também avisa a família. */
   raiseExamEvent: (trx: Kysely<Database>, input: RaiseExamEventInput) => Promise<number>;
+  /** MK3 (BR-MKT-54): o job `consultations.reconcile-bookings` (processo worker) avisa a família dos cancelamentos do sistema. */
+  raiseBookingEvent: (trx: Kysely<Database>, input: RaiseBookingEventInput) => Promise<number>;
 }
 
 /** Composition root do processo "worker" (main/worker.ts). */
@@ -143,5 +149,6 @@ export function createAlertsWorkerModule(deps: AlertsWorkerModuleDeps): AlertsWo
   return {
     registerWorkers: async () => [await registerScanWorker(deps.boss, scanJob)],
     raiseExamEvent: createRaiseExamEventUseCase(alertsDeps),
+    raiseBookingEvent: createRaiseBookingEventUseCase(alertsDeps),
   };
 }

@@ -84,6 +84,11 @@ export class KyselyProofRepository implements ProofRepository<Db> {
     return result.rows[0] ? toProof(result.rows[0]) : null;
   }
 
+  async listPendingBefore(trx: Db, before: Date, limit: number): Promise<string[]> {
+    const result = await sql<{ id: string }>`SELECT id FROM payment_proofs WHERE scan_status = 'PENDING' AND created_at < ${before} ORDER BY created_at ASC, id ASC LIMIT ${limit}`.execute(trx);
+    return result.rows.map((r) => r.id);
+  }
+
   async markClean(trx: Db, proofId: string, storageKey: string, at: Date): Promise<void> {
     await sql`UPDATE payment_proofs SET scan_status = 'CLEAN', scanned_at = ${at}, storage_key = ${storageKey} WHERE id = ${proofId}`.execute(trx);
   }

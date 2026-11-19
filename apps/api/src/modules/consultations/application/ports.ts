@@ -158,6 +158,8 @@ export interface ProfessionalBookingListFilter {
 
 export interface BookingCancellation {
   cancelledBy: BookingCancelledBy;
+  /** Só com `cancelledBy = SYSTEM` (job `reconcile-bookings`). */
+  systemReason?: BookingSystemReason;
   at: Date;
   statusReason: string | null;
 }
@@ -187,6 +189,8 @@ export interface BookingRepository<Trx> {
   markRejected(trx: Trx, bookingId: string, change: { at: Date; reason: string }): Promise<void>;
   /** `CONFIRMED → COMPLETED | NO_SHOW` (`completed_at` só em `COMPLETED`). */
   markFinished(trx: Trx, bookingId: string, change: { status: "COMPLETED" | "NO_SHOW"; at: Date }): Promise<void>;
+  /** Candidatas do job `reconcile-bookings` (BR-MKT-54): `REQUESTED`/`CONFIRMED` ainda por começar e `REQUESTED` já vencidas; ordem `starts_at ASC, id ASC`; sem bloqueio. */
+  listReconcileCandidates(trx: Trx, now: Date, limit: number, after?: { startsAt: Date; id: string }): Promise<BookingRecord[]>;
   /** Marcações que já têm avaliação (para `hasReview`/`REVIEW_DUE`). */
   bookingIdsWithReview(trx: Trx, bookingIds: string[]): Promise<Set<string>>;
   /** Por id (jobs/admin, sem contexto de família); `forUpdate` bloqueia a linha. */
@@ -235,6 +239,8 @@ export interface ProofRepository<Trx> {
   /** Infetado conta como NÃO enviado (BR-MKT-57): a linha apaga-se (o trigger de BD enfileira o ficheiro na outbox). */
   deleteProof(trx: Trx, proofId: string): Promise<void>;
   markDecided(trx: Trx, proofId: string, change: { status: "CONFIRMED" | "REJECTED"; at: Date; reason: string | null }): Promise<void>;
+  /** Comprovativos `PENDING` criados antes de `before` (job `requeue-pending-proofs`, OP-114 iii); mais antigos primeiro. */
+  listPendingBefore(trx: Trx, before: Date, limit: number): Promise<string[]>;
   /** `REJECTED → DISPUTED` (uma vez por comprovativo). */
   markDisputed(trx: Trx, proofId: string, change: { at: Date; note: string | null }): Promise<void>;
   /** Decisão do admin: `CONFIRM_PAYMENT` ⇒ `CONFIRMED`; `UPHOLD_REJECTION` ⇒ `REJECTION_UPHELD`. */
@@ -294,6 +300,30 @@ export interface ProcessorFileDeps<Trx> {
 }
 
 /** Tudo o que os casos de uso precisam (ligado em `index.ts`). */
+export type FamilyAlertKind = "BOOKING_UPDATED" | "PAYMENT_UPDATED";
+
+/** Alerta à família (BR-MKT-65), criado NA transação da mudança (implementada sobre `alerts` em `main/`); genérico, sem dados da marcação. */
+export interface BookingAlerts<Trx> {
+  raise(trx: Trx, input: { kind: FamilyAlertKind; bookingId: string; familyId: string; memberId: string; stateVersion: string }): Promise<void>;
+}
+
+export type ProfessionalNoticeEvent = "BOOKING_REQUESTED" | "BOOKING_CANCELLED" | "PROOF_UPLOADED" | "DISPUTE_OPENED" | "DISPUTE_DECIDED" | "REVIEW_CREATED";
+
+/** Fila do aviso GENÉRICO por e-mail ao profissional (job `consultations.notify-professional`); chamada DEPOIS do commit, melhor esforço. */
+export interface ProfessionalNotices {
+  enqueue(input: { professionalId: string; bookingId: string; event: ProfessionalNoticeEvent }): Promise<void>;
+}
+
+/** E-mail da conta do profissional, SÓ para o aviso genérico (BR-MKT-65); ligada em `main/` à raiz `professionals`. */
+export interface ProfessionalContact {
+  getNotificationEmail(professionalId: string): Promise<string | null>;
+}
+
+/** Texto FIXO («Tem uma atualização no Vita»), sem conteúdo, nomes nem ids. */
+export interface ProfessionalMailer {
+  sendNotice(to: string): Promise<void>;
+}
+
 export interface ConsultationsDeps<Trx> {
   withTransaction: WithTransaction<Trx>;
   clock: ConsultationsClock;
@@ -304,6 +334,8 @@ export interface ConsultationsDeps<Trx> {
   processes: ProcessLinker<Trx>;
   appointments: FamilyAppointmentWriter<Trx>;
   conversations: ConversationLookup<Trx>;
+  alerts: BookingAlerts<Trx>;
+  notices: ProfessionalNotices;
   bookings: BookingRepository<Trx>;
   proofs: ProofRepository<Trx>;
   reviews: ReviewRepository<Trx>;

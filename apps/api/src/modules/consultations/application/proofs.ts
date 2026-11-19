@@ -3,6 +3,7 @@
 // de antivírus e na disputa/admin); o limite «um em curso» tem ainda o UNIQUE parcial da BD como rede.
 // Ficheiros: tipo por CONTEÚDO, quarentena + antivírus (job), objeto só descarregável `CLEAN`; chave derivada do id (nunca do nome do ficheiro).
 // Privacidade: erros e auditoria nunca levam nome de ficheiro, motivo, nota nem instruções; o download audita SEMPRE (antes de entregar o stream).
+import { sendProfessionalNotice } from "./notices.js";
 import type { Readable } from "node:stream";
 import { ConflictError, DomainError, NotFoundError, RateLimitedError, ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
@@ -69,12 +70,13 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
 
       const proofId = newId();
       const key = quarantineKey(proofId, kind);
-      const state = { stored: false };
+      const state = { stored: false, professionalId: "" };
       let view: ProofView;
       try {
         view = await deps.withTransaction(async (trx) => {
           await authorize(trx, actor, familyId, memberId);
           const booking = await loadBooking(trx, familyId, memberId, bookingId, true);
+          state.professionalId = booking.professionalId;
           const check = nextPaymentStatus(booking.status, booking.paymentStatus, "SUBMIT_PROOF");
           if (!check.ok) {
             const inFlight = booking.paymentStatus === "PROOF_SUBMITTED" || booking.paymentStatus === "DISPUTED";
@@ -124,7 +126,6 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
             metadata: { bookingId },
             ...auditContextFields(context),
           });
-          // O aviso ao profissional (e-mail genérico por fila) liga-se na fatia S11.
           return toProofView(record);
         });
       } catch (error) {
@@ -134,6 +135,7 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
       }
       // Só depois do commit o antivírus tem sentido (sem job órfão se a transação falhasse).
       await deps.scanQueue.enqueueScan({ proofId });
+      await sendProfessionalNotice(deps.notices, { professionalId: state.professionalId, bookingId, event: "PROOF_UPLOADED" });
       return view;
     },
 
@@ -141,9 +143,11 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
     async disputeProof(actor: ActorIdentity, familyId: string, memberId: string, bookingId: string, proofId: string, input: { note?: string | null }, context: RequestContext): Promise<ProofView> {
       const note = validateOptionalFreeText(input.note, TEXT_LIMITS.note);
       if (!note.ok) throw invalid("note", FIELD_ERRORS[note.error]);
-      return deps.withTransaction(async (trx) => {
+      let professionalId = "";
+      const view = await deps.withTransaction(async (trx) => {
         await authorize(trx, actor, familyId, memberId);
         const booking = await loadBooking(trx, familyId, memberId, bookingId, true);
+        professionalId = booking.professionalId;
         const proof = await deps.proofs.findForBooking(trx, bookingId, proofId, true);
         if (!proof) throw notFound();
         // Só `REJECTED`; já disputado (`DISPUTED`/`REJECTION_UPHELD`) ou noutro estado ⇒ o mesmo erro.
@@ -166,11 +170,12 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
           metadata: { bookingId },
           ...auditContextFields(context),
         });
-        // O aviso ao profissional (e-mail genérico) liga-se na fatia S11.
         const updated = await deps.proofs.findForBooking(trx, bookingId, proofId, false);
         if (!updated) throw notFound();
         return toProofView(updated);
       });
+      await sendProfessionalNotice(deps.notices, { professionalId, bookingId, event: "DISPUTE_OPENED" });
+      return view;
     },
 
     /** Descarrega um comprovativo próprio (auditado SEMPRE; só `CLEAN`, não purgado). */
@@ -278,7 +283,7 @@ export function createProfessionalProofs<Trx>(deps: ConsultationsDeps<Trx>) {
           metadata: { bookingId, decision: input.decision },
           ...auditContextFields(context),
         } satisfies AuditEvent);
-        // O alerta `PAYMENT_UPDATED` à família liga-se na fatia S11.
+        await deps.alerts.raise(trx, { kind: "PAYMENT_UPDATED", bookingId, familyId: booking.familyId, memberId: booking.memberId, stateVersion: at.toISOString() });
         const updated = await deps.proofs.findForBooking(trx, bookingId, proofId, false);
         if (!updated) throw notFound();
         return toProofView(updated);

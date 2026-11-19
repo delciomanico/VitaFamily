@@ -2,6 +2,7 @@
 // prova-se pela marcação (`COMPLETED` + pagamento satisfeito, 30 dias). Criar/editar serializa-se bloqueando a marcação (o `UNIQUE(booking_id)`
 // é a rede). O profissional só vê/responde/denuncia as suas (outra ou inexistente ⇒ `NOT_FOUND` idêntico). O admin vê só a avaliação
 // denunciada. A nota conta SEMPRE (o comentário oculto sai como `commentHidden` sem texto). Texto livre nunca em auditoria, logs nem erros.
+import { sendProfessionalNotice } from "./notices.js";
 import { ConflictError, DomainError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
@@ -218,7 +219,7 @@ export function createReviews<Trx>(deps: ConsultationsDeps<Trx>) {
       const comment = validateComment(input.comment);
       const wait = reviewLimiter.hit(actor.userId);
       if (wait !== null) throw new RateLimitedError(wait);
-      return deps.withTransaction(async (trx) => {
+      const result = await deps.withTransaction(async (trx): Promise<{ review: FamilyReviewView; created: boolean; professionalId?: string }> => {
         await deps.access.assertCanBook(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, memberId });
         // Bloqueio da marcação: serializa duas avaliações (ou criar/editar) da mesma marcação.
         const booking = await deps.bookings.findForFamily(trx, familyId, memberId, bookingId, true);
@@ -254,9 +255,10 @@ export function createReviews<Trx>(deps: ConsultationsDeps<Trx>) {
         };
         await deps.reviews.insert(trx, record);
         await deps.audit.record(trx, { ...base, action: "REVIEW_CREATE", resourceId: record.id, metadata: { bookingId } });
-        // O aviso ao profissional (e-mail genérico por fila) liga-se na fatia S11.
-        return { review: familyView(record, bookingId), created: true };
+        return { review: familyView(record, bookingId), created: true, professionalId: booking.professionalId };
       });
+      if (result.created && result.professionalId) await sendProfessionalNotice(deps.notices, { professionalId: result.professionalId, bookingId, event: "REVIEW_CREATED" });
+      return { review: result.review, created: result.created };
     },
 
     // ---------------------------------------------------------------- pública (UC-MKT-40)

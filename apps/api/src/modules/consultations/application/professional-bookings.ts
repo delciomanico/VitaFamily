@@ -86,6 +86,11 @@ export function createProfessionalBookings<Trx>(deps: ConsultationsDeps<Trx>) {
     if (effects.updateAppointment && (to === "COMPLETED" || to === "NO_SHOW" || to === "CANCELLED")) await deps.appointments.syncFromBooking(trx, { bookingId: current.id, status: to });
   }
 
+  /** BR-MKT-65: alerta genérico `BOOKING_UPDATED` à família (SELF/TUTOR_OF) na MESMA transação da mudança. */
+  function alertFamily(trx: Trx, current: BookingRecord, at: Date): Promise<void> {
+    return deps.alerts.raise(trx, { kind: "BOOKING_UPDATED", bookingId: current.id, familyId: current.familyId, memberId: current.memberId, stateVersion: at.toISOString() });
+  }
+
   async function reload(trx: Trx, actor: ProfessionalActor, bookingId: string): Promise<ProfessionalBookingView> {
     const [view] = await present(trx, [await load(trx, actor, bookingId, false)]);
     if (!view) throw new NotFoundError({ detail: "Marcação não encontrada." });
@@ -147,7 +152,7 @@ export function createProfessionalBookings<Trx>(deps: ConsultationsDeps<Trx>) {
           });
         }
         await audit(trx, actor, context, "PROFESSIONAL_BOOKING_CONFIRM", current.id, at, current.status, to);
-        // O alerta `BOOKING_UPDATED` à família liga-se na fatia S11.
+        await alertFamily(trx, current, at);
         return reload(trx, actor, bookingId);
       });
     },
@@ -164,6 +169,7 @@ export function createProfessionalBookings<Trx>(deps: ConsultationsDeps<Trx>) {
         await deps.bookings.markRejected(trx, current.id, { at, reason: reason.text });
         await applyEffects(trx, current, to);
         await audit(trx, actor, context, "PROFESSIONAL_BOOKING_REJECT", current.id, at, current.status, to);
+        await alertFamily(trx, current, at);
         return reload(trx, actor, bookingId);
       });
     },
@@ -180,6 +186,7 @@ export function createProfessionalBookings<Trx>(deps: ConsultationsDeps<Trx>) {
         await deps.bookings.markCancelled(trx, current.id, { cancelledBy: "PROFESSIONAL", at, statusReason: reason.text });
         await applyEffects(trx, current, to);
         await audit(trx, actor, context, "PROFESSIONAL_BOOKING_CANCEL", current.id, at, current.status, to);
+        await alertFamily(trx, current, at);
         return reload(trx, actor, bookingId);
       });
     },

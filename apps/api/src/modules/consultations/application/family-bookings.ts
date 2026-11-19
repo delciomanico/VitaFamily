@@ -6,6 +6,7 @@
 // marcação, a reserva e o `Process` partilham a transação (falha ⇒ nada existe). Ordem dos bloqueios: consultivo do membro < slot <
 // linha da marcação; o cancelamento bloqueia a marcação e depois liberta o horário (sem ciclo).
 // Privacidade (BR-MKT-63): erros e auditoria nunca levam rótulo, nota, ligação, preço nem horário; os erros de validação só nomeiam o campo.
+import { sendProfessionalNotice } from "./notices.js";
 import { ConflictError, DomainError, NotFoundError, RateLimitedError, ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
@@ -198,9 +199,10 @@ export function createFamilyBookings<Trx>(deps: ConsultationsDeps<Trx>) {
           metadata: { professionalId: facts.professionalId, method: facts.offer.method },
           ...auditContextFields(context),
         });
-        // (8) o aviso ao profissional (e-mail genérico por fila) liga-se na fatia S11 (`consultations.notify-professional`).
+        // (8) o aviso ao profissional (e-mail genérico por fila) enfileira-se depois do commit (abaixo).
         return { created: true, record };
       });
+      if (result.created) await sendProfessionalNotice(deps.notices, { professionalId: result.record.professionalId, bookingId: result.record.id, event: "BOOKING_REQUESTED" });
       const [booking] = await deps.withTransaction((trx) => present(trx, [result.record], false));
       if (!booking) throw new NotFoundError({ detail: "Marcação não encontrada." });
       return { created: result.created, booking };
@@ -236,10 +238,12 @@ export function createFamilyBookings<Trx>(deps: ConsultationsDeps<Trx>) {
     async cancelBooking(actor: ActorIdentity, familyId: string, memberId: string, bookingId: string, input: { note?: string | null }, context: RequestContext): Promise<FamilyBookingView> {
       const note = validateOptionalFreeText(input.note, TEXT_LIMITS.note);
       if (!note.ok) throw invalid("note", FIELD_ERRORS[note.error]);
-      return deps.withTransaction(async (trx) => {
+      let professionalId = "";
+      const view = await deps.withTransaction(async (trx) => {
         await authorize(trx, actor, familyId, memberId);
         const current = await deps.bookings.findForFamily(trx, familyId, memberId, bookingId, true);
         if (!current) throw new NotFoundError({ detail: "Marcação não encontrada." });
+        professionalId = current.professionalId;
         const at = now();
         const check = checkBookingAction({ status: current.status, startsAtMs: current.startsAt.getTime() }, "CANCEL_BY_FAMILY", at.getTime());
         if (!check.ok) throw new DomainError("INVALID_STATE_TRANSITION", { detail: "A marcação já não pode ser cancelada." });
@@ -260,12 +264,13 @@ export function createFamilyBookings<Trx>(deps: ConsultationsDeps<Trx>) {
           metadata: { fromStatus: current.status },
           ...auditContextFields(context),
         });
-        // O aviso ao profissional liga-se na fatia S11.
         const updated = await deps.bookings.findForFamily(trx, familyId, memberId, current.id, false);
         const [view] = await present(trx, updated ? [updated] : [], false);
         if (!view) throw new NotFoundError({ detail: "Marcação não encontrada." });
         return view;
       });
+      await sendProfessionalNotice(deps.notices, { professionalId, bookingId, event: "BOOKING_CANCELLED" });
+      return view;
     },
   };
 }

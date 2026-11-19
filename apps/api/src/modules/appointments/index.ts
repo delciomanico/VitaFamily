@@ -317,6 +317,11 @@ export interface AppointmentsReminderQueries {
  * scanner (nunca `access`/`clinics` — processo de sistema, sem ator a autorizar nem nome de
  * clínica a resolver; mesmo critério de `medications` `MedicationsWorkerDeps`).
  */
+/** MK3 (BR-MKT-54): o job `consultations.reconcile-bookings` (processo worker) atualiza a consulta gerada; mesma lógica do módulo, sem HTTP. */
+export function createFamilyAppointmentSyncer(deps: { clock: Clock }): Pick<FamilyAppointmentWriterImpl<Kysely<Database>>, "syncFromBooking"> {
+  return createFamilyAppointmentWriter({ appointmentsRepo: new KyselyAppointmentsRepository(), clock: deps.clock });
+}
+
 export function createAppointmentsReminderQueries(_deps: { db: Kysely<Database> }): AppointmentsReminderQueries {
   const appointmentsRepo = new KyselyAppointmentsRepository();
   return {

@@ -23,6 +23,9 @@ export type AlertNotificationType =
   | "EXAM_ORDER_ADDED"
   // MK2 (BR-MKT-41, OP-81): nova mensagem de profissional; sem interruptor próprio (sempre ativo); só os canais push/e-mail mandam.
   | "MESSAGE_RECEIVED"
+  // MK3 (BR-MKT-65): atualização de marcação/pagamento; sem interruptor próprio (sempre ativo); só os canais push/e-mail mandam.
+  | "BOOKING_UPDATED"
+  | "PAYMENT_UPDATED"
   // Fatia 5 (ADR-036, BR-ALR-11): pedido de autorização; sem interruptor próprio (sempre ativos); só os canais push/e-mail mandam.
   | "AUTHORIZATION_APPROVED"
   | "AUTHORIZATION_NOT_APPROVED"

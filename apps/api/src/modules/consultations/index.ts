@@ -9,12 +9,18 @@ import type { Storage } from "../../platform/storage/index.js";
 import type { AuditModule } from "../audit/index.js";
 import { createGetBookingActFacts } from "./application/act-facts.js";
 import { createAdminDisputes } from "./application/admin-disputes.js";
+import { createNotifyProfessional } from "./application/notify-professional.js";
+import { createReconcileBookings, createRequeuePendingProofs } from "./application/reconcile.js";
 import { createFamilyBookings } from "./application/family-bookings.js";
 import { createFamilyProofs, createProfessionalProofs, createProofJobs } from "./application/proofs.js";
 import { createReviews } from "./application/reviews.js";
 import { createProfessionalBookings } from "./application/professional-bookings.js";
 import type {
   BookingAccess,
+  BookingAlerts,
+  ProfessionalContact,
+  ProfessionalMailer,
+  ProfessionalNotices,
   ConsultationsDeps,
   ConversationLookup,
   FamilyAppointmentWriter,
@@ -25,7 +31,7 @@ import type {
   SelfDealingGuard,
 } from "./application/ports.js";
 import { KyselyFileDeletionRepository } from "./infrastructure/file-deletion-repo.js";
-import { registerDeleteFilesWorker, registerScanProofWorker } from "./infrastructure/jobs.js";
+import { RECONCILE_BOOKINGS_QUEUE, REQUEUE_PENDING_PROOFS_QUEUE, registerDeleteFilesWorker, registerEvery5MinWorker, registerNotifyProfessionalWorker, registerScanProofWorker } from "./infrastructure/jobs.js";
 import { KyselyProofRepository } from "./infrastructure/proof-repo.js";
 import { KyselyBookingRepository } from "./infrastructure/repo.js";
 import { KyselyReviewRepository } from "./infrastructure/review-repo.js";
@@ -39,8 +45,9 @@ import { createFamilyProofsRouter, createProfessionalProofsRouter } from "./inte
 export * from "./domain/index.js";
 export { createSelfDealingGuard } from "./application/self-dealing.js";
 export { ProofClamAvScanner } from "./infrastructure/clamav-client.js";
-export { PgBossProofScanQueue } from "./infrastructure/jobs.js";
-export type { ProofScanQueue, ProofScanner } from "./application/ports.js";
+export { PgBossProfessionalNotices, PgBossProofScanQueue } from "./infrastructure/jobs.js";
+export { SmtpProfessionalNoticeMailer } from "./infrastructure/mailer-smtp.js";
+export type { BookingAlerts, FamilyAlertKind, ProfessionalContact, ProfessionalMailer, ProfessionalNoticeEvent, ProfessionalNotices, ProofScanQueue, ProofScanner } from "./application/ports.js";
 export type { BookingAccess, ConversationLookup, FamilyAppointmentWriter, ProcessLinker, ProfessionalAgenda, SelfDealingGuard } from "./application/ports.js";
 
 type Trx = Kysely<Database>;
@@ -55,6 +62,10 @@ export interface ConsultationsModuleDeps {
   processes: ProcessLinker<Trx>;
   appointments: FamilyAppointmentWriter<Trx>;
   conversations: ConversationLookup<Trx>;
+  /** Alertas `BOOKING_UPDATED`/`PAYMENT_UPDATED` à família, na transação da mudança (BR-MKT-65). */
+  alerts: BookingAlerts<Trx>;
+  /** Aviso genérico ao profissional (fila, depois do commit). */
+  notices: ProfessionalNotices;
   /** Armazenamento de objetos (MinIO; `InMemoryStorage` nos testes): só pela porta `ProofFileStore`. */
   storage: Storage;
   scanQueue: ProofScanQueue;
@@ -86,6 +97,8 @@ export function createConsultationsModule(deps: ConsultationsModuleDeps): Consul
     processes: deps.processes,
     appointments: deps.appointments,
     conversations: deps.conversations,
+    alerts: deps.alerts,
+    notices: deps.notices,
     bookings,
     proofs: new KyselyProofRepository(),
     reviews: new KyselyReviewRepository(),
@@ -134,19 +147,47 @@ export function createConsultationsJobs(deps: ConsultationsWorkerModuleDeps): Re
   });
 }
 
+export interface ConsultationsMaintenanceDeps {
+  db: Kysely<Database>;
+  clock: Clock;
+  audit: AuditModule;
+  agenda: Pick<ProfessionalAgenda<Trx>, "findIdentities" | "releaseSlot">;
+  appointments: Pick<FamilyAppointmentWriter<Trx>, "syncFromBooking">;
+  alerts: BookingAlerts<Trx>;
+  scanQueue: ProofScanQueue;
+  contact: ProfessionalContact;
+  mailer: ProfessionalMailer;
+}
+
+/** Jobs de manutenção/avisos (sem pg-boss; testáveis diretamente): reconciliar marcações, reenfileirar antivírus, avisar o profissional. */
+export function createConsultationsMaintenance(deps: ConsultationsMaintenanceDeps) {
+  const run = <T>(fn: (trx: Trx) => Promise<T>): Promise<T> => withTransaction(deps.db, fn);
+  return {
+    reconcileBookings: createReconcileBookings<Trx>({ withTransaction: run, clock: deps.clock, audit: deps.audit, bookings: new KyselyBookingRepository(), agenda: deps.agenda, appointments: deps.appointments, alerts: deps.alerts }),
+    requeuePendingProofs: createRequeuePendingProofs<Trx>({ withTransaction: run, clock: deps.clock, proofs: new KyselyProofRepository(), scanQueue: deps.scanQueue }),
+    notifyProfessional: createNotifyProfessional({ contact: deps.contact, mailer: deps.mailer }),
+  };
+}
+
 export interface ConsultationsWorkerModule {
   jobs: ReturnType<typeof createConsultationsJobs>;
+  maintenance: ReturnType<typeof createConsultationsMaintenance>;
   registerWorkers: () => Promise<void>;
 }
 
-/** Composition root do processo "worker" (main/worker.ts): antivírus dos comprovativos e outbox de ficheiros. */
-export function createConsultationsWorkerModule(deps: ConsultationsWorkerModuleDeps & { boss: PgBoss }): ConsultationsWorkerModule {
+/** Composition root do processo "worker" (main/worker.ts): antivírus, outbox de ficheiros, reconciliação, reenfileiramento e avisos. */
+export function createConsultationsWorkerModule(deps: ConsultationsWorkerModuleDeps & ConsultationsMaintenanceDeps & { boss: PgBoss }): ConsultationsWorkerModule {
   const jobs = createConsultationsJobs(deps);
+  const maintenance = createConsultationsMaintenance(deps);
   return {
     jobs,
+    maintenance,
     registerWorkers: async () => {
       await registerScanProofWorker(deps.boss, (job) => jobs.scanProof(job));
       await registerDeleteFilesWorker(deps.boss, () => jobs.deleteFiles());
+      await registerEvery5MinWorker(deps.boss, RECONCILE_BOOKINGS_QUEUE, () => maintenance.reconcileBookings());
+      await registerEvery5MinWorker(deps.boss, REQUEUE_PENDING_PROOFS_QUEUE, () => maintenance.requeuePendingProofs());
+      await registerNotifyProfessionalWorker(deps.boss, (job) => maintenance.notifyProfessional(job));
     },
   };
 }

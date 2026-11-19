@@ -20,6 +20,9 @@ export type AlertType =
   | "EXAM_ORDER_ADDED"
   // MK2 (ADR-037, BR-MKT-41, emenda a BR-ALR-01): nova mensagem de um profissional (texto sempre genérico, nunca conteúdo nem nome).
   | "MESSAGE_RECEIVED"
+  // MK3 (BR-MKT-65, emenda a BR-ALR-01): atualização de marcação e do estado do comprovativo (texto sempre genérico).
+  | "BOOKING_UPDATED"
+  | "PAYMENT_UPDATED"
   // Arquivo do marco B (ADR-037): os 5 tipos `AUTHORIZATION_*` já não são gerados; ficam no tipo só porque existem no enum do Postgres
   // e no contrato (alertas históricos) — saem no R6.
   | "AUTHORIZATION_APPROVED"
@@ -27,7 +30,7 @@ export type AlertType =
   | "AUTHORIZATION_INFO_REQUESTED"
   | "AUTHORIZATION_EXPIRING"
   | "AUTHORIZATION_WITHDRAWN";
-export type AlertSourceType = "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION" | "PROCESS" | "CONVERSATION";
+export type AlertSourceType = "DOSE" | "APPOINTMENT" | "EXAMINATION" | "RECOMMENDATION" | "PROCESS" | "CONVERSATION" | "BOOKING";
 
 /** entities.md "Alert": `ruleKey` fixo por regra. */
 export type RuleKey =
@@ -43,7 +46,9 @@ export type RuleKey =
   | "appointment.confirm48h"
   | "followup.due"
   | "exam_order.added"
-  | "message.received";
+  | "message.received"
+  | "booking.updated"
+  | "payment.updated";
 
 /** Alertas de evento de exame (D19): disparados no momento da resposta/emissão, não por relógio. */
 export type ExamEventAlertType = "EXAM_CANCELLED" | "EXAM_RESULTS_AVAILABLE";
@@ -71,6 +76,21 @@ export function examOrderAddedRule(occurredAt: Date): Rule {
 /** BR-MKT-41: a regra de uma mensagem nova vence no próprio instante da mensagem. */
 export function messageReceivedRule(occurredAt: Date): Rule {
   return { ruleKey: "message.received", type: "MESSAGE_RECEIVED", triggerAt: occurredAt };
+}
+
+/** BR-MKT-65: a regra de uma atualização de marcação vence no próprio instante da mudança. */
+export function bookingUpdatedRule(occurredAt: Date): Rule {
+  return { ruleKey: "booking.updated", type: "BOOKING_UPDATED", triggerAt: occurredAt };
+}
+
+/** BR-MKT-65: idem para o estado do comprovativo/pagamento. */
+export function paymentUpdatedRule(occurredAt: Date): Rule {
+  return { ruleKey: "payment.updated", type: "PAYMENT_UPDATED", triggerAt: occurredAt };
+}
+
+/** BR-MKT-65: `(ruleKey, marcação, destinatário, versão do estado)`. */
+export function buildBookingDedupeKey(ruleKey: RuleKey, bookingId: string, recipientUserId: string, stateVersion: string): string {
+  return `${ruleKey}:${bookingId}:${recipientUserId}:${stateVersion}`;
 }
 
 /** BR-MKT-41: `(ruleKey, conversa, destinatário, familyReadSeq)` ⇒ no máximo um alerta por conversa até a família a ler. */

@@ -153,7 +153,7 @@ export class KyselyBookingRepository implements BookingRepository<Db> {
   async markCancelled(trx: Db, bookingId: string, change: BookingCancellation): Promise<void> {
     await trx
       .updateTable("bookings")
-      .set({ status: "CANCELLED", cancelled_by: change.cancelledBy, cancelled_at: change.at, status_reason: change.statusReason, slot_id: null, updated_at: change.at })
+      .set({ status: "CANCELLED", cancelled_by: change.cancelledBy, cancelled_at: change.at, status_reason: change.statusReason, system_reason: change.systemReason ?? null, slot_id: null, updated_at: change.at })
       .where("id", "=", bookingId)
       .execute();
   }
@@ -175,6 +175,24 @@ export class KyselyBookingRepository implements BookingRepository<Db> {
       query = query.where((eb) => eb.or([eb("starts_at", ">", startsAt), eb.and([eb("starts_at", "=", startsAt), eb("id", ">", id)])]));
     }
     return (await query.orderBy("starts_at", "asc").orderBy("id", "asc").limit(filter.limit).execute()).map(toBooking);
+  }
+
+  async listReconcileCandidates(trx: Db, now: Date, limit: number, after?: { startsAt: Date; id: string }): Promise<BookingRecord[]> {
+    let query = trx
+      .selectFrom("bookings")
+      .select(COLUMNS)
+      .where("status", "in", ["REQUESTED", "CONFIRMED"])
+      .where((eb) => eb.or([eb("starts_at", ">", now), eb("status", "=", "REQUESTED")]));
+    if (after) {
+      const { startsAt, id } = after;
+      query = query.where((eb) => eb.or([eb("starts_at", ">", startsAt), eb.and([eb("starts_at", "=", startsAt), eb("id", ">", id)])]));
+    }
+    const rows = await query
+      .orderBy("starts_at", "asc")
+      .orderBy("id", "asc")
+      .limit(limit)
+      .execute();
+    return rows.map(toBooking);
   }
 
   async markConfirmed(trx: Db, bookingId: string, change: { at: Date; meetingInfo: string | null }): Promise<void> {

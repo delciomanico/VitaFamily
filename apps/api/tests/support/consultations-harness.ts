@@ -9,7 +9,7 @@ import { createAccessModule } from "../../src/modules/access/index.js";
 import { KyselyAppointmentsRepository } from "../../src/modules/appointments/infrastructure/repo.js";
 import { createFamilyAppointmentWriter, type FamilyAppointmentWriterImpl } from "../../src/modules/appointments/application/family-appointment-writer.js";
 import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
-import { createConsultationsJobs, createConsultationsModule, createSelfDealingGuard } from "../../src/modules/consultations/index.js";
+import { createConsultationsJobs, createConsultationsMaintenance, createConsultationsModule, createSelfDealingGuard, type FamilyAlertKind, type ProfessionalNoticeEvent } from "../../src/modules/consultations/index.js";
 import { createDiscoveryModule } from "../../src/modules/discovery/index.js";
 import { createFamiliesModule } from "../../src/modules/families/index.js";
 import { signProfessionalAccessToken } from "../../src/modules/professionals/domain/jwt.js";
@@ -86,6 +86,15 @@ export interface ConsultationsHarness {
   runDeleteFiles(): Promise<{ deleted: number; failed: number }>;
   /** Fila de antivírus (só para os testes inspecionarem). */
   proofQueue: { proofId: string }[];
+  /** Alertas à família pedidos por `consultations` (BR-MKT-65), por ordem. */
+  alertCalls: { kind: FamilyAlertKind; bookingId: string; familyId: string; memberId: string; stateVersion: string }[];
+  /** Avisos ao profissional enfileirados (depois do commit), por ordem. */
+  noticeCalls: { professionalId: string; bookingId: string; event: ProfessionalNoticeEvent }[];
+  /** Jobs de manutenção (reconciliar marcações, reenfileirar antivírus, avisar); `mails` regista os e-mails do aviso. */
+  maintenance: ReturnType<typeof createConsultationsMaintenance>;
+  mails: string[];
+  /** Falha o envio do e-mail de aviso enquanto `true` (para o retry). */
+  failMail: { value: boolean };
   stop(): Promise<void>;
 }
 
@@ -93,6 +102,8 @@ export interface ConsultationsHarness {
 export async function startConsultationsHarness(options: { logStream?: LogSink } = {}): Promise<ConsultationsHarness> {
   let appointments: FamilyAppointmentWriterImpl<Kysely<Database>> | undefined;
   let jobsDeps: { db: Kysely<Database>; clock: FixedClock; storage: InMemoryStorage } | undefined;
+  const alertCalls: ConsultationsHarness["alertCalls"] = [];
+  const noticeCalls: ConsultationsHarness["noticeCalls"] = [];
   const proofQueue = { jobs: [] as { proofId: string }[], enqueueScan(job: { proofId: string }): Promise<void> { this.jobs.push(job); return Promise.resolve(); } };
 
   const h = await startProfessionalsHarness(
@@ -158,6 +169,8 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         processes: { open: (trx, input) => processes.open(trx, input) },
         appointments: writer,
         conversations: messaging.lookup,
+        alerts: { raise: (_trx, input) => { alertCalls.push(input); return Promise.resolve(); } },
+        notices: { enqueue: (input) => { noticeCalls.push(input); return Promise.resolve(); } },
         storage,
         scanQueue: proofQueue,
       });
@@ -172,6 +185,23 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
   const { pool, clock } = h;
   if (!jobsDeps) throw new Error("jobs não ligados");
   const jobs = createConsultationsJobs({ ...jobsDeps, scanner: { scan: (buffer) => Promise.resolve(buffer.includes(INFECTED_MARKER) ? "INFECTED" : "CLEAN") } });
+
+  const mails: string[] = [];
+  const failMail = { value: false };
+  const maintenance = createConsultationsMaintenance({
+    db: jobsDeps.db,
+    clock: jobsDeps.clock,
+    audit: h.audit,
+    agenda: {
+      findIdentities: (ids) => h.module.directory.getConversationIdentities(ids),
+      releaseSlot: (trx, bookingId) => h.module.directory.releaseSlot(trx, bookingId),
+    },
+    appointments: writer,
+    alerts: { raise: (_trx, input) => { alertCalls.push(input); return Promise.resolve(); } },
+    scanQueue: proofQueue,
+    contact: { getNotificationEmail: async (professionalId) => (await pool.query<{ email: string }>("SELECT a.email FROM professionals p JOIN professional_accounts a ON a.id = p.account_id WHERE p.id = $1", [professionalId])).rows[0]?.email ?? null },
+    mailer: { sendNotice: (to) => { if (failMail.value) return Promise.reject(new Error("smtp")); mails.push(to); return Promise.resolve(); } },
+  });
 
   const mintToken = async (userId: string): Promise<string> =>
     (await signAccessToken({ subject: { userId, sessionId: randomUUID() }, now: clock.now(), ttlSeconds: TOKEN_TTL_SECONDS, signingKeys: SIGNING_KEYS })).token;
@@ -307,6 +337,11 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
     },
     runDeleteFiles: () => jobs.deleteFiles(),
     proofQueue: proofQueue.jobs,
+    alertCalls,
+    noticeCalls,
+    maintenance,
+    mails,
+    failMail,
     async stop() {
       await h.stop();
     },

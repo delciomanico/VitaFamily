@@ -14,10 +14,10 @@ import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modul
 import { createAccessModule } from "../modules/access/index.js";
 import { SmtpProfessionalMailer, createMessagingWorkerModule } from "../modules/messaging/index.js";
 import { CredentialClamAvScanner, PgBossCredentialScanQueue, createProfessionalsWorkerModule } from "../modules/professionals/index.js";
-import { ProofClamAvScanner, createConsultationsWorkerModule } from "../modules/consultations/index.js";
+import { ProofClamAvScanner, SmtpProfessionalNoticeMailer, createConsultationsWorkerModule, PgBossProofScanQueue } from "../modules/consultations/index.js";
 import { ClamAvScanner, createDocumentsWorkerModule } from "../modules/documents/index.js";
 import { createMedicationsWorkerModule } from "../modules/medications/index.js";
-import { createAppointmentsReminderQueries } from "../modules/appointments/index.js";
+import { createAppointmentsReminderQueries, createFamilyAppointmentSyncer } from "../modules/appointments/index.js";
 import { createExaminationsReminderQueries } from "../modules/examinations/index.js";
 import { createNotificationsWorkerModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsWorkerModule } from "../modules/alerts/index.js";
@@ -156,6 +156,14 @@ export function main(): void {
     clock,
     storage,
     scanner: new ProofClamAvScanner({ host: config.CLAMAV_HOST, port: config.CLAMAV_PORT }),
+    // MK3 S11 (BR-MKT-54/65, OP-114 iii): reconciliação de marcações, reenfileiramento do antivírus e aviso genérico ao profissional.
+    audit,
+    agenda: professionalsWorker.agenda,
+    appointments: createFamilyAppointmentSyncer({ clock }),
+    alerts: { raise: async (trx, input) => { await alertsWorker.raiseBookingEvent(trx, input); } },
+    scanQueue: new PgBossProofScanQueue(boss),
+    contact: { getNotificationEmail: (id) => professionalsWorker.notificationEmail(id) },
+    mailer: new SmtpProfessionalNoticeMailer(config.SMTP_URL, config.MAIL_FROM),
     boss,
   });
 
