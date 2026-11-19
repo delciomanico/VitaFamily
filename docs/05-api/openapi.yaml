@@ -10265,7 +10265,7 @@ paths:
       tags: [Bookings]
       operationId: listFamilyBookings
       summary: "Listar as marcações do membro."
-      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-28, FR-MKT-24, BR-MKT-50. Filtro status; mais recentes primeiro (startsAt desc), cursor. Não auditado."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-28, FR-MKT-24, BR-MKT-50/56. Filtro status; mais recentes primeiro (startsAt desc), cursor. Na lista paymentInstructions é sempre null (só o detalhe getFamilyBooking o devolve, com CONFIRMED/COMPLETED e priceKz > 0; BR-MKT-56). Não auditado."
       parameters:
         - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -10307,7 +10307,7 @@ paths:
       tags: [Bookings]
       operationId: createBooking
       summary: "Marcar uma consulta com um profissional."
-      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-27, FR-MKT-23/26/33, BR-MKT-51/53/55/62/65/66. Numa transação: SelfDealingGuard, factos da oferta/horário, antecedência (≥ 2 h, ≤ 8 semanas), sobreposição e limites, reserva atómica do horário, marcação REQUESTED com preço copiado, Process BOOKING, auditoria BOOKING_CREATE e aviso ao profissional. Sem motivo em texto livre. 201 = criada; 200 = clientRequestId repetido (devolve a existente). Profissional/oferta/horário inexistente ou profissional não APPROVED ⇒ NOT_FOUND; horário que não é da oferta ou antecedência inválida ⇒ VALIDATION_ERROR; horário ocupado ⇒ SLOT_UNAVAILABLE; sobreposição do membro ⇒ CONFLICT; 10 ativas ⇒ LIMIT_EXCEEDED; mesmo e-mail do profissional ⇒ SELF_BOOKING_NOT_ALLOWED; 10 criações/dia ⇒ RATE_LIMITED."
+      description: "Autorização: titular adulto (SELF) ou tutor (TUTOR_OF) do membro-sujeito (ação BOOK_PROFESSIONALS, authorization.md §12.1); DEPENDENT_SELF e OTHER ⇒ FORBIDDEN; membro/família de outra conta ou inexistente ⇒ NOT_FOUND; membro BLOCKED ⇒ MEMBER_BLOCKED. UC-MKT-27, FR-MKT-23/26/33, BR-MKT-51/53/55/62/65/66. Numa transação: factos da oferta/horário (profissional APPROVED, oferta ativa, horário), SelfDealingGuard (aplicado depois de ler os factos, porque precisa do professionalId; OP-113), antecedência (≥ 2 h, ≤ 8 semanas), sobreposição e limites, reserva atómica do horário, marcação REQUESTED com preço copiado, Process BOOKING, auditoria BOOKING_CREATE e aviso ao profissional. Sem motivo em texto livre. 201 = criada; 200 = clientRequestId repetido (devolve a existente). Profissional/oferta/horário inexistente ou profissional não APPROVED ⇒ NOT_FOUND; horário que não é da oferta ou antecedência inválida ⇒ VALIDATION_ERROR; horário ocupado ⇒ SLOT_UNAVAILABLE; sobreposição do membro ⇒ CONFLICT; 10 ativas ⇒ LIMIT_EXCEEDED; mesmo e-mail do profissional ⇒ SELF_BOOKING_NOT_ALLOWED (só se o profissional for APPROVED, a oferta ativa e o horário existir; caso contrário NOT_FOUND, para não revelar contas não aprovadas); 10 criações/dia ⇒ RATE_LIMITED."
       parameters:
         - { name: familyId, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: memberId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -10770,7 +10770,7 @@ paths:
       tags: [Professional Portal]
       operationId: listProfessionalBookings
       summary: "Listar as marcações do profissional."
-      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-30, FR-MKT-25, BR-MKT-50/63. Leitura em todos os estados de validação. Filtros status e from/to (startsAt; omissão: REQUESTED e CONFIRMED futuras); ordem startsAt asc. NUNCA devolve ids de família, membro ou utilizador: só o participantLabel (BR-MKT-63)."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-30, FR-MKT-25, BR-MKT-50/63. Leitura em todos os estados de validação. Filtros status e from/to (startsAt; omissão: REQUESTED e CONFIRMED futuras); ordem startsAt asc. from/to que não sejam date-time válido ⇒ 400 MALFORMED_REQUEST (não 422). NUNCA devolve ids de família, membro ou utilizador: só o participantLabel (BR-MKT-63)."
       security:
         - professionalBearerAuth: []
       parameters:
@@ -10826,7 +10826,7 @@ paths:
       tags: [Professional Portal]
       operationId: confirmBooking
       summary: "Confirmar um pedido de marcação."
-      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-31, FR-MKT-25/26, BR-MKT-52/55/65. REQUESTED → CONFIRMED; meetingInfo ≤ 300 obrigatório em VIDEO/PHONE (ligação externa ou número a ligar). Na mesma transação cria a consulta no membro e o alerta BOOKING_UPDATED. Só APPROVED (PROFESSIONAL_LOCKED); estado que já mudou ⇒ INVALID_STATE_TRANSITION. Auditoria PROFESSIONAL_BOOKING_CONFIRM sem texto."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-31, FR-MKT-25/26, BR-MKT-52/55/65. REQUESTED → CONFIRMED; meetingInfo ≤ 300 obrigatório em VIDEO/PHONE (ligação externa ou número a ligar). Na mesma transação cria a consulta no membro e o alerta BOOKING_UPDATED. Só APPROVED (PROFESSIONAL_LOCKED); estado que já mudou, ou pedido REQUESTED já expirado (BR-MKT-54), ⇒ INVALID_STATE_TRANSITION. Auditoria PROFESSIONAL_BOOKING_CONFIRM sem texto."
       security:
         - professionalBearerAuth: []
       parameters:
@@ -10872,7 +10872,7 @@ paths:
       tags: [Professional Portal]
       operationId: rejectBooking
       summary: "Recusar um pedido de marcação."
-      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-31, BR-MKT-52/53/65. REQUESTED → REJECTED com reason ≤ 300 obrigatório (visível à família; fora de logs); liberta o horário. Só APPROVED (PROFESSIONAL_LOCKED). Auditoria PROFESSIONAL_BOOKING_REJECT sem o motivo."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §12.2); marcação/avaliação procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-31, BR-MKT-52/53/65. REQUESTED → REJECTED com reason ≤ 300 obrigatório (visível à família; fora de logs); liberta o horário. Só APPROVED (PROFESSIONAL_LOCKED); estado que já mudou, ou pedido REQUESTED já expirado (BR-MKT-54), ⇒ INVALID_STATE_TRANSITION. Auditoria PROFESSIONAL_BOOKING_REJECT sem o motivo."
       security:
         - professionalBearerAuth: []
       parameters:
@@ -15332,7 +15332,7 @@ components:
         systemReason: { type: string, nullable: true, enum: [REQUEST_EXPIRED, PROFESSIONAL_UNAVAILABLE, null], description: "Só com cancelledBy=SYSTEM (BR-MKT-54)." }
         cancelledLate: { type: boolean, description: "Derivado: cancelada pela família com menos de 24 h até startsAt; só informativo." }
         meetingInfo: { type: string, nullable: true, maxLength: 300 }
-        paymentInstructions: { type: string, nullable: true, maxLength: 500, description: "Instruções do profissional (BR-MKT-26); nunca na pesquisa nem no perfil público." }
+        paymentInstructions: { type: string, nullable: true, maxLength: 500, description: "Instruções do profissional (BR-MKT-26); nunca na pesquisa nem no perfil público. Só no detalhe getFamilyBooking com CONFIRMED/COMPLETED e priceKz > 0; na lista é sempre null (BR-MKT-56)." }
         processId: { type: string, format: uuid, nullable: true, description: "Process BOOKING (BR-MKT-55)." }
         appointmentId: { type: string, format: uuid, nullable: true, description: "Consulta gerada no registo do membro ao confirmar." }
         conversationId: { type: string, format: uuid, nullable: true, description: "Conversa do par membro+profissional, se existir (derivada, OP-106)." }
@@ -15367,7 +15367,7 @@ components:
         cancelledLate: { type: boolean }
         meetingInfo: { type: string, nullable: true, maxLength: 300 }
         conversationId: { type: string, format: uuid, nullable: true, description: "Conversa (do portal) do par, se existir." }
-        proof: { allOf: [{ $ref: "#/components/schemas/PaymentProof" }], type: object, nullable: true, description: "Comprovativo em curso ou o mais recente." }
+        proof: { allOf: [{ $ref: "#/components/schemas/PaymentProof" }], description: "Comprovativo em curso ou o mais recente. Propriedade opcional: omitida (nunca null) quando não há comprovativo." }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     ProfessionalBookingPage:

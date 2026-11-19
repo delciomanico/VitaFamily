@@ -2595,7 +2595,7 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **REQUEST:** Query `status?`, `limit?`, `cursor?`
 - **RESPONSE:** `200` `FamilyBookingPage`
 - **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** BR-MKT-50/55; UC-MKT-28. Não auditado.
+- **BUSINESS RULES:** BR-MKT-50/55/56; UC-MKT-28. Na lista `paymentInstructions` é sempre `null` (só o detalhe as devolve). Não auditado.
 
 ### `POST /families/{familyId}/members/{memberId}/bookings`  — createBooking
 - **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
@@ -2603,11 +2603,11 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **REQUEST:** `CreateBookingRequest` (`offerId`, `slotId`, `participantLabel` 1–40, `clientRequestId?`); **sem motivo em texto livre**
 - **RESPONSE:** `201` `FamilyBooking` · `200` (clientRequestId repetido)
 - **ERRORS:** `MALFORMED_REQUEST`, `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `SLOT_UNAVAILABLE`, `CONFLICT`, `LIMIT_EXCEEDED`, `SELF_BOOKING_NOT_ALLOWED`, `VALIDATION_ERROR`, `RATE_LIMITED`
-- **BUSINESS RULES:** BR-MKT-51/53/55/62/66; UC-MKT-27. Auditoria `BOOKING_CREATE`.
+- **BUSINESS RULES:** BR-MKT-51/53/55/62/66; UC-MKT-27. `SELF_BOOKING_NOT_ALLOWED` só depois de os factos da oferta/horário serem válidos (OP-113); senão `NOT_FOUND`. Auditoria `BOOKING_CREATE`.
 
 ### `GET /families/{familyId}/members/{memberId}/bookings/{bookingId}`  — getFamilyBooking
 - **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `BOOK_PROFESSIONALS`, `authorization.md` §12.1)
-- **DESCRIPTION:** Ver uma marcação (instruções de pagamento e `meetingInfo` só a partir de `CONFIRMED`).
+- **DESCRIPTION:** Ver uma marcação (instruções de pagamento e `meetingInfo` só a partir de `CONFIRMED`; **só aqui** vêm as instruções, nunca na lista).
 - **REQUEST:** —
 - **RESPONSE:** `200` `FamilyBooking`
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `MEMBER_BLOCKED`, `UNAUTHENTICATED`
@@ -2675,7 +2675,7 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **REQUEST:** Query `status?`, `from?`, `to?`, `limit?`, `cursor?`
 - **RESPONSE:** `200` `ProfessionalBookingPage`
 - **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`
-- **BUSINESS RULES:** BR-MKT-50/63; UC-MKT-30. Leitura em todos os estados. Não auditado.
+- **BUSINESS RULES:** BR-MKT-50/63; UC-MKT-30. Leitura em todos os estados. `from`/`to` inválidos ⇒ `400 MALFORMED_REQUEST` (não `422`). Não auditado.
 
 ### `GET /professional-portal/bookings/{bookingId}`  — getProfessionalBooking
 - **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
@@ -2691,7 +2691,7 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **REQUEST:** `ConfirmBookingRequest` (`meetingInfo?` ≤ 300)
 - **RESPONSE:** `200` `ProfessionalBooking`
 - **ERRORS:** `MALFORMED_REQUEST`, `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** BR-MKT-52/55/65; UC-MKT-31. Auditoria `PROFESSIONAL_BOOKING_CONFIRM`.
+- **BUSINESS RULES:** BR-MKT-52/54/55/65; UC-MKT-31. Pedido `REQUESTED` já expirado ⇒ `INVALID_STATE_TRANSITION`. Auditoria `PROFESSIONAL_BOOKING_CONFIRM`.
 
 ### `POST /professional-portal/bookings/{bookingId}/reject`  — rejectBooking
 - **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (`authorization.md` §10/§12.2; escritas só `APPROVED`)
