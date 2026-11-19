@@ -11,6 +11,7 @@ import { createGetBookingActFacts } from "./application/act-facts.js";
 import { createAdminDisputes } from "./application/admin-disputes.js";
 import { createFamilyBookings } from "./application/family-bookings.js";
 import { createFamilyProofs, createProfessionalProofs, createProofJobs } from "./application/proofs.js";
+import { createReviews } from "./application/reviews.js";
 import { createProfessionalBookings } from "./application/professional-bookings.js";
 import type {
   BookingAccess,
@@ -27,9 +28,11 @@ import { KyselyFileDeletionRepository } from "./infrastructure/file-deletion-rep
 import { registerDeleteFilesWorker, registerScanProofWorker } from "./infrastructure/jobs.js";
 import { KyselyProofRepository } from "./infrastructure/proof-repo.js";
 import { KyselyBookingRepository } from "./infrastructure/repo.js";
+import { KyselyReviewRepository } from "./infrastructure/review-repo.js";
 import { StorageProofFileStore } from "./infrastructure/storage-file-store.js";
 import { createAdminDisputesRouter } from "./interface/admin-router.js";
 import { createFamilyBookingsRouter } from "./interface/family-router.js";
+import { createReviewsRouters } from "./interface/reviews-router.js";
 import { createProfessionalBookingsRouter } from "./interface/professional-router.js";
 import { createFamilyProofsRouter, createProfessionalProofsRouter } from "./interface/proofs-router.js";
 
@@ -66,6 +69,8 @@ export interface ConsultationsModule {
   professionalRouter: Router;
   /** `ProcessFacts` de `originType=BOOKING` (ligado no adaptador composto de `main/api.ts`). */
   getActFacts: ReturnType<typeof createGetBookingActFacts<Trx>>;
+  /** Porta `ReviewStats` de `discovery` (BR-MKT-61): agregações `{professionalId, count, sum}`, sem textos nem ids de família. */
+  reviewStats: ReturnType<typeof createReviews<Trx>>["stats"];
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -83,22 +88,29 @@ export function createConsultationsModule(deps: ConsultationsModuleDeps): Consul
     conversations: deps.conversations,
     bookings,
     proofs: new KyselyProofRepository(),
+    reviews: new KyselyReviewRepository(),
     fileStore: new StorageProofFileStore(deps.storage),
     scanQueue: deps.scanQueue,
   };
+  const reviews = createReviews(consultationsDeps);
+  const reviewRouters = createReviewsRouters(reviews);
   const familyRouter = Router();
   familyRouter.use(createFamilyBookingsRouter(createFamilyBookings(consultationsDeps)));
   familyRouter.use(createFamilyProofsRouter(createFamilyProofs(consultationsDeps)));
+  familyRouter.use(reviewRouters.familyRouter);
   const professionalRouter = Router();
+  professionalRouter.use(reviewRouters.professionalRouter);
   professionalRouter.use(createProfessionalBookingsRouter(createProfessionalBookings(consultationsDeps)));
   professionalRouter.use(createProfessionalProofsRouter(createProfessionalProofs(consultationsDeps)));
   const adminRouter = Router();
   adminRouter.use(createAdminDisputesRouter(createAdminDisputes(consultationsDeps)));
+  adminRouter.use(reviewRouters.adminRouter);
   return {
     familyRouter,
     professionalRouter,
     adminRouter,
     getActFacts: createGetBookingActFacts({ bookings, clock: deps.clock }),
+    reviewStats: reviews.stats,
   };
 }
 

@@ -7,6 +7,7 @@ import type { AuditEvent } from "../../audit/index.js";
 import type { BookingCancelledBy, BookingPaymentStatus, BookingStatus, BookingSystemReason } from "../domain/booking.js";
 import type { ProofStatus } from "../domain/payment.js";
 import type { BookingHint, BookingPhase } from "../domain/projection.js";
+import type { ReviewRepository } from "./review-ports.js";
 
 export interface ConsultationsClock {
   now(): Date;
@@ -305,6 +306,7 @@ export interface ConsultationsDeps<Trx> {
   conversations: ConversationLookup<Trx>;
   bookings: BookingRepository<Trx>;
   proofs: ProofRepository<Trx>;
+  reviews: ReviewRepository<Trx>;
   fileStore: ProofFileStore;
   scanQueue: ProofScanQueue;
 }

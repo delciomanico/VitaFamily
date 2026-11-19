@@ -240,6 +240,11 @@ export function main(): void {
       listApprovedFacts: (query) => professionals.directory.listApprovedFacts(query),
       getApprovedFacts: (ids) => professionals.directory.getApprovedFacts(ids),
     },
+    // MK3 S10 (BR-MKT-61): avaliações verificadas pela porta `ReviewStats`, implementada por `consultations` (ligação tardia).
+    reviewStats: {
+      forSpecialty: (specialtyId) => required(late.consultations, "consultations").reviewStats.forSpecialty(specialtyId),
+      forProfessionals: (ids) => required(late.consultations, "consultations").reviewStats.forProfessionals(ids),
+    },
   });
   // MK2 S6 (modules.md nota 36(c)): `messaging` só conhece PORTAS; aqui ligam-se a `access` (ação `MESSAGE_PROFESSIONALS`), à raiz
   // `ProfessionalDirectory` (identidade e estado lidos em cada pedido, sem cache). Alertas/e-mail ao profissional: ver S7 abaixo.

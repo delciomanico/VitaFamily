@@ -109,7 +109,8 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         memberData: { purgeMemberFiles: () => Promise.resolve(), purgeFamilyFiles: () => Promise.resolve(), exportBeforeRemoval: () => Promise.reject(new Error("não usado")) },
       });
       const access = createAccessModule({ db, audit, families, clock });
-      const discovery = createDiscoveryModule({ clock, catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } });
+      const late: { stats?: ReturnType<typeof createConsultationsModule>["reviewStats"] } = {};
+      const discovery = createDiscoveryModule({ clock, reviewStats: { forSpecialty: (id) => late.stats?.forSpecialty(id) ?? Promise.resolve([]), forProfessionals: (ids) => late.stats?.forProfessionals(ids) ?? Promise.resolve([]) }, catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } });
       const messaging = createMessagingModule({
         db,
         audit,
@@ -160,6 +161,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         storage,
         scanQueue: proofQueue,
       });
+      late.stats = consultations.reviewStats;
       return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter];
     },
     options.logStream ? { logStream: options.logStream } : {},
