@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AppError } from './errors'
-import { appointmentStatus, alertCategoryOf, alertTitle } from './labels'
+import { appointmentStatus, alertCategoryLabels, alertCategoryOf, alertTitle } from './labels'
 import { asArray, parseJsonBody, withFallback } from './safe'
 
 describe('parseJsonBody', () => {
@@ -44,5 +44,15 @@ describe('asArray', () => {
     expect(asArray(undefined)).toEqual([])
     expect(asArray({} as never)).toEqual([])
     expect(asArray([1])).toEqual([1])
+  })
+})
+
+describe('alertas de MK2/MK3 (marcações, pagamentos e mensagens)', () => {
+  it.each(['MESSAGE_RECEIVED', 'BOOKING_UPDATED', 'PAYMENT_UPDATED'] as const)('%s tem categoria própria e título específico', (type) => {
+    expect(alertCategoryOf[type]).toBe('PROFESSIONALS')
+    expect(alertCategoryLabels.PROFESSIONALS).toBe('Profissionais')
+    const title = alertTitle({ type, ruleKey: 'x' as never, sourceLabel: '', message: undefined })
+    expect(title).not.toBe('Tem um novo aviso.')
+    expect(title.length).toBeGreaterThan(10)
   })
 })

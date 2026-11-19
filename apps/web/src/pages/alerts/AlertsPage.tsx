@@ -30,7 +30,7 @@ const filters: TabItem<Filter>[] = [
   })),
 ]
 
-/** Recurso a que o alerta se refere: medicamento, consulta ou exame. */
+/** Recurso a que o alerta se refere: medicamento, consulta, exame, marcação ou conversa. */
 function targetOf(alert: AlertItem): string | undefined {
   if (!alert.targetId) return undefined
   switch (alert.sourceType) {
@@ -42,6 +42,10 @@ function targetOf(alert: AlertItem): string | undefined {
       return paths.examination(alert.targetId)
     case 'RECOMMENDATION':
       return undefined
+    case 'BOOKING':
+      return paths.booking(alert.memberId, alert.targetId)
+    case 'CONVERSATION':
+      return paths.messageThread(alert.memberId, alert.targetId)
     case 'PROCESS':
       // Fatia 5 (ADR-036): o alerta abre o cartão do processo; a página repete a decisão de acesso (404 ⇒ «já não está disponível»).
       return paths.process(alert.memberId, alert.targetId)

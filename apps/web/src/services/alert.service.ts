@@ -10,7 +10,7 @@ export interface ApiAlert {
   memberId: string
   memberName: string
   message: string
-  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION' | 'RECOMMENDATION' | 'PROCESS'
+  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION' | 'RECOMMENDATION' | 'PROCESS' | 'CONVERSATION' | 'BOOKING'
   sourceId: string
   triggerAt: string
   readAt?: string | null
@@ -33,6 +33,9 @@ const ruleKeyOf: Record<AlertType, AlertRuleKey> = {
   EXAM_ORDER_ADDED: 'exam-order.added',
   EXAM_CANCELLED: 'exam.cancelled',
   EXAM_RESULTS_AVAILABLE: 'exam.results',
+  MESSAGE_RECEIVED: 'message.received',
+  BOOKING_UPDATED: 'booking.updated',
+  PAYMENT_UPDATED: 'payment.updated',
 }
 
 export function toAlertItem(alert: ApiAlert): AlertItem {

@@ -134,6 +134,12 @@ export function alertTitle({
       return sourceLabel ? `Exame cancelado: ${sourceLabel}` : 'Um exame foi cancelado pela clínica.'
     case 'EXAM_RESULTS_AVAILABLE':
       return sourceLabel ? `Resultados disponíveis: ${sourceLabel}` : 'Há resultados de exame disponíveis.'
+    case 'MESSAGE_RECEIVED':
+      return 'Recebeu uma nova mensagem de um profissional.'
+    case 'BOOKING_UPDATED':
+      return 'A sua marcação com um profissional foi atualizada.'
+    case 'PAYMENT_UPDATED':
+      return 'O estado do pagamento de uma marcação foi atualizado.'
     case 'FOLLOWUP_REMINDER':
       return sourceLabel ? `Está na altura de marcar o retorno: ${sourceLabel}` : 'Está na altura de marcar o retorno.'
     default:
@@ -157,6 +163,9 @@ const alertCategoryOfBase: Record<AlertType, AlertCategory> = {
   EXAM_ORDER_ADDED: 'FOLLOW_UP',
   EXAM_CANCELLED: 'EXAMS',
   EXAM_RESULTS_AVAILABLE: 'EXAMS',
+  MESSAGE_RECEIVED: 'PROFESSIONALS',
+  BOOKING_UPDATED: 'PROFESSIONALS',
+  PAYMENT_UPDATED: 'PROFESSIONALS',
 }
 export const alertCategoryOf: Record<AlertType, AlertCategory> = withFallback(alertCategoryOfBase, () => 'OTHER' as AlertCategory)
 
@@ -165,6 +174,7 @@ const alertCategoryLabelsBase: Record<AlertCategory, string> = {
   APPOINTMENTS: 'Consultas',
   EXAMS: 'Exames',
   FOLLOW_UP: 'Acompanhamento',
+  PROFESSIONALS: 'Profissionais',
 }
 export const alertCategoryLabels: Record<AlertCategory, string> = withFallback(alertCategoryLabelsBase, () => 'Outros')
 

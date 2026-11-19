@@ -18,6 +18,9 @@ const CONTRACT_TYPES: ApiAlert['type'][] = [
   'APPOINTMENT_CONFIRM_REQUEST',
   'FOLLOWUP_REMINDER',
   'EXAM_ORDER_ADDED',
+  'MESSAGE_RECEIVED',
+  'BOOKING_UPDATED',
+  'PAYMENT_UPDATED',
 ]
 
 describe('AlertCard com a API real', () => {

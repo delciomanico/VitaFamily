@@ -40,6 +40,10 @@ function source(alert: HealthAlert, now: Date): Pick<AlertItem, 'sourceLabel' | 
     case 'PROCESS':
       // Abre o cartão do processo; se já não existir, a página mostra «já não está disponível» (404).
       return { sourceLabel: '', targetId: alert.sourceId }
+    case 'BOOKING':
+    case 'CONVERSATION':
+      // Só chegam pela API real (o mock não gera alertas de marcações nem de mensagens).
+      return { sourceLabel: '', targetId: alert.sourceId }
   }
 }
 

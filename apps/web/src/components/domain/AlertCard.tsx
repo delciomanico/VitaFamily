@@ -11,6 +11,7 @@ import {
   FlaskConical,
   MessageSquareText,
   Pill,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -33,6 +34,9 @@ const iconsBase: Record<AlertType, LucideIcon> = {
   EXAM_ORDER_ADDED: FileText,
   EXAM_CANCELLED: CalendarX,
   EXAM_RESULTS_AVAILABLE: FlaskConical,
+  MESSAGE_RECEIVED: MessageSquareText,
+  BOOKING_UPDATED: CalendarCheck,
+  PAYMENT_UPDATED: Wallet,
 }
 /** Tipo de alerta desconhecido → ícone genérico. */
 const icons = withFallback(iconsBase, () => Bell)

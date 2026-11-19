@@ -13,6 +13,9 @@ export type AlertType =
   | 'EXAM_ORDER_ADDED'
   | 'EXAM_CANCELLED'
   | 'EXAM_RESULTS_AVAILABLE'
+  | 'MESSAGE_RECEIVED'
+  | 'BOOKING_UPDATED'
+  | 'PAYMENT_UPDATED'
 
 /** Regra que gerou o alerta (Evento → Regra → Alerta, UC-ALR-01). */
 export type AlertRuleKey =
@@ -31,6 +34,9 @@ export type AlertRuleKey =
   | 'exam-order.added'
   | 'exam.cancelled'
   | 'exam.results'
+  | 'message.received'
+  | 'booking.updated'
+  | 'payment.updated'
 
 export interface HealthAlert {
   id: string
@@ -39,7 +45,7 @@ export interface HealthAlert {
   memberId: string
   type: AlertType
   ruleKey: AlertRuleKey
-  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION' | 'RECOMMENDATION' | 'PROCESS'
+  sourceType: 'DOSE' | 'APPOINTMENT' | 'EXAMINATION' | 'RECOMMENDATION' | 'PROCESS' | 'CONVERSATION' | 'BOOKING'
   sourceId: string
   triggerAt: string
   readAt?: string
@@ -61,4 +67,4 @@ export interface AlertItem extends HealthAlert {
 }
 
 /** Grupos do centro de alertas. */
-export type AlertCategory = 'MEDICATION' | 'APPOINTMENTS' | 'EXAMS' | 'FOLLOW_UP'
+export type AlertCategory = 'MEDICATION' | 'APPOINTMENTS' | 'EXAMS' | 'FOLLOW_UP' | 'PROFESSIONALS'
