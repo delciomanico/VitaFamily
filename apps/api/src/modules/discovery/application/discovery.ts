@@ -5,9 +5,9 @@ import { compareProfessionals as compareDomain, validateCompareIds } from "../do
 import { METHOD_ORDER, type ProfessionalFacts, type SpecialtyCategoryCode } from "../domain/facts.js";
 import { decodeCursor, encodeCursor, normalizeText, paginate, searchProfessionals as searchDomain, sortHits, type SearchCriteria, type SearchSort } from "../domain/filters.js";
 import { rankProfessionals, type OfferMethodCode, type RankingInput, type RankingResult } from "../domain/ranking.js";
-import type { DiscoveryDeps, ProfessionalCatalogQuery } from "./ports.js";
+import { EMPTY_REVIEW_STATS, type DiscoveryDeps, type ProfessionalCatalogQuery, type ReviewAggregate } from "./ports.js";
 import { getRankingRules } from "./rules.js";
-import { offerView, rankingView, specialtyView, type OfferView, type RankingView, type SpecialtyView } from "./views.js";
+import { offerView, rankingView, reviewSummaryView, specialtyView, type OfferView, type RankingView, type ReviewSummaryView, type SpecialtyView } from "./views.js";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
@@ -29,6 +29,7 @@ export interface ProfessionalItemView {
   fromPriceKz: number;
   nextAvailableAt: Date | null;
   ranking: RankingView | null;
+  reviewSummary: ReviewSummaryView;
 }
 
 export interface ProfessionalProfileView {
@@ -42,14 +43,17 @@ export interface ProfessionalProfileView {
   /** `AAAA-MM-01` (primeiro dia do mês da primeira aprovação). */
   memberSince: string;
   ranking: RankingView | null;
+  reviewSummary: ReviewSummaryView;
 }
 
 /** Entrada do ranking de um profissional NA especialidade (só os campos permitidos de BR-MKT-37). */
-export function toRankingInput(facts: ProfessionalFacts, specialtyId: string): RankingInput {
+export function toRankingInput(facts: ProfessionalFacts, specialtyId: string, review?: ReviewAggregate): RankingInput {
   return {
     professionalId: facts.id,
     bioLength: (facts.bio ?? "").trim().length,
     approvedAtMs: facts.approvedAt.getTime(),
+    reviewCount: review?.count ?? 0,
+    reviewSum: review?.sum ?? 0,
     offers: facts.offers
       .filter((o) => o.specialtyId === specialtyId)
       .map((o) => ({
@@ -72,9 +76,16 @@ function validationError(field: string, message: string): ValidationError {
 
 export function createDiscoveryUseCases(deps: DiscoveryDeps) {
   const { catalog, clock } = deps;
+  const reviewStats = deps.reviewStats ?? EMPTY_REVIEW_STATS;
 
-  function rankingsOf(specialtyId: string, cohort: readonly ProfessionalFacts[], nowMs: number): Map<string, RankingResult> {
-    return new Map(rankProfessionals(cohort.map((f) => toRankingInput(f, specialtyId)), nowMs).map((r) => [r.professionalId, r]));
+  async function rankingsOf(specialtyId: string, cohort: readonly ProfessionalFacts[], nowMs: number): Promise<Map<string, RankingResult>> {
+    const stats = new Map((await reviewStats.forSpecialty(specialtyId)).map((a) => [a.professionalId, a]));
+    return new Map(rankProfessionals(cohort.map((f) => toRankingInput(f, specialtyId, stats.get(f.id))), nowMs).map((r) => [r.professionalId, r]));
+  }
+
+  async function summariesOf(ids: readonly string[]): Promise<Map<string, ReviewSummaryView>> {
+    const aggs = new Map((ids.length === 0 ? [] : await reviewStats.forProfessionals(ids)).map((a) => [a.professionalId, a]));
+    return new Map(ids.map((id) => [id, reviewSummaryView(aggs.get(id))]));
   }
 
   return {
@@ -108,8 +119,9 @@ export function createDiscoveryUseCases(deps: DiscoveryDeps) {
         ...(input.availableWithinDays !== undefined ? { availableWithinDays: input.availableWithinDays } : {}),
       };
       const hits = searchDomain(cohort, criteria, nowMs);
-      const rankings = input.specialtyId ? rankingsOf(input.specialtyId, cohort, nowMs) : new Map<string, RankingResult>();
+      const rankings = input.specialtyId ? await rankingsOf(input.specialtyId, cohort, nowMs) : new Map<string, RankingResult>();
       const page = paginate(sortHits(hits, sort, rankings), sort, limit, cursor);
+      const summaries = await summariesOf(page.items.map(({ hit }) => hit.facts.id));
       return {
         items: page.items.map(({ hit, ranking }) => ({
           id: hit.facts.id,
@@ -120,6 +132,7 @@ export function createDiscoveryUseCases(deps: DiscoveryDeps) {
           fromPriceKz: hit.fromPriceKz,
           nextAvailableAt: hit.nextAvailableAt,
           ranking: ranking ? rankingView(ranking) : null,
+          reviewSummary: summaries.get(hit.facts.id) ?? reviewSummaryView(undefined),
         })),
         nextCursor: page.nextCursor ? encodeCursor(page.nextCursor) : null,
       };
@@ -133,7 +146,7 @@ export function createDiscoveryUseCases(deps: DiscoveryDeps) {
       let ranking: RankingView | null = null;
       if (specialtyId !== undefined && facts.specialties.some((s) => s.id === specialtyId)) {
         const cohort = await catalog.listApprovedFacts({ specialtyId });
-        const mine = rankingsOf(specialtyId, cohort, nowMs).get(professionalId);
+        const mine = (await rankingsOf(specialtyId, cohort, nowMs)).get(professionalId);
         ranking = mine ? rankingView(mine) : null;
       }
       return {
@@ -146,6 +159,7 @@ export function createDiscoveryUseCases(deps: DiscoveryDeps) {
         nextAvailableAt: nextAvailable(facts, nowMs),
         memberSince: `${String(facts.approvedAt.getUTCFullYear())}-${String(facts.approvedAt.getUTCMonth() + 1).padStart(2, "0")}-01`,
         ranking,
+        reviewSummary: (await summariesOf([professionalId])).get(professionalId) ?? reviewSummaryView(undefined),
       };
     },
 

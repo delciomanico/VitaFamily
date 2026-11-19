@@ -100,7 +100,7 @@ export function sortKeyOf(sort: SearchSort, hit: SearchHit, ranking: RankingResu
       return { k: [hit.nextAvailableAt ? hit.nextAvailableAt.getTime() : null], id };
     case "RANKING": {
       if (!ranking) throw new Error("RANKING exige a explicação do ranking do profissional");
-      return { k: [-ranking.score, -ranking.signals.availability, ranking.approvedAtMs], id };
+      return { k: [-ranking.score, -ranking.signals.reviews, -ranking.signals.availability, ranking.approvedAtMs], id };
     }
   }
 }
@@ -153,7 +153,7 @@ export function decodeCursor(raw: string, expectedSort: SearchSort): Cursor | nu
     const { s, k, i } = parsed as { s?: unknown; k?: unknown; i?: unknown };
     if (typeof s !== "string" || !SORTS.includes(s as SearchSort) || s !== expectedSort) return null;
     if (typeof i !== "string" || i.length === 0 || i.length > 64) return null;
-    if (!Array.isArray(k) || k.length === 0 || k.length > 3 || !k.every((x) => x === null || (typeof x === "number" && Number.isFinite(x)))) return null;
+    if (!Array.isArray(k) || k.length === 0 || k.length > 4 || !k.every((x) => x === null || (typeof x === "number" && Number.isFinite(x)))) return null;
     return { sort: s, key: { k: k as (number | null)[], id: i } };
   } catch {
     return null;

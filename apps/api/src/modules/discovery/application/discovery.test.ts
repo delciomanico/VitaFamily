@@ -229,7 +229,7 @@ describe("getProfessionalProfile (UC-MKT-14)", () => {
   it("com specialtyId de especialidade que o profissional tem ⇒ ranking presente", async () => {
     const perfil = await uc.getProfessionalProfile("ana", SPEC);
     expect(perfil.ranking).not.toBeNull();
-    expect(perfil.ranking?.version).toBe("v1");
+    expect(perfil.ranking?.version).toBe("v2");
     expect(typeof perfil.ranking?.score).toBe("number");
   });
 
@@ -277,5 +277,34 @@ describe("compareProfessionals (UC-MKT-15)", () => {
     const resultado = await uc.compareProfessionals(["p3", "p1"], SPEC);
     expect(resultado.items.map((i) => i.professionalId)).toEqual(["p3", "p1"]);
     expect(resultado.specialtyId).toBe(SPEC);
+  });
+});
+
+describe("avaliações verificadas pela porta ReviewStats (BR-MKT-61)", () => {
+  const cohort = cohortOf(3);
+  const stats = {
+    forSpecialty: () => Promise.resolve([{ professionalId: "p01", count: 3, sum: 15 }, { professionalId: "p02", count: 2, sum: 10 }]),
+    forProfessionals: () => Promise.resolve([{ professionalId: "p01", count: 4, sum: 18 }, { professionalId: "p02", count: 2, sum: 10 }]),
+  };
+
+  it("sem a porta: reviewSummary {0, null}, sinal neutro e «Novo» (omissão segura até à S10)", async () => {
+    const page = await useCases(cohort).searchProfessionals({ specialtyId: SPEC });
+    for (const item of page.items) {
+      expect(item.reviewSummary).toEqual({ count: 0, averageRating: null });
+      expect(item.ranking).toMatchObject({ version: "v2", label: "NEW", signals: { reviews: 0.5 } });
+    }
+    expect((await useCases(cohort).getProfessionalProfile("p01")).reviewSummary).toEqual({ count: 0, averageRating: null });
+  });
+
+  it("com a porta: 3+ avaliações ⇒ RATED e média com uma casa decimal; 2 avaliações ⇒ «Novo» e média nula", async () => {
+    const uc = createDiscoveryUseCases({ catalog: fakeCatalog(cohort), clock, reviewStats: stats });
+    const page = await uc.searchProfessionals({ specialtyId: SPEC });
+    const p01 = page.items.find((i) => i.id === "p01");
+    const p02 = page.items.find((i) => i.id === "p02");
+    expect(p01?.ranking?.label).toBe("RATED");
+    expect(p01?.reviewSummary).toEqual({ count: 4, averageRating: 4.5 });
+    expect(p02?.ranking?.label).toBe("NEW");
+    expect(p02?.reviewSummary).toEqual({ count: 2, averageRating: null });
+    expect((await uc.getProfessionalProfile("p01", SPEC)).ranking?.label).toBe("RATED");
   });
 });

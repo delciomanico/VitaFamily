@@ -5,17 +5,19 @@ import type { Router } from "express";
 import type { Clock } from "../../platform/clock/index.js";
 import { InMemoryRateLimiter } from "../../platform/rate-limit/index.js";
 import { createDiscoveryUseCases, type DiscoveryUseCases } from "./application/discovery.js";
-import type { ProfessionalCatalog } from "./application/ports.js";
+import type { ProfessionalCatalog, ReviewStats } from "./application/ports.js";
 import { createDiscoveryRouter } from "./interface/router.js";
 
-export { RANKING_V1, rankProfessionals } from "./domain/ranking.js";
+export { RANKING_V2, rankProfessionals } from "./domain/ranking.js";
 export type { RankingInput, RankingResult } from "./domain/ranking.js";
 export { PUBLIC_DATA_ROUTES } from "./interface/public-data-routes.js";
-export type { ProfessionalCatalog, ProfessionalCatalogQuery } from "./application/ports.js";
+export type { ProfessionalCatalog, ProfessionalCatalogQuery, ReviewAggregate, ReviewStats } from "./application/ports.js";
 
 export interface DiscoveryModuleDeps {
   catalog: ProfessionalCatalog;
   clock: Clock;
+  /** Opcional até à S10 (`consultations` implementa a porta). */
+  reviewStats?: ReviewStats;
 }
 
 export interface DiscoveryModule {
@@ -25,6 +27,6 @@ export interface DiscoveryModule {
 }
 
 export function createDiscoveryModule(deps: DiscoveryModuleDeps): DiscoveryModule {
-  const useCases = createDiscoveryUseCases({ catalog: deps.catalog, clock: deps.clock });
+  const useCases = createDiscoveryUseCases({ catalog: deps.catalog, clock: deps.clock, ...(deps.reviewStats ? { reviewStats: deps.reviewStats } : {}) });
   return { router: createDiscoveryRouter({ useCases, rateLimiter: new InMemoryRateLimiter(deps.clock) }), useCases };
 }

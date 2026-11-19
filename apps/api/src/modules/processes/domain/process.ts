@@ -5,18 +5,24 @@
 /** Só `ROUTINE`: o valor `AUTHORIZED` do enum da BD (marco B, ADR-037) ficou inerte e nunca é lido. */
 export type ProcessKind = "ROUTINE";
 
-/** O que abriu o processo: um ato (consulta/exame). `AUTHORIZATION` (marco B) ficou inerte na BD e nunca é lido. */
-export type ProcessOriginType = "APPOINTMENT" | "EXAMINATION";
-export const PROCESS_ORIGIN_TYPES: readonly ProcessOriginType[] = ["APPOINTMENT", "EXAMINATION"];
+/** O que abriu o processo: um ato (consulta/exame) ou, desde MK3, uma marcação de profissional. `AUTHORIZATION` (marco B) ficou inerte na BD e nunca é lido. */
+export type ProcessOriginType = "APPOINTMENT" | "EXAMINATION" | "BOOKING";
+export const PROCESS_ORIGIN_TYPES: readonly ProcessOriginType[] = ["APPOINTMENT", "EXAMINATION", "BOOKING"];
 
 /** Fase do ato publicada pelo módulo dono (BR-PRC-04; state-machines.md "Process", projeção 1). */
 export type ActPhase = "PENDING" | "SCHEDULED" | "IN_PROGRESS" | "DONE" | "CANCELLED" | "NO_SHOW";
 export const ACT_PHASES: readonly ActPhase[] = ["PENDING", "SCHEDULED", "IN_PROGRESS", "DONE", "CANCELLED", "NO_SHOW"];
 
+/** Dica de pagamento/avaliação de uma marcação (MK3, state-machines.md 1b), calculada por `consultations`; só `source=BOOKING` a tem. */
+export type BookingHint = "PAYMENT_PROOF_DUE" | "PAYMENT_UNDER_REVIEW" | "PAYMENT_DISPUTED" | "REVIEW_DUE";
+export const BOOKING_HINTS: readonly BookingHint[] = ["PAYMENT_PROOF_DUE", "PAYMENT_UNDER_REVIEW", "PAYMENT_DISPUTED", "REVIEW_DUE"];
+
 /** Facto pequeno e estável do ato (BR-PRC-04): é tudo o que `processes` sabe do estado de um ato. */
 export interface ActFact {
   source: ProcessOriginType;
   phase: ActPhase;
+  /** Aditivo e opcional (MK3): os atos `APPOINTMENT`/`EXAMINATION` nunca o têm. */
+  hint?: BookingHint | null;
   scheduledAt?: Date;
   changedAt: Date;
 }
@@ -30,8 +36,13 @@ export type NextStepCode =
   | "ATTEND"
   | "BEING_ATTENDED"
   | "RESCHEDULE"
-  | "NOTHING_PENDING";
-export type NextStepActor = "FAMILY" | "CLINIC" | "NONE";
+  | "NOTHING_PENDING"
+  | "AWAIT_PROFESSIONAL_RESPONSE"
+  | "SEND_PAYMENT_PROOF"
+  | "AWAIT_PAYMENT_CONFIRMATION"
+  | "AWAIT_PAYMENT_DISPUTE_DECISION"
+  | "LEAVE_REVIEW";
+export type NextStepActor = "FAMILY" | "CLINIC" | "NONE" | "PROFESSIONAL" | "PLATFORM";
 export interface NextStep {
   code: NextStepCode;
   actor: NextStepActor;
@@ -49,9 +60,9 @@ export interface Process {
   openedAt: Date;
 }
 
-/** O que governa a leitura (authorization.md §6.8): consulta e exame herdam a categoria de dados do ato. */
+/** O que governa a leitura (authorization.md §6.8): consulta e exame herdam a categoria de dados do ato; a marcação exige READ(APPOINTMENTS) (BR-MKT-55). */
 export type OriginCategory = "APPOINTMENTS" | "EXAMS";
 
 export function categoryOfOrigin(originType: ProcessOriginType): OriginCategory {
-  return originType === "APPOINTMENT" ? "APPOINTMENTS" : "EXAMS";
+  return originType === "EXAMINATION" ? "EXAMS" : "APPOINTMENTS";
 }

@@ -43,7 +43,7 @@ describe("TC-MKT-53: arquitetura de discovery", () => {
   });
 
   it("RankingInput fechado: exatamente as chaves de BR-MKT-37", () => {
-    expect([...RANKING_INPUT_KEYS]).toEqual(["professionalId", "bioLength", "offers", "approvedAtMs"]);
+    expect([...RANKING_INPUT_KEYS]).toEqual(["professionalId", "bioLength", "offers", "approvedAtMs", "reviewCount", "reviewSum"]);
   });
 
   it("PUBLIC_DATA_ROUTES coincide com as operações /marketplace/* do openapi.yaml e nenhuma é rota /families/*", async () => {

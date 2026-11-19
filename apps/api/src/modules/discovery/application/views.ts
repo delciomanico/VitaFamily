@@ -24,7 +24,18 @@ export interface RankingView {
   score: number;
   signals: RankingSignalValues;
   reasons: RankingResult["reasons"];
-  label: "NEW";
+  label: RankingResult["label"];
+}
+
+export interface ReviewSummaryView {
+  count: number;
+  /** Uma casa decimal, só com `count ≥ 3` (senão nulo, «Novo»; BR-MKT-61). */
+  averageRating: number | null;
+}
+
+export function reviewSummaryView(agg: { count: number; sum: number } | undefined): ReviewSummaryView {
+  const count = agg?.count ?? 0;
+  return { count, averageRating: agg && count >= 3 ? Math.round((agg.sum / count) * 10) / 10 : null };
 }
 
 export function offerView(o: FactsOffer): OfferView {

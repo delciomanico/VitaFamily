@@ -110,7 +110,7 @@ describe("integração: descoberta /marketplace/* (MK2 S4)", () => {
     const ranked = await get(`/marketplace/professionals?specialtyId=${spec}`);
     expect(ranked.status).toBe(200);
     const items = (ranked.body as { items: { ranking: { score: number; version: string } }[] }).items;
-    expect(items[0]?.ranking.version).toBe("v1");
+    expect(items[0]?.ranking.version).toBe("v2");
     const scores = items.map((i) => i.ranking.score);
     expect(scores).toEqual([...scores].sort((x, y) => y - x));
     const asc = await get(`/marketplace/professionals?sort=PRICE_ASC`);
@@ -185,7 +185,7 @@ describe("integração: descoberta /marketplace/* (MK2 S4)", () => {
     const rules = await get("/marketplace/ranking-rules");
     expect(rules.status).toBe(200);
     const r = rules.body as { version: string; signals: { weightPercent: number }[]; statement: string };
-    expect(r.version).toBe("v1");
+    expect(r.version).toBe("v2");
     expect(r.signals.reduce((s, x) => s + x.weightPercent, 0)).toBe(100);
     expect(r.statement).toMatch(/nunca influenciam/);
     const listing = (await get("/marketplace/professionals")).body as { items: { matchingOffers: { priceKz: number }[] }[] };

@@ -15,6 +15,27 @@ export interface ProfessionalCatalog {
   getApprovedFacts(ids: readonly string[]): Promise<ProfessionalFacts[]>;
 }
 
+/** Agregação de avaliações verificadas de um profissional (BR-MKT-61): sem textos, sem ids de família. `sum` é a soma das notas 1–5. */
+export interface ReviewAggregate {
+  professionalId: string;
+  count: number;
+  sum: number;
+}
+
+/** Porta das avaliações (implementada por `consultations` na S10; calculada no pedido). Ausentes = sem avaliações. */
+export interface ReviewStats {
+  /** Agregação por profissional das avaliações das marcações de ofertas da especialidade (toda a coorte). */
+  forSpecialty(specialtyId: string): Promise<ReviewAggregate[]>;
+  /** Agregação total (todas as especialidades) dos profissionais indicados, para `reviewSummary`. */
+  forProfessionals(professionalIds: readonly string[]): Promise<ReviewAggregate[]>;
+}
+
+/** Enquanto `consultations` não liga a porta: sem avaliações (sinal neutro 0,5, «Novo», `reviewSummary` a zero). */
+export const EMPTY_REVIEW_STATS: ReviewStats = {
+  forSpecialty: () => Promise.resolve([]),
+  forProfessionals: () => Promise.resolve([]),
+};
+
 export interface DiscoveryClock {
   now(): Date;
 }
@@ -22,4 +43,6 @@ export interface DiscoveryClock {
 export interface DiscoveryDeps {
   catalog: ProfessionalCatalog;
   clock: DiscoveryClock;
+  /** Opcional até à S10 (sem ela, `EMPTY_REVIEW_STATS`). */
+  reviewStats?: ReviewStats;
 }

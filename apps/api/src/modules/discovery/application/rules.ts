@@ -1,18 +1,19 @@
-// «Como ordenamos» (UC-MKT-16, BR-MKT-36/37): texto estático e versionado derivado de `RANKING_V1` (única fonte dos pesos).
-import { RANKING_V1 } from "../domain/ranking.js";
+// «Como ordenamos» (UC-MKT-16, BR-MKT-36/37/61): texto estático e versionado derivado de `RANKING_V2` (única fonte dos pesos).
+import { RANKING_V2 } from "../domain/ranking.js";
 
 export interface RankingRulesView {
   version: string;
-  signals: { code: "PROFILE_COMPLETENESS" | "AVAILABILITY" | "PRICE" | "SENIORITY"; weightPercent: number; description: string }[];
+  signals: { code: "REVIEWS" | "PROFILE_COMPLETENESS" | "AVAILABILITY" | "PRICE" | "SENIORITY"; weightPercent: number; description: string }[];
   notUsed: string[];
   statement: string;
 }
 
 export function getRankingRules(): RankingRulesView {
-  const w = RANKING_V1.weights;
+  const w = RANKING_V2.weights;
   return {
-    version: RANKING_V1.version,
+    version: RANKING_V2.version,
     signals: [
+      { code: "REVIEWS", weightPercent: w.reviews, description: "Avaliações: nota das avaliações verificadas (só de quem consultou), suavizada pela média da especialidade; com menos de 3 avaliações o profissional é «Novo» e este sinal é neutro." },
       { code: "PROFILE_COMPLETENESS", weightPercent: w.profileCompleteness, description: "Perfil completo: apresentação preenchida, notas nas ofertas e mais do que um método ou oferta." },
       { code: "AVAILABILITY", weightPercent: w.availability, description: "Disponibilidade: horários livres nos próximos 14 dias." },
       { code: "PRICE", weightPercent: w.price, description: "Preço: o preço mais baixo do profissional face aos restantes da mesma especialidade." },
