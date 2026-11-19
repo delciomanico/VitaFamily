@@ -1,6 +1,6 @@
 // openapi.yaml `setAppointmentStatus`: "Autorização: WRITE(APPOINTMENTS). ST4. A família nunca
 // define REQUESTED/confirma REQUESTED->SCHEDULED/recusa (exclusivo do portal da clínica, D17)."
-import { DomainError, NotFoundError } from "../../../platform/errors/index.js";
+import { ConflictError, DomainError, NotFoundError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { assertValidAppointmentTransition, type Appointment, type AppointmentStatus } from "../domain/appointment.js";
 import type { ActorIdentity, AppointmentsDeps, RequestContext } from "./ports.js";
@@ -31,6 +31,10 @@ export function createSetAppointmentStatusUseCase<Trx>(deps: AppointmentsDeps<Tr
       const existing = await deps.appointmentsRepo.findById(trx, familyId, memberId, appointmentId);
       if (!existing) {
         throw new NotFoundError({ detail: "Consulta não encontrada." });
+      }
+      // BR-MKT-55: o estado de uma consulta gerada por marcação segue a marcação (TC-MKT-89).
+      if (existing.bookingId) {
+        throw new ConflictError({ detail: "Esta consulta é gerida pela marcação com o profissional; o estado muda pela marcação." });
       }
       // D17 (endpoints.md `setAppointmentStatus`): a família nunca confirma/recusa um pedido —
       // só desiste dele (REQUESTED -> CANCELLED); confirmar/recusar é exclusivo do portal da

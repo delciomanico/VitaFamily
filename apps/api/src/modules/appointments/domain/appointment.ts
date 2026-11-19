@@ -53,6 +53,8 @@ export interface Appointment {
   examOrderCount?: number;
   /** Marco B fatia 1 (BR-PRC-01): id do `Process` aberto com a consulta; só leitura; ausente só antes do backfill. */
   processId?: string;
+  /** MK3 (BR-MKT-55): marcação do mercado que gerou a consulta; com ela a consulta é gerida pela marcação (só `notes` se edita). */
+  bookingId?: string;
   createdAt: Date;
 }
 

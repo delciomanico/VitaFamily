@@ -48,6 +48,7 @@ interface AppointmentRow {
   started_at: Date | null;
   followup_due_on: string | null;
   process_id: string | null;
+  booking_id: string | null;
   created_at: Date;
 }
 
@@ -74,6 +75,7 @@ function toAppointment(row: AppointmentRow): Appointment {
   if (row.notes !== null) appointment.notes = row.notes;
   if (row.slot_id !== null) appointment.slotId = row.slot_id;
   if (row.process_id !== null) appointment.processId = row.process_id;
+  if (row.booking_id !== null) appointment.bookingId = row.booking_id;
   if (row.response_note !== null) appointment.responseNote = row.response_note;
   if (row.clinic_outcome_note !== null) appointment.clinicOutcomeNote = row.clinic_outcome_note;
   if (row.outcome_recorded_by_clinic_account_id !== null) appointment.outcomeRecordedByClinicAccountId = row.outcome_recorded_by_clinic_account_id;
@@ -110,6 +112,7 @@ const APPOINTMENT_COLUMNS = [
   "arrived_at",
   "started_at",
   "process_id",
+  "booking_id",
   "created_at",
 ] as const;
 
@@ -144,6 +147,7 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
         notes: record.notes ?? null,
         slot_id: record.slotId ?? null,
         process_id: record.processId ?? null,
+        booking_id: record.bookingId ?? null,
         ...(record.durationMinutes !== undefined ? { duration_minutes: record.durationMinutes } : {}),
         ...(record.walkIn ? { walk_in: true, booked_by_clinic_account_id: record.bookedByClinicAccountId ?? null } : {}),
         created_at: record.createdAt,
@@ -151,6 +155,20 @@ export class KyselyAppointmentsRepository implements AppointmentsRepository<Kyse
       .returning(APPOINTMENT_SELECT)
       .executeTakeFirstOrThrow();
     return toAppointment(row);
+  }
+
+  async findByBookingId(trx: Kysely<Database>, bookingId: string): Promise<Appointment | null> {
+    const row = await trx.selectFrom("appointments").select(APPOINTMENT_SELECT).where("booking_id", "=", bookingId).executeTakeFirst();
+    return row ? toAppointment(row) : null;
+  }
+
+  async setStatusByBooking(trx: Kysely<Database>, bookingId: string, status: AppointmentStatus): Promise<number> {
+    const result = await trx
+      .updateTable("appointments")
+      .set({ status, ...(status !== "COMPLETED" ? { followup_due_on: null } : {}), updated_at: sql`now()` })
+      .where("booking_id", "=", bookingId)
+      .executeTakeFirst();
+    return Number(result.numUpdatedRows);
   }
 
   async findById(trx: Kysely<Database>, familyId: string, memberId: string, appointmentId: string): Promise<Appointment | null> {

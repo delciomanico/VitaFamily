@@ -138,6 +138,8 @@ export interface NewAppointmentRecord {
   durationMinutes?: number;
   /** Marco B fatia 1 (BR-PRC-01): `Process` aberto (`ProcessLinkerPort.open`) antes de gravar o ato. */
   processId?: string;
+  /** MK3 (BR-MKT-55): consulta gerada por uma marcação (`FamilyAppointmentWriter`). */
+  bookingId?: string;
   createdAt: Date;
 }
 
@@ -253,6 +255,10 @@ export interface ClinicAppointmentsFilter {
 /** `appointments` (schema.md §3) — propriedade exclusiva deste módulo (conventions.md §3.5). */
 export interface AppointmentsRepository<Trx> {
   insert(trx: Trx, record: NewAppointmentRecord): Promise<Appointment>;
+  /** MK3 (BR-MKT-55): a consulta gerada pela marcação, se existir (UNIQUE parcial por `booking_id`). */
+  findByBookingId(trx: Trx, bookingId: string): Promise<Appointment | null>;
+  /** MK3: o estado da consulta gerada segue o da marcação; devolve quantas linhas mudou (0 se foi apagada). */
+  setStatusByBooking(trx: Trx, bookingId: string, status: AppointmentStatus): Promise<number>;
   findById(trx: Trx, familyId: string, memberId: string, appointmentId: string): Promise<Appointment | null>;
   listByMember(trx: Trx, familyId: string, memberId: string, filter: AppointmentListFilter, limit: number, cursor?: string): Promise<CursorPage<Appointment>>;
   update(trx: Trx, familyId: string, memberId: string, appointmentId: string, changes: AppointmentChanges): Promise<Appointment>;

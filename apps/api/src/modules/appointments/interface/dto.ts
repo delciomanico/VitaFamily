@@ -15,6 +15,7 @@ export function toAppointmentResponse(appointment: Appointment) {
     clinicName: appointment.clinicName ?? null,
     slotId: appointment.slotId ?? null,
     processId: appointment.processId ?? null,
+    bookingId: appointment.bookingId ?? null,
     responseNote: appointment.responseNote ?? null,
     specialty: appointment.specialty ?? null,
     reason: appointment.reason ?? null,

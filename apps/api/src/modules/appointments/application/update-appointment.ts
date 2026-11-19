@@ -1,6 +1,6 @@
 // openapi.yaml `updateAppointment`: "Autorização: WRITE(APPOINTMENTS). Recalcula lembretes
 // futuros." (o recálculo é da responsabilidade de `alerts`, M8 — ver create-appointment.ts).
-import { ValidationError, NotFoundError } from "../../../platform/errors/index.js";
+import { ConflictError, ValidationError, NotFoundError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { Appointment } from "../domain/appointment.js";
 import type { ActorIdentity, AppointmentChanges, AppointmentsDeps, RequestContext } from "./ports.js";
@@ -50,6 +50,14 @@ export function createUpdateAppointmentUseCase<Trx>(deps: AppointmentsDeps<Trx>)
       const existing = await deps.appointmentsRepo.findById(trx, familyId, memberId, appointmentId);
       if (!existing) {
         throw new NotFoundError({ detail: "Consulta não encontrada." });
+      }
+
+      // BR-MKT-55: consulta gerada por uma marcação do mercado é gerida pela marcação; só `notes` se edita (TC-MKT-89).
+      if (existing.bookingId) {
+        const managed = [input.scheduledAt, input.professionalName, input.clinicId, input.clinicName, input.specialty, input.reason];
+        if (managed.some((value) => value !== undefined)) {
+          throw new ConflictError({ detail: "Esta consulta é gerida pela marcação com o profissional; só as observações são editáveis." });
+        }
       }
 
       // BR-APT-09 (D17): consulta de clínica parceira (originada de um `slotId`) só tem as

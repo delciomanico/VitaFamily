@@ -238,12 +238,23 @@ export class FakeAppointmentsRepository implements AppointmentsRepository<FakeTr
       ...(record.notes !== undefined ? { notes: record.notes } : {}),
       ...(record.slotId !== undefined ? { slotId: record.slotId } : {}),
       ...(record.processId !== undefined ? { processId: record.processId } : {}),
+      ...(record.bookingId !== undefined ? { bookingId: record.bookingId } : {}),
       durationMinutes: record.durationMinutes ?? 30,
       ...(record.walkIn ? { walkIn: true } : {}),
       ...(record.bookedByClinicAccountId !== undefined ? { bookedByClinicAccountId: record.bookedByClinicAccountId } : {}),
     };
     this.byId.set(appointment.id, appointment);
     return Promise.resolve(appointment);
+  }
+
+  findByBookingId(_trx: FakeTrx, bookingId: string): Promise<Appointment | null> {
+    return Promise.resolve([...this.byId.values()].find((a) => a.bookingId === bookingId) ?? null);
+  }
+
+  setStatusByBooking(_trx: FakeTrx, bookingId: string, status: AppointmentStatus): Promise<number> {
+    const found = [...this.byId.values()].find((a) => a.bookingId === bookingId);
+    if (found) found.status = status;
+    return Promise.resolve(found ? 1 : 0);
   }
 
   async findById(_trx: FakeTrx, familyId: string, memberId: string, appointmentId: string): Promise<Appointment | null> {

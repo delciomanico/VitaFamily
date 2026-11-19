@@ -45,6 +45,7 @@ import { toAppointmentPage } from "./interface/dto.js";
 import { createAppointmentsRouter, type AppointmentsController } from "./interface/router.js";
 import type { Appointment } from "./domain/appointment.js";
 
+import { createFamilyAppointmentWriter, type FamilyAppointmentWriterImpl } from "./application/family-appointment-writer.js";
 export type { Appointment, AppointmentStatus, ConfirmationSource, ConfirmationStatus } from "./domain/appointment.js";
 export type { ActFactOfAppointment, ProcessActor, ProcessLinkerPort, ReminderWindows } from "./application/ports.js";
 
@@ -95,6 +96,8 @@ export interface AppointmentsModuleDeps {
 
 export interface AppointmentsModule {
   router: Router;
+  /** MK3 (BR-MKT-55): consulta gerada pela marcação; ligada em `main/api.ts` à porta `FamilyAppointmentWriter` de `consultations`. */
+  familyAppointmentWriter: FamilyAppointmentWriterImpl<Kysely<Database>>;
   /** `/clinic-portal/requests/*` e `/clinic-portal/agenda/*` (D17) — ver `interface/clinic-portal-router.ts`
    * para a decisão de porque vive aqui e não em `clinics`. */
   clinicPortalRouter: Router;
@@ -239,6 +242,7 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
 
   return {
     router: createAppointmentsRouter(controller),
+    familyAppointmentWriter: createFamilyAppointmentWriter(appointmentsDeps),
     clinicPortalRouter: createAppointmentsClinicPortalRouter(clinicPortalController),
     countActiveBySlot: (trx, slotIds) => appointmentsRepo.countActiveBySlot(trx, slotIds),
     getActFacts: createGetActFactsUseCase(new KyselyAppointmentActFactsSource()),
