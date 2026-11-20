@@ -5,22 +5,28 @@ import {
   CircleHelp,
   Download,
   FileText,
+  HeartPulse,
   House,
   KeyRound,
   LockKeyhole,
   LogOut,
   Share,
+  Share2,
   ShieldCheck,
   UserRound,
   Users,
+  Watch,
   type LucideIcon,
 } from 'lucide-react'
+import { AccordionSection } from '@/components/app/Accordion'
+import { ListEntry } from '@/components/app/ListEntry'
+import { ConfirmSheet } from '@/components/app/Sheet'
 import { Page } from '@/components/layout/Page'
+import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { DetailSection } from '@/components/ui/InfoList'
 import { Modal } from '@/components/ui/Modal'
-import { RowLink } from '@/components/ui/RowLink'
 import { useAuth } from '@/contexts/AuthContext'
 import { promptInstall, useInstallMode } from '@/lib/install'
 import { paths } from '@/routes/paths'
@@ -32,21 +38,15 @@ interface SettingsItem {
   icon: LucideIcon
 }
 
-function SettingsGroup({ title, items }: { title: string; items: SettingsItem[] }) {
+function SettingsGroup({ items }: { items: SettingsItem[] }) {
   return (
-    <DetailSection title={title}>
-      <Card className="divide-y divide-border py-1">
-        {items.map(({ to, label, description, icon }) => (
-          <RowLink key={to} to={to}>
-            <RowIcon icon={icon} />
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="font-medium">{label}</span>
-              {description && <span className="truncate text-sm text-muted">{description}</span>}
-            </span>
-          </RowLink>
-        ))}
-      </Card>
-    </DetailSection>
+    <ul className="flex flex-col gap-2">
+      {items.map(({ to, label, description, icon }) => (
+        <li key={to}>
+          <ListEntry to={to} icon={icon} title={label} subtitle={description} className="min-h-16 shadow-none" />
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -105,61 +105,91 @@ function InstallAppSection() {
   )
 }
 
-/** Configurações (prompt §41): conta, família, notificações, privacidade e ajuda. */
+/** Perfil (prompt §41): quem sou, atalhos da família e, em acordeões, conta, preferências e suporte. */
 export function SettingsPage() {
-  const { user, family, logout } = useAuth()
+  const { user, family, member, logout } = useAuth()
+  const [leaving, setLeaving] = useState(false)
+  const name = member?.name ?? user?.name ?? ''
 
-  const groups: { title: string; items: SettingsItem[] }[] = [
+  const shortcuts: SettingsItem[] = [
+    { to: paths.healthProfile, label: 'Meu perfil de saúde', description: 'Dados básicos, alergias e condições', icon: HeartPulse },
+    { to: paths.family, label: 'A minha família', description: family?.name ?? 'Ver e adicionar membros', icon: Users },
+    { to: paths.shares, label: 'Partilhas com profissionais', description: 'Quem pode ver os seus registos', icon: Share2 },
+    { to: paths.watch, label: 'Relógio', description: 'Ligar e ver as medições', icon: Watch },
+    { to: paths.alerts, label: 'Alertas', description: 'O que precisa da sua atenção', icon: Bell },
+  ]
+  const groups: { title: string; summary: string; icon: LucideIcon; items: SettingsItem[] }[] = [
     {
-      title: 'Conta',
+      title: 'Conta e segurança',
+      summary: user?.email ?? '',
+      icon: UserRound,
       items: [
         { to: paths.settingsAccount, label: 'Minha conta', description: user?.email, icon: UserRound },
         { to: paths.settingsSecurity, label: 'Segurança', description: 'Palavra-passe', icon: KeyRound },
-      ],
-    },
-    {
-      title: 'Família',
-      items: [
         { to: paths.settingsFamily, label: 'Família', description: family?.name, icon: House },
-        { to: paths.family, label: 'Membros', description: 'Ver e adicionar membros', icon: Users },
         { to: paths.settingsSharing, label: 'Permissões', description: 'O que partilha e o que vê', icon: LockKeyhole },
       ],
     },
     {
-      title: 'Preferências',
+      title: 'Avisos e privacidade',
+      summary: 'Notificações, exportar ou eliminar dados',
+      icon: ShieldCheck,
       items: [
         { to: paths.settingsNotifications, label: 'Notificações', description: 'Canais e tipos de alerta', icon: Bell },
-        {
-          to: paths.settingsPrivacy,
-          label: 'Privacidade',
-          description: 'Exportar ou eliminar os seus dados',
-          icon: ShieldCheck,
-        },
+        { to: paths.settingsPrivacy, label: 'Privacidade', description: 'Exportar ou eliminar os seus dados', icon: ShieldCheck },
+      ],
+    },
+    {
+      title: 'Ajuda',
+      summary: 'Ajuda, termos e política de privacidade',
+      icon: CircleHelp,
+      items: [
+        { to: paths.settingsHelp, label: 'Ajuda', icon: CircleHelp },
+        { to: paths.settingsTerms, label: 'Termos', icon: FileText },
+        { to: paths.settingsPrivacyPolicy, label: 'Política de privacidade', icon: FileText },
       ],
     },
   ]
-  const support: SettingsItem[] = [
-    { to: paths.settingsHelp, label: 'Ajuda', icon: CircleHelp },
-    { to: paths.settingsTerms, label: 'Termos', icon: FileText },
-    { to: paths.settingsPrivacyPolicy, label: 'Política de privacidade', icon: FileText },
-  ]
 
   return (
-    <Page title="Configurações" backTo={paths.home} backLabel="Início">
-      {groups.map((group) => (
-        <SettingsGroup key={group.title} {...group} />
-      ))}
+    <Page title="Perfil">
+      <div className="flex items-center gap-4 rounded-2xl bg-primary-soft p-5">
+        <Avatar name={name} size="xl" />
+        <div className="min-w-0">
+          <p className="truncate text-2xl font-semibold">{name}</p>
+          {family?.name && <p className="truncate text-lg text-muted">{family.name}</p>}
+        </div>
+      </div>
+
+      <ul className="flex flex-col gap-3">
+        {shortcuts.map(({ to, label, description, icon }) => (
+          <li key={to}>
+            <ListEntry to={to} icon={icon} title={label} subtitle={description} />
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex flex-col gap-3">
+        {groups.map(({ title, summary, icon, items }) => (
+          <AccordionSection key={title} title={title} summary={summary} icon={icon}>
+            <SettingsGroup items={items} />
+          </AccordionSection>
+        ))}
+      </div>
       <InstallAppSection />
-      <SettingsGroup title="Suporte" items={support} />
-      <Button
-        variant="danger-ghost"
-        size="lg"
-        fullWidth
-        onClick={logout}
-        icon={<LogOut className="size-5" aria-hidden />}
-      >
+
+      <Button variant="danger-ghost" size="xl" fullWidth onClick={() => setLeaving(true)} icon={<LogOut className="size-6" aria-hidden />}>
         Sair
       </Button>
+      <ConfirmSheet
+        open={leaving}
+        title="Quer mesmo sair?"
+        description="Para voltar a entrar, vai precisar do seu e-mail e da palavra-passe."
+        yesLabel="Sim, sair"
+        noLabel="Não, ficar"
+        onYes={logout}
+        onNo={() => setLeaving(false)}
+      />
     </Page>
   )
 }
@@ -167,7 +197,7 @@ export function SettingsPage() {
 /** Página de configurações com título e voltar às Configurações. */
 export function SettingsSubPage({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Page title={title} backTo={paths.settings} backLabel="Configurações">
+    <Page title={title} backTo={paths.settings} backLabel="Perfil">
       {children}
     </Page>
   )
