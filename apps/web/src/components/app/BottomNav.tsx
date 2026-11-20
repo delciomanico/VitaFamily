@@ -1,6 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { CalendarCheck, House, MessageCircle, type LucideIcon } from 'lucide-react'
-import { ProfessionalAvatar } from '@/components/app/ProfessionalAvatar'
+import { CalendarCheck, House, MessageCircle, UserRound, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { paths } from '@/routes/paths'
 
@@ -16,8 +15,6 @@ export function activeTab(pathname: string, search = ''): TabId {
 }
 
 interface BottomNavProps {
-  professionalId?: string
-  name: string
   /** Mensagens por ler (aparece no separador «Conversas»). */
   unread?: number
 }
@@ -26,21 +23,21 @@ interface Tab {
   id: TabId
   to: string
   label: string
-  icon?: LucideIcon
+  icon: LucideIcon
 }
 
 const TABS: Tab[] = [
   { id: 'home', to: paths.professional, label: 'Início', icon: House },
   { id: 'bookings', to: paths.professionalBookings, label: 'Marcações', icon: CalendarCheck },
   { id: 'conversations', to: paths.professionalConversations, label: 'Conversas', icon: MessageCircle },
-  { id: 'profile', to: paths.professionalProfile, label: 'Perfil' },
+  { id: 'profile', to: paths.professionalProfile, label: 'Perfil', icon: UserRound },
 ]
 
 /**
  * Barra inferior fixa (4 separadores, por ordem de importância de acesso). Ícone + texto, alvo ≥ 64 px,
  * separador ativo evidente (pílula + texto a negrito + `aria-current`), respeita a área segura do ecrã.
  */
-export function BottomNav({ professionalId, name, unread = 0 }: BottomNavProps) {
+export function BottomNav({ unread = 0 }: BottomNavProps) {
   const { pathname, search } = useLocation()
   const active = activeTab(pathname, search)
   return (
@@ -60,11 +57,7 @@ export function BottomNav({ professionalId, name, unread = 0 }: BottomNavProps) 
                 )}
               >
                 <span className={cn('relative flex h-8 w-14 items-center justify-center rounded-full transition-colors', isActive && 'bg-primary-soft')}>
-                  {Icon ? (
-                    <Icon className="size-6" strokeWidth={isActive ? 2.4 : 2} aria-hidden />
-                  ) : (
-                    <ProfessionalAvatar professionalId={professionalId} name={name} size="sm" className={cn(isActive && 'ring-2 ring-primary')} />
-                  )}
+                  <Icon className="size-6" strokeWidth={isActive ? 2.4 : 2} aria-hidden />
                   {id === 'conversations' && unread > 0 && (
                     <span aria-hidden className="absolute top-0 right-2 flex min-w-5 items-center justify-center rounded-full bg-danger px-1 text-xs leading-5 font-semibold text-white">
                       {unread > 9 ? '9+' : unread}

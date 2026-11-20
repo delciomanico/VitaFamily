@@ -1,7 +1,6 @@
 import { useContext } from 'react'
 import { NavLink } from 'react-router-dom'
-import { Avatar } from '@/components/ui/Avatar'
-import { useAuth } from '@/contexts/AuthContext'
+import { UserRound } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { UnreadAlertsContext } from './UnreadAlertsContext'
 import { bottomNav, profileNav } from './navigation'
@@ -14,12 +13,10 @@ const itemClass = (isActive: boolean) =>
 
 /**
  * Barra inferior da app da família (telemóvel e tablet, < lg): poucas áreas por ordem de importância
- * e, no fim, o perfil (avatar). O resto das áreas está no Início e no Perfil.
+ * e, no fim, o perfil (ícone de pessoa). O resto das áreas está no Início e no Perfil.
  */
 export function BottomNav() {
-  const { user, member } = useAuth()
   const unread = useContext(UnreadAlertsContext)
-  const name = member?.name ?? user?.name ?? ''
 
   return (
     <nav
@@ -49,8 +46,8 @@ export function BottomNav() {
           >
             {({ isActive }) => (
               <>
-                <span className="relative flex h-8 w-14 items-center justify-center">
-                  <Avatar name={name} size="sm" className={cn(isActive && 'ring-2 ring-primary')} />
+                <span className={cn('relative flex h-8 w-14 items-center justify-center rounded-full', isActive && 'bg-primary-soft')}>
+                  <UserRound className="size-6" strokeWidth={isActive ? 2.2 : 1.8} aria-hidden />
                   {unread > 0 && <span className="absolute top-0 right-3 size-3 rounded-full bg-danger ring-2 ring-surface" />}
                 </span>
                 {profileNav.label}

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useMatches } from 'react-router-dom'
 import { BottomNav } from '@/components/app/BottomNav'
 import { ProfessionalAuthProvider } from '@/contexts/ProfessionalAuthContext'
-import { useProfessionalProfile } from '@/hooks/useProfessionalProfile'
 import { cn } from '@/lib/cn'
 import { professionalConversationService } from '@/services/professionalConversation.service'
 
@@ -48,10 +47,8 @@ function useUnreadMessages(): number {
  * barra inferior fixa com 4 separadores e conteúdo por ecrã. A família nunca partilha esta árvore.
  */
 export function ProfessionalShell() {
-  const { profile } = useProfessionalProfile()
   const unread = useUnreadMessages()
   const handle = (useMatches().at(-1)?.handle ?? {}) as ProfessionalRouteHandle
-  const name = profile?.displayName ?? profile?.email ?? 'Profissional'
 
   return (
     <div className="app-mobile min-h-dvh bg-surface-muted">
@@ -67,7 +64,7 @@ export function ProfessionalShell() {
           <Outlet />
         </main>
       </div>
-      {!handle.hideNav && <BottomNav professionalId={profile?.id} name={name} unread={unread} />}
+      {!handle.hideNav && <BottomNav unread={unread} />}
     </div>
   )
 }

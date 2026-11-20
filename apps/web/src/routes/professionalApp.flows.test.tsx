@@ -110,17 +110,14 @@ describe('separador Perfil', () => {
     expect(screen.getAllByRole('img', { name: 'Marta Lopes' })[0]).toHaveTextContent('ML')
   })
 
-  it('foto opcional: ao escolher uma imagem o avatar (também na barra inferior) passa a mostrá-la; dá para a tirar', async () => {
+  it('foto opcional: ao escolher uma imagem o avatar passa a mostrá-la; dá para a tirar', async () => {
     asProfessional('/profissional/perfil')
     const input = (await screen.findByLabelText(/Adicionar foto/)) as HTMLInputElement
     const file = new File([new Uint8Array([137, 80, 78, 71])], 'eu.png', { type: 'image/png' })
     fireEvent.change(input, { target: { files: [file] } })
     await waitFor(() => expect(screen.getAllByRole('img', { name: 'Marta Lopes' }).every((el) => el.tagName === 'IMG')).toBe(true))
-    const nav = screen.getByRole('navigation', { name: 'Principal' })
-    expect(within(nav).getByRole('img', { name: 'Marta Lopes' }).tagName).toBe('IMG')
-
     fireEvent.click(screen.getByRole('button', { name: 'Tirar a foto' }))
-    await waitFor(() => expect(within(nav).getByRole('img', { name: 'Marta Lopes' })).toHaveTextContent('ML'))
+    await waitFor(() => expect(screen.getAllByRole('img', { name: 'Marta Lopes' })[0]).toHaveTextContent('ML'))
   })
 
   it('«Sair» pede confirmação com «Sim» e «Não» e leva ao ecrã de entrada', async () => {
