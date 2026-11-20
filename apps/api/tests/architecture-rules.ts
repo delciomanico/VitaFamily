@@ -65,6 +65,8 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   messaging: ["audit"],
   // consultations (MK3, nota 37): S3 só tem domínio puro; depois só `audit` (professionals/families/access/etc. entram por portas ligadas em main/api.ts).
   consultations: ["audit"],
+  // record-sharing (MK4, nota 38): só `audit`; access/consultations/saúde/profissionais entram por portas ligadas em main/api.ts.
+  "record-sharing": ["audit"],
   // ADR-023 (modules.md §2): lê a origem (consulta/exame) pelas raízes de `appointments`/`examinations`.
   recommendations: ["access", "appointments", "examinations", "audit"],
   documents: ["access", "audit"],
