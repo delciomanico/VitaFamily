@@ -14,6 +14,7 @@ import { createFamiliesModule, SmtpMailer as FamiliesSmtpMailer } from "../modul
 import { createAccessModule } from "../modules/access/index.js";
 import { SmtpProfessionalMailer, createMessagingWorkerModule } from "../modules/messaging/index.js";
 import { CredentialClamAvScanner, PgBossCredentialScanQueue, createProfessionalsWorkerModule } from "../modules/professionals/index.js";
+import { SmtpShareNoticeMailer, createRecordSharingWorkerModule } from "../modules/record-sharing/index.js";
 import { ProofClamAvScanner, SmtpProfessionalNoticeMailer, createConsultationsWorkerModule, PgBossProofScanQueue } from "../modules/consultations/index.js";
 import { ClamAvScanner, createDocumentsWorkerModule } from "../modules/documents/index.js";
 import { createMedicationsWorkerModule } from "../modules/medications/index.js";
@@ -167,6 +168,16 @@ export function main(): void {
     boss,
   });
 
+  // MK4 S8 (BR-MKT-76/78): expurgo diário por retenção e aviso genérico de nova partilha.
+  const recordSharingWorker = createRecordSharingWorkerModule({
+    db,
+    clock,
+    audit,
+    boss,
+    contact: { getNotificationEmail: (id) => professionalsWorker.notificationEmail(id) },
+    mailer: new SmtpShareNoticeMailer(config.SMTP_URL, config.MAIL_FROM),
+  });
+
   boss
     .start()
     .then(async () => {
@@ -180,6 +191,7 @@ export function main(): void {
       await professionalsWorker.registerWorkers();
       await messagingWorker.registerWorkers();
       await consultationsWorker.registerWorkers();
+      await recordSharingWorker.registerWorkers();
       logger.info({}, "worker_started");
     })
     .catch((err: unknown) => {

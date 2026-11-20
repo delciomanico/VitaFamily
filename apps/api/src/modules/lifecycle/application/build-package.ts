@@ -53,6 +53,10 @@ async function memberPackage(
   const readBookings = sources.bookings;
   const bookings = readBookings ? await readable(() => readBookings(actor, familyId, memberId, context)) : undefined;
 
+  // MK4 (BR-MKT-76): as partilhas do membro e as vistas (sem conteúdo dos registos); negado ⇒ omitido.
+  const readRecordShares = sources.recordShares;
+  const recordShares = readRecordShares ? await readable(() => readRecordShares(actor, familyId, memberId, context)) : undefined;
+
   const resources = [
     ...(prescriptions ?? []).map((p) => ({ resourceType: "PRESCRIPTION" as const, resourceId: str(p, "id") })),
     ...(examinations ?? []).map((e) => ({ resourceType: "EXAMINATION" as const, resourceId: str(e, "id") })),
@@ -88,6 +92,7 @@ async function memberPackage(
     ...(examOrders !== undefined && examOrders.length > 0 ? { examOrders } : {}),
     ...(conversations !== undefined && conversations.length > 0 ? { conversations } : {}),
     ...(bookings !== undefined && bookings.length > 0 ? { bookings } : {}),
+    ...(recordShares !== undefined && recordShares.length > 0 ? { recordShares } : {}),
     ...(examinations !== undefined ? { examinations } : {}),
     documents: documentEntries,
   };

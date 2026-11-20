@@ -58,6 +58,8 @@ export interface ExportSources {
   conversations?: MemberRead<ApiObject[]>;
   /** MK3 (BR-MKT-64): marcações do membro (SELF/TUTOR_OF; metadados dos comprovativos, sem ficheiros; a sua avaliação); fonte opcional (sem importar `consultations`). */
   bookings?: MemberRead<ApiObject[]>;
+  /** MK4 (BR-MKT-76): partilhas de registos do membro e as suas vistas (SELF/TUTOR_OF; sem conteúdo dos registos); fonte opcional (sem importar `record-sharing`). */
+  recordShares?: MemberRead<ApiObject[]>;
   /** Documentos de uma receita ou de um exame (a listagem exige o recurso). */
   documents: (actor: ReadActor, familyId: string, memberId: string, resourceType: "PRESCRIPTION" | "EXAMINATION", resourceId: string) => Promise<ApiObject[]>;
   downloadDocument: (

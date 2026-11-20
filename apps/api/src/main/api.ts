@@ -748,6 +748,8 @@ export function main(): void {
       conversations: async (actor, familyId, memberId) => messaging.reads.conversations(actor, familyId, memberId),
       // MK3 (BR-MKT-64): as marcações do titular/tutor entram na exportação (porta opcional, sem acoplar módulos).
       bookings: async (actor, familyId, memberId) => required(late.consultations, "consultations").reads.bookings(actor, familyId, memberId),
+      // MK4 (BR-MKT-76): as partilhas do titular/tutor entram na exportação (porta opcional, sem acoplar módulos).
+      recordShares: async (actor, familyId, memberId) => recordSharing.reads.recordShares(actor, familyId, memberId),
       documents: documents.reads.list,
       downloadDocument: documents.reads.download,
     },

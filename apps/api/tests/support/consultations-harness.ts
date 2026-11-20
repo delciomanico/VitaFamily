@@ -10,7 +10,7 @@ import { KyselyAppointmentsRepository } from "../../src/modules/appointments/inf
 import { createFamilyAppointmentWriter, type FamilyAppointmentWriterImpl } from "../../src/modules/appointments/application/family-appointment-writer.js";
 import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createConsultationsJobs, createConsultationsMaintenance, createConsultationsModule, createSelfDealingGuard, type FamilyAlertKind, type ProfessionalNoticeEvent } from "../../src/modules/consultations/index.js";
-import { createRecordSharingModule, createSharedRecordsReader, type SharedRecordsSources } from "../../src/modules/record-sharing/index.js";
+import { createRecordSharingMaintenance, createRecordSharingModule, createSharedRecordsReader, type SharedRecordsSources } from "../../src/modules/record-sharing/index.js";
 import { createDiscoveryModule } from "../../src/modules/discovery/index.js";
 import { createFamiliesModule } from "../../src/modules/families/index.js";
 import { signProfessionalAccessToken } from "../../src/modules/professionals/domain/jwt.js";
@@ -111,6 +111,13 @@ export interface ConsultationsHarness {
   readerCalls: string[][];
   /** Enquanto `true`, a leitura do conteúdo falha a meio (nada se consome, BR-MKT-71). */
   failReader: { value: boolean };
+  /** MK4 S8: jobs de `record-sharing` (expurgo por retenção, aviso genérico) ligados como em `main/worker.ts`. */
+  shareMaintenance: ReturnType<typeof createRecordSharingMaintenance>;
+  /** Destinatários dos e-mails de aviso de nova partilha, por ordem; `failShareMail` faz o envio falhar (retry). */
+  shareMails: string[];
+  failShareMail: { value: boolean };
+  /** Fonte `recordShares` da exportação do titular, tal como ligada a `lifecycle` em `main/api.ts`. */
+  exportRecordShares: ReturnType<typeof createRecordSharingModule>["reads"]["recordShares"];
   stop(): Promise<void>;
 }
 
@@ -118,6 +125,7 @@ export interface ConsultationsHarness {
 export async function startConsultationsHarness(options: { logStream?: LogSink } = {}): Promise<ConsultationsHarness> {
   let appointments: FamilyAppointmentWriterImpl<Kysely<Database>> | undefined;
   let exportBookings: ConsultationsHarness["exportBookings"] | undefined;
+  let exportRecordShares: ConsultationsHarness["exportRecordShares"] | undefined;
   let jobsDeps: { db: Kysely<Database>; clock: FixedClock; storage: InMemoryStorage } | undefined;
   const alertCalls: ConsultationsHarness["alertCalls"] = [];
   const noticeCalls: ConsultationsHarness["noticeCalls"] = [];
@@ -245,6 +253,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         },
         notices: { enqueueNewShare: (input) => (failShareNotice.value ? Promise.reject(new Error("fila")) : (shareNoticeCalls.push(input), Promise.resolve())) },
       });
+      exportRecordShares = recordSharing.reads.recordShares;
       return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter, recordSharing.familyRouter, recordSharing.professionalRouter];
     },
     options.logStream ? { logStream: options.logStream } : {},
@@ -274,6 +283,18 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
     contact: { getNotificationEmail: async (professionalId) => (await pool.query<{ email: string }>("SELECT a.email FROM professionals p JOIN professional_accounts a ON a.id = p.account_id WHERE p.id = $1", [professionalId])).rows[0]?.email ?? null },
     mailer: { sendNotice: (to) => { if (failMail.value) return Promise.reject(new Error("smtp")); mails.push(to); return Promise.resolve(); } },
   });
+
+  const shareMails: string[] = [];
+  const failShareMail = { value: false };
+  const shareMaintenance = createRecordSharingMaintenance({
+    db: jobsDeps.db,
+    clock: jobsDeps.clock,
+    audit: h.audit,
+    contact: { getNotificationEmail: async (professionalId) => (await pool.query<{ email: string }>("SELECT a.email FROM professionals p JOIN professional_accounts a ON a.id = p.account_id WHERE p.id = $1", [professionalId])).rows[0]?.email ?? null },
+    mailer: { sendNewShareNotice: (to) => { if (failShareMail.value) return Promise.reject(new Error("smtp")); shareMails.push(to); return Promise.resolve(); } },
+  });
+  if (!exportRecordShares) throw new Error("exportRecordShares não ligado");
+  const exportRecordSharesRead = exportRecordShares;
 
   const mintToken = async (userId: string): Promise<string> =>
     (await signAccessToken({ subject: { userId, sessionId: randomUUID() }, now: clock.now(), ttlSeconds: TOKEN_TTL_SECONDS, signingKeys: SIGNING_KEYS })).token;
@@ -420,6 +441,10 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
     failShareNotice,
     readerCalls,
     failReader,
+    shareMaintenance,
+    shareMails,
+    failShareMail,
+    exportRecordShares: exportRecordSharesRead,
     async stop() {
       await h.stop();
     },
