@@ -2434,7 +2434,7 @@ paths:
       tags: [Prescriptions]
       operationId: updatePrescription
       summary: "Alterar dados da receita."
-      description: "Autorização: WRITE(MEDICATION)."
+      description: "Autorização: WRITE(MEDICATION). OP-127/BR-MKT-81: numa receita com issuedBy=PROFESSIONAL o conteúdo é só leitura para a família ⇒ 409 CONFLICT, sem efeito."
       parameters:
         - name: familyId
           in: path
@@ -2472,6 +2472,11 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '404':
           description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (OP-127, BR-MKT-81): receita issuedBy=PROFESSIONAL; o conteúdo é só leitura para a família. detail genérico, sem efeito."
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -2572,7 +2577,7 @@ paths:
       tags: [Prescriptions]
       operationId: addPrescriptionMedication
       summary: "Acrescentar medicamento (plano) à receita."
-      description: "Autorização: WRITE(MEDICATION)."
+      description: "Autorização: WRITE(MEDICATION). OP-127/BR-MKT-81: numa receita com issuedBy=PROFESSIONAL não se acrescentam medicamentos ⇒ 409 CONFLICT, sem efeito."
       parameters:
         - name: familyId
           in: path
@@ -2610,6 +2615,11 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '404':
           description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (OP-127, BR-MKT-81): receita issuedBy=PROFESSIONAL; o conteúdo é só leitura para a família. detail genérico, sem efeito."
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -2769,7 +2779,7 @@ paths:
       tags: [Medications]
       operationId: updateMedicationPlan
       summary: "Alterar plano (efeito só no futuro)."
-      description: "Autorização: WRITE(MEDICATION). BR-RX-05: recalcula tomas PENDING futuras."
+      description: "Autorização: WRITE(MEDICATION). BR-RX-05: recalcula tomas PENDING futuras. OP-127/BR-MKT-81: num plano de uma receita com issuedBy=PROFESSIONAL só se ajustam os horários (scheduleType, times, daysOfWeek, intervalHours); name, dosage, notes, startAt, endAt ou continuous ⇒ 409 CONFLICT e o pedido inteiro é recusado."
       parameters:
         - name: familyId
           in: path
@@ -2807,6 +2817,11 @@ paths:
               schema: { $ref: "#/components/schemas/Problem" }
         '404':
           description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT (OP-127, BR-MKT-81): receita issuedBy=PROFESSIONAL; o conteúdo é só leitura para a família. detail genérico, sem efeito."
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
@@ -11898,7 +11913,7 @@ paths:
       tags: [Professional Portal]
       operationId: issueProfessionalPrescription
       summary: "Emitir uma receita digital (desligada até ao parecer jurídico)."
-      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §13.2); partilha procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-59, FR-MKT-44, BR-MKT-79/80/81 (ADR-037 §9). Com DIGITAL_PRESCRIPTION_ENABLED=false (omissão) ⇒ 404 NOT_FOUND, indistinguível de rota inexistente. Com a flag ligada, numa transação sob bloqueio da marcação: profissional APPROVED (PROFESSIONAL_LOCKED nos outros estados); marcação do profissional, COMPLETED, método VIDEO, categoria HEALTH (WELLNESS ⇒ FORBIDDEN) e até 7 dias depois de completedAt (senão INVALID_STATE_TRANSITION); sem receita nessa marcação (senão CONFLICT). O servidor fixa issuedOn (hoje em Africa/Luanda), doctorName (nome público), issuedBy=PROFESSIONAL, membro e família; o profissional não indica membro, data nem nome. Cria a Prescription e os planos de toma do membro (UC-RX-01), alerta genérico BOOKING_UPDATED à família e auditoria PRESCRIPTION_ISSUED_BY_PROFESSIONAL (sem conteúdo). 20 emissões/dia por profissional ⇒ RATE_LIMITED."
+      description: "Autorização: PROFESSIONAL_ACCOUNT (token de ProfessionalAccount, distinto do de User e do de ClinicAccount; authorization.md §10 e §13.2); partilha procurada pelo professionalId do token (outra ou inexistente ⇒ NOT_FOUND idêntico). UC-MKT-59, FR-MKT-44, BR-MKT-79/80/81 (ADR-037 §9). Com DIGITAL_PRESCRIPTION_ENABLED=false (omissão) ⇒ 404 NOT_FOUND, indistinguível de rota inexistente. Com a flag ligada, numa transação sob bloqueio da marcação: profissional APPROVED (PROFESSIONAL_LOCKED nos outros estados); marcação do profissional, COMPLETED, de qualquer método (VIDEO, PHONE, IN_PERSON, CHAT; OP-126), categoria HEALTH (WELLNESS ⇒ FORBIDDEN) e até 7 dias depois de completedAt (senão INVALID_STATE_TRANSITION); sem receita nessa marcação (senão CONFLICT). O servidor fixa issuedOn (hoje em Africa/Luanda), doctorName (nome público), issuedBy=PROFESSIONAL, membro e família; o profissional não indica membro, data nem nome. Cria a Prescription e os planos de toma do membro (UC-RX-01), alerta genérico BOOKING_UPDATED à família e auditoria PRESCRIPTION_ISSUED_BY_PROFESSIONAL (sem conteúdo). 20 emissões/dia por profissional ⇒ RATE_LIMITED."
       security:
         - professionalBearerAuth: []
       parameters:
@@ -12771,7 +12786,7 @@ components:
         issuedBy:
           type: string
           enum: [FAMILY, CLINIC, PROFESSIONAL]
-          description: "D18/BR-RX-07. Default FAMILY; CLINIC quando emitida pelo portal da clínica (completeClinicAppointment); PROFESSIONAL (MK4, BR-MKT-79..81) quando emitida por um profissional após consulta de vídeo — só existe com DIGITAL_PRESCRIPTION_ENABLED. O id do profissional nunca se devolve."
+          description: "D18/BR-RX-07. Default FAMILY; CLINIC quando emitida pelo portal da clínica (completeClinicAppointment); PROFESSIONAL (MK4, BR-MKT-79..81) quando emitida por um profissional após uma marcação concluída (qualquer método, OP-126) — só existe com DIGITAL_PRESCRIPTION_ENABLED; o conteúdo é só leitura para a família (OP-127; 409 CONFLICT ao editar). O id do profissional nunca se devolve."
         bookingId:
           type: string
           format: uuid
@@ -16260,11 +16275,12 @@ components:
         professionalName: { type: string, nullable: true }
     SharedRecordsView:
       type: object
-      required: [shareId, participantLabel, openedAt, expiresAt, viewOnce, watermark]
-      description: "Resposta de abertura (BR-MKT-68/72). As secções existem SÓ para as categorias concedidas (omitidas, nunca null). Mínimo necessário: sem identificação do membro, notas, motivos, documentos, tomas, tutela nem ids de registos (BR-MKT-68/75). Medicação: só planos ativos. Consultas e exames: últimos 24 meses e futuros. Cache-Control no-store."
+      required: [shareId, participantLabel, ageYears, openedAt, expiresAt, viewOnce, watermark]
+      description: "Resposta de abertura (BR-MKT-68/72). As secções existem SÓ para as categorias concedidas (omitidas, nunca null). Mínimo necessário: identificação do membro só por participantLabel e ageYears (OP-119; nunca nome nem data de nascimento), sem notas, motivos, documentos, tomas, tutela nem ids de registos (BR-MKT-68/75). Medicação: só planos ativos. Consultas e exames: últimos 24 meses e futuros. Cache-Control no-store."
       properties:
         shareId: { type: string, format: uuid }
         participantLabel: { type: string, minLength: 1, maxLength: 40 }
+        ageYears: { type: integer, minimum: 0, maximum: 150, description: "OP-119/BR-MKT-68: idade do membro em anos completos em Africa/Luanda à data da abertura, derivada na leitura; sem data de nascimento; nunca guardada nem registada em logs/auditoria. Presente sempre, independentemente das categorias concedidas." }
         openedAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
         viewOnce: { type: boolean }

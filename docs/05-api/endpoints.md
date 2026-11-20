@@ -579,8 +579,8 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **DESCRIPTION:** Alterar dados da receita.
 - **REQUEST:** `PrescriptionPatch`
 - **RESPONSE:** `200` `Prescription`
-- **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** —
+- **ERRORS:** `CONFLICT` (receita `issuedBy=PROFESSIONAL`, OP-127), `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** OP-127/BR-MKT-81: numa receita `issuedBy=PROFESSIONAL` o conteúdo é só leitura para a família ⇒ `409 CONFLICT`, sem efeito.
 
 ### `DELETE /families/{familyId}/members/{memberId}/prescriptions/{prescriptionId}`  — deletePrescription
 - **AUTHORIZATION:** WRITE(MEDICATION)
@@ -603,8 +603,8 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **DESCRIPTION:** Acrescentar medicamento (plano) à receita.
 - **REQUEST:** `MedicationPlanInput`
 - **RESPONSE:** `201` `MedicationPlan`
-- **ERRORS:** `FORBIDDEN`, `INVALID_SCHEDULE`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** —
+- **ERRORS:** `CONFLICT` (receita `issuedBy=PROFESSIONAL`, OP-127), `FORBIDDEN`, `INVALID_SCHEDULE`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** OP-127/BR-MKT-81: numa receita `issuedBy=PROFESSIONAL` o conteúdo é só leitura para a família ⇒ `409 CONFLICT`, sem efeito.
 
 ## Medications
 
@@ -638,8 +638,8 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **DESCRIPTION:** Alterar plano (efeito só no futuro).
 - **REQUEST:** `MedicationPlanPatch`
 - **RESPONSE:** `200` `MedicationPlan`
-- **ERRORS:** `FORBIDDEN`, `INVALID_SCHEDULE`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
-- **BUSINESS RULES:** BR-RX-05: recalcula tomas PENDING futuras.
+- **ERRORS:** `CONFLICT` (receita `issuedBy=PROFESSIONAL`, OP-127), `FORBIDDEN`, `INVALID_SCHEDULE`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
+- **BUSINESS RULES:** BR-RX-05: recalcula tomas PENDING futuras. OP-127/BR-MKT-81: num plano de receita `issuedBy=PROFESSIONAL` só se ajustam os horários (`scheduleType`, `times`, `daysOfWeek`, `intervalHours`); qualquer outro campo ⇒ `409 CONFLICT` e o pedido inteiro é recusado.
 
 ### `PUT /families/{familyId}/members/{memberId}/medication-plans/{planId}/status`  — setMedicationPlanStatus
 - **AUTHORIZATION:** WRITE(MEDICATION)
@@ -2827,7 +2827,7 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 
 ## Mercado de profissionais — MK4: partilha de registos e receita digital (ADR-037) — CONTRATUAL
 
-> Acrescentado 2026-11-20 (contrato de MK4). **Só contrato: nada implementado.** Tag nova `Record Sharing` (família e profissional; a receita fica em `Professional Portal`). **11 operações novas** (313 no total): 6 da família (`/families/{familyId}/members/{memberId}/record-shares*`, ação nova `SHARE_WITH_PROFESSIONALS`), 3 do profissional (`/professional-portal/shares*`, `professionalBearerAuth`; leitura em todos os estados, abrir só `APPROVED`) e 2 da **receita digital** (`/professional-portal/bookings/{bookingId}/prescription*`, **desligadas por omissão**: `404` enquanto `DIGITAL_PRESCRIPTION_ENABLED=false`). **Sem rotas de admin.** **Alterações a operações existentes (aditivas):** `Prescription.issuedBy` + `PROFESSIONAL` e `Prescription.bookingId?`; `FamilyBooking.prescriptionId?`; `ProfessionalBooking.canPrescribe?`/`hasPrescription?` (omitidas = `false`). **Sem alertas novos** (`BOOKING_UPDATED` reutilizado). Códigos de erro novos: `SHARE_NOT_AVAILABLE`, `SHARE_ALREADY_VIEWED` (`errors.md`). Regras: `business-rules.md` §17 (BR-MKT-67..81); casos de uso `03-use-cases/record-sharing.md` (UC-MKT-48..62). `429 RATE_LIMITED` declarado em todas as rotas com limite (BR-MKT-77; porta `RateLimiter` de `platform/rate-limit`, ADR-038).
+> Acrescentado 2026-11-20 (contrato de MK4). **Só contrato: nada implementado.** Tag nova `Record Sharing` (família e profissional; a receita fica em `Professional Portal`). **11 operações novas** (313 no total): 6 da família (`/families/{familyId}/members/{memberId}/record-shares*`, ação nova `SHARE_WITH_PROFESSIONALS`), 3 do profissional (`/professional-portal/shares*`, `professionalBearerAuth`; leitura em todos os estados, abrir só `APPROVED`) e 2 da **receita digital** (`/professional-portal/bookings/{bookingId}/prescription*`, **desligadas por omissão**: `404` enquanto `DIGITAL_PRESCRIPTION_ENABLED=false`). **Sem rotas de admin.** **Alterações a operações existentes (aditivas):** `Prescription.issuedBy` + `PROFESSIONAL` e `Prescription.bookingId?`; **`409 CONFLICT`** (OP-127, BR-MKT-81) nas operações da família que alterariam o **conteúdo** de uma receita `issuedBy=PROFESSIONAL` — `updatePrescription`, `addPrescriptionMedication` e `updateMedicationPlan` (campos `name`, `dosage`, `notes`, `startAt`, `endAt`, `continuous`; os horários — `scheduleType`, `times`, `daysOfWeek`, `intervalHours` — continuam ajustáveis) —, enquanto `setPrescriptionStatus`, `deletePrescription`, `setMedicationPlanStatus` e `deleteMedicationPlan` mantêm-se; `FamilyBooking.prescriptionId?`; `ProfessionalBooking.canPrescribe?`/`hasPrescription?` (omitidas = `false`). **Sem alertas novos** (`BOOKING_UPDATED` reutilizado). Códigos de erro novos: `SHARE_NOT_AVAILABLE`, `SHARE_ALREADY_VIEWED` (`errors.md`). Regras: `business-rules.md` §17 (BR-MKT-67..81); casos de uso `03-use-cases/record-sharing.md` (UC-MKT-48..62). `429 RATE_LIMITED` declarado em todas as rotas com limite (BR-MKT-77; porta `RateLimiter` de `platform/rate-limit`, ADR-038).
 
 ### `GET /families/{familyId}/members/{memberId}/record-shares/options`  — getRecordShareOptions
 - **AUTHORIZATION:** `SELF`/`TUTOR_OF` do membro (ação `SHARE_WITH_PROFESSIONALS`, `authorization.md` §13.1)
@@ -2903,7 +2903,7 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 
 ### `POST /professional-portal/bookings/{bookingId}/prescriptions`  — issueProfessionalPrescription
 - **AUTHORIZATION:** `PROFESSIONAL_ACCOUNT` (escritas só `APPROVED`); **`404` com a flag `DIGITAL_PRESCRIPTION_ENABLED` desligada (omissão)**
-- **DESCRIPTION:** Emitir a receita digital numa marcação `COMPLETED` de vídeo, categoria `HEALTH`, até 7 dias depois, uma por marcação.
+- **DESCRIPTION:** Emitir a receita digital numa marcação `COMPLETED` (qualquer método: `VIDEO`, `PHONE`, `IN_PERSON`, `CHAT`; OP-126), categoria `HEALTH`, até 7 dias depois, uma por marcação.
 - **REQUEST:** `ProfessionalPrescriptionInput` (`notes?` ≤ 500, `medications` 1–10 com a estrutura de `MedicationPlanInput`); o servidor fixa `issuedOn`, `doctorName`, `issuedBy`, membro e família
 - **RESPONSE:** `201` `ProfessionalPrescription`
 - **ERRORS:** `MALFORMED_REQUEST`, `UNAUTHENTICATED`, `FORBIDDEN` (`WELLNESS`), `NOT_FOUND`, `PROFESSIONAL_LOCKED`, `INVALID_STATE_TRANSITION`, `CONFLICT`, `VALIDATION_ERROR`, `RATE_LIMITED` (20/dia)
@@ -2919,4 +2919,4 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 
 ### Schemas de MK4 (resumo; detalhe em `openapi.yaml`)
 
-**RecordShareCategory** — ALLERGIES|CONDITIONS|MEDICATION|APPOINTMENTS|EXAMS (as de `SharingGrant`) · **ShareValidity** — H24|D7|D30|UNTIL_CONSULTATION_END_PLUS_24H · **RecordShareStatus** — ACTIVE|EXPIRED|REVOKED|CONSUMED (`EXPIRED` derivado) · **RecordShareOptions** — `bookingId`, `professional`, `professionalCategory`, `allowedCategories`, `validities` [{`validity`, `expiresAt`, `eligible`}], `viewOnceAllowed`, `maxActive`, `activeCount` · **CreateRecordShareRequest** — `bookingId`, `categories`, `validity`, `viewOnce?`, `clientRequestId?` · **RecordShare** — `id`, `bookingId`, `professional`, `categories`, `validity`, `viewOnce`, `status`, `expiresAt`, `revokedAt?`, `consumedAt?`, `viewCount`, `lastViewedAt?`, `createdAt` · **RecordShareView** — `viewNo`, `viewedAt`, `professionalName`, `categories` · **ProfessionalShare** — `id`, `bookingId`, `participantLabel`, `categories`, `validity`, `viewOnce`, `status`, `expiresAt`, `openCount`, `lastOpenedAt?`, `canOpen`, `createdAt` (nunca ids de família/membro/utilizador) · **SharedRecordsView** — `shareId`, `participantLabel`, `openedAt`, `expiresAt`, `viewOnce`, `watermark` {`professionalName`, `openedOn`} e **só as secções das categorias concedidas** (omitidas, nunca `null`): `allergies`, `bloodType`, `conditions`, `medications`, `appointments`, `examinations` (sem identificação, notas, motivos, documentos nem ids; BR-MKT-68) · **ProfessionalPrescriptionInput** — `notes?`, `medications` · **ProfessionalPrescription** — `bookingId`, `issuedOn`, `notes?`, `medications`, `createdAt` (sem ids de receita nem de membro).
+**RecordShareCategory** — ALLERGIES|CONDITIONS|MEDICATION|APPOINTMENTS|EXAMS (as de `SharingGrant`) · **ShareValidity** — H24|D7|D30|UNTIL_CONSULTATION_END_PLUS_24H · **RecordShareStatus** — ACTIVE|EXPIRED|REVOKED|CONSUMED (`EXPIRED` derivado) · **RecordShareOptions** — `bookingId`, `professional`, `professionalCategory`, `allowedCategories`, `validities` [{`validity`, `expiresAt`, `eligible`}], `viewOnceAllowed`, `maxActive`, `activeCount` · **CreateRecordShareRequest** — `bookingId`, `categories`, `validity`, `viewOnce?`, `clientRequestId?` · **RecordShare** — `id`, `bookingId`, `professional`, `categories`, `validity`, `viewOnce`, `status`, `expiresAt`, `revokedAt?`, `consumedAt?`, `viewCount`, `lastViewedAt?`, `createdAt` · **RecordShareView** — `viewNo`, `viewedAt`, `professionalName`, `categories` · **ProfessionalShare** — `id`, `bookingId`, `participantLabel`, `categories`, `validity`, `viewOnce`, `status`, `expiresAt`, `openCount`, `lastOpenedAt?`, `canOpen`, `createdAt` (nunca ids de família/membro/utilizador) · **SharedRecordsView** — `shareId`, `participantLabel`, `openedAt`, `expiresAt`, `viewOnce`, `ageYears` (idade em anos completos, derivada na leitura; **sem** data de nascimento nem nome; OP-119), `watermark` {`professionalName`, `openedOn`} e **só as secções das categorias concedidas** (omitidas, nunca `null`): `allergies`, `bloodType`, `conditions`, `medications`, `appointments`, `examinations` (sem outra identificação, notas, motivos, documentos nem ids; BR-MKT-68) · **ProfessionalPrescriptionInput** — `notes?`, `medications` · **ProfessionalPrescription** — `bookingId`, `issuedOn`, `notes?`, `medications`, `createdAt` (sem ids de receita nem de membro).

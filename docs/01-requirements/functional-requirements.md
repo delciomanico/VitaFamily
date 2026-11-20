@@ -260,11 +260,11 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-MKT-38 | O profissional vê a lista das partilhas que recebeu (metadados) e **abre** o conteúdo: cada abertura reavalia partilha, prazo, revogação, consumo, estado do profissional e da marcação; expirada/revogada/consumida/inválida ⇒ negada, sem revelar a causa nem o titular (BR-MKT-70). | ADR-037 §8 |
 | FR-MKT-39 | A **visualização única** entrega o conteúdo uma só vez (consumo atómico na primeira abertura bem-sucedida); toda a abertura traz **marca de água** (nome do profissional e data) e o texto honesto sobre capturas é mostrado à família (BR-MKT-71/72). | ADR-037 §8 |
 | FR-MKT-40 | A família vê, por partilha, **quem viu o quê e quando** e **revoga** a qualquer momento, com efeito imediato (BR-MKT-73/74). | ADR-037 §8 |
-| FR-MKT-41 | As partilhas cumprem **minimização** (o profissional só vê o rótulo e o que foi concedido; o admin nada), **retenção** de 24 meses após o fim, cascatas e **exportação do titular**; o conteúdo nunca vai para logs nem auditoria (BR-MKT-75/76). | ADR-037 §11 |
+| FR-MKT-41 | As partilhas cumprem **minimização** (o profissional só vê o rótulo, a idade em anos completos e o que foi concedido; nunca nome nem data de nascimento; o admin nada), **retenção** de 24 meses após o fim, cascatas e **exportação do titular**; o conteúdo nunca vai para logs nem auditoria (BR-MKT-75/76). | ADR-037 §11 |
 | FR-MKT-42 | A partilha tem **limites** e *rate limiting*, e o profissional recebe um e-mail genérico ao ser criada uma partilha, sem alertas por abertura à família (BR-MKT-77/78). | plan MK4 |
 | FR-MKT-43 | Criar, revogar e **abrir** partilhas (incluindo aberturas recusadas) são **auditados sem conteúdo** (`audit.md` §3). | ADR-037 |
-| FR-MKT-44 | **Receita digital** (desligada até ao parecer jurídico): o profissional `HEALTH` `APPROVED` emite, numa marcação `COMPLETED` por vídeo e em até 7 dias, uma receita estruturada no membro da marcação, com origem «profissional»; `WELLNESS` nunca (BR-MKT-79/80). | ADR-037 §9 |
-| FR-MKT-45 | A família recebe a receita digital no registo como qualquer receita (plano de toma, M2), com a origem visível; o profissional só vê a receita que emitiu; emissão auditada sem conteúdo e avisada por alerta genérico (BR-MKT-81). | ADR-037 §9 |
+| FR-MKT-44 | **Receita digital** (desligada até ao parecer jurídico): o profissional `HEALTH` `APPROVED` emite, numa marcação `COMPLETED` (qualquer método) e em até 7 dias, uma receita estruturada no membro da marcação, com origem «profissional»; `WELLNESS` nunca (BR-MKT-79/80). | ADR-037 §9 |
+| FR-MKT-45 | A família recebe a receita digital no registo (plano de toma, M2), com a origem visível; o conteúdo é só leitura para a família, que mantém cancelar/apagar e ajustar horários; o profissional só vê a receita que emitiu; emissão auditada sem conteúdo e avisada por alerta genérico (BR-MKT-81). | ADR-037 §9 |
 
 ---
 

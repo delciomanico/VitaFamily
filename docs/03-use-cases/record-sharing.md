@@ -1,6 +1,6 @@
 # Casos de uso — Partilha de registos com prazo e visualização única; receita digital (MK4, ADR-037)
 
-> Estado: **v0.1 — contrato de MK4 (2026-11-20); nada implementado.** Convenções comuns em `family.md`; marcação (MK3) em `consultations.md`; chat (MK2) em `marketplace.md`. Regras: `business-rules.md` §17 (BR-MKT-67..81); requisitos FR-MKT-37..45. Atores: **Família** (`User`; partilha como titular `SELF` ou tutor `TUTOR_OF` em nome do dependente), **Profissional** (`ProfessionalAccount`, portal), **Sistema** (jobs). **Não há ator admin:** o admin da plataforma nunca acede a partilhas, vistas nem receitas (BR-MKT-75, D4). **Fora de MK4:** documentos/PDF nas partilhas, pedido de partilha pelo profissional, reencaminhar a terceiros, pagamento. Todo o conteúdo partilhado e o `participantLabel` são dado de saúde potencial (BR-MKT-75): nunca em logs nem auditoria. **A receita digital está desligada até ao parecer jurídico** (BR-MKT-79): os casos UC-MKT-59..61 só valem com a flag ligada.
+> Estado: **v0.1 — contrato de MK4 (2026-11-20; OP-117..OP-127 ratificadas pelo proprietário, com alteração em OP-119/126/127); nada implementado.** Convenções comuns em `family.md`; marcação (MK3) em `consultations.md`; chat (MK2) em `marketplace.md`. Regras: `business-rules.md` §17 (BR-MKT-67..81); requisitos FR-MKT-37..45. Atores: **Família** (`User`; partilha como titular `SELF` ou tutor `TUTOR_OF` em nome do dependente), **Profissional** (`ProfessionalAccount`, portal), **Sistema** (jobs). **Não há ator admin:** o admin da plataforma nunca acede a partilhas, vistas nem receitas (BR-MKT-75, D4). **Fora de MK4:** documentos/PDF nas partilhas, pedido de partilha pelo profissional, reencaminhar a terceiros, pagamento. Todo o conteúdo partilhado, o `participantLabel` e a `ageYears` são dado pessoal/de saúde potencial (BR-MKT-75): nunca em logs nem auditoria. **A receita digital está desligada até ao parecer jurídico** (BR-MKT-79): os casos UC-MKT-59..61 só valem com a flag ligada.
 
 ## Partilhar (família)
 
@@ -44,7 +44,7 @@
 
 ### UC-MKT-54 Abrir uma partilha (leitura repetível)
 - **Ator:** profissional `APPROVED` · **FR:** MKT-38, MKT-39 · **BR:** MKT-68, MKT-70, MKT-72, MKT-73, MKT-77 · **Rota:** `POST /professional-portal/shares/{shareId}/open`.
-- **Fluxo:** o profissional carrega em **Abrir** → numa transação o servidor reavalia (BR-MKT-70: pertença, estado, prazo, profissional `APPROVED`, marcação e membro, categorias) → lê as categorias concedidas pelas portas de leitura dos módulos de saúde → grava a vista (`record_share_views`, `view_count`) → auditoria `PROFESSIONAL_SHARE_OPEN` → devolve `SharedRecordsView` (secções só das categorias concedidas, `watermark`, `expiresAt`, `Cache-Control: no-store`). Pode repetir até `expiresAt`; cada abertura é uma vista.
+- **Fluxo:** o profissional carrega em **Abrir** → numa transação o servidor reavalia (BR-MKT-70: pertença, estado, prazo, profissional `APPROVED`, marcação e membro, categorias) → lê as categorias concedidas pelas portas de leitura dos módulos de saúde → grava a vista (`record_share_views`, `view_count`) → auditoria `PROFESSIONAL_SHARE_OPEN` → devolve `SharedRecordsView` (`participantLabel` e **`ageYears`** — idade em anos completos derivada na leitura, sem data de nascimento nem nome, OP-119 —, secções só das categorias concedidas, `watermark`, `expiresAt`, `Cache-Control: no-store`). Pode repetir até `expiresAt`; cada abertura é uma vista.
 - **Alternativos:** expirada/revogada/profissional não `APPROVED`/marcação cancelada/membro bloqueado ⇒ `403 SHARE_NOT_AVAILABLE` (auditoria `DENIED`, sem vista); já consumida ⇒ `403 SHARE_ALREADY_VIEWED`; partilha alheia ou inexistente ⇒ `404`; token de User/clínica ⇒ `401`; `RATE_LIMITED` (30/min; 120/dia por partilha).
 - **Pós-condição:** o conteúdo **não** fica guardado em lado nenhum do servidor nem em auditoria; a família vê a vista (UC-MKT-51).
 
@@ -75,8 +75,8 @@
 
 ### UC-MKT-59 Emitir uma receita digital (profissional)
 - **Ator:** profissional `HEALTH` `APPROVED` · **FR:** MKT-44 · **BR:** MKT-79, MKT-80, MKT-81 · **Rota:** `POST /professional-portal/bookings/{bookingId}/prescriptions` (`notes?`, `medications` 1–10).
-- **Fluxo:** numa marcação `COMPLETED` de vídeo com `canPrescribe=true`, o profissional preenche medicamentos (texto livre, dosagem, frequência, duração, observações) → **Emitir**. Numa transação, sob bloqueio da marcação: flag ligada → profissional `APPROVED` → marcação do profissional, `COMPLETED`, `VIDEO`, categoria `HEALTH`, ≤ 7 dias após `completedAt` e sem receita → a porta `PrescriptionIssuer` cria no membro a `Prescription` (`issuedBy=PROFESSIONAL`, `issuedOn` = hoje em Luanda, `doctorName` = nome público, `bookingId`) e os planos de toma → auditoria `PRESCRIPTION_ISSUED_BY_PROFESSIONAL` → alerta `BOOKING_UPDATED` à família.
-- **Alternativos:** flag desligada ⇒ `404 NOT_FOUND`; `WELLNESS` ⇒ `FORBIDDEN`; não `COMPLETED`, método diferente de `VIDEO` ou fora dos 7 dias ⇒ `INVALID_STATE_TRANSITION`; já existe receita ⇒ `CONFLICT`; não `APPROVED` ⇒ `PROFESSIONAL_LOCKED`; corpo inválido ⇒ `VALIDATION_ERROR`; 20/dia ⇒ `RATE_LIMITED`; marcação de outro profissional ou inexistente ⇒ `404` idêntico.
+- **Fluxo:** numa marcação `COMPLETED` (de **qualquer método**, OP-126) com `canPrescribe=true`, o profissional preenche medicamentos (texto livre, dosagem, frequência, duração, observações) → **Emitir**. Numa transação, sob bloqueio da marcação: flag ligada → profissional `APPROVED` → marcação do profissional, `COMPLETED` (qualquer método), categoria `HEALTH`, ≤ 7 dias após `completedAt` e sem receita → a porta `PrescriptionIssuer` cria no membro a `Prescription` (`issuedBy=PROFESSIONAL`, `issuedOn` = hoje em Luanda, `doctorName` = nome público, `bookingId`) e os planos de toma → auditoria `PRESCRIPTION_ISSUED_BY_PROFESSIONAL` → alerta `BOOKING_UPDATED` à família.
+- **Alternativos:** flag desligada ⇒ `404 NOT_FOUND`; `WELLNESS` ⇒ `FORBIDDEN`; não `COMPLETED` ou fora dos 7 dias ⇒ `INVALID_STATE_TRANSITION` (o método não é critério); já existe receita ⇒ `CONFLICT`; não `APPROVED` ⇒ `PROFESSIONAL_LOCKED`; corpo inválido ⇒ `VALIDATION_ERROR`; 20/dia ⇒ `RATE_LIMITED`; marcação de outro profissional ou inexistente ⇒ `404` idêntico.
 - **Pós-condição:** a receita pertence ao registo do membro; o profissional **não** ganha acesso ao resto do registo.
 
 ### UC-MKT-60 Ver a receita emitida (profissional)
@@ -87,13 +87,13 @@
 
 ### UC-MKT-61 Receber a receita digital (família)
 - **Ator:** `SELF`/`TUTOR_OF`/`DEPENDENT_SELF` (como qualquer receita) · **FR:** MKT-45 · **BR:** MKT-81 · **Rotas existentes:** `GET …/prescriptions*`, `GET …/bookings/{bookingId}` (`prescriptionId?`).
-- **Fluxo:** a família recebe o alerta genérico «Tem uma atualização numa marcação.», abre a marcação, vê «Receita disponível» e a receita em **Receitas** do membro, com a origem «emitida por profissional», e os planos de toma gerados (M2); gere-a como qualquer receita (OP-127).
+- **Fluxo:** a família recebe o alerta genérico «Tem uma atualização numa marcação.», abre a marcação, vê «Receita disponível» e a receita em **Receitas** do membro, com a origem «emitida por profissional», e os planos de toma gerados (M2); **o conteúdo é só leitura** (OP-127): pode cancelar/concluir/reabrir, apagar e ajustar os horários dos planos, mas editar medicamento, dosagem, observações ou datas, ou acrescentar medicamentos ⇒ `409 CONFLICT` sem efeito (a UI desativa essas ações).
 - **Alternativos:** `OTHER` só com `SharingGrant` de `MEDICATION` (regras existentes).
 - **Pós-condição:** apagar a receita, o membro ou a marcação segue BR-RX-06 e BR-MKT-81.
 
 ### UC-MKT-62 Ligar a receita digital (gate de lançamento)
 - **Ator:** operação (proprietário/devops) · **BR:** MKT-79.
-- **Fluxo:** só depois do parecer jurídico favorável e da ratificação de OP-125/OP-126 se define `DIGITAL_PRESCRIPTION_ENABLED=true` no ambiente e se reinicia a API; até lá, `canPrescribe=false` e as rotas respondem `404`.
+- **Fluxo:** só depois do parecer jurídico favorável (OP-125 ratificada: a flag continua gate de lançamento; o parecer cobre a prescrição em qualquer método, OP-126) se define `DIGITAL_PRESCRIPTION_ENABLED=true` no ambiente e se reinicia a API; até lá, `canPrescribe=false` e as rotas respondem `404`.
 - **Alternativos:** esquecer-se de desligar após reverter ⇒ não há (a flag é lida no arranque; desligar exige reiniciar).
 - **Pós-condição:** nenhuma outra funcionalidade muda com a flag; receitas já emitidas mantêm-se.
 

@@ -313,12 +313,12 @@ REVOKED | CONSUMED | EXPIRED → (terminais; sem reativar nem prolongar: cria-se
 ```text
 canPrescribe = DIGITAL_PRESCRIPTION_ENABLED
              ∧ profissional APPROVED (credencial válida implícita, BR-MKT-21)
-             ∧ marcação do profissional ∧ status = COMPLETED ∧ method = VIDEO
+             ∧ marcação do profissional ∧ status = COMPLETED   (qualquer método, OP-126)
              ∧ categoria da especialidade marcada = HEALTH
              ∧ agora ≤ completedAt + 7 dias
              ∧ ainda não existe Prescription com booking_id = marcação
 ```
-Função **pura** de `consultations/domain` (flag, estado, método, categoria, `completedAt`, existência) com testes de tabela; a emissão repete-a **sob bloqueio da marcação**. `Prescription.status` não muda (ACTIVE | COMPLETED | CANCELLED); a origem `PROFESSIONAL` é imutável.
+Função **pura** de `consultations/domain` (flag, estado, categoria, `completedAt`, existência) com testes de tabela; a emissão repete-a **sob bloqueio da marcação**. `Prescription.status` não muda (ACTIVE | COMPLETED | CANCELLED); a origem `PROFESSIONAL` é imutável e o conteúdo da receita é só leitura para a família (OP-127; cancelar/concluir/reabrir e apagar continuam permitidos pelas transições de ST1).
 
 ## Alert / Notification
 ```text
