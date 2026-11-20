@@ -10,7 +10,7 @@ import type { Storage } from "../../../platform/storage/index.js";
 import type { AccessContext, ActorIdentity, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Document, ResourceType, ScanStatus } from "../domain/document.js";
-import type { InMemoryRateLimiter } from "../domain/rate-limiter.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 
 export type { ActorIdentity };
 
@@ -122,7 +122,7 @@ export interface DocumentsDeps<Trx> {
   scanQueue: ScanQueuePort;
   /** BR-CLN-08 — ver `ReleaseGatePort`. */
   releaseGate?: ReleaseGatePort<Trx>;
-  rateLimiter: InMemoryRateLimiter;
+  rateLimiter: RateLimiter;
   db: Trx;
   withTransaction: WithTransaction<Trx>;
   clock: Clock;

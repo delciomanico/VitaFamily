@@ -3,7 +3,7 @@
 // `documents` (modules.md §2: `examinations` depende de `access`, `clinics`, `documents`,
 // `audit`). Genéricas em `Trx` para que esta camada nunca importe "kysely" (conventions.md §3.9).
 import type { Clock } from "../../../platform/clock/index.js";
-import type { RateLimiter } from "../../../platform/rate-limit/index.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Document, ResourceType } from "../../documents/index.js";

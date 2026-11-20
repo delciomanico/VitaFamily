@@ -50,7 +50,7 @@ import {
   type ResolvedMemberInvitation,
 } from "./application/resolve-member-invitation.js";
 import { hashOpaqueToken } from "./domain/token.js";
-import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
+import { ClosedRateLimiter, type RateLimiter } from "../../platform/rate-limit/async.js";
 import type { FamiliesDeps, Mailer, MemberDataPort, RequestContext } from "./application/ports.js";
 import { createRemoveGuardianUseCase } from "./application/remove-guardian.js";
 import { createRemoveMemberUseCase } from "./application/remove-member.js";
@@ -88,6 +88,8 @@ export interface FamiliesModuleDeps {
   audit: AuditModule;
   users: UsersModule;
   clock: Clock;
+  /** Porta assíncrona (ADR-038), namespace `families`. Ausente (worker, scripts) => falha fechada. */
+  rateLimiter?: RateLimiter;
   mailer: Mailer;
   /** `APP_BASE_URL` (config) — link no e-mail de convite. */
   appBaseUrl: string;
@@ -186,7 +188,7 @@ export function createFamiliesModule(deps: FamiliesModuleDeps): FamiliesModule {
     clock: deps.clock,
     mailer: deps.mailer,
     appBaseUrl: deps.appBaseUrl,
-    invitationRateLimiter: new InMemoryRateLimiter(deps.clock),
+    invitationRateLimiter: deps.rateLimiter ?? new ClosedRateLimiter(),
   };
 
   const controller: FamiliesController = {

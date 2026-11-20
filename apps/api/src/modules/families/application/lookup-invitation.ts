@@ -18,7 +18,7 @@ const LOOKUP_RATE_LIMIT = { max: 20, windowMs: 60 * 1000 };
 
 export function createLookupInvitationUseCase<Trx>(deps: FamiliesDeps<Trx>) {
   return async function lookupInvitation(token: string, context: RequestContext): Promise<InvitationPreview> {
-    const decision = deps.invitationRateLimiter.consume(`lookup:ip:${context.ip ?? "unknown"}`, LOOKUP_RATE_LIMIT);
+    const decision = await deps.invitationRateLimiter.consume({ rule: "lookup-ip", subject: context.ip ?? "unknown", pii: true }, LOOKUP_RATE_LIMIT);
     if (!decision.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: decision.retryAfterMs });
     }

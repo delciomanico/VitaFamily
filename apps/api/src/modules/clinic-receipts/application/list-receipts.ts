@@ -41,7 +41,7 @@ export function parseReceiptWindow(fromRaw: unknown, toRaw: unknown): { start: D
 export function createListReceiptsUseCase<Trx>(deps: ClinicReceiptsDeps<Trx>) {
   return async function listReceipts(actor: ClinicPortalActor, query: ListReceiptsQuery): Promise<ClinicReceiptPageView> {
     assertCanManageReceipts(actor);
-    const decision = deps.listLimiter.consume(`clinic-receipts:${actor.clinicAccountId}`, RECEIPT_LIST_RATE);
+    const decision = await deps.listLimiter.consume({ rule: "clinic-receipts", subject: actor.clinicAccountId }, RECEIPT_LIST_RATE);
     if (!decision.allowed) {
       throw new RateLimitedError(decision.retryAfterMs);
     }

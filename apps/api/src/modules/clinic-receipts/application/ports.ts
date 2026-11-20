@@ -3,7 +3,7 @@
 // `clinic-patients`/`clinics`. O módulo NÃO importa módulos de saúde, `families`, `auth` nem `documents`.
 // Genéricas em `Trx` para esta camada nunca importar "kysely" (conventions.md §3.9).
 import type { Clock } from "../../../platform/clock/index.js";
-import type { RateLimiter } from "../../../platform/rate-limit/index.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { CatalogService, ClinicReceipt, PaymentMethod, ReceiptBookingKind, ReceiptIssuer, ReceiptLine, ReceiptStatus } from "../domain/receipt.js";

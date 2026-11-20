@@ -6,7 +6,7 @@ import type { Family } from "../domain/family.js";
 import type { Guardianship } from "../domain/guardianship.js";
 import type { Invitation, InvitationStatus } from "../domain/invitation.js";
 import type { BloodType, FamilyMember, FamilyRole } from "../domain/member.js";
-import { InMemoryRateLimiter } from "../domain/rate-limiter.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import type {
   AuditPort,
   FamiliesDeps,
@@ -373,7 +373,7 @@ export function createFamiliesFixtures(clock: Clock, appBaseUrl = "https://vitaf
     clock,
     mailer,
     appBaseUrl,
-    invitationRateLimiter: new InMemoryRateLimiter(clock),
+    invitationRateLimiter: new InMemoryRateLimiter(clock, { namespace: "families" }),
   };
   return { deps, familiesRepo, membersRepo, guardianshipsRepo, invitationsRepo, usersPort, audit, mailer, memberData };
 }

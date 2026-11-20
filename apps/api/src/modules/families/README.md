@@ -31,7 +31,7 @@ POST /invitations/accept
 ```
 
 ## Camadas presentes
-- `domain/` — `Family`, `FamilyMember`, `Guardianship`, `Invitation` (tipos + regras puras: idade, validade do convite, transições de estado do convite); `token.ts`/`rate-limiter.ts` são cópias pequenas e intencionais de `auth/domain` (módulos só se importam pela raiz — mesmo critério documentado em `auth/domain/registration-rules.ts`).
+- `domain/` — `Family`, `FamilyMember`, `Guardianship`, `Invitation` (tipos + regras puras: idade, validade do convite, transições de estado do convite); `token.ts` é cópia pequena e intencional de `auth/domain` (módulos só se importam pela raiz — mesmo critério documentado em `auth/domain/registration-rules.ts`).
 - `application/` — um ficheiro por caso de uso (24: família ×6, membro ×7, tutores ×4, convites ×6, exportação ×1) + `ports.ts` (repositórios genéricos em `Trx`, `Mailer`, `UsersPort`) + `membership.ts`/`guardian-rules.ts` (helpers partilhados, fazem I/O por isso não são `domain`) + `family-view.ts`/`member-view.ts`/`invitation-view.ts` (DTOs internos) + `fixtures.ts` (fakes para testes).
 - `infrastructure/` — `KyselyFamiliesRepository`, `KyselyMembersRepository`, `KyselyGuardianshipsRepository`, `KyselyInvitationsRepository` (implementam as portas); `schema.ts` (tabelas Kysely); `mailer-smtp.ts` (e-mail de convite — cópia pequena de `auth/infrastructure/mailer-smtp.ts`, `families` não pode depender de `auth`, `modules.md` §2).
 - `interface/router.ts`, `interface/dto.ts` — rotas `/families*` e `/invitations/*`.

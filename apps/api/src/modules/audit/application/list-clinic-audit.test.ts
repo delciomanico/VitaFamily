@@ -2,7 +2,7 @@
 // cursor, 30 pedidos/min; a projeção devolvida não tem PII (a query real é testada em integração).
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../../../platform/clock/index.js";
-import { InMemoryRateLimiter } from "../../../platform/rate-limit/index.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import { createListClinicAuditUseCase } from "./list-clinic-audit.js";
 import type { ClinicAuditEntry, ClinicAuditFilter } from "./ports.js";
 
@@ -29,7 +29,7 @@ function setup(count = 5) {
       },
     },
     withTransaction: (fn) => fn(undefined),
-    limiter: new InMemoryRateLimiter(clock),
+    limiter: new InMemoryRateLimiter(clock, { namespace: "audit" }),
     clock,
   });
   return { list, calls };

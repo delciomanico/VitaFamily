@@ -4,7 +4,7 @@ import type { Router } from "express";
 import type { Kysely } from "kysely";
 import { SystemClock, type Clock } from "../../platform/clock/index.js";
 import { withTransaction, type Database } from "../../platform/db/index.js";
-import { InMemoryRateLimiter } from "../../platform/rate-limit/index.js";
+import { ClosedRateLimiter, type RateLimiter } from "../../platform/rate-limit/async.js";
 import { createListClinicAuditUseCase } from "./application/list-clinic-audit.js";
 import { KyselyAuditMaintenanceRepository, KyselyAuditRepository, KyselyClinicAuditReader } from "./infrastructure/repo.js";
 import { createClinicAuditRouter } from "./interface/clinic-audit-router.js";
@@ -24,6 +24,8 @@ export interface AuditModuleDeps {
   db: Kysely<Database>;
   /** Relógio (limite de pedidos e janela da auditoria da clínica); omissão: relógio do sistema. */
   clock?: Clock;
+  /** Porta assíncrona (ADR-038), namespace `audit`. Ausente (worker, scripts) => falha fechada. */
+  rateLimiter?: RateLimiter;
 }
 
 export interface AuditModule {
@@ -45,7 +47,7 @@ export function createAuditModule(deps: AuditModuleDeps): AuditModule {
   const listClinicAudit = createListClinicAuditUseCase({
     reader: new KyselyClinicAuditReader(),
     withTransaction: (fn) => withTransaction(deps.db, fn),
-    limiter: new InMemoryRateLimiter(clock),
+    limiter: deps.rateLimiter ?? new ClosedRateLimiter(),
     clock,
   });
   return {

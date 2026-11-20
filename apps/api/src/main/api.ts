@@ -104,7 +104,7 @@ export function main(): void {
     }
   }
 
-  const audit = createAuditModule({ db, clock });
+  const audit = createAuditModule({ db, clock, rateLimiter: rateLimiting.createRateLimiter("audit") });
   const users = createUsersModule({
     db,
     audit,
@@ -124,6 +124,7 @@ export function main(): void {
   const families = createFamiliesModule({
     db,
     audit,
+    rateLimiter: rateLimiting.createRateLimiter("families"),
     users,
     clock,
     mailer: new FamiliesSmtpMailer(config.SMTP_URL, config.MAIL_FROM),
@@ -177,6 +178,7 @@ export function main(): void {
     audit,
     access,
     clock,
+    rateLimiter: rateLimiting.createRateLimiter("documents"),
     storage,
     virusScanner,
     boss,
@@ -296,7 +298,7 @@ export function main(): void {
   const alerts = createAlertsModule({ db, families, notifications, clock });
   late.alerts = alerts;
 
-  const examinations = createExaminationsModule({ db, audit, access, clinics, documents, alerts: { raiseExamEvent: alerts.raiseExamEvent },
+  const examinations = createExaminationsModule({ db, rateLimiter: rateLimiting.createRateLimiter("examinations"), audit, access, clinics, documents, alerts: { raiseExamEvent: alerts.raiseExamEvent },
     receipts: { findIssuedReceiptIds: (trx, clinicId, kind, bookingIds) => required(late.clinicReceipts, "clinicReceipts").findIssuedReceiptIds(trx, clinicId, kind, bookingIds) },
     // M15 T (BR-CLN-48/49, modules.md §2 nota 27): `ExamReportGenerator` implementada por `clinic-reports` (criado mais abaixo).
     reportGenerator: { generate: (trx, request) => required(late.clinicReports, "clinicReports").generateExamReport(trx, request) },
@@ -536,6 +538,7 @@ export function main(): void {
     db,
     audit,
     access,
+    rateLimiter: rateLimiting.createRateLimiter("clinic-receipts"),
     clock,
     bookings: {
       find: async (trx, clinicId, kind, bookingId) => {
@@ -561,6 +564,7 @@ export function main(): void {
     db,
     audit,
     clock,
+    rateLimiter: rateLimiting.createRateLimiter("clinic-reports"),
     bookings: {
       find: async (trx, clinicId, kind, bookingId) => {
         if (kind === "VISIT") {

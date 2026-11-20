@@ -9,7 +9,7 @@ import type { Router } from "express";
 import type { Kysely } from "kysely";
 import type { Clock } from "../../platform/clock/index.js";
 import { withTransaction, type Database } from "../../platform/db/index.js";
-import { InMemoryRateLimiter } from "../../platform/rate-limit/index.js";
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import type { AuditModule } from "../audit/index.js";
 import {
   createAddAddendumUseCase,
@@ -61,6 +61,8 @@ export interface ClinicReportsModuleDeps {
   db: Kysely<Database>;
   audit: AuditModule;
   clock: Clock;
+  /** Porta assíncrona (ADR-038), namespace `clinic-reports`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   /** Marcação da clínica (implementada por `appointments` e `clinic-patients`). */
   bookings: BookingSourcePort<Kysely<Database>>;
   /** A consulta existe no membro/família (implementada por `appointments`; sem dados clínicos). */
@@ -123,7 +125,7 @@ export function createClinicReportsModule(deps: ClinicReportsModuleDeps): Clinic
     pdf: deps.pdf ?? new PdfKitRenderer(),
     audit: deps.audit,
     withTransaction: (fn) => withTransaction(deps.db, fn),
-    limiter: new InMemoryRateLimiter(deps.clock),
+    limiter: deps.rateLimiter,
     clock: deps.clock,
   };
 

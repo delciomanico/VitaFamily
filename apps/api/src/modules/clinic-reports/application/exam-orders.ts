@@ -129,7 +129,7 @@ async function createOrders<Trx>(
 export function createCreateExamOrdersUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
   return async function createExamOrders(actor: ClinicPortalActor, bookingId: string, body: unknown, context: RequestContext): Promise<ClinicExamOrderView[]> {
     assertCanWrite(actor, ORDER_WRITE_DETAIL);
-    consumeLimit(deps.limiter, "order-write", actor.clinicAccountId);
+    await consumeLimit(deps.limiter, "order-write", actor.clinicAccountId);
     const items = parseExamOrdersBody(body);
     return deps.withTransaction(async (trx) => {
       const booking = await resolveBooking(deps, trx, actor.clinicId, bookingId);
@@ -183,7 +183,7 @@ export function createListExamOrdersUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
 export function createCancelExamOrderUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
   return async function cancelExamOrder(actor: ClinicPortalActor, bookingId: string, orderId: string, context: RequestContext): Promise<ClinicExamOrderView> {
     assertCanWrite(actor, ORDER_WRITE_DETAIL);
-    consumeLimit(deps.limiter, "order-write", actor.clinicAccountId);
+    await consumeLimit(deps.limiter, "order-write", actor.clinicAccountId);
     return deps.withTransaction(async (trx) => {
       const booking = await resolveBooking(deps, trx, actor.clinicId, bookingId);
       if (!booking) throw new NotFoundError({ detail: "Marcação não encontrada." });
@@ -202,7 +202,7 @@ export function createCancelExamOrderUseCase<Trx>(deps: ClinicReportsDeps<Trx>) 
 /** `GET …/exam-orders/pdf` (BR-CLN-54): gerado a pedido com os pedidos ATIVOS; não é guardado; 30/min por conta (bolsa partilhada). */
 export function createGetExamOrdersPdfUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
   return async function getExamOrdersPdf(actor: ClinicPortalActor, bookingId: string, context: RequestContext): Promise<GeneratedPdf> {
-    consumeLimit(deps.limiter, "pdf", actor.clinicAccountId);
+    await consumeLimit(deps.limiter, "pdf", actor.clinicAccountId);
     return deps.withTransaction(async (trx) => {
       const { kind, orders } = await loadReadable(deps, trx, actor, bookingId);
       const active = orders.filter((o) => o.status !== "CANCELLED");

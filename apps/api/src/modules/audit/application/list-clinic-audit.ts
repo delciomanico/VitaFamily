@@ -4,7 +4,7 @@
 import { ForbiddenError, RateLimitedError, ValidationError } from "../../../platform/errors/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
 import { decodeCursor, encodeCursor, parsePageParams } from "../../../platform/page/index.js";
-import type { RateLimiter } from "../../../platform/rate-limit/index.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { ClinicAuditEntry, ClinicAuditReader } from "./ports.js";
 
 export interface ClinicAuditActor {
@@ -73,7 +73,7 @@ export function createListClinicAuditUseCase<Trx>(deps: Deps<Trx>) {
     if (actor.role !== "CLINIC_ADMIN") {
       throw new ForbiddenError({ detail: "Só o Admin da clínica vê a auditoria." });
     }
-    const decision = deps.limiter.consume(`clinic-audit:${actor.clinicAccountId}`, CLINIC_AUDIT_RATE);
+    const decision = await deps.limiter.consume({ rule: "clinic-audit", subject: actor.clinicAccountId }, CLINIC_AUDIT_RATE);
     if (!decision.allowed) {
       throw new RateLimitedError(decision.retryAfterMs);
     }

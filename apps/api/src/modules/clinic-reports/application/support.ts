@@ -1,5 +1,5 @@
 import { ForbiddenError, NotFoundError, RateLimitedError } from "../../../platform/errors/index.js";
-import type { RateLimiter } from "../../../platform/rate-limit/index.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 import { auditContextFields, type AuditEvent } from "../../audit/index.js";
 import { countSections, type ConsultationBookingKind, type ConsultationReport } from "../domain/consultation-report.js";
 import type { BookingFacts, ClinicPortalActor, ClinicReportsDeps, RequestContext } from "./ports.js";
@@ -12,8 +12,8 @@ export const ORDER_WRITE_LIMIT = { max: 30, windowMs: 60_000 };
 const LIMITS = { write: WRITE_LIMIT, pdf: PDF_LIMIT, "order-write": ORDER_WRITE_LIMIT } as const;
 
 /** `pdf` é a bolsa partilhada do relatório, do pedido de exame e da declaração de presença (BR-CLN-46/54/55). */
-export function consumeLimit(limiter: RateLimiter, kind: "write" | "pdf" | "order-write", accountId: string): void {
-  const decision = limiter.consume(`consult-report-${kind}:${accountId}`, LIMITS[kind]);
+export async function consumeLimit(limiter: RateLimiter, kind: "write" | "pdf" | "order-write", accountId: string): Promise<void> {
+  const decision = await limiter.consume({ rule: `consult-report-${kind}`, subject: accountId }, LIMITS[kind]);
   if (!decision.allowed) {
     throw new RateLimitedError(decision.retryAfterMs, { detail: "Demasiados pedidos; tente mais tarde." });
   }

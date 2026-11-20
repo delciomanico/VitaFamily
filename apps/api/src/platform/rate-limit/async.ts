@@ -2,3 +2,4 @@
 // em RL8 `index.ts` passa a reexportar isto e o síncrono é removido.
 export * from "./port.js";
 export { createRateLimiting, type RateLimiting, type RateLimitingConfig } from "./factory.js";
+export { ClosedRateLimiter } from "./closed.js";

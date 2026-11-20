@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { FixedClock } from "../../src/platform/clock/index.js";
 import { createApp } from "../../src/platform/http/index.js";
 import { createLogger } from "../../src/platform/logger/index.js";
-import { InMemoryRateLimiter } from "../../src/platform/rate-limit/index.js";
+import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
 import { createListClinicAuditUseCase } from "../../src/modules/audit/application/list-clinic-audit.js";
 import { createClinicAuditRouter } from "../../src/modules/audit/interface/clinic-audit-router.js";
 import { createClinicReceiptsFixtures } from "../../src/modules/clinic-receipts/application/fixtures.js";
@@ -61,7 +61,7 @@ async function buildHarness() {
     listClinicAudit: createListClinicAuditUseCase({
       reader: { list: (_t, filter) => { auditCalls.push(filter); return Promise.resolve([]); } },
       withTransaction: (fn) => fn(undefined),
-      limiter: new InMemoryRateLimiter(clock),
+      limiter: new InMemoryRateLimiter(clock, { namespace: "clinic-receipts" }),
       clock,
     }),
   };

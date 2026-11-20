@@ -1,7 +1,7 @@
 // Fakes em memória das portas de `examinations` (mesmo padrão de `prescriptions`/`appointments`
 // `application/fixtures.ts`). Não é ficheiro de teste.
 import { decodeCursor, encodeCursor } from "../../../platform/page/index.js";
-import { InMemoryRateLimiter } from "../../../platform/rate-limit/index.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput, Relation } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
@@ -627,7 +627,7 @@ export function createExaminationsFixtures(clock: Clock): ExaminationsFixtures {
     draftsRepo: drafts,
     reportGenerator,
     examOrders,
-    limiter: new InMemoryRateLimiter(clock),
+    limiter: new InMemoryRateLimiter(clock, { namespace: "examinations" }),
     policy,
     memberNames,
     alerts,

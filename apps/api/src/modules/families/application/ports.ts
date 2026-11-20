@@ -7,7 +7,7 @@ import type { Family } from "../domain/family.js";
 import type { Guardianship } from "../domain/guardianship.js";
 import type { Invitation, InvitationStatus, InvitationType } from "../domain/invitation.js";
 import type { BloodType, FamilyMember, FamilyRole } from "../domain/member.js";
-import type { InMemoryRateLimiter } from "../domain/rate-limiter.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 
 export interface NewFamilyRecord {
   id: string;
@@ -177,7 +177,7 @@ export interface FamiliesDeps<Trx> {
   mailer: Mailer;
   /** Para o link no e-mail de convite (`APP_BASE_URL`). */
   appBaseUrl: string;
-  invitationRateLimiter: InMemoryRateLimiter;
+  invitationRateLimiter: RateLimiter;
 }
 
 export interface RequestContext {

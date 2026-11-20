@@ -1,7 +1,7 @@
 // Fakes em memória das portas de `clinic-receipts` (mesmo padrão dos outros módulos). Não é ficheiro de teste.
 import { ConflictError, ForbiddenError, NotFoundError } from "../../../platform/errors/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
-import { InMemoryRateLimiter } from "../../../platform/rate-limit/index.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { CatalogService, ClinicReceipt, ReceiptBookingKind } from "../domain/receipt.js";
@@ -165,7 +165,7 @@ export function createClinicReceiptsFixtures(clock: Clock) {
     policy,
     audit,
     withTransaction: (fn) => fn(FAKE_TRX),
-    listLimiter: new InMemoryRateLimiter(clock),
+    listLimiter: new InMemoryRateLimiter(clock, { namespace: "clinic-receipts" }),
     clock,
   };
   return { deps, receiptsRepo, bookings, consents, profile, services, policy, audit };

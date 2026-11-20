@@ -5,7 +5,7 @@ import { InMemoryStorage } from "../../../platform/storage/index.js";
 import type { AccessContext, CanInput, Relation } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Document } from "../domain/document.js";
-import { InMemoryRateLimiter } from "../domain/rate-limiter.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import type {
   AccessPolicyPort,
   AuditPort,
@@ -250,7 +250,7 @@ export function createDocumentsFixtures(clock: Clock): DocumentsFixtures {
     virusScanner,
     scanQueue,
     releaseGate,
-    rateLimiter: new InMemoryRateLimiter(clock),
+    rateLimiter: new InMemoryRateLimiter(clock, { namespace: "documents" }),
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,

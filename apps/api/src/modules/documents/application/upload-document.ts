@@ -38,7 +38,7 @@ export function createUploadDocumentUseCase<Trx>(deps: DocumentsDeps<Trx>) {
     }
 
     // Rate limit antes de qualquer I/O (barato, evita gastar storage/BD em pedidos a mais).
-    const decision = deps.rateLimiter.consume(`upload:${actor.userId}`, UPLOAD_RATE_LIMIT);
+    const decision = await deps.rateLimiter.consume({ rule: "upload", subject: actor.userId }, UPLOAD_RATE_LIMIT);
     if (!decision.allowed) {
       throw new RateLimitedError(decision.retryAfterMs, { detail: "Demasiados carregamentos; tente mais tarde." });
     }

@@ -10,7 +10,7 @@ import { assertInScope, bookingResourceType, clinicOrderAudit, consumeLimit, res
 /** `GET /clinic-portal/agenda/{id}/attendance-statement/pdf?includeProfessional=`: bolsa de 30/min partilhada com os outros PDF. */
 export function createGetAttendanceStatementPdfUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
   return async function getAttendanceStatementPdf(actor: ClinicPortalActor, bookingId: string, includeProfessional: boolean, context: RequestContext): Promise<GeneratedPdf> {
-    consumeLimit(deps.limiter, "pdf", actor.clinicAccountId);
+    await consumeLimit(deps.limiter, "pdf", actor.clinicAccountId);
     return deps.withTransaction(async (trx) => {
       const booking = await resolveBooking(deps, trx, actor.clinicId, bookingId);
       if (!booking) throw new NotFoundError({ detail: "Marcação não encontrada." });

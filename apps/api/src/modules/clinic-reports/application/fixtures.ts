@@ -1,7 +1,7 @@
 // Fakes em memória das portas de `clinic-reports` (mesmo padrão dos outros módulos). Não é ficheiro de teste.
 import { ForbiddenError, NotFoundError } from "../../../platform/errors/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
-import { InMemoryRateLimiter } from "../../../platform/rate-limit/index.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { ConsultationBookingKind, ConsultationReport, ReportIssuer } from "../domain/consultation-report.js";
 import type { ExamOrder, ExamOrderStatus } from "../domain/exam-order.js";
@@ -355,7 +355,7 @@ export function createClinicReportsFixtures(clock: Clock): ClinicReportsFixtures
     pdf,
     audit,
     withTransaction: (fn) => fn(FAKE_TRX),
-    limiter: new InMemoryRateLimiter(clock),
+    limiter: new InMemoryRateLimiter(clock, { namespace: "clinic-reports" }),
     clock,
   };
   return { deps, reportsRepo, bookings, familyAppointments, profile, professionals, patientAccess, pdf, audit, ordersRepo, orderAlerts, services };

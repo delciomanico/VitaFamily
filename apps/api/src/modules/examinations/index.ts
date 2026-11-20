@@ -11,7 +11,7 @@ import { withTransaction } from "../../platform/db/index.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { ClinicsModule } from "../clinics/index.js";
-import { InMemoryRateLimiter } from "../../platform/rate-limit/index.js";
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import type { DocumentsModule } from "../documents/index.js";
 import {
   createCancelClinicExaminationUseCase,
@@ -46,6 +46,8 @@ export type { ActFactOfExamination, ProcessActor, ProcessLinkerPort } from "./ap
 
 export interface ExaminationsModuleDeps {
   db: Kysely<Database>;
+  /** Porta assíncrona (ADR-038), namespace `examinations`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   audit: AuditModule;
   access: AccessModule;
   clinics: ClinicsModule;
@@ -143,7 +145,7 @@ export function createExaminationsModule(deps: ExaminationsModuleDeps): Examinat
     reportGenerator: deps.reportGenerator,
     examOrders: deps.examOrders,
     processes: deps.processes,
-    limiter: new InMemoryRateLimiter(deps.clock),
+    limiter: deps.rateLimiter,
     policy: deps.access.policy,
     memberNames: { getMemberName: deps.access.getMemberName },
     alerts: deps.alerts,

@@ -16,7 +16,7 @@ POST /families/{familyId}/members/{memberId}/documents   (multipart/form-data)
   → interface/router.ts                    # multer (via express-openapi-validator) põe o
                                              #   ficheiro em memória (req.files)
     → application/upload-document.ts
-      → domain/rate-limiter.ts             #   20/hora por utilizador (RATE_LIMITED)
+      → platform/rate-limit (porta)         #   20/hora por utilizador (RATE_LIMITED; 503 se o suporte falhar)
       → domain/file-type.ts                #   magic bytes -> PDF/JPG/PNG ou FILE_TYPE_NOT_ALLOWED
       → access/index.js (policy.can)       #   CREATE/MEDICATION|EXAMS -> ALLOW ou DENY
       → infra: countByResource/sumSizeByFamily -> DOCUMENT_LIMIT_EXCEEDED/STORAGE_QUOTA_EXCEEDED

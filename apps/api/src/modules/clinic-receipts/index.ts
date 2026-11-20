@@ -7,7 +7,7 @@ import type { Router } from "express";
 import type { Kysely } from "kysely";
 import type { Clock } from "../../platform/clock/index.js";
 import { withTransaction, type Database } from "../../platform/db/index.js";
-import { InMemoryRateLimiter } from "../../platform/rate-limit/index.js";
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import { createFindIssuedReceiptIdsUseCase } from "./application/issued-receipts.js";
@@ -34,6 +34,8 @@ export interface ClinicReceiptsModuleDeps {
   audit: AuditModule;
   access: AccessModule;
   clock: Clock;
+  /** Porta assíncrona (ADR-038), namespace `clinic-receipts`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   /** Marcação concluída da clínica (implementada por `appointments`, `examinations` e `clinic-patients`; ligada no composition root). */
   bookings: BookingSourcePort<Kysely<Database>>;
   /** `ClinicConsent` (implementada por `clinic-patients`). */
@@ -66,7 +68,7 @@ export function createClinicReceiptsModule(deps: ClinicReceiptsModuleDeps): Clin
     policy: deps.access.policy,
     audit: deps.audit,
     withTransaction: (fn) => withTransaction(deps.db, fn),
-    listLimiter: new InMemoryRateLimiter(deps.clock),
+    listLimiter: deps.rateLimiter,
     clock: deps.clock,
   };
 

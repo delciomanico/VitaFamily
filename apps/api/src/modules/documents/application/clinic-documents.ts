@@ -38,7 +38,7 @@ export function createUploadClinicExamDocumentUseCase<Trx>(deps: DocumentsDeps<T
     resolveTarget: (trx: Trx) => Promise<ClinicDocumentTarget>,
     context: RequestContext,
   ): Promise<Document> {
-    const decision = deps.rateLimiter.consume(`clinic-upload:${actor.clinicAccountId}`, CLINIC_UPLOAD_RATE_LIMIT);
+    const decision = await deps.rateLimiter.consume({ rule: "clinic-upload", subject: actor.clinicAccountId }, CLINIC_UPLOAD_RATE_LIMIT);
     if (!decision.allowed) {
       throw new RateLimitedError(decision.retryAfterMs, { detail: "Demasiados carregamentos; tente mais tarde." });
     }

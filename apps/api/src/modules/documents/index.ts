@@ -33,7 +33,7 @@ import type { DocumentsDeps, ReleaseGatePort, ScanDocumentDeps, VirusScanner } f
 import { createDeleteFilesUseCase } from "./application/delete-files.js";
 import { createScanDocumentUseCase } from "./application/scan-document.js";
 import { createUploadDocumentUseCase } from "./application/upload-document.js";
-import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import { KyselyDocumentsRepository, KyselyFileDeletionsRepository } from "./infrastructure/repo.js";
 import { PgBossScanQueue, registerDeleteFilesWorker, registerScanWorker } from "./infrastructure/scan-queue.js";
 import { toDocumentResponse } from "./interface/dto.js";
@@ -50,6 +50,8 @@ export interface DocumentsModuleDeps {
   audit: AuditModule;
   access: AccessModule;
   clock: Clock;
+  /** Porta assíncrona (ADR-038), namespace `documents`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   storage: Storage;
   /** Precisa de existir mas só é chamado pelo worker (`registerWorker`, `createDocumentsWorkerModule`). */
   virusScanner: VirusScanner;
@@ -105,7 +107,7 @@ export function createDocumentsModule(deps: DocumentsModuleDeps): DocumentsModul
     virusScanner: deps.virusScanner,
     scanQueue,
     ...(deps.releaseGate ? { releaseGate: deps.releaseGate } : {}),
-    rateLimiter: new InMemoryRateLimiter(deps.clock),
+    rateLimiter: deps.rateLimiter,
     db: deps.db,
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,

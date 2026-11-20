@@ -71,7 +71,7 @@ function toRecord(
 export function createSaveReportUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
   return async function saveReport(actor: ClinicPortalActor, bookingId: string, body: unknown, context: RequestContext): Promise<ClinicConsultationReportView> {
     const professionalId = assertCanWrite(actor);
-    consumeLimit(deps.limiter, "write", actor.clinicAccountId);
+    await consumeLimit(deps.limiter, "write", actor.clinicAccountId);
     const input = parseReportInput(body);
 
     return deps.withTransaction(async (trx) => {
@@ -96,7 +96,7 @@ export function createSaveReportUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
 export function createFinalizeReportUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
   return async function finalizeReport(actor: ClinicPortalActor, bookingId: string, context: RequestContext): Promise<ClinicConsultationReportView> {
     const professionalId = assertCanWrite(actor);
-    consumeLimit(deps.limiter, "write", actor.clinicAccountId);
+    await consumeLimit(deps.limiter, "write", actor.clinicAccountId);
 
     return deps.withTransaction(async (trx) => {
       const booking = await resolveBooking(deps, trx, actor.clinicId, bookingId);
@@ -147,7 +147,7 @@ export function createFinalizeWithCompleteUseCase<Trx>(deps: ClinicReportsDeps<T
 export function createAddAddendumUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
   return async function addAddendum(actor: ClinicPortalActor, bookingId: string, body: unknown, context: RequestContext): Promise<ClinicConsultationReportView> {
     const professionalId = assertCanWrite(actor);
-    consumeLimit(deps.limiter, "write", actor.clinicAccountId);
+    await consumeLimit(deps.limiter, "write", actor.clinicAccountId);
     const text = parseAddendumInput(body);
 
     return deps.withTransaction(async (trx) => {
@@ -206,7 +206,7 @@ export interface GeneratedPdf {
 /** `GET /clinic-portal/agenda/{id}/report/pdf` (BR-CLN-46): gerado a pedido, não é guardado; 30/min por conta. */
 export function createGetReportPdfUseCase<Trx>(deps: ClinicReportsDeps<Trx>) {
   return async function getReportPdf(actor: ClinicPortalActor, bookingId: string, context: RequestContext): Promise<GeneratedPdf> {
-    consumeLimit(deps.limiter, "pdf", actor.clinicAccountId);
+    await consumeLimit(deps.limiter, "pdf", actor.clinicAccountId);
     return deps.withTransaction(async (trx) => {
       const report = await loadReadable(deps, trx, actor, bookingId);
       // O `FINAL` usa o retrato do perfil; o `DRAFT` o perfil atual (BR-CLN-46).

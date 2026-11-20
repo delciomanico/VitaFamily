@@ -9,8 +9,8 @@ import type { ClinicPortalActor, ExamResultDraftItem, ExaminationsDeps, RequestC
 const WRITE_LIMIT = { max: 60, windowMs: 60_000 };
 const PDF_LIMIT = { max: 30, windowMs: 60_000 };
 
-function consume<Trx>(deps: ExaminationsDeps<Trx>, kind: "draft-write" | "report-pdf", accountId: string): void {
-  const decision = deps.limiter.consume(`exam-${kind}:${accountId}`, kind === "draft-write" ? WRITE_LIMIT : PDF_LIMIT);
+async function consume<Trx>(deps: ExaminationsDeps<Trx>, kind: "draft-write" | "report-pdf", accountId: string): Promise<void> {
+  const decision = await deps.limiter.consume({ rule: `exam-${kind}`, subject: accountId }, kind === "draft-write" ? WRITE_LIMIT : PDF_LIMIT);
   if (!decision.allowed) throw new RateLimitedError(decision.retryAfterMs, { detail: "Demasiados pedidos; tente mais tarde." });
 }
 
@@ -72,7 +72,7 @@ export function createGetResultsDraftUseCase<Trx>(deps: ExaminationsDeps<Trx>) {
 /** `PUT …/results-draft`: guarda (substitui) o rascunho SEM concluir; o exame fica `SCHEDULED` e o paciente não vê nada. */
 export function createSaveResultsDraftUseCase<Trx>(deps: ExaminationsDeps<Trx>) {
   return async function saveResultsDraft(actor: ClinicPortalActor, examinationId: string, body: unknown, context: RequestContext): Promise<ClinicExamResultsDraftView> {
-    consume(deps, "draft-write", actor.clinicAccountId);
+    await consume(deps, "draft-write", actor.clinicAccountId);
     const input = parseDraftInput(body);
     return deps.withTransaction(async (trx) => {
       const exam = await requireScopedExam(deps, trx, actor, examinationId);
@@ -88,7 +88,7 @@ export function createSaveResultsDraftUseCase<Trx>(deps: ExaminationsDeps<Trx>) 
 /** `DELETE …/results-draft`: idempotente (sem rascunho => 204). */
 export function createDiscardResultsDraftUseCase<Trx>(deps: ExaminationsDeps<Trx>) {
   return async function discardResultsDraft(actor: ClinicPortalActor, examinationId: string, context: RequestContext): Promise<void> {
-    consume(deps, "draft-write", actor.clinicAccountId);
+    await consume(deps, "draft-write", actor.clinicAccountId);
     await deps.withTransaction(async (trx) => {
       await requireScopedExam(deps, trx, actor, examinationId);
       const draft = await deps.draftsRepo.find(trx, examinationId);
@@ -107,7 +107,7 @@ export interface ExamReportDownload {
 /** `GET …/report/pdf` (BR-CLN-49): a clínica descarrega SÓ o laudo que o sistema gerou; exame não `COMPLETED`, sem laudo ou apagado => `NOT_FOUND`. */
 export function createDownloadExamReportUseCase<Trx>(deps: ExaminationsDeps<Trx>) {
   return async function downloadExamReport(actor: ClinicPortalActor, examinationId: string, context: RequestContext): Promise<ExamReportDownload> {
-    consume(deps, "report-pdf", actor.clinicAccountId);
+    await consume(deps, "report-pdf", actor.clinicAccountId);
     return deps.withTransaction(async (trx) => {
       const exam = await requireScopedExam(deps, trx, actor, examinationId);
       if (exam.status !== "COMPLETED") throw new NotFoundError({ detail: "Laudo não encontrado." });
