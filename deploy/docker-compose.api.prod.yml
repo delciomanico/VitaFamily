@@ -1,7 +1,7 @@
 # Backend em produção no Dokploy (ADR-014/ADR-017/ADR-019): sem domínio nem porta pública.
 # Não configurar nenhuma app/domínio para este serviço no Dokploy — só é alcançado dentro da
 # dokploy-network, pelo contentor "web" (deploy/docker-compose.web.prod.yml), que reencaminha
-# /api/ do seu nginx para http://api:8080/api/ (ADR-019). Postgres/MinIO/ClamAV continuam só na
+# /api/ do seu nginx para http://api:8080/api/ (ADR-019). Postgres/Redis/MinIO/ClamAV continuam só na
 # rede interna, alcançáveis pelo nome do serviço.
 # Variáveis de ambiente: copiar deploy/.env.example para deploy/.env e preencher com segredos de
 # produção (nunca os de dev) — nunca commitar deploy/.env.
@@ -24,6 +24,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
     restart: unless-stopped
@@ -37,6 +39,8 @@ services:
     networks: [dokploy-network]
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       # O runner de migrações não usa lock consultivo (db/migrate-runner.ts): se o worker
       # arrancasse em paralelo com o "api", os dois tentariam aplicar a mesma migração ao mesmo
@@ -61,6 +65,34 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
+
+  redis:
+    # ADR-038: só contadores dos limitadores de taxa. Rede interna, SEM porta publicada nem
+    # domínio; efémero (sem volume, sem backup; reiniciar zera os contadores). noeviction é
+    # deliberado: sem memória o limitador falha fechado em vez de despejar contadores.
+    # CONFIG/FLUSHALL/FLUSHDB/KEYS/DEBUG desativados (ADR-038 §11).
+    image: redis:7-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?defina REDIS_PASSWORD em .env}
+    command:
+      - sh
+      - -c
+      - >-
+        exec redis-server --requirepass "$$REDIS_PASSWORD" --save "" --appendonly no
+        --maxmemory 64mb --maxmemory-policy noeviction --protected-mode yes
+        --rename-command CONFIG "" --rename-command FLUSHALL "" --rename-command FLUSHDB ""
+        --rename-command KEYS "" --rename-command DEBUG ""
+    networks: [dokploy-network]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
     restart: unless-stopped
 
   minio:
