@@ -32,8 +32,9 @@ describe("createClinicPatient", () => {
     expect(fx.audit.events).toHaveLength(1);
     expect(fx.audit.events[0]).toMatchObject({ action: "CLINIC_PATIENT_CREATE", actorType: "CLINIC_ACCOUNT", actorClinicAccountId: "acc-a", resourceType: "ClinicPatient", resourceId: view.id, metadata: { origin: "MANUAL" } });
     expect(fx.audit.events[0]?.familyId).toBeUndefined();
-    const dump = JSON.stringify(fx.audit.events).toLowerCase();
-    for (const canary of ["canary", "911", "1980"]) expect(dump).not.toContain(canary);
+    // Os ids (UUID aleatórios, só hex e hífens) são removidos do dump; os canários têm espaços/hífens em posições que um UUID não admite.
+    const dump = JSON.stringify(fx.audit.events.map((e) => ({ ...e, resourceId: undefined, id: undefined }))).toLowerCase().replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<uuid>");
+    for (const canary of ["canary", "911 111", "911111", "1980-01-01", "1980"]) expect(dump).not.toContain(canary);
   });
 
   it("homónimos são válidos (sem unicidade por nome)", async () => {
