@@ -4,6 +4,7 @@
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import express from "express";
 import type { NextFunction, Request, RequestHandler, Response, Router } from "express";
 import type { Kysely } from "kysely";
 import PgBoss from "pg-boss";
@@ -39,7 +40,7 @@ import { createRecommendationsModule } from "../modules/recommendations/index.js
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
 import { createDiscoveryModule } from "../modules/discovery/index.js";
 import { PgBossProfessionalNoticeQueue, createMessagingModule } from "../modules/messaging/index.js";
-import { PgBossProfessionalNotices, PgBossProofScanQueue, createConsultationsModule, createSelfDealingGuard, type ConsultationsModule } from "../modules/consultations/index.js";
+import { PgBossProfessionalNotices, PgBossProofScanQueue, createConsultationsModule, createProofUploadGuard, createSelfDealingGuard, type ConsultationsModule } from "../modules/consultations/index.js";
 import { PgBossCredentialScanQueue, ProfessionalSmtpMailer, createProfessionalsModule, parseProfessionalSigningKeys } from "../modules/professionals/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
 
@@ -802,7 +803,11 @@ export function main(): void {
     },
   });
 
-  const server = app.listen(config.PORT, () => {
+  // Guarda de Content-Length à frente da app: tem de correr antes do multer do validador (que lê o corpo para memória).
+  const front = express();
+  front.use(createProofUploadGuard({ maxFileBytes: config.UPLOAD_MAX_BYTES }));
+  front.use(app);
+  const server = front.listen(config.PORT, () => {
     logger.info({ port: config.PORT, env: config.NODE_ENV }, "api_started");
   });
 

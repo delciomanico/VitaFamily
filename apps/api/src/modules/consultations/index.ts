@@ -45,6 +45,7 @@ import { createProfessionalBookingsRouter } from "./interface/professional-route
 import { createFamilyProofsRouter, createProfessionalProofsRouter } from "./interface/proofs-router.js";
 
 export * from "./domain/index.js";
+export { createProofUploadGuard } from "./interface/proof-upload-guard.js";
 export { createSelfDealingGuard } from "./application/self-dealing.js";
 export { ProofClamAvScanner } from "./infrastructure/clamav-client.js";
 export { PgBossProfessionalNotices, PgBossProofScanQueue } from "./infrastructure/jobs.js";

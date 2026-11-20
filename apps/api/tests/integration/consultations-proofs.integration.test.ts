@@ -3,8 +3,12 @@
 // upload da família (tipo por conteúdo, estados, limites, autorização, limite de pedidos), antivírus (CLEAN e INFECTED), decisão do profissional
 // (CONFIRM/REJECT, concorrência), downloads (cabeçalhos, auditoria, leitura em todos os estados, limite de 60/min), vista `proof` da marcação
 // do profissional e cascata/trigger para a outbox de ficheiros. Os ficheiros são fakes em memória; a BD é real.
+import { request as httpRequest } from "node:http";
+import type { AddressInfo } from "node:net";
+import express from "express";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createProofUploadGuard } from "../../src/modules/consultations/index.js";
 import { API, INFECTED_MARKER, START } from "../support/professionals-harness.js";
 import { startConsultationsHarness, type ConsultationsHarness, type OfferFixture, type ProfessionalFixture, type UserFixture } from "../support/consultations-harness.js";
 
@@ -624,5 +628,58 @@ describe("cascata e outbox de ficheiros", () => {
 
     await c.runDeleteFiles();
     expect(c.h.storage.objects.has(finalKey)).toBe(false);
+  });
+});
+
+describe("guarda de Content-Length (antes do parse multipart)", () => {
+  const front = (): express.Express => express().use(createProofUploadGuard({ maxFileBytes: 10 * 1024 * 1024 })).use(c.h.app);
+
+  it("acima do teto ⇒ 413 FILE_TOO_LARGE sem criar nada; normal passa; sem token continua 401", async () => {
+    const w = await world();
+    const pt = await patient();
+    const b = await booking(pt, w.video);
+    const url = proofsOf(pt.fam, pt.m, b);
+    const before = c.h.storage.objects.size;
+
+    const huge = Buffer.alloc(10 * 1024 * 1024 + 200 * 1024, 0x20);
+    huge.write("%PDF-", 0, "latin1");
+    const tooBig = await request(front()).post(url).set(authOf(pt.u.token)).attach("file", huge, { filename: "x.pdf", contentType: "application/pdf" });
+    expect(tooBig.status).toBe(413);
+    expect(tooBig.headers["content-type"]).toContain("application/problem+json");
+    expect(bodyOf(tooBig).code).toBe("FILE_TOO_LARGE");
+    expect(await count("SELECT count(*)::int AS n FROM payment_proofs WHERE booking_id = $1", [b])).toBe(0);
+    expect(c.h.storage.objects.size).toBe(before);
+
+    const anon = await request(front()).post(url).attach("file", pdf("anon"), { filename: "x.pdf", contentType: "application/pdf" });
+    expect(anon.status).toBe(401);
+
+    const ok = await request(front()).post(url).set(authOf(pt.u.token)).attach("file", pdf("normal"), { filename: "x.pdf", contentType: "application/pdf" });
+    expect(ok.status).toBe(201);
+  });
+
+  it("sem Content-Length (chunked) ⇒ 422 VALIDATION_ERROR; outras rotas não são afetadas", async () => {
+    const w = await world();
+    const pt = await patient();
+    const b = await booking(pt, w.video);
+    const server = front().listen(0);
+    try {
+      const { port } = server.address() as AddressInfo;
+      const status = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+        const req = httpRequest({ port, host: "127.0.0.1", method: "POST", path: proofsOf(pt.fam, pt.m, b), headers: { Authorization: `Bearer ${pt.u.token}`, "Content-Type": "multipart/form-data; boundary=x", "Transfer-Encoding": "chunked" } }, (res) => {
+          let data = "";
+          res.on("data", (d: Buffer) => { data += d.toString("utf8"); });
+          res.on("end", () => { resolve({ status: res.statusCode ?? 0, body: data }); });
+        });
+        req.on("error", reject);
+        req.write("--x--\r\n");
+        req.end();
+      });
+      expect(status.status).toBe(422);
+      expect((JSON.parse(status.body) as { code: string }).code).toBe("VALIDATION_ERROR");
+    } finally {
+      server.close();
+    }
+    const list = await request(front()).get(proofsOf(pt.fam, pt.m, b)).set(authOf(pt.u.token));
+    expect(list.status).toBe(200);
   });
 });
