@@ -10,6 +10,8 @@ export type ErrorCode =
   | "ACCOUNT_SUSPENDED"
   | "EMAIL_NOT_VERIFIED"
   | "FORBIDDEN"
+  | "SHARE_NOT_AVAILABLE"
+  | "SHARE_ALREADY_VIEWED"
   | "INVITATION_EMAIL_MISMATCH"
   | "TERMS_REACCEPTANCE_REQUIRED"
   | "INVITATION_INVALID"
@@ -63,6 +65,8 @@ export const errorCatalog: Record<ErrorCode, CatalogEntry> = {
   ACCOUNT_SUSPENDED: { status: 403, title: "Conta suspensa" },
   EMAIL_NOT_VERIFIED: { status: 403, title: "E-mail por verificar" },
   FORBIDDEN: { status: 403, title: "Sem permissão" },
+  SHARE_NOT_AVAILABLE: { status: 403, title: "Partilha indisponível" },
+  SHARE_ALREADY_VIEWED: { status: 403, title: "Partilha já vista" },
   INVITATION_EMAIL_MISMATCH: { status: 403, title: "E-mail diferente do convite" },
   TERMS_REACCEPTANCE_REQUIRED: { status: 403, title: "Novos termos por aceitar" },
   INVITATION_INVALID: { status: 404, title: "Convite inválido" },

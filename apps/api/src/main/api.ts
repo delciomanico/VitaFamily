@@ -41,6 +41,7 @@ import { createRecommendationsModule } from "../modules/recommendations/index.js
 import { createProcessesModule, type ProcessesModule } from "../modules/processes/index.js";
 import { createDiscoveryModule } from "../modules/discovery/index.js";
 import { PgBossProfessionalNoticeQueue, createMessagingModule } from "../modules/messaging/index.js";
+import { PgBossShareNotices, createRecordSharingModule, createSharedRecordsReader } from "../modules/record-sharing/index.js";
 import { PgBossProfessionalNotices, PgBossProofScanQueue, createConsultationsModule, createProofUploadGuard, createSelfDealingGuard, type ConsultationsModule } from "../modules/consultations/index.js";
 import { PgBossCredentialScanQueue, ProfessionalSmtpMailer, createProfessionalsModule, parseProfessionalSigningKeys } from "../modules/professionals/index.js";
 import { createClinicPatientsModule, type ClinicPatientsModule } from "../modules/clinic-patients/index.js";
@@ -480,6 +481,35 @@ export function main(): void {
   });
   late.consultations = consultations;
 
+  // MK4 (ADR-037 §8, modules.md nota 38): `record-sharing` só conhece PORTAS; aqui ligam-se a `access` (ação `SHARE_WITH_PROFESSIONALS`), à
+  // marcação-âncora (`consultations.shareAnchor`), à identidade do profissional, ao estado do membro e às leituras mínimas dos módulos de
+  // saúde (`SharedRecordsReader`, uma só porta; sem `AccessPolicy`: a autorização é a partilha).
+  const recordSharing = createRecordSharingModule({
+    db,
+    audit,
+    clock,
+    rateLimiter: rateLimiting.createRateLimiter("record-sharing"),
+    access: {
+      assertCanShare: async (trx, input) => {
+        const context = await access.policy.can(trx, { userId: input.userId, platformAdmin: input.platformAdmin, familyId: input.familyId, action: "SHARE_WITH_PROFESSIONALS", subjectMemberId: input.memberId });
+        return { relation: context.relation === "TUTOR_OF" ? "TUTOR_OF" : "SELF" };
+      },
+    },
+    anchor: consultations.shareAnchor,
+    professionals: { findIdentities: (ids) => professionals.directory.getConversationIdentities(ids) },
+    members: { isActive: async (trx, familyId, memberId) => (await families.findMemberById(trx, familyId, memberId))?.status === "ACTIVE" },
+    reader: createSharedRecordsReader({
+      birthDate: async (trx, familyId, memberId) => (await families.findMemberById(trx, familyId, memberId))?.birthDate ?? null,
+      bloodType: (trx, familyId, memberId) => families.getBloodType(trx, familyId, memberId),
+      allergies: (trx, familyId, memberId) => healthRecords.listSharedAllergies(trx, familyId, memberId),
+      conditions: (trx, familyId, memberId) => healthRecords.listSharedConditions(trx, familyId, memberId),
+      activeMedications: (trx, familyId, memberId) => medications.listActivePlansForSharing(trx, familyId, memberId),
+      appointments: (trx, familyId, memberId, since) => appointments.listSharedAppointments(trx, familyId, memberId, since),
+      examinations: (trx, familyId, memberId, since) => examinations.listSharedExams(trx, familyId, memberId, since),
+    }),
+    notices: new PgBossShareNotices(boss),
+  });
+
   // D19/ADR-023 (M7c): `recommendations` lê a origem pelas APIs públicas de `appointments`/`examinations`
   // e dispara `recommendation.added` por uma porta ligada à API pública de `alerts`.
   const recommendations = createRecommendationsModule({
@@ -799,6 +829,7 @@ export function main(): void {
       router.use(consultations.familyRouter);
       router.use(consultations.professionalRouter);
       router.use(consultations.adminRouter);
+      router.use(recordSharing.familyRouter);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);

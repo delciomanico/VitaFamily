@@ -51,24 +51,24 @@ export function validateCategories(professionalCategory: ProfessionalCategory, c
  * (marcação terminada há mais de 24 h): o chamador converte em `VALIDATION_ERROR`.
  */
 export function computeExpiresAtMs(validity: ShareValidity, now: Date, bookingEndsAt: Date): number {
-  const cap = now.getTime() + SHARE_LIMITS.maxValidityMs;
-  let target: number;
-  switch (validity) {
-    case "H24":
-      target = now.getTime() + 24 * HOUR_MS;
-      break;
-    case "D7":
-      target = now.getTime() + 7 * DAY_MS;
-      break;
-    case "D30":
-      target = cap;
-      break;
-    case "UNTIL_CONSULTATION_END_PLUS_24H":
-      target = Math.min(bookingEndsAt.getTime() + 24 * HOUR_MS, cap);
-      break;
-  }
+  const target = candidateExpiresAtMs(validity, now, bookingEndsAt);
   if (target <= now.getTime()) throw new RangeError("expiresAt tem de ser posterior ao instante atual");
   return target;
+}
+
+/** Data em que a partilha acabaria se fosse criada agora (mesmo que já passada: `options` mostra-a com `eligible=false`). */
+export function candidateExpiresAtMs(validity: ShareValidity, now: Date, bookingEndsAt: Date): number {
+  const cap = now.getTime() + SHARE_LIMITS.maxValidityMs;
+  switch (validity) {
+    case "H24":
+      return now.getTime() + 24 * HOUR_MS;
+    case "D7":
+      return now.getTime() + 7 * DAY_MS;
+    case "D30":
+      return cap;
+    case "UNTIL_CONSULTATION_END_PLUS_24H":
+      return Math.min(bookingEndsAt.getTime() + 24 * HOUR_MS, cap);
+  }
 }
 
 /** `true` se a opção de prazo ainda é elegível (`expiresAt > agora`); usado por `options` (`eligible`). */

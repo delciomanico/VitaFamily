@@ -254,7 +254,13 @@ export type AuditAction =
   | "ADMIN_PAYMENT_DISPUTE_DECIDE"
   | "ADMIN_REVIEW_REPORT_VIEW"
   | "ADMIN_REVIEW_REPORT_DECIDE"
-  | "PROOF_FILES_PURGED";
+  | "PROOF_FILES_PURGED"
+  // Mercado MK4, partilha de registos (audit.md §3): `metadata` só com ids internos, estados e contagens; NUNCA conteúdo partilhado,
+  // `participantLabel` nem categorias lidas (BR-MKT-75).
+  | "RECORD_SHARE_CREATE"
+  | "RECORD_SHARE_REVOKE"
+  | "PROFESSIONAL_SHARE_OPEN"
+  | "RECORD_SHARES_PURGED";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT" | "PROFESSIONAL_ACCOUNT";
 

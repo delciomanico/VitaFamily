@@ -10,6 +10,7 @@ import { KyselyAppointmentsRepository } from "../../src/modules/appointments/inf
 import { createFamilyAppointmentWriter, type FamilyAppointmentWriterImpl } from "../../src/modules/appointments/application/family-appointment-writer.js";
 import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createConsultationsJobs, createConsultationsMaintenance, createConsultationsModule, createSelfDealingGuard, type FamilyAlertKind, type ProfessionalNoticeEvent } from "../../src/modules/consultations/index.js";
+import { createRecordSharingModule, createSharedRecordsReader, type SharedRecordsSources } from "../../src/modules/record-sharing/index.js";
 import { createDiscoveryModule } from "../../src/modules/discovery/index.js";
 import { createFamiliesModule } from "../../src/modules/families/index.js";
 import { signProfessionalAccessToken } from "../../src/modules/professionals/domain/jwt.js";
@@ -102,6 +103,14 @@ export interface ConsultationsHarness {
   failRateLimiter: { value: boolean };
   /** Fonte `bookings` da exportação do titular (BR-MKT-64), tal como ligada a `lifecycle` em `main/api.ts`. */
   exportBookings: ReturnType<typeof createConsultationsModule>["reads"]["bookings"];
+  /** MK4 (`record-sharing`): avisos ao profissional enfileirados (depois do commit), por ordem. */
+  shareNoticeCalls: { professionalId: string; shareId: string }[];
+  /** Falha o enfileiramento do aviso enquanto `true` (a partilha não pode desfazer-se). */
+  failShareNotice: { value: boolean };
+  /** Categorias pedidas ao leitor de conteúdo em cada abertura (o conteúdo é um conjunto fixo; só se testam as secções). */
+  readerCalls: string[][];
+  /** Enquanto `true`, a leitura do conteúdo falha a meio (nada se consome, BR-MKT-71). */
+  failReader: { value: boolean };
   stop(): Promise<void>;
 }
 
@@ -113,6 +122,10 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
   const alertCalls: ConsultationsHarness["alertCalls"] = [];
   const noticeCalls: ConsultationsHarness["noticeCalls"] = [];
   const failRateLimiter = { value: false };
+  const shareNoticeCalls: ConsultationsHarness["shareNoticeCalls"] = [];
+  const failShareNotice = { value: false };
+  const readerCalls: string[][] = [];
+  const failReader = { value: false };
   /** Limitador em memória com o relógio do harness (os testes avançam o tempo), comutável para «Redis parado». */
   const switchableLimiter = (clock: FixedClock, namespace: string): RateLimiter => {
     const working = createTestRateLimiter(clock, namespace);
@@ -197,7 +210,42 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
       });
       late.stats = consultations.reviewStats;
       exportBookings = consultations.reads.bookings;
-      return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter];
+      // MK4: `record-sharing` ligado como em `main/api.ts`; a identificação (idade, estado do membro) é real (`families`), o conteúdo de saúde
+      // é um conjunto fixo mínimo (as leituras reais dos módulos de saúde têm o teste próprio, TC-MKT-124).
+      const sources: SharedRecordsSources<Kysely<Database>> = {
+        birthDate: async (trx, familyId, memberId) => (await families.findMemberById(trx, familyId, memberId))?.birthDate ?? null,
+        bloodType: () => Promise.resolve("O_POS"),
+        allergies: () => Promise.resolve([{ name: "Penicilina", since: null }]),
+        conditions: () => Promise.resolve([{ name: "Asma", kind: "CONDITION" as const, since: null, until: null }]),
+        activeMedications: () => Promise.resolve([{ name: "Paracetamol", dosage: "500 mg", startAt: new Date("2026-01-01T00:00:00Z"), endAt: null, continuous: true }]),
+        appointments: () => Promise.resolve([]),
+        examinations: () => Promise.resolve([]),
+      };
+      const reader = createSharedRecordsReader(sources);
+      const recordSharing = createRecordSharingModule({
+        db,
+        audit,
+        clock,
+        rateLimiter: switchableLimiter(clock, "record-sharing"),
+        access: {
+          assertCanShare: async (trx, input) => {
+            const ctx = await access.policy.can(trx, { userId: input.userId, platformAdmin: input.platformAdmin, familyId: input.familyId, action: "SHARE_WITH_PROFESSIONALS", subjectMemberId: input.memberId });
+            return { relation: ctx.relation === "TUTOR_OF" ? "TUTOR_OF" : "SELF" };
+          },
+        },
+        anchor: consultations.shareAnchor,
+        professionals: { findIdentities: (ids) => module.directory.getConversationIdentities(ids) },
+        members: { isActive: async (trx, familyId, memberId) => (await families.findMemberById(trx, familyId, memberId))?.status === "ACTIVE" },
+        reader: {
+          read: async (trx, input) => {
+            readerCalls.push([...input.categories]);
+            if (failReader.value) throw new Error("falha injetada na leitura");
+            return reader.read(trx, input);
+          },
+        },
+        notices: { enqueueNewShare: (input) => (failShareNotice.value ? Promise.reject(new Error("fila")) : (shareNoticeCalls.push(input), Promise.resolve())) },
+      });
+      return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter, recordSharing.familyRouter];
     },
     options.logStream ? { logStream: options.logStream } : {},
   );
@@ -368,6 +416,10 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
     failMail,
     failRateLimiter,
     exportBookings: exportBookingsRead,
+    shareNoticeCalls,
+    failShareNotice,
+    readerCalls,
+    failReader,
     async stop() {
       await h.stop();
     },

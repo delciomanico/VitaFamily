@@ -13,12 +13,33 @@ export interface ShareAnchorFacts {
   professionalCategory: "HEALTH" | "WELLNESS";
 }
 
+/** Factos da marcação SEM a categoria (lida à parte, fora da transação do chamador, para não reter duas ligações do pool). */
+export type ShareAnchorBase = Omit<ShareAnchorFacts, "professionalCategory"> & { specialtyId: string };
+
 export interface ShareAnchorStatus {
   status: BookingStatus;
 }
 
 export function createShareAnchor<Trx>(deps: { bookings: BookingRepository<Trx>; agenda: Pick<ProfessionalAgenda<Trx>, "findSpecialties"> }) {
   return {
+    /** Só a marcação (consulta `trx`, nenhuma outra ligação do pool); a categoria vem de `categoryOf`, fora da transação. */
+    async getAnchorBase(trx: Trx, familyId: string, memberId: string, bookingId: string): Promise<ShareAnchorBase | null> {
+      const booking = await deps.bookings.findForFamily(trx, familyId, memberId, bookingId, false);
+      if (!booking) return null;
+      return {
+        professionalId: booking.professionalId,
+        status: booking.status,
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        participantLabel: booking.participantLabel,
+        specialtyId: booking.specialtyId,
+      };
+    },
+    /** Categoria da especialidade (catálogo; ligação própria: nunca chamar dentro de uma transação aberta). */
+    async categoryOf(specialtyId: string): Promise<"HEALTH" | "WELLNESS" | null> {
+      const [specialty] = await deps.agenda.findSpecialties([specialtyId]);
+      return specialty ? specialty.category : null;
+    },
     /** Factos da marcação do membro (criação e opções); `null` se inexistente ou de outro membro/família. */
     async getAnchorFacts(trx: Trx, familyId: string, memberId: string, bookingId: string): Promise<ShareAnchorFacts | null> {
       const booking = await deps.bookings.findForFamily(trx, familyId, memberId, bookingId, false);
