@@ -30,6 +30,7 @@ import { createHealthRecordsRouter, type HealthRecordsController } from "./inter
 
 export type { Allergy } from "./domain/allergy.js";
 export type { BloodType } from "./domain/blood-type.js";
+import type { ConditionKind } from "./domain/medical-condition.js";
 export type { ConditionKind, MedicalCondition } from "./domain/medical-condition.js";
 
 export interface HealthRecordsModuleDeps {
@@ -48,6 +49,13 @@ export interface HealthRecordsModule {
     allergies: MemberRead<Record<string, unknown>[]>;
     conditions: MemberRead<Record<string, unknown>[]>;
   };
+  /**
+   * MK4 (BR-MKT-68, `record-sharing`, só leitura, **sem** `AccessPolicy`: a autorização é a partilha): alergias só com nome e «desde»
+   * (sem `notes` nem ids). Ligado em `main/api.ts`.
+   */
+  listSharedAllergies: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<{ name: string; since: string | null }[]>;
+  /** MK4 (BR-MKT-68): condições só com nome, tipo e datas (sem `notes` nem ids). */
+  listSharedConditions: (trx: Kysely<Database>, familyId: string, memberId: string) => Promise<{ name: string; kind: ConditionKind; since: string | null; until: string | null }[]>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -89,5 +97,9 @@ export function createHealthRecordsModule(deps: HealthRecordsModuleDeps): Health
       allergies: async (actor, familyId, memberId, context) => (await controller.listAllergies(actor, familyId, memberId, context)).map(toAllergyResponse),
       conditions: async (actor, familyId, memberId, context) => (await controller.listConditions(actor, familyId, memberId, context)).map(toConditionResponse),
     },
+    listSharedAllergies: async (trx, familyId, memberId) =>
+      (await allergiesRepo.listByMember(trx, familyId, memberId)).map((a) => ({ name: a.name, since: a.since ?? null })),
+    listSharedConditions: async (trx, familyId, memberId) =>
+      (await conditionsRepo.listByMember(trx, familyId, memberId)).map((c) => ({ name: c.name, kind: c.kind, since: c.since ?? null, until: c.until ?? null })),
   };
 }

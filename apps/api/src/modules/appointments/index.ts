@@ -46,6 +46,7 @@ import { createAppointmentsRouter, type AppointmentsController } from "./interfa
 import type { Appointment } from "./domain/appointment.js";
 
 import { createFamilyAppointmentWriter, type FamilyAppointmentWriterImpl } from "./application/family-appointment-writer.js";
+import type { AppointmentStatus } from "./domain/appointment.js";
 export type { Appointment, AppointmentStatus, ConfirmationSource, ConfirmationStatus } from "./domain/appointment.js";
 export type { ActFactOfAppointment, ProcessActor, ProcessLinkerPort, ReminderWindows } from "./application/ports.js";
 
@@ -105,6 +106,11 @@ export interface AppointmentsModule {
   clinicPortalRouter: Router;
   /** Leituras para `reports` (mesma autorização e auditoria dos endpoints GET). */
   reads: { appointments: MemberPageRead };
+  /**
+   * MK4 (BR-MKT-68, `record-sharing`, só leitura, **sem** `AccessPolicy`: a autorização é a partilha): consultas do membro desde `since`
+   * (inclui as futuras), só data/hora, estado, especialidade e nome do profissional (sem notas, motivo, clínica nem ids). Até 200, por data.
+   */
+  listSharedAppointments: (trx: Kysely<Database>, familyId: string, memberId: string, since: Date) => Promise<{ scheduledAt: Date; status: AppointmentStatus; specialty: string | null; professionalName: string | null }[]>;
   /** BR-CLN-04/BR-APT-11 (`clinics`, ligado no composition root): consultas `REQUESTED`/`SCHEDULED` por horário. */
   countActiveBySlot: (trx: Kysely<Database>, slotIds: string[]) => Promise<{ slotId: string; requested: number; scheduled: number }[]>;
   /** M14 P (BR-CLN-20, `clinic-patients`): o limiter do walk-in (BR-CLN-10), partilhado com a ligação por código. */
@@ -247,6 +253,12 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     familyAppointmentWriter: createFamilyAppointmentWriter(appointmentsDeps),
     clinicPortalRouter: createAppointmentsClinicPortalRouter(clinicPortalController),
     countActiveBySlot: (trx, slotIds) => appointmentsRepo.countActiveBySlot(trx, slotIds),
+    listSharedAppointments: async (trx, familyId, memberId, since) => {
+      const page = await appointmentsRepo.listByMember(trx, familyId, memberId, { from: since }, 200);
+      return page.items
+        .map((a) => ({ scheduledAt: a.scheduledAt, status: a.status, specialty: a.specialty ?? null, professionalName: a.professionalName ?? null }))
+        .sort((x, y) => x.scheduledAt.getTime() - y.scheduledAt.getTime());
+    },
     getActFacts: createGetActFactsUseCase(new KyselyAppointmentActFactsSource()),
     walkInRateLimiter,
     listClinicFacts: async (trx, clinicId, filter, limit) =>
