@@ -53,7 +53,7 @@ export function BottomNav({ unread = 0 }: BottomNavProps) {
                 aria-label={id === 'conversations' && unread > 0 ? `${label}, ${unread} por ler` : undefined}
                 className={cn(
                   'relative flex min-h-16 flex-col items-center justify-center gap-0.5 px-1 py-2 text-sm transition-colors focus-visible:outline-offset-[-3px]',
-                  isActive ? 'font-extrabold text-primary' : 'font-medium text-muted hover:text-foreground',
+                  isActive ? 'font-semibold text-primary' : 'font-medium text-muted hover:text-foreground',
                 )}
               >
                 <span className="relative flex h-8 w-14 items-center justify-center">

@@ -20,7 +20,7 @@ interface ScreenHeaderProps {
 export function ScreenHeader({ title, backTo, backLabel = 'Voltar', subtitle, action }: ScreenHeaderProps) {
   const navigate = useNavigate()
   return (
-    <header className="flex flex-col gap-2">
+    <header className="sticky top-0 z-20 -mx-5 -mt-5 flex flex-col gap-2 bg-background px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-2">
       <Link
         to={backTo}
         onClick={(event) => {
@@ -35,7 +35,7 @@ export function ScreenHeader({ title, backTo, backLabel = 'Voltar', subtitle, ac
       </Link>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-[1.875rem] leading-tight font-extrabold text-balance">{title}</h1>
+          <h1 className="text-[1.5rem] leading-tight font-semibold text-balance">{title}</h1>
           {subtitle && <p className="mt-1 text-base text-muted">{subtitle}</p>}
         </div>
         {action}
@@ -49,7 +49,7 @@ export function TabHeader({ title, subtitle, action }: { title: string; subtitle
   return (
     <header className="flex items-start justify-between gap-3 pt-1">
       <div className="min-w-0">
-        <h1 className="text-[1.875rem] leading-tight font-extrabold text-balance">{title}</h1>
+        <h1 className="text-[1.5rem] leading-tight font-semibold text-balance">{title}</h1>
         {subtitle && <p className="mt-1 text-base text-muted">{subtitle}</p>}
       </div>
       {action}

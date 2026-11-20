@@ -8,7 +8,7 @@ import { bottomNav, profileNav } from './navigation'
 const itemClass = (isActive: boolean) =>
   cn(
     'flex min-h-16 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[0.8125rem] leading-tight transition-colors',
-    isActive ? 'font-extrabold text-primary' : 'font-semibold text-muted hover:text-foreground',
+    isActive ? 'font-semibold text-primary' : 'font-semibold text-muted hover:text-foreground',
   )
 
 /**

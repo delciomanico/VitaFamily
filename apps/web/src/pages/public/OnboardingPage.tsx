@@ -79,7 +79,7 @@ export function OnboardingPage() {
         style={{ borderRadius: '50% 50% 0 0 / 2.5rem 2.5rem 0 0' }}
       >
         <div className="flex flex-col gap-2.5">
-          <h1 className="text-[1.625rem] leading-tight font-bold tracking-tight text-balance">{slide.title}</h1>
+          <h1 className="text-[1.375rem] leading-tight font-bold tracking-tight text-balance">{slide.title}</h1>
           <p className="text-muted text-balance">{slide.description}</p>
         </div>
 

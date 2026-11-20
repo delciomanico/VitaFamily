@@ -52,17 +52,19 @@ export function Page({
   return (
     <div className={cn(fullScreen && 'flex h-[calc(100dvh-var(--bottom-nav-h,0px))] flex-col overflow-hidden')}>
       {hero ? (
-        <header className="shrink-0">
-          <HeroBand sun={sun} className="pt-safe">
+        <>
+          <header className="sticky top-0 z-20 shrink-0 bg-brand-deep pt-safe text-white">
             <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-2 px-4 lg:px-8">
               <LogoMark tone="inverse" className="size-9" />
               <AlertsButton />
             </div>
-            <div className="mx-auto max-w-3xl px-4 pt-3 lg:px-8"><div className={sun ? 'pr-24' : undefined}>{hero}</div></div>
+          </header>
+          <HeroBand sun={sun}>
+            <div className="mx-auto max-w-3xl px-4 pt-1 lg:px-8"><div className={sun ? 'pr-24' : undefined}>{hero}</div></div>
           </HeroBand>
-        </header>
+        </>
       ) : (
-      <header className="shrink-0 rounded-b-3xl bg-brand-deep pt-safe text-white">
+      <header className="sticky top-0 z-20 shrink-0 rounded-b-3xl bg-brand-deep pt-safe text-white">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4 lg:px-8">
           {backTo && (
             <Link

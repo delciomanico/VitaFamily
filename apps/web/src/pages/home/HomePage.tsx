@@ -30,7 +30,7 @@ export function HomePage() {
 
   const hero = (
     <>
-      <h1 className="font-display text-[2rem] leading-tight font-extrabold text-balance">Olá, {firstName(name)}</h1>
+      <h1 className="font-display text-[1.5rem] leading-tight font-semibold text-balance">Olá, {firstName(name)}</h1>
       <p className="mt-1 text-base text-white/85">{formatLongDate(luandaDayISO(new Date()))}</p>
       {doses.length > 0 && (
         <p className="mt-0.5 text-base font-semibold text-sun">

@@ -158,7 +158,7 @@ export function SettingsPage() {
       <div className="flex items-center gap-4 rounded-3xl bg-surface p-5 shadow-card">
         <Avatar name={name} size="xl" />
         <div className="min-w-0">
-          <p className="truncate font-display text-[1.75rem] leading-tight font-extrabold">{name}</p>
+          <p className="truncate font-display text-[1.5rem] leading-tight font-semibold">{name}</p>
           {family?.name && <p className="truncate text-lg text-muted">{family.name}</p>}
         </div>
       </div>
