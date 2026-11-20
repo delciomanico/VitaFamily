@@ -29,6 +29,15 @@ export interface IssueProfessionalPrescriptionInput {
 }
 
 const dayFormat = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Luanda", year: "numeric", month: "2-digit", day: "2-digit" });
+/**
+ * «Hoje em Africa/Luanda» (BR-MKT-80), nunca depois do dia UTC: a BD valida `issued_on <= current_date` na sessão em UTC, e entre as 23:00 e as
+ * 24:00 UTC já é o dia seguinte em Luanda (a emissão rebentaria). Nessa hora usa-se o dia UTC (OP-129, omissão segura).
+ */
+function issuedOnFor(at: Date): string {
+  const luanda = dayFormat.format(at);
+  const utc = at.toISOString().slice(0, 10);
+  return luanda < utc ? luanda : utc;
+}
 const invalid = (field: string, message: string): ValidationError => new ValidationError([{ field, message }], { detail: "Dados inválidos." });
 const notFound = (): NotFoundError => new NotFoundError({ detail: "Marcação não encontrada." });
 
@@ -81,7 +90,7 @@ export function createProfessionalPrescriptions<Trx>(deps: ConsultationsDeps<Trx
             professionalId: actor.professionalId,
             professionalAccountId: actor.professionalAccountId,
             professionalName: identity.displayName,
-            issuedOn: dayFormat.format(at),
+            issuedOn: issuedOnFor(at),
             notes: content.notes,
             medications: content.medications,
           },
