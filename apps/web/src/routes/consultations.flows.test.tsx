@@ -165,14 +165,16 @@ describe('marcar e avaliar (família)', () => {
 describe('portal do profissional: marcações e avaliações', () => {
   it('só vê o rótulo; confirma um pedido e decide o comprovativo', async () => {
     await loginProfessional('marta.lopes@exemplo.ao', paths.professionalBookings)
+    // O Início também lista marcações: espera-se pelo separador certo antes de ler a lista.
+    await screen.findByRole('heading', { name: 'Marcações' })
     expect(await screen.findByText('Pai do Pedro')).toBeInTheDocument()
     expect(screen.getByText('Comprovativo por analisar.')).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/mem_|fam_|usr_/)
 
     fireEvent.click(screen.getByText('Pai do Pedro'))
-    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar marcação' }))
     const dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirmar' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sim, confirmar' }))
     expect(await screen.findByText('Confirmada')).toBeInTheDocument()
 
     cleanup()
@@ -181,6 +183,7 @@ describe('portal do profissional: marcações e avaliações', () => {
     expect(await screen.findByText('Comprovativo de pagamento')).toBeInTheDocument()
     expect(screen.getByText(/A Vita Family não valida o dinheiro/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Sim, confirmar' }))
     expect(await screen.findByText('Pagamento confirmado')).toBeInTheDocument()
   })
 
@@ -188,10 +191,10 @@ describe('portal do profissional: marcações e avaliações', () => {
     await loginProfessional('marta.lopes@exemplo.ao', paths.professionalBooking('bkg_seed_pa_conf'))
     fireEvent.click(await screen.findByRole('button', { name: 'Recusar comprovativo' }))
     const dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Recusar comprovativo' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sim, recusar' }))
     expect(await within(dialog).findByText('Preencha este campo.')).toBeInTheDocument()
     fireEvent.input(within(dialog).getByLabelText('Motivo'), { target: { value: 'Valor incorreto' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Recusar comprovativo' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sim, recusar' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(await screen.findByText('Motivo indicado: Valor incorreto')).toBeInTheDocument()
   })

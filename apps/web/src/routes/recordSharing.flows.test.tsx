@@ -199,6 +199,8 @@ describe('receita digital (atrás da flag)', () => {
     setDigitalPrescriptionEnabled(true)
     consultationsDb.bookings.find((b) => b.id === 'bkg_seed_pa_done')!.offer.category = 'HEALTH'
     asProfessional(paths.professionalBooking('bkg_seed_pa_done'))
+    // Secção recolhida: abre-se «Receita» para chegar à ação.
+    fireEvent.click(await screen.findByRole('button', { name: /^Receita/ }))
     fireEvent.click(await screen.findByRole('link', { name: 'Emitir receita' }))
     expect(await screen.findByText(/\[PROVISÓRIO\]/)).toBeInTheDocument()
 

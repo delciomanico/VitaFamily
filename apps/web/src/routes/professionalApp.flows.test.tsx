@@ -128,3 +128,59 @@ describe('separador Perfil', () => {
     cleanup()
   })
 })
+
+describe('Marcações', () => {
+  it('filtros em pílulas (um ativo de cada vez) e lista agrupada por dia', async () => {
+    asProfessional('/profissional/marcacoes')
+    const group = await screen.findByRole('group', { name: 'Mostrar marcações' })
+    expect(within(group).getByRole('button', { name: 'Próximas' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByText('Pai do Pedro')).toBeInTheDocument()
+    fireEvent.click(within(group).getByRole('button', { name: 'Concluídas' }))
+    expect(within(group).getByRole('button', { name: 'Concluídas' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(group).getByRole('button', { name: 'Próximas' })).toHaveAttribute('aria-pressed', 'false')
+    await waitFor(() => expect(screen.queryByText('Pai do Pedro')).not.toBeInTheDocument())
+  })
+
+  it('estado vazio amigável com uma ação', async () => {
+    asProfessional('/profissional/marcacoes')
+    fireEvent.click(await screen.findByRole('button', { name: 'Recusadas' }))
+    expect(await screen.findByText('Não recusou nenhum pedido.')).toBeInTheDocument()
+  })
+
+  it('detalhe: resumo no topo, um só passo («O que falta fazer») e secções recolhidas que se abrem ao toque', async () => {
+    asProfessional('/profissional/marcacoes/bkg_seed_pa_conf')
+    expect(await screen.findByRole('heading', { name: 'O que falta fazer' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Resumo da marcação')).toHaveTextContent('Confirmada')
+    const payment = screen.getByRole('button', { name: /^Pagamento/ })
+    // Há um comprovativo por analisar: a secção relevante já vem aberta.
+    expect(payment).toHaveAttribute('aria-expanded', 'true')
+    const share = screen.getByRole('button', { name: /^Partilha de registos/ })
+    expect(share).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Ver partilhas desta marcação' })).not.toBeInTheDocument()
+    fireEvent.click(share)
+    expect(share).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Ver partilhas desta marcação' })).toHaveAttribute('href', '/profissional/partilhas?marcacao=bkg_seed_pa_conf')
+    fireEvent.click(payment)
+    expect(payment).toHaveAttribute('aria-expanded', 'false')
+    expect(document.body.textContent).not.toMatch(/\b(REQUESTED|CONFIRMED|DISPUTED|SUBMITTED|COMPLETED|NO_SHOW)\b/)
+  })
+
+  it('confirmar o pagamento pede «Sim» ou «Não»; «Não» não faz nada', async () => {
+    asProfessional('/profissional/marcacoes/bkg_seed_pa_conf')
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar pagamento' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Confirmar que recebeu o pagamento?')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Não' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Confirmar pagamento' })).toBeInTheDocument()
+    expect(screen.queryByText('Pagamento confirmado')).not.toBeInTheDocument()
+  })
+
+  it('recusar um pedido exige motivo e usa «Sim, recusar»', async () => {
+    asProfessional('/profissional/marcacoes/bkg_seed_pa_req')
+    fireEvent.click(await screen.findByRole('button', { name: 'Recusar' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sim, recusar' }))
+    expect(await within(dialog).findByText('Preencha este campo.')).toBeInTheDocument()
+  })
+})
