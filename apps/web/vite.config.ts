@@ -56,6 +56,6 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: false,
     // Os testes de fluxo montam o router inteiro; com a máquina carregada passavam dos 5 s por omissão.
-    testTimeout: 20000,
+    testTimeout: 30000,
   },
 })

@@ -4,8 +4,8 @@ import { afterEach } from 'vitest'
 
 afterEach(cleanup)
 
-// Os testes de fluxo correm em paralelo e o jsdom é lento: 1 s por omissão dava falhas intermitentes.
-configure({ asyncUtilTimeout: 4000 })
+// Os testes de fluxo correm em paralelo e o jsdom é lento: 1 s por omissão dava falhas intermitentes; sob carga (suite completa) 4 s também. Uma falha real só demora mais a aparecer.
+configure({ asyncUtilTimeout: 12000 })
 
 // O jsdom não implementa scrollIntoView (usado pela tira de dias, DatePickers): no-op.
 if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
