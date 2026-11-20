@@ -5,7 +5,7 @@
 // Privacidade: erros e auditoria nunca levam nome de ficheiro, motivo, nota nem instruções; o download audita SEMPRE (antes de entregar o stream).
 import { sendProfessionalNotice } from "./notices.js";
 import type { Readable } from "node:stream";
-import { ConflictError, DomainError, NotFoundError, RateLimitedError, ValidationError } from "../../../platform/errors/index.js";
+import { ConflictError, DomainError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { AuditEvent } from "../../audit/index.js";
@@ -14,7 +14,7 @@ import { detectFileKind, finalKey, MIME_BY_KIND, quarantineKey } from "../domain
 import { TEXT_LIMITS, validateOptionalFreeText, validateRequiredFreeText, type TextError } from "../domain/text.js";
 import type { ActorIdentity, BookingRecord, ConsultationsDeps, ProcessorFileDeps, ProfessionalActor, ProofRecord, RequestContext } from "./ports.js";
 import { isDownloadable, PROOF_EXTENSION, toProofView, type ProofView } from "./proof-views.js";
-import { SlidingWindowLimiter } from "./rate-limiter.js";
+import { enforceRate } from "./rate-limit.js";
 
 export interface ProofDownload {
   contentType: string;
@@ -22,21 +22,11 @@ export interface ProofDownload {
   stream: Readable;
 }
 
-const HOUR_MS = 3_600_000;
 const FIELD_ERRORS: Record<TextError, string> = { EMPTY: "não pode ser vazio", TOO_LONG: "excede o tamanho máximo", CONTROL_CHARACTER: "contém caracteres de controlo" };
 const invalid = (field: string, message: string): ValidationError => new ValidationError([{ field, message }], { detail: "Dados inválidos." });
 const notFound = (): NotFoundError => new NotFoundError({ detail: "Marcação ou comprovativo não encontrados." });
 
 export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
-  const uploadLimiter = new SlidingWindowLimiter(deps.clock, 20, HOUR_MS);
-  const downloadLimiter = new SlidingWindowLimiter(deps.clock, 60, 60_000);
-  const listLimiter = new SlidingWindowLimiter(deps.clock, 60, 60_000);
-  setInterval(() => {
-    uploadLimiter.prune();
-    downloadLimiter.prune();
-    listLimiter.prune();
-  }, 10 * 60_000).unref();
-
   async function authorize(trx: Trx, actor: ActorIdentity, familyId: string, memberId: string): Promise<void> {
     await deps.access.assertCanBook(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, memberId });
   }
@@ -50,8 +40,7 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
   return {
     /** Metadados dos comprovativos da marcação; não auditado. */
     async listProofs(actor: ActorIdentity, familyId: string, memberId: string, bookingId: string): Promise<ProofView[]> {
-      const wait = listLimiter.hit(actor.userId);
-      if (wait !== null) throw new RateLimitedError(wait);
+      await enforceRate(deps.rateLimiter, "proof-list", actor.userId);
       return deps.withTransaction(async (trx) => {
         await authorize(trx, actor, familyId, memberId);
         await loadBooking(trx, familyId, memberId, bookingId, false);
@@ -61,8 +50,7 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
 
     /** UC-MKT-35: carrega o comprovativo (`SUBMITTED`/`PENDING`) e passa `paymentStatus` a `PROOF_SUBMITTED`. */
     async uploadProof(actor: ActorIdentity, familyId: string, memberId: string, bookingId: string, file: { buffer: Buffer }, context: RequestContext): Promise<ProofView> {
-      const wait = uploadLimiter.hit(actor.userId);
-      if (wait !== null) throw new RateLimitedError(wait);
+      await enforceRate(deps.rateLimiter, "proof-upload", actor.userId);
       // BR-MKT-57: tipo verificado pelo CONTEÚDO, nunca pela extensão nem pelo Content-Type declarado.
       const kind = detectFileKind(file.buffer);
       if (!kind) throw new DomainError("FILE_TYPE_NOT_ALLOWED", { detail: "Tipo de ficheiro não permitido (só PDF, JPG, PNG)." });
@@ -180,8 +168,7 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
 
     /** Descarrega um comprovativo próprio (auditado SEMPRE; só `CLEAN`, não purgado). */
     async downloadProof(actor: ActorIdentity, familyId: string, memberId: string, bookingId: string, proofId: string, context: RequestContext): Promise<ProofDownload> {
-      const wait = downloadLimiter.hit(actor.userId);
-      if (wait !== null) throw new RateLimitedError(wait);
+      await enforceRate(deps.rateLimiter, "proof-download", actor.userId);
       const proof = await deps.withTransaction(async (trx) => {
         await authorize(trx, actor, familyId, memberId);
         await loadBooking(trx, familyId, memberId, bookingId, false);
@@ -210,11 +197,6 @@ export function createFamilyProofs<Trx>(deps: ConsultationsDeps<Trx>) {
 }
 
 export function createProfessionalProofs<Trx>(deps: ConsultationsDeps<Trx>) {
-  const downloadLimiter = new SlidingWindowLimiter(deps.clock, 60, 60_000);
-  setInterval(() => {
-    downloadLimiter.prune();
-  }, 10 * 60_000).unref();
-
   async function assertApproved(actor: ProfessionalActor): Promise<void> {
     const identity = (await deps.agenda.findIdentities([actor.professionalId]))[0];
     if (!identity?.approved) throw new DomainError("PROFESSIONAL_LOCKED", { detail: "O seu perfil não está aprovado: só pode consultar as marcações." });
@@ -223,8 +205,7 @@ export function createProfessionalProofs<Trx>(deps: ConsultationsDeps<Trx>) {
   return {
     /** Descarrega o comprovativo da própria marcação (leitura em qualquer estado de validação; auditado SEMPRE). */
     async downloadProof(actor: ProfessionalActor, bookingId: string, proofId: string, context: RequestContext): Promise<ProofDownload> {
-      const wait = downloadLimiter.hit(actor.professionalAccountId);
-      if (wait !== null) throw new RateLimitedError(wait);
+      await enforceRate(deps.rateLimiter, "professional-proof-download", actor.professionalAccountId);
       const proof = await deps.withTransaction(async (trx) => {
         const booking = await deps.bookings.findForProfessional(trx, actor.professionalId, bookingId, false);
         if (!booking) throw notFound();

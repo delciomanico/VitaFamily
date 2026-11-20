@@ -3,7 +3,7 @@
 // `ProfessionalDirectory`); nenhum módulo importa `discovery` (só `main/`).
 import type { Router } from "express";
 import type { Clock } from "../../platform/clock/index.js";
-import { InMemoryRateLimiter } from "../../platform/rate-limit/index.js";
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import { createDiscoveryUseCases, type DiscoveryUseCases } from "./application/discovery.js";
 import type { ProfessionalCatalog, ReviewStats } from "./application/ports.js";
 import { createDiscoveryRouter } from "./interface/router.js";
@@ -16,6 +16,8 @@ export type { ProfessionalCatalog, ProfessionalCatalogQuery, ReviewAggregate, Re
 export interface DiscoveryModuleDeps {
   catalog: ProfessionalCatalog;
   clock: Clock;
+  /** Porta assíncrona (ADR-038), namespace `discovery`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   /** Opcional até à S10 (`consultations` implementa a porta). */
   reviewStats?: ReviewStats;
 }
@@ -28,5 +30,5 @@ export interface DiscoveryModule {
 
 export function createDiscoveryModule(deps: DiscoveryModuleDeps): DiscoveryModule {
   const useCases = createDiscoveryUseCases({ catalog: deps.catalog, clock: deps.clock, ...(deps.reviewStats ? { reviewStats: deps.reviewStats } : {}) });
-  return { router: createDiscoveryRouter({ useCases, rateLimiter: new InMemoryRateLimiter(deps.clock) }), useCases };
+  return { router: createDiscoveryRouter({ useCases, rateLimiter: deps.rateLimiter }), useCases };
 }

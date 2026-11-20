@@ -16,6 +16,9 @@ import { signProfessionalAccessToken } from "../../src/modules/professionals/dom
 import { createMessagingModule } from "../../src/modules/messaging/index.js";
 import { createUsersModule } from "../../src/modules/users/index.js";
 import type { FixedClock } from "../../src/platform/clock/index.js";
+import type { RateLimiter } from "../../src/platform/rate-limit/async.js";
+import { FailingRateLimiter } from "../../src/platform/rate-limit/failing.js";
+import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
 import type { InMemoryStorage } from "../../src/platform/storage/index.js";
 import { withTransaction, type Database } from "../../src/platform/db/index.js";
 import { ADMIN_USER_ID, INFECTED_MARKER, SIGNING_KEYS, START, startProfessionalsHarness, type LogSink, type ProfessionalsHarness } from "./professionals-harness.js";
@@ -95,6 +98,8 @@ export interface ConsultationsHarness {
   mails: string[];
   /** Falha o envio do e-mail de aviso enquanto `true` (para o retry). */
   failMail: { value: boolean };
+  /** Enquanto `true`, os limitadores de `consultations` e `discovery` falham como o Redis parado (ADR-038 §5). */
+  failRateLimiter: { value: boolean };
   /** Fonte `bookings` da exportação do titular (BR-MKT-64), tal como ligada a `lifecycle` em `main/api.ts`. */
   exportBookings: ReturnType<typeof createConsultationsModule>["reads"]["bookings"];
   stop(): Promise<void>;
@@ -107,6 +112,18 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
   let jobsDeps: { db: Kysely<Database>; clock: FixedClock; storage: InMemoryStorage } | undefined;
   const alertCalls: ConsultationsHarness["alertCalls"] = [];
   const noticeCalls: ConsultationsHarness["noticeCalls"] = [];
+  const failRateLimiter = { value: false };
+  /** Limitador em memória com o relógio do harness (os testes avançam o tempo), comutável para «Redis parado». */
+  const switchableLimiter = (clock: FixedClock, namespace: string): RateLimiter => {
+    const working = new InMemoryRateLimiter(clock, { namespace });
+    const failing = new FailingRateLimiter(clock, namespace);
+    const current = (): RateLimiter => (failRateLimiter.value ? failing : working);
+    return {
+      consume: (key, rule, opts) => current().consume(key, rule, opts),
+      peek: (key, rule, opts) => current().peek(key, rule, opts),
+      reset: (key) => current().reset(key),
+    };
+  };
   const proofQueue = { jobs: [] as { proofId: string }[], enqueueScan(job: { proofId: string }): Promise<void> { this.jobs.push(job); return Promise.resolve(); } };
 
   const h = await startProfessionalsHarness(
@@ -124,7 +141,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
       });
       const access = createAccessModule({ db, audit, families, clock });
       const late: { stats?: ReturnType<typeof createConsultationsModule>["reviewStats"] } = {};
-      const discovery = createDiscoveryModule({ clock, reviewStats: { forSpecialty: (id) => late.stats?.forSpecialty(id) ?? Promise.resolve([]), forProfessionals: (ids) => late.stats?.forProfessionals(ids) ?? Promise.resolve([]) }, catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } });
+      const discovery = createDiscoveryModule({ clock, rateLimiter: switchableLimiter(clock, "discovery"), reviewStats: { forSpecialty: (id) => late.stats?.forSpecialty(id) ?? Promise.resolve([]), forProfessionals: (ids) => late.stats?.forProfessionals(ids) ?? Promise.resolve([]) }, catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } });
       const messaging = createMessagingModule({
         db,
         audit,
@@ -148,6 +165,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         db,
         audit,
         clock,
+        rateLimiter: switchableLimiter(clock, "consultations"),
         access: {
           // Mesma ligação que `main/api.ts`: só SELF/TUTOR_OF; DEPENDENT_SELF, OTHER e Family Admin como OTHER ⇒ 403; outra família ⇒ 404.
           assertCanBook: async (trx, input) => {
@@ -348,6 +366,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
     maintenance,
     mails,
     failMail,
+    failRateLimiter,
     exportBookings: exportBookingsRead,
     async stop() {
       await h.stop();

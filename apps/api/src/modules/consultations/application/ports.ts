@@ -2,6 +2,7 @@
 // `users`, `professionals`, `appointments`, `processes`, `alerts`, `notifications`, `messaging`, `discovery`, `admin`, `lifecycle` nem
 // módulos de saúde: tudo o que vem de fora entra por estas portas, ligadas em `main/api.ts`. Só `audit` e `platform`.
 // Texto livre (rótulo, notas, motivos, ligação) nunca sai por estas portas para logs, auditoria nem alertas (BR-MKT-63).
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { Readable } from "node:stream";
 import type { AuditEvent } from "../../audit/index.js";
 import type { BookingCancelledBy, BookingPaymentStatus, BookingStatus, BookingSystemReason } from "../domain/booking.js";
@@ -332,6 +333,8 @@ export interface ProfessionalMailer {
 export interface ConsultationsDeps<Trx> {
   withTransaction: WithTransaction<Trx>;
   clock: ConsultationsClock;
+  /** Porta assíncrona (ADR-038), namespace `consultations`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   audit: AuditPort<Trx>;
   access: BookingAccess<Trx>;
   agenda: ProfessionalAgenda<Trx>;

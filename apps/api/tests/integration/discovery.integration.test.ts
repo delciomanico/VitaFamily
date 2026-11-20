@@ -1,5 +1,6 @@
 // Integração (PostgreSQL real, app real com validação de respostas) das rotas `/marketplace/*` (MK2 S4): TC-MKT-38, 40..43, 49..52, 76 e
 // TC-AZ-MKT-09/16. A descoberta é ligada como em `main/api.ts` (porta `ProfessionalCatalog` sobre `ProfessionalDirectory`).
+import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
 import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -64,7 +65,7 @@ describe("integração: descoberta /marketplace/* (MK2 S4)", () => {
   }
 
   beforeAll(async () => {
-    h = await startProfessionalsHarness({}, ({ module, clock }) => [createDiscoveryModule({ clock, catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } }).router], { logStream: logs });
+    h = await startProfessionalsHarness({}, ({ module, clock }) => [createDiscoveryModule({ clock, rateLimiter: new InMemoryRateLimiter(clock, { namespace: "discovery" }), catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } }).router], { logStream: logs });
     token = await h.userToken();
     spec = await especialidade("Cardio");
     spec2 = await especialidade("Yoga", "WELLNESS");

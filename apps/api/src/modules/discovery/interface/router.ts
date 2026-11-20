@@ -6,7 +6,7 @@ import { Router } from "express";
 import { getActor } from "../../../platform/actor/index.js";
 import { RateLimitedError, UnauthenticatedError } from "../../../platform/errors/index.js";
 import { asyncHandler, requireParam } from "../../../platform/http/index.js";
-import type { RateLimiter } from "../../../platform/rate-limit/index.js";
+import { FailMode, type RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { DiscoveryUseCases, SearchInput } from "../application/discovery.js";
 import type { SearchSort } from "../domain/filters.js";
 
@@ -35,34 +35,34 @@ export function createDiscoveryRouter(deps: { useCases: DiscoveryUseCases; rateL
   const { useCases } = deps;
 
   /** User autenticado + 60 pedidos/min por utilizador. Chamado em cada handler (a ordem das rotas não importa). */
-  function guard(): void {
+  async function guard(): Promise<void> {
     const actor = getActor();
     if (!actor) throw new UnauthenticatedError({ detail: "Sem sessão válida." });
-    const decision = deps.rateLimiter.consume(`discovery:${actor.userId}`, RATE_RULE);
+    // ADR-038 §5: a descoberta é leitura de dados públicos; se o suporte falhar degrada para memória local (mesma regra).
+    const decision = await deps.rateLimiter.consume({ rule: "discovery", subject: actor.userId }, RATE_RULE, { failMode: FailMode.LOCAL_FALLBACK });
     if (!decision.allowed) throw new RateLimitedError(decision.retryAfterMs);
   }
 
   router.get(
     "/marketplace/filters",
     asyncHandler(async (_req, res) => {
-      guard();
+      await guard();
       res.set("Cache-Control", "no-store").json(await useCases.getFilters());
     }),
   );
 
   router.get(
     "/marketplace/ranking-rules",
-    asyncHandler((_req, res) => {
-      guard();
+    asyncHandler(async (_req, res) => {
+      await guard();
       res.set("Cache-Control", "no-store").json(useCases.getRankingRules());
-      return Promise.resolve();
     }),
   );
 
   router.get(
     "/marketplace/professionals",
     asyncHandler(async (req, res) => {
-      guard();
+      await guard();
       const q = req.query as Query;
       const input: SearchInput = {
         ...(str(q, "q") !== undefined ? { q: str(q, "q") } : {}),
@@ -85,7 +85,7 @@ export function createDiscoveryRouter(deps: { useCases: DiscoveryUseCases; rateL
   router.get(
     "/marketplace/professionals/compare",
     asyncHandler(async (req, res) => {
-      guard();
+      await guard();
       const q = req.query as Query;
       res.set("Cache-Control", "no-store").json(await useCases.compareProfessionals(ids(q), str(q, "specialtyId") ?? ""));
     }),
@@ -94,7 +94,7 @@ export function createDiscoveryRouter(deps: { useCases: DiscoveryUseCases; rateL
   router.get(
     "/marketplace/professionals/:professionalId",
     asyncHandler(async (req, res) => {
-      guard();
+      await guard();
       res.set("Cache-Control", "no-store").json(await useCases.getProfessionalProfile(requireParam(req, "professionalId"), str(req.query, "specialtyId")));
     }),
   );

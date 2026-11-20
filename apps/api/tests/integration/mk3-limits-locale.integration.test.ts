@@ -9,10 +9,8 @@
 //   calculado em Africa/Luanda na fronteira de mês (marcação a 2026-12-31T23:30Z ⇒ 2027-01-01); TODAS as respostas de erro do ficheiro (cada 4xx provocado
 //   nos testes) têm `title`/`detail`/`errors[]` em pt-PT, sem dados do utilizador (rótulo, nota, comentário, e-mail, ids) nem causas distinguíveis.
 // NÃO coberto aqui, com justificação:
-//   - «falha FECHADA se o limitador estiver indisponível» (TC-MKT-111 «S»): os limitadores de `consultations` são em memória, por processo
-//     (`SlidingWindowLimiter`, sem dependência externa que possa ficar indisponível), pelo que não existe caminho «aberto» a testar; os limites
-//     por BD (10 ativas, 10 criações/dia) são aplicados na transação. Fica `it.skip` abaixo com a justificação. Consequência de segurança (reportada):
-//     o limite 20/h, 20/dia, 10/dia e 60/min é por processo e perde-se num reinício; só o de 10 criações/dia e as 10 ativas assentam na BD.
+//   - Os limitadores de `consultations` assentam na porta `RateLimiter` (ADR-038; aqui o adaptador em memória com o relógio do harness); a «falha FECHADA»
+//     (TC-MKT-111 «S») é coberta abaixo com o limitador comutável do harness. Os limites por BD (10 ativas, 10 criações/dia) são aplicados na transação.
 //   - Os avisos de UI («Não escreva dados de saúde», aviso de categoria BR-MKT-02, aviso do comprovativo) são constantes da UI (apps/web): fora de apps/api.
 import { randomUUID } from "node:crypto";
 import request from "supertest";
@@ -301,7 +299,25 @@ describe("limites de MK3 (TC-MKT-111; BR-MKT-66)", () => {
     });
   });
 
-  it.skip("falha FECHADA se o limitador estiver indisponível — não aplicável: SlidingWindowLimiter é em memória por processo e não tem dependência externa (cabeçalho do ficheiro)", () => undefined);
+  it("falha FECHADA se o limitador estiver indisponível (ADR-038 §5, TC-MKT-111 «S»): 503 + Retry-After 5 nas rotas de consultations; a descoberta (leitura pública) degrada para memória", async () => {
+    const w = await world();
+    const pt = await patient();
+    c.failRateLimiter.value = true;
+    try {
+      // Pedidos diretos (fora de `get`): o 503 não entra no inventário de erros do ficheiro (4xx provocados).
+      const closed = await request(c.h.app).get(`${API}/marketplace/professionals/${w.pro.professionalId}/slots`).query({ offerId: w.video.id }).set(authOf(pt.u.token));
+      expect(closed.status).toBe(503);
+      expect(bodyOf(closed).code).toBe("SERVICE_UNAVAILABLE");
+      expect(closed.headers["retry-after"]).toBe("5");
+      expect(JSON.stringify(closed.body).toLowerCase()).not.toContain("redis");
+      const degraded = await request(c.h.app).get(`${API}/marketplace/filters`).set(authOf(pt.u.token));
+      expect(degraded.status).toBe(200);
+    } finally {
+      c.failRateLimiter.value = false;
+    }
+    const recovered = await request(c.h.app).get(`${API}/marketplace/professionals/${w.pro.professionalId}/slots`).query({ offerId: w.video.id }).set(authOf(pt.u.token));
+    expect(recovered.status).toBe(200);
+  });
 });
 
 describe("locale e formatos (TC-MKT-110; BR-MKT-02/31/59)", () => {

@@ -86,8 +86,8 @@ export function main(): void {
   const pool = createPool(config.DATABASE_URL);
   const db = createDb(pool);
   const clock = new SystemClock();
-  // ADR-038: a porta assíncrona `RateLimiter` (Redis) convive com os limitadores síncronos até RL3..RL7;
-  // por ora só a readiness a usa (PING). `createRateLimiter(namespace)` é para os módulos migrados.
+  // ADR-038: porta assíncrona `RateLimiter` (Redis); cada módulo recebe `createRateLimiter(<namespace>)`.
+  // O limitador síncrono histórico de `platform/rate-limit/index.ts` só sai em RL8.
   const rateLimiting = createRateLimiting(config, { clock, logger });
 
   // O MinIO pode ainda estar a arrancar quando a API sobe (mesmo compose): sem repetir, o bucket
@@ -246,6 +246,7 @@ export function main(): void {
   // `ProfessionalDirectory` (só `APPROVED`, dados públicos, lido em cada pedido). Sem `AccessPolicy` (dados públicos).
   const discovery = createDiscoveryModule({
     clock,
+    rateLimiter: rateLimiting.createRateLimiter("discovery"),
     catalog: {
       listApprovedFacts: (query) => professionals.directory.listApprovedFacts(query),
       getApprovedFacts: (ids) => professionals.directory.getApprovedFacts(ids),
@@ -447,6 +448,7 @@ export function main(): void {
     db,
     audit,
     clock,
+    rateLimiter: rateLimiting.createRateLimiter("consultations"),
     access: {
       assertCanBook: async (trx, input) => {
         const context = await access.policy.can(trx, { userId: input.userId, platformAdmin: input.platformAdmin, familyId: input.familyId, action: "BOOK_PROFESSIONALS", subjectMemberId: input.memberId });

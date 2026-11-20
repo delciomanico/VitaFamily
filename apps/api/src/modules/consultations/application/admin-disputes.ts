@@ -5,13 +5,13 @@
 // ordem do upload, da decisão do profissional e da disputa); a segunda decisão ⇒ `INVALID_STATE_TRANSITION`. O admin não valida dinheiro.
 import { sendProfessionalNotice } from "./notices.js";
 import type { Readable } from "node:stream";
-import { DomainError, ForbiddenError, NotFoundError, RateLimitedError } from "../../../platform/errors/index.js";
+import { DomainError, ForbiddenError, NotFoundError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { nextPaymentStatus, type PaymentEvent } from "../domain/payment.js";
 import { decodeBookingCursor, encodeBookingCursor } from "./cursor.js";
 import type { ActorIdentity, ConsultationsDeps, DisputeRow, ProofDisputeDecision, RequestContext } from "./ports.js";
 import { isDownloadable, PROOF_EXTENSION } from "./proof-views.js";
-import { SlidingWindowLimiter } from "./rate-limiter.js";
+import { enforceRate } from "./rate-limit.js";
 
 export interface AdminDisputeItemView {
   proofId: string;
@@ -45,11 +45,6 @@ function assertAdmin(actor: ActorIdentity): void {
 }
 
 export function createAdminDisputes<Trx>(deps: ConsultationsDeps<Trx>) {
-  const downloadLimiter = new SlidingWindowLimiter(deps.clock, 60, 60_000);
-  setInterval(() => {
-    downloadLimiter.prune();
-  }, 10 * 60_000).unref();
-
   const notFound = (): NotFoundError => new NotFoundError({ detail: "Disputa não encontrada." });
 
   async function present(rows: DisputeRow[]): Promise<{ identities: Map<string, { id: string; displayName: string; city: string | null }>; specialties: Map<string, string> }> {
@@ -142,8 +137,7 @@ export function createAdminDisputes<Trx>(deps: ConsultationsDeps<Trx>) {
     /** Download (BR-MKT-57): só com a disputa ABERTA (`DISPUTED`); decidida/inexistente/nunca disputada ⇒ negado. Auditado SEMPRE. */
     async downloadProof(actor: ActorIdentity, proofId: string, context: RequestContext): Promise<{ contentType: string; extension: string; stream: Readable }> {
       assertAdmin(actor);
-      const wait = downloadLimiter.hit(actor.userId);
-      if (wait !== null) throw new RateLimitedError(wait);
+      await enforceRate(deps.rateLimiter, "admin-dispute-download", actor.userId);
       const proof = await deps.withTransaction(async (trx) => {
         const row = await deps.proofs.findDispute(trx, proofId);
         if (!row) throw notFound();

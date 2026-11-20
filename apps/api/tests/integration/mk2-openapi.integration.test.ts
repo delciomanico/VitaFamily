@@ -1,6 +1,7 @@
 // Conformidade das 25 operações novas de MK2 (TC-MKT-74; TC-AZ-MKT-09; TC-MKT-47/68; TC-AZ-MKT-15 por inventário): rota montada e
 // protegida, tokens cruzados, corpos fechados, ausência de «boost» e de anexos, admin sem rota de leitura de conversas.
 // PostgreSQL real + API real validada contra o `openapi.yaml`; as portas de `messaging` são stubs (só se exercita a fronteira HTTP).
+import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -96,7 +97,7 @@ describe("MK2: conformidade OpenAPI das operações de discovery e messaging", (
 
   beforeAll(async () => {
     h = await startProfessionalsHarness({}, ({ audit, db, clock, module }) => {
-      const discovery = createDiscoveryModule({ clock, catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } });
+      const discovery = createDiscoveryModule({ clock, rateLimiter: new InMemoryRateLimiter(clock, { namespace: "discovery" }), catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } });
       const messaging = createMessagingModule({
         db,
         audit,

@@ -2,6 +2,7 @@
 // Fluxo ponta a ponta de MK2 (TC-MKT-65) com `access`/`families` reais, descoberta, conversas da família e do profissional e moderação
 // do admin, mais o canário de PII transversal (TC-MKT-52/69; AC-MKT-26): texto, rótulo, nota e pesquisa ausentes de logs, auditoria e
 // alertas; o profissional e o admin nunca recebem ids de família/membro/utilizador; enumeração indistinguível (TC-AZ-MKT-16).
+import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
 import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -80,7 +81,7 @@ describe("MK2: fluxo ponta a ponta e canário de PII (TC-MKT-65)", () => {
           memberData: { purgeMemberFiles: () => Promise.resolve(), purgeFamilyFiles: () => Promise.resolve(), exportBeforeRemoval: () => Promise.reject(new Error("não usado")) },
         });
         const access = createAccessModule({ db, audit, families, clock });
-        const discovery = createDiscoveryModule({ clock, catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } });
+        const discovery = createDiscoveryModule({ clock, rateLimiter: new InMemoryRateLimiter(clock, { namespace: "discovery" }), catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } });
         const messaging = createMessagingModule({
           db,
           audit,

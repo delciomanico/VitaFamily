@@ -3,17 +3,16 @@
 // é a rede). O profissional só vê/responde/denuncia as suas (outra ou inexistente ⇒ `NOT_FOUND` idêntico). O admin vê só a avaliação
 // denunciada. A nota conta SEMPRE (o comentário oculto sai como `commentHidden` sem texto). Texto livre nunca em auditoria, logs nem erros.
 import { sendProfessionalNotice } from "./notices.js";
-import { ConflictError, DomainError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from "../../../platform/errors/index.js";
+import { ConflictError, DomainError, ForbiddenError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { newId } from "../../../platform/ids/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import { BOOKING_LIMITS } from "../domain/booking.js";
 import { canEditReview, checkReviewCreate, isPlainText, isValidRating, publicComment, REVIEW_LIMITS, REVIEW_REPORT_REASONS, type ReviewReportReason } from "../domain/review.js";
 import { decodeBookingCursor, encodeBookingCursor } from "./cursor.js";
 import type { ActorIdentity, ConsultationsDeps, ProfessionalActor, RequestContext } from "./ports.js";
-import { SlidingWindowLimiter } from "./rate-limiter.js";
+import { enforceRate } from "./rate-limit.js";
 import type { ReviewRecord, ReviewReportDecision, ReviewReportRecord, ReviewReportRow } from "./review-ports.js";
 
-const DAY_MS = 24 * 60 * 60_000;
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const LUANDA = "Africa/Luanda";
@@ -104,15 +103,6 @@ function validateComment(raw: unknown): string | null {
 }
 
 export function createReviews<Trx>(deps: ConsultationsDeps<Trx>) {
-  const reviewLimiter = new SlidingWindowLimiter(deps.clock, 20, DAY_MS);
-  const publicLimiter = new SlidingWindowLimiter(deps.clock, 60, 60_000);
-  const reportLimiter = new SlidingWindowLimiter(deps.clock, 10, DAY_MS);
-  setInterval(() => {
-    reviewLimiter.prune();
-    publicLimiter.prune();
-    reportLimiter.prune();
-  }, 10 * 60_000).unref();
-
   const notFound = (): NotFoundError => new NotFoundError({ detail: "Não encontrado." });
 
   async function presentOwn(reviews: { review: ReviewRecord; reported: boolean }[]): Promise<ProfessionalReviewView[]> {
@@ -217,8 +207,7 @@ export function createReviews<Trx>(deps: ConsultationsDeps<Trx>) {
       if (typeof input.rating !== "number" || !isValidRating(input.rating)) throw invalid("rating", "tem de ser um inteiro de 1 a 5");
       const rating = input.rating;
       const comment = validateComment(input.comment);
-      const wait = reviewLimiter.hit(actor.userId);
-      if (wait !== null) throw new RateLimitedError(wait);
+      await enforceRate(deps.rateLimiter, "review-write", actor.userId);
       const result = await deps.withTransaction(async (trx): Promise<{ review: FamilyReviewView; created: boolean; professionalId?: string }> => {
         await deps.access.assertCanBook(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, memberId });
         // Bloqueio da marcação: serializa duas avaliações (ou criar/editar) da mesma marcação.
@@ -263,8 +252,7 @@ export function createReviews<Trx>(deps: ConsultationsDeps<Trx>) {
 
     // ---------------------------------------------------------------- pública (UC-MKT-40)
     async listPublic(actor: ActorIdentity, professionalId: string, query: { specialtyId?: string; limit?: number; cursor?: string }): Promise<Page<PublicReviewView> & { summary: ReviewSummaryView }> {
-      const wait = publicLimiter.hit(actor.userId);
-      if (wait !== null) throw new RateLimitedError(wait);
+      await enforceRate(deps.rateLimiter, "review-public", actor.userId);
       const limit = limitOf(query.limit);
       const after = query.cursor === undefined ? undefined : decodeBookingCursor(query.cursor);
       const identity = (await deps.agenda.findIdentities([professionalId]))[0];
@@ -354,8 +342,7 @@ export function createReviews<Trx>(deps: ConsultationsDeps<Trx>) {
         await assertApproved(actor);
         const existing = await deps.reviews.findReportByReview(trx, reviewId);
         if (existing) return { report: reportView(existing), created: false };
-        const wait = reportLimiter.hit(actor.professionalAccountId);
-        if (wait !== null) throw new RateLimitedError(wait);
+        await enforceRate(deps.rateLimiter, "review-report", actor.professionalAccountId);
         const at = deps.clock.now();
         const report: ReviewReportRecord = { id: newId(), reviewId, reason, note, status: "OPEN", decision: null, decidedAt: null, createdAt: at };
         if (!(await deps.reviews.insertReport(trx, report))) {

@@ -1,4 +1,4 @@
-// ADR-038 §5 (RL5, RL6): com o suporte dos limitadores em falha, estas rotas falham fechadas (503, nunca passam);
+// ADR-038 §5 (RL5, RL6, RL7): com o suporte dos limitadores em falha, estas rotas falham fechadas (503, nunca passam);
 // quando o limitador recusa, o 429 mantém-se. O limitador é a primeira operação de cada caso de uso.
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../src/platform/clock/index.js";
@@ -11,6 +11,7 @@ import { createUploadDocumentUseCase } from "../src/modules/documents/applicatio
 import { createSaveResultsDraftUseCase } from "../src/modules/examinations/application/results-draft.js";
 import { createClinicPatientLookupUseCase } from "../src/modules/appointments/application/clinic-walk-in.js";
 import { createListClinicPatientsUseCase } from "../src/modules/clinic-patients/application/patients.js";
+import { enforceRate } from "../src/modules/consultations/application/rate-limit.js";
 import { createLookupInvitationUseCase } from "../src/modules/families/application/lookup-invitation.js";
 
 const CONTEXT = { requestId: "req-1", ip: "203.0.113.1" } as never;
@@ -42,6 +43,7 @@ const cases: [string, (limiter: RateLimiter) => Promise<unknown>][] = [
       } as never)(CLINIC_ACTOR, { email: "a@b.pt" }, CONTEXT),
   ],
   ["clinic-patients: pesquisa", (l) => createListClinicPatientsUseCase({ searchLimiter: l } as never)(CLINIC_ACTOR, {})],
+  ["consultations: comprovativo (upload)", (l) => enforceRate(l, "proof-upload", "u1")],
 ];
 
 const denying: RateLimiter = {
@@ -50,7 +52,7 @@ const denying: RateLimiter = {
   reset: () => Promise.resolve(),
 };
 
-describe("RL5/RL6: limitador em falha e 429", () => {
+describe("RL5..RL7: limitador em falha e 429", () => {
   const failing = new FailingRateLimiter(new FixedClock(new Date("2026-10-12T10:00:00Z")), "teste");
 
   it.each(cases)("%s: 503 com o limitador em falha", async (_name, call) => {

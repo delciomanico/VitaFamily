@@ -1,5 +1,6 @@
 // Raiz do módulo `consultations` (MK3, ADR-037, ADR-015; modules.md nota 37): única API pública importável (só por `main/`) e composition
 // root do módulo. Importa apenas `audit` e `platform`; tudo o resto entra por PORTAS ligadas em `main/api.ts`.
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import { Router } from "express";
 import type { Kysely } from "kysely";
 import type PgBoss from "pg-boss";
@@ -59,6 +60,8 @@ export interface ConsultationsModuleDeps {
   db: Kysely<Database>;
   audit: AuditModule;
   clock: Clock;
+  /** Porta assíncrona (ADR-038), namespace `consultations`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   access: BookingAccess<Trx>;
   agenda: ProfessionalAgenda<Trx>;
   selfDealing: SelfDealingGuard;
@@ -95,6 +98,7 @@ export function createConsultationsModule(deps: ConsultationsModuleDeps): Consul
   const consultationsDeps: ConsultationsDeps<Trx> = {
     withTransaction: (fn) => withTransaction(deps.db, fn),
     clock: deps.clock,
+    rateLimiter: deps.rateLimiter,
     audit: deps.audit,
     access: deps.access,
     agenda: deps.agenda,

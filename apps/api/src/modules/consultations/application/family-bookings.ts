@@ -14,7 +14,7 @@ import { BOOKING_LIMITS, checkBookingAction, checkBookingLead, initialPaymentSta
 import { TEXT_LIMITS, validateOptionalFreeText, validateParticipantLabel, type TextError } from "../domain/text.js";
 import { decodeBookingCursor, encodeBookingCursor } from "./cursor.js";
 import type { ActorIdentity, BookingRecord, ConsultationsDeps, RequestContext } from "./ports.js";
-import { SlidingWindowLimiter } from "./rate-limiter.js";
+import { enforceRate } from "./rate-limit.js";
 import { toFamilyBookingView, type FamilyBookingView } from "./views.js";
 
 export interface Page<T> {
@@ -47,10 +47,6 @@ const invalid = (field: string, message: string): ValidationError => new Validat
 
 export function createFamilyBookings<Trx>(deps: ConsultationsDeps<Trx>) {
   const now = (): Date => deps.clock.now();
-  const slotLimiter = new SlidingWindowLimiter(deps.clock, 60, 60_000);
-  setInterval(() => {
-    slotLimiter.prune();
-  }, 10 * 60_000).unref();
 
   async function authorize(trx: Trx, actor: ActorIdentity, familyId: string, memberId: string): Promise<void> {
     await deps.access.assertCanBook(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, memberId });
@@ -91,8 +87,7 @@ export function createFamilyBookings<Trx>(deps: ConsultationsDeps<Trx>) {
   return {
     /** UC-MKT-26: horários futuros LIVRES de uma oferta ativa de um profissional `APPROVED` (dados públicos; sem `AccessPolicy`). */
     async listBookableSlots(actor: ActorIdentity, professionalId: string, query: { offerId: string; from?: Date; to?: Date }): Promise<BookableSlotView[]> {
-      const wait = slotLimiter.hit(actor.userId);
-      if (wait !== null) throw new RateLimitedError(wait);
+      await enforceRate(deps.rateLimiter, "booking-slots", actor.userId);
       const at = now();
       const from = query.from ?? at;
       const to = query.to ?? new Date(from.getTime() + DEFAULT_SLOT_WINDOW_MS);
