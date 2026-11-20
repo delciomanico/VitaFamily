@@ -154,7 +154,7 @@ export function toProblem(err: unknown, requestId: string): ProblemResult {
 
   const result: ProblemResult = { status, body };
   if ((domainError.code === "RATE_LIMITED" || domainError.code === "SERVICE_UNAVAILABLE") && domainError.retryAfterMs) {
-    result.retryAfterSeconds = Math.max(1, Math.round(domainError.retryAfterMs / 1000));
+    result.retryAfterSeconds = Math.max(1, Math.ceil(domainError.retryAfterMs / 1000));
   }
   return result;
 }

@@ -18,7 +18,7 @@ import { createUsersModule } from "../../src/modules/users/index.js";
 import type { FixedClock } from "../../src/platform/clock/index.js";
 import type { RateLimiter } from "../../src/platform/rate-limit/async.js";
 import { FailingRateLimiter } from "../../src/platform/rate-limit/failing.js";
-import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
+import { createTestRateLimiter } from "./rate-limiter-factory.js";
 import type { InMemoryStorage } from "../../src/platform/storage/index.js";
 import { withTransaction, type Database } from "../../src/platform/db/index.js";
 import { ADMIN_USER_ID, INFECTED_MARKER, SIGNING_KEYS, START, startProfessionalsHarness, type LogSink, type ProfessionalsHarness } from "./professionals-harness.js";
@@ -115,7 +115,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
   const failRateLimiter = { value: false };
   /** Limitador em memória com o relógio do harness (os testes avançam o tempo), comutável para «Redis parado». */
   const switchableLimiter = (clock: FixedClock, namespace: string): RateLimiter => {
-    const working = new InMemoryRateLimiter(clock, { namespace });
+    const working = createTestRateLimiter(clock, namespace);
     const failing = new FailingRateLimiter(clock, namespace);
     const current = (): RateLimiter => (failRateLimiter.value ? failing : working);
     return {

@@ -21,7 +21,7 @@ import { signAccessToken } from "../../src/modules/auth/domain/jwt.js";
 import { createBearerAuthSecurityHandler } from "../../src/modules/auth/interface/middleware.js";
 import { signClinicAccessToken } from "../../src/modules/clinics/domain/clinic-jwt.js";
 import { createClinicActorContextMiddleware, createClinicBearerAuthSecurityHandler } from "../../src/modules/clinics/interface/clinic-portal-middleware.js";
-import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
+import { createTestRateLimiter } from "./rate-limiter-factory.js";
 import { InMemoryStorage } from "../../src/platform/storage/index.js";
 import { createProfessionalsJobs, createProfessionalsModule, ProfessionalFakeMailer, type CredentialScanQueue, type CredentialScanner, type ProfessionalsJobs, type ProfessionalsModule } from "../../src/modules/professionals/index.js";
 import { openApiSpecPath } from "./openapi-spec.js";
@@ -129,7 +129,7 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
     audit,
     clock,
     logger,
-    rateLimiter: new InMemoryRateLimiter(clock, { namespace: "professionals" }),
+    rateLimiter: createTestRateLimiter(clock, "professionals"),
     mailer,
     signingKeys: SIGNING_KEYS,
     accessTtlSeconds: 900,

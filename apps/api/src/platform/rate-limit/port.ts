@@ -1,9 +1,16 @@
 // Porta assíncrona `RateLimiter` (ADR-038, ADR-015): o contrato é do núcleo; o Redis é só um adaptador
-// (`infrastructure/`). Convive com o limitador síncrono histórico de `index.ts` até às fatias RL3..RL7.
+// (`infrastructure/`).
 import { ServiceUnavailableError } from "../errors/index.js";
-import type { RateLimitDecision, RateLimitRule } from "./index.js";
 
-export type { RateLimitDecision, RateLimitRule };
+export interface RateLimitRule {
+  max: number;
+  windowMs: number;
+}
+
+export interface RateLimitDecision {
+  allowed: boolean;
+  retryAfterMs: number;
+}
 
 /** O que acontece quando o suporte (Redis) falha. `CLOSED` por omissão: nunca se deixa passar (ADR-038 §5). */
 export const FailMode = {

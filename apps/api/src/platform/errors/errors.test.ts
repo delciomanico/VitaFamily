@@ -58,9 +58,11 @@ describe("toProblem", () => {
     expect(body.errors).toBeUndefined();
   });
 
-  it("calcula Retry-After (segundos, arredondado, mínimo 1) em RATE_LIMITED", () => {
-    const { retryAfterSeconds } = toProblem(new RateLimitedError(250), "req-7");
-    expect(retryAfterSeconds).toBe(1);
+  it("calcula Retry-After (segundos, ceil, mínimo 1; ADR-038 §6) em RATE_LIMITED", () => {
+    expect(toProblem(new RateLimitedError(250), "req-7").retryAfterSeconds).toBe(1);
+    expect(toProblem(new RateLimitedError(1_001), "req-7").retryAfterSeconds).toBe(2);
+    expect(toProblem(new RateLimitedError(1_400), "req-7").retryAfterSeconds).toBe(2);
+    expect(toProblem(new RateLimitedError(60_000), "req-7").retryAfterSeconds).toBe(60);
   });
 
   it("não define Retry-After fora de RATE_LIMITED", () => {
