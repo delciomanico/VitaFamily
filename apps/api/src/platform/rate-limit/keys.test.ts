@@ -6,8 +6,8 @@ const OPTIONS = { prefix: "vita:test", namespace: "auth", secret: SECRET };
 
 describe("buildRateLimitKey", () => {
   it("usa o formato {prefixo}:rl:v1:{namespace}:{regra}:{sujeito}", () => {
-    const key = buildRateLimitKey(OPTIONS, { rule: "login.ip", subject: "203.0.113.7" });
-    expect(key).toBe("vita:test:rl:v1:auth:login.ip:203.0.113.7");
+    const key = buildRateLimitKey(OPTIONS, { rule: "login.ip", subject: "203-0-113-7" });
+    expect(key).toBe("vita:test:rl:v1:auth:login.ip:203-0-113-7");
   });
 
   it("com pii: true, o sujeito é um HMAC de 32 hex e não contém o valor original", () => {
@@ -41,13 +41,25 @@ describe("buildRateLimitKey", () => {
   });
 
   it("sem pii, o sujeito fica em claro", () => {
-    const key = buildRateLimitKey(OPTIONS, { rule: "login.account", subject: "ana@example.com" });
-    expect(key).toBe("vita:test:rl:v1:auth:login.account:ana@example.com");
+    const key = buildRateLimitKey(OPTIONS, { rule: "login.account", subject: "ana-silva" });
+    expect(key).toBe("vita:test:rl:v1:auth:login.account:ana-silva");
+  });
+
+  it("sem pii, rejeita sujeitos fora de [A-Za-z0-9-] (erro de programação)", () => {
+    for (const subject of ["", "ana@example.com", "203.0.113.7", "a:b", "a b", "a_b"]) {
+      expect(() => buildRateLimitKey(OPTIONS, { rule: "x", subject })).toThrowError(/Sujeito de rate limiting inválido/);
+      expect(() => buildRateLimitKey(OPTIONS, { rule: "x", subject, pii: false })).toThrowError(/pii: true/);
+    }
+  });
+
+  it("sem pii, aceita UUIDs; com pii aceita qualquer texto", () => {
+    expect(buildRateLimitKey(OPTIONS, { rule: "x", subject: "0b9f2c1e-1111-4222-8333-444455556666" })).toContain(":x:0b9f");
+    expect(() => buildRateLimitKey(OPTIONS, { rule: "x", subject: "a@b:c d", pii: true })).not.toThrow();
   });
 
   it("com pii: false, o sujeito fica em claro", () => {
-    const key = buildRateLimitKey(OPTIONS, { rule: "login.ip", subject: "203.0.113.7", pii: false });
-    expect(key).toBe("vita:test:rl:v1:auth:login.ip:203.0.113.7");
+    const key = buildRateLimitKey(OPTIONS, { rule: "login.ip", subject: "203-0-113-7", pii: false });
+    expect(key).toBe("vita:test:rl:v1:auth:login.ip:203-0-113-7");
   });
 
   it.each(["Login", "login ip", "login/ip", "", " login"])("rejeita a regra inválida %j", (rule) => {
@@ -55,12 +67,12 @@ describe("buildRateLimitKey", () => {
   });
 
   it("namespaces diferentes dão chaves diferentes para a mesma regra e sujeito", () => {
-    const key = { rule: "login.ip", subject: "203.0.113.7" };
+    const key = { rule: "login.ip", subject: "203-0-113-7" };
     const auth = buildRateLimitKey({ ...OPTIONS, namespace: "auth" }, key);
     const family = buildRateLimitKey({ ...OPTIONS, namespace: "family" }, key);
     expect(auth).not.toBe(family);
-    expect(auth).toBe("vita:test:rl:v1:auth:login.ip:203.0.113.7");
-    expect(family).toBe("vita:test:rl:v1:family:login.ip:203.0.113.7");
+    expect(auth).toBe("vita:test:rl:v1:auth:login.ip:203-0-113-7");
+    expect(family).toBe("vita:test:rl:v1:family:login.ip:203-0-113-7");
   });
 });
 

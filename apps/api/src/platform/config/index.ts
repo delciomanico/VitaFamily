@@ -68,7 +68,7 @@ const envSchema = z.object({
   // (ver `loadConfig`); em local/test usa-se um valor fixo de desenvolvimento.
   CLINIC_LINK_CODE_SECRET: z.string().min(16, "CLINIC_LINK_CODE_SECRET deve ter pelo menos 16 caracteres").optional(),
 
-  // Limitadores de taxa em Redis (ADR-038). Em production: REDIS_URL e RATE_LIMIT_KEY_SECRET obrigatórios e
+  // Limitadores de taxa em Redis (ADR-038). Em staging/production: REDIS_URL e RATE_LIMIT_KEY_SECRET obrigatórios e
   // `memory` recusado (ver `loadConfig`); fora de production sem REDIS_URL o limitador usa memória (aviso no arranque).
   REDIS_URL: z.string().min(1).optional(),
   REDIS_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().default(200),
@@ -139,15 +139,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (secret === undefined && (result.data.NODE_ENV === "production" || result.data.NODE_ENV === "staging")) {
     throw new Error("Configuração inválida: CLINIC_LINK_CODE_SECRET: obrigatória em staging/production (BR-CLN-20)");
   }
-  if (result.data.NODE_ENV === "production") {
+  if (result.data.NODE_ENV === "production" || result.data.NODE_ENV === "staging") {
     if (result.data.RATE_LIMIT_BACKEND === "memory") {
-      throw new Error("Configuração inválida: RATE_LIMIT_BACKEND: 'memory' é proibido em production (ADR-038)");
+      throw new Error("Configuração inválida: RATE_LIMIT_BACKEND: 'memory' é proibido em staging/production (ADR-038)");
     }
     if (result.data.REDIS_URL === undefined) {
-      throw new Error("Configuração inválida: REDIS_URL: obrigatória em production (ADR-038)");
+      throw new Error("Configuração inválida: REDIS_URL: obrigatória em staging/production (ADR-038)");
     }
     if (result.data.RATE_LIMIT_KEY_SECRET === undefined) {
-      throw new Error("Configuração inválida: RATE_LIMIT_KEY_SECRET: obrigatória em production (ADR-038)");
+      throw new Error("Configuração inválida: RATE_LIMIT_KEY_SECRET: obrigatória em staging/production (ADR-038)");
     }
   }
   return {

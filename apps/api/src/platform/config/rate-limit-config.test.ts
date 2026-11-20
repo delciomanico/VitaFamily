@@ -75,6 +75,25 @@ describe("loadConfig: limitadores de taxa (ADR-038)", () => {
     });
   });
 
+  describe("staging", () => {
+    const stagingEnv = (o: Record<string, string | undefined> = {}) => productionEnv({ NODE_ENV: "staging", ...o });
+    it("lança sem REDIS_URL", () => {
+      expect(() => loadConfig(stagingEnv({ REDIS_URL: undefined }))).toThrowError(/REDIS_URL/);
+    });
+    it("lança sem RATE_LIMIT_KEY_SECRET", () => {
+      expect(() => loadConfig(stagingEnv({ RATE_LIMIT_KEY_SECRET: undefined }))).toThrowError(/RATE_LIMIT_KEY_SECRET/);
+    });
+    it("lança com RATE_LIMIT_BACKEND=memory", () => {
+      expect(() => loadConfig(stagingEnv({ RATE_LIMIT_BACKEND: "memory" }))).toThrowError(/RATE_LIMIT_BACKEND/);
+    });
+    it("lança com segredo curto", () => {
+      expect(() => loadConfig(stagingEnv({ RATE_LIMIT_KEY_SECRET: "x".repeat(31) }))).toThrowError(/RATE_LIMIT_KEY_SECRET/);
+    });
+    it("aceita a configuração completa", () => {
+      expect(loadConfig(stagingEnv()).RATE_LIMIT_KEY_PREFIX).toBe("vita:staging");
+    });
+  });
+
   describe("validação de RATE_LIMIT_KEY_SECRET", () => {
     it("lança com menos de 32 caracteres", () => {
       expect(() => loadConfig(validEnv({ RATE_LIMIT_KEY_SECRET: "x".repeat(31) }))).toThrowError(/RATE_LIMIT_KEY_SECRET/);

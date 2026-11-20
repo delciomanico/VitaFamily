@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import type { RateLimitKey } from "./port.js";
 
 const NAMESPACE = /^[a-z0-9][a-z0-9-]*$/;
+const PLAIN_SUBJECT = /^[A-Za-z0-9-]+$/;
 const RULE = /^[a-z0-9][a-z0-9._-]*$/;
 
 export function assertNamespace(namespace: string): void {
@@ -19,6 +20,11 @@ export function hashSubject(secret: string, value: string): string {
 export function buildRateLimitKey(options: { prefix: string; namespace: string; secret: string }, key: RateLimitKey): string {
   if (!RULE.test(key.rule)) {
     throw new Error(`Regra de rate limiting inválida: "${key.rule}"`);
+  }
+  if (key.pii !== true && !PLAIN_SUBJECT.test(key.subject)) {
+    throw new Error(
+      `Sujeito de rate limiting inválido para a regra "${key.rule}": sem pii só [A-Za-z0-9-] (use pii: true para e-mail/IP/texto livre)`,
+    );
   }
   const subject = key.pii === true ? hashSubject(options.secret, key.subject) : key.subject;
   return `${options.prefix}:rl:v1:${options.namespace}:${key.rule}:${subject}`;
