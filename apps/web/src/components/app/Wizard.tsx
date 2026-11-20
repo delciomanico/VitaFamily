@@ -29,7 +29,6 @@ interface WizardProps {
  */
 export function Wizard({ title, stepTitle, description, step, total, onBack, onNext, nextLabel = 'Continuar', nextDisabled = false, busy = false, error = null, children }: WizardProps) {
   const current = step + 1
-  const percent = Math.round((current / total) * 100)
 
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -43,7 +42,7 @@ export function Wizard({ title, stepTitle, description, step, total, onBack, onN
           <button
             type="button"
             onClick={onBack}
-            className="-ms-2 inline-flex min-h-12 items-center gap-1 rounded-full pe-4 ps-1 text-base font-medium text-primary hover:bg-primary-soft"
+            className="-ms-1 inline-flex min-h-12 items-center gap-1 rounded-full bg-primary-soft pe-4 ps-2 text-base font-semibold text-primary hover:bg-primary-soft-hover"
           >
             <ChevronLeft className="size-6" aria-hidden />
             Voltar
@@ -59,15 +58,17 @@ export function Wizard({ title, stepTitle, description, step, total, onBack, onN
           aria-valuemax={total}
           aria-valuenow={current}
           aria-valuetext={`Passo ${current} de ${total}`}
-          className="h-2.5 w-full overflow-hidden rounded-full bg-surface-muted"
+          className="flex w-full gap-1.5"
         >
-          <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />
+          {Array.from({ length: total }, (_, index) => (
+            <span key={index} className={`h-2.5 flex-1 rounded-full transition-colors duration-300 ${index < current ? (index === current - 1 ? 'bg-sun' : 'bg-primary') : 'bg-border'}`} />
+          ))}
         </div>
         <p className="text-base font-medium text-muted">{title}</p>
       </header>
 
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-2xl font-semibold text-balance">{stepTitle}</h1>
+        <h1 className="text-[1.875rem] leading-tight font-extrabold text-balance">{stepTitle}</h1>
         {description && <p className="text-base text-muted">{description}</p>}
       </div>
 

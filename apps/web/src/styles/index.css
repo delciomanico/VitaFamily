@@ -1,4 +1,5 @@
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/bricolage-grotesque';
 @import 'tailwindcss';
 
 /*
@@ -18,6 +19,28 @@
   --color-accent: #4aafd0;
   /* Faixa do topo: só texto grande (≥ 24px) e ícones em branco (contraste 3.2:1, AA texto grande). */
   --color-brand: #2a9cc0;
+  /* Azul profundo do «herói» e dos cartões de destaque: texto branco ≥ 7:1. */
+  --color-brand-deep: #0d4f68;
+
+  /*
+   * Cores de área (identidade de cada zona): `-soft` é o fundo do «azulejo» do ícone e `-ink` o ícone/texto
+   * sobre ele (≥ 4.5:1). A cor base é só decorativa (anéis, manchas); nunca para texto.
+   */
+  --color-health: #e5624d;
+  --color-health-soft: #fdebe7;
+  --color-health-ink: #b3361f;
+  --color-meds: #7461d9;
+  --color-meds-soft: #eeebfc;
+  --color-meds-ink: #5240b8;
+  --color-chat: #f0a02a;
+  --color-chat-soft: #fff2d9;
+  --color-chat-ink: #8f5400;
+  --color-family: #2fa36b;
+  --color-family-soft: #e3f5ec;
+  --color-family-ink: #1b7444;
+  /* «Nascer do sol»: acento quente dos cartões de destaque e das ilustrações. */
+  --color-sun: #ffb869;
+  --color-sun-soft: #ffe9cc;
 
   --color-background: #f4f8fa;
   --color-surface: #ffffff;
@@ -36,6 +59,8 @@
 
   /* Tipografia */
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Títulos e números grandes: Bricolage Grotesque (self-hosted), com carácter e peso forte. */
+  --font-display: 'Bricolage Grotesque Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;
   --text-sm: 0.875rem;
@@ -54,11 +79,14 @@
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
   --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
 
   /* Sombras (discretas) */
-  --shadow-card: 0 2px 8px rgb(23 36 44 / 0.05);
-  --shadow-button: 0 6px 16px rgb(23 122 154 / 0.25);
-  --shadow-overlay: 0 12px 32px rgb(23 36 44 / 0.14);
+  --shadow-card: 0 1px 2px rgb(23 60 80 / 0.04), 0 6px 18px rgb(23 90 120 / 0.07);
+  --shadow-button: 0 8px 20px rgb(22 118 152 / 0.32);
+  --shadow-overlay: 0 -8px 32px rgb(23 36 44 / 0.12);
+  --shadow-hero: 0 16px 36px rgb(13 79 104 / 0.28);
 
   /* Layout */
   --spacing-sidebar: 16rem;
@@ -66,7 +94,12 @@
   /* Animações */
   --animate-toast-in: toast-in 220ms ease-out;
   /* Folha inferior (portal do profissional): sobe ao abrir. */
-  --animate-sheet-in: sheet-in 220ms ease-out;
+  --animate-sheet-in: sheet-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Entrada de cada separador/ecrã; fill-mode `backwards` para não deixar `transform` (quebraria `fixed`). */
+  --animate-page-in: page-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  --animate-pop: pop 520ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  --animate-confetti: confetti 900ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  --animate-ring: ring-grow 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   /* Site público: cartões flutuantes e manchas de fundo. */
   --animate-float: float 6s ease-in-out infinite;
   --animate-float-delayed: float 7s ease-in-out 1.2s infinite;
@@ -84,6 +117,40 @@
   --animate-rise: rise 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
   /* Foto do login: fade de entrada (1,6s) e zoom lento contínuo; fica no estado final. */
   --animate-login-slide: login-slide 8s linear forwards;
+
+  @keyframes page-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.25rem);
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+  }
+
+  @keyframes confetti {
+    from {
+      opacity: 0;
+      transform: translate(0, 0) scale(0.2);
+    }
+    30% {
+      opacity: 1;
+    }
+    to {
+      opacity: 0.9;
+      transform: translate(var(--dx), var(--dy)) scale(1);
+    }
+  }
+
+  @keyframes ring-grow {
+    from {
+      stroke-dashoffset: var(--ring-len);
+    }
+  }
 
   @keyframes sheet-in {
     from {
@@ -224,17 +291,27 @@
     @apply bg-background font-sans text-foreground antialiased;
   }
 
+  /* Títulos com carácter em toda a app (corpo continua em Inter). */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-primary;
   }
 
   /* Sobre a faixa de cor (cabeçalhos, splash) o contorno primário perde contraste: usa branco. */
-  .bg-brand :focus-visible {
+  .bg-brand :focus-visible,
+  .bg-brand-deep :focus-visible {
     @apply outline-white;
   }
 
   dialog::backdrop {
-    background: rgb(23 36 44 / 0.4);
+    background: rgb(13 40 54 / 0.45);
+    backdrop-filter: blur(2px);
   }
 }
 

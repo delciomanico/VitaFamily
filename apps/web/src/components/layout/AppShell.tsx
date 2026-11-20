@@ -26,6 +26,7 @@ function useUnreadAlerts() {
  */
 export function AppShell() {
   const unread = useUnreadAlerts()
+  const { pathname } = useLocation()
 
   return (
     <UnreadAlertsContext.Provider value={unread.count}>
@@ -39,7 +40,9 @@ export function AppShell() {
           </a>
           <Sidebar />
           <main id="conteudo" className="lg:pl-(--spacing-sidebar)">
-            <Outlet />
+            <div key={pathname} className="animate-page-in">
+              <Outlet />
+            </div>
           </main>
           <BottomNav />
         </div>

@@ -1,6 +1,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import { ChevronDown, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { toneTile, type Tone } from '@/lib/tones'
 
 interface AccordionSectionProps {
   title: string
@@ -10,15 +11,16 @@ interface AccordionSectionProps {
   defaultOpen?: boolean
   /** Realça a secção onde há algo para fazer. */
   attention?: boolean
+  tone?: Tone
   children: ReactNode
 }
 
 /** Secção recolhível: o botão é o título inteiro (alvo ≥ 56 px); `aria-expanded` e foco visível. */
-export function AccordionSection({ title, summary, icon: Icon, defaultOpen = false, attention = false, children }: AccordionSectionProps) {
+export function AccordionSection({ title, summary, icon: Icon, defaultOpen = false, attention = false, tone = 'brand', children }: AccordionSectionProps) {
   const [open, setOpen] = useState(defaultOpen)
   const panelId = useId()
   return (
-    <section className={cn('overflow-hidden rounded-2xl border bg-surface shadow-card', attention ? 'border-warning/40' : 'border-border')}>
+    <section className={cn('overflow-hidden rounded-[1.25rem] bg-surface shadow-card', attention && 'ring-2 ring-warning/40')}>
       <h2>
         <button
           type="button"
@@ -28,19 +30,19 @@ export function AccordionSection({ title, summary, icon: Icon, defaultOpen = fal
           className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-start focus-visible:outline-offset-[-2px]"
         >
           {Icon && (
-            <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl', attention ? 'bg-warning-soft text-warning' : 'bg-primary-soft text-primary')}>
+            <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl', toneTile[attention ? 'attention' : tone])}>
               <Icon className="size-5" aria-hidden />
             </span>
           )}
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-lg leading-6 font-semibold">{title}</span>
+            <span className="font-display text-xl leading-6 font-bold">{title}</span>
             {summary && !open && <span className="truncate text-base font-normal text-muted">{summary}</span>}
           </span>
-          <ChevronDown className={cn('size-6 shrink-0 text-muted transition-transform', open && 'rotate-180')} aria-hidden />
+          <ChevronDown className={cn('size-6 shrink-0 text-muted transition-transform duration-300', open && 'rotate-180')} aria-hidden />
         </button>
       </h2>
       {open && (
-        <div id={panelId} className="flex flex-col gap-3 border-t border-border px-4 py-4">
+        <div id={panelId} className="flex animate-page-in flex-col gap-3 border-t border-border/60 px-4 py-4">
           {children}
         </div>
       )}

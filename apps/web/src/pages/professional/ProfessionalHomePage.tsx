@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarCheck, CircleCheck, FileBadge, MessageCircle, Send, Sparkles, Tags, UserPen, CalendarClock, type LucideIcon } from 'lucide-react'
+import { HeroBand, Sunrise } from '@/components/app/Sunrise'
+import { toneTile } from '@/lib/tones'
+import { cn } from '@/lib/cn'
 import { BookingCard } from '@/components/app/BookingCard'
 import { AccordionSection } from '@/components/app/Accordion'
 import { ConfirmSheet } from '@/components/app/Sheet'
@@ -107,15 +110,20 @@ export function ProfessionalHomePage() {
   const todayNames = list.filter((b) => luandaDayISO(b.startsAt) === today && b.status === 'CONFIRMED').length
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1 pt-1">
-        <h1 className="text-2xl font-semibold text-balance">
-          {greeting(now)}
-          {greetingName(profile.displayName) && `, ${greetingName(profile.displayName)}`}
-        </h1>
-        <p className="text-base text-muted first-letter:uppercase">{formatLongDate(today)}</p>
-      </header>
-
+    <div className="flex flex-col">
+      <HeroBand
+        sun={<Sunrise />}
+        className="-mx-5 -mt-[max(1.25rem,env(safe-area-inset-top))] pt-[calc(max(1.25rem,env(safe-area-inset-top))+2rem)]"
+      >
+        <header className="flex flex-col gap-1 px-5 pr-24">
+          <h1 className="font-display text-[2rem] leading-tight font-extrabold text-balance">
+            {greeting(now)}
+            {greetingName(profile.displayName) && `, ${greetingName(profile.displayName)}`}
+          </h1>
+          <p className="text-base text-white/85 first-letter:uppercase">{formatLongDate(today)}</p>
+        </header>
+      </HeroBand>
+      <div className="relative z-10 -mt-8 flex flex-col gap-6">
       {rights.readOnly && (
         <LockedNotice>Perfil em modo só de leitura: pode consultar os seus dados, mas não os pode alterar.</LockedNotice>
       )}
@@ -137,15 +145,17 @@ export function ProfessionalHomePage() {
       <FormError message={formError} />
 
       {step ? (
-        <section aria-labelledby="proximo-passo" className="flex flex-col gap-4 rounded-2xl border border-warning/30 bg-warning-soft p-5">
+        <section aria-labelledby="proximo-passo" className="flex flex-col gap-4 rounded-3xl bg-surface p-5 shadow-hero">
           <div className="flex items-center gap-3">
-            <step.icon className="size-7 shrink-0 text-warning" aria-hidden />
-            <h2 id="proximo-passo" className="text-base font-semibold text-warning">
+            <span className={cn('flex size-12 shrink-0 items-center justify-center rounded-2xl', toneTile.chat)}>
+              <step.icon className="size-7" aria-hidden />
+            </span>
+            <h2 id="proximo-passo" className="text-lg font-semibold">
               O que falta fazer
             </h2>
           </div>
           <div className="flex flex-col gap-1">
-            <p className="text-xl font-semibold text-foreground">{step.title}</p>
+            <p className="font-display text-[1.625rem] leading-tight font-extrabold text-foreground">{step.title}</p>
             <p className="text-base text-foreground">{step.text}</p>
           </div>
           {step.to ? (
@@ -160,10 +170,12 @@ export function ProfessionalHomePage() {
         </section>
       ) : (
         approved && (
-          <section className="flex items-center gap-4 rounded-2xl border border-success/30 bg-success-soft p-5">
-            <CircleCheck className="size-8 shrink-0 text-success" aria-hidden />
+          <section className="flex items-center gap-4 rounded-3xl bg-surface p-5 shadow-hero">
+            <span className={cn('flex size-12 shrink-0 items-center justify-center rounded-2xl', toneTile.family)}>
+              <CircleCheck className="size-7" aria-hidden />
+            </span>
             <div>
-              <h2 className="text-lg font-semibold text-success">Está tudo em dia</h2>
+              <h2 className="font-display text-xl font-bold">Está tudo em dia</h2>
               <p className="text-base text-foreground">Não há nada à espera da sua resposta.</p>
             </div>
           </section>
@@ -230,6 +242,7 @@ export function ProfessionalHomePage() {
         onYes={() => void submit()}
         onNo={() => setConfirming(false)}
       />
+      </div>
     </div>
   )
 }

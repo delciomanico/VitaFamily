@@ -13,13 +13,20 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon: Icon, title, description, action }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-6 py-10 text-center">
-      <span className="flex size-12 items-center justify-center rounded-full bg-surface-muted text-muted">
-        <Icon className="size-6" aria-hidden />
+    <div className="flex flex-col items-center gap-4 rounded-3xl bg-surface px-6 py-10 text-center shadow-card">
+      <span className="relative flex size-28 items-center justify-center" aria-hidden>
+        <svg viewBox="0 0 120 120" className="absolute inset-0 text-sun-soft">
+          <path d="M60 6c22 0 46 12 52 36s-6 48-28 62-52 10-66-12S-2 52 14 30 38 6 60 6Z" fill="currentColor" />
+          <circle cx="104" cy="22" r="5" fill="var(--color-sun)" />
+          <circle cx="14" cy="96" r="3.5" fill="var(--color-accent)" />
+        </svg>
+        <span className="relative flex size-16 -rotate-6 items-center justify-center rounded-2xl bg-surface text-primary shadow-card">
+          <Icon className="size-8" strokeWidth={1.8} />
+        </span>
       </span>
-      <div className="flex flex-col gap-1">
-        <p className="font-medium">{title}</p>
-        {description && <p className="text-sm text-muted">{description}</p>}
+      <div className="flex max-w-[20rem] flex-col gap-1">
+        <p className="font-display text-xl font-bold">{title}</p>
+        {description && <p className="text-base text-muted">{description}</p>}
       </div>
       {action}
     </div>

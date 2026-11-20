@@ -28,14 +28,14 @@ export function ScreenHeader({ title, backTo, backLabel = 'Voltar', subtitle, ac
           if (canNavigateBack()) navigate(-1)
           else navigate(backTo, { replace: true })
         }}
-        className="-ms-2 inline-flex min-h-12 w-fit items-center gap-1 rounded-full pe-4 ps-1 text-base font-medium text-primary hover:bg-primary-soft"
+        className="-ms-1 inline-flex min-h-12 w-fit items-center gap-1 rounded-full bg-primary-soft pe-4 ps-2 text-base font-semibold text-primary hover:bg-primary-soft-hover"
       >
         <ChevronLeft className="size-6" aria-hidden />
         {backLabel}
       </Link>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-balance">{title}</h1>
+          <h1 className="text-[1.875rem] leading-tight font-extrabold text-balance">{title}</h1>
           {subtitle && <p className="mt-1 text-base text-muted">{subtitle}</p>}
         </div>
         {action}
@@ -49,7 +49,7 @@ export function TabHeader({ title, subtitle, action }: { title: string; subtitle
   return (
     <header className="flex items-start justify-between gap-3 pt-1">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold text-balance">{title}</h1>
+        <h1 className="text-[1.875rem] leading-tight font-extrabold text-balance">{title}</h1>
         {subtitle && <p className="mt-1 text-base text-muted">{subtitle}</p>}
       </div>
       {action}

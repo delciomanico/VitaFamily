@@ -14,7 +14,7 @@ export function AlertsButton() {
       className="relative -mr-2 flex size-12 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-white/15 lg:hidden"
     >
       <Bell className="size-6" aria-hidden />
-      {unread > 0 && <span className="absolute top-2.5 right-3 size-3 rounded-full bg-danger ring-2 ring-brand" />}
+      {unread > 0 && <span className="absolute top-2.5 right-3 size-3 rounded-full bg-danger ring-2 ring-brand-deep" />}
     </Link>
   )
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { toneTile, type Tone } from '@/lib/tones'
 
 interface ListEntryProps {
   to: string
@@ -11,7 +12,8 @@ interface ListEntryProps {
   subtitle?: string
   /** Contador/etiqueta à direita. */
   trailing?: ReactNode
-  tone?: 'default' | 'attention'
+  /** Cor da área do ícone («default» = azul da marca). */
+  tone?: 'default' | Tone
   className?: string
 }
 
@@ -21,20 +23,20 @@ export function ListEntry({ to, icon: Icon, title, subtitle, trailing, tone = 'd
     <Link
       to={to}
       className={cn(
-        'flex min-h-[4.5rem] items-center gap-4 rounded-2xl border border-border bg-surface px-4 py-3 shadow-card transition-colors hover:border-border-strong active:bg-surface-muted',
+        'flex min-h-[4.5rem] items-center gap-4 rounded-[1.25rem] bg-surface px-4 py-3 shadow-card transition-transform active:scale-[0.98]',
         className,
       )}
     >
       <span
         className={cn(
-          'flex size-12 shrink-0 items-center justify-center rounded-xl',
-          tone === 'attention' ? 'bg-warning-soft text-warning' : 'bg-primary-soft text-primary',
+          'flex size-12 shrink-0 items-center justify-center rounded-2xl',
+          toneTile[tone === 'default' ? 'brand' : tone],
         )}
       >
         <Icon className="size-6" aria-hidden />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-lg leading-6 font-semibold">{title}</span>
+        <span className="font-display text-xl leading-6 font-bold">{title}</span>
         {subtitle && <span className="text-base text-muted">{subtitle}</span>}
       </span>
       {trailing}

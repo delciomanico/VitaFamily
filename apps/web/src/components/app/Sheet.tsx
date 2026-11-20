@@ -34,13 +34,13 @@ export function Sheet({ open, onClose, title, description, children, footer }: S
       onClick={(event) => event.target === ref.current && onClose()}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
-      className="mx-auto mt-auto mb-0 max-h-[90dvh] w-full max-w-[34rem] animate-sheet-in overflow-y-auto rounded-t-3xl bg-surface p-0 text-foreground shadow-overlay"
+      className="mx-auto mt-auto mb-0 max-h-[90dvh] w-full max-w-[34rem] animate-sheet-in overflow-y-auto rounded-t-[2rem] bg-surface p-0 text-foreground shadow-overlay"
     >
       <div className="app-mobile flex flex-col gap-4 px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        <span className="mx-auto h-1.5 w-12 rounded-full bg-border-strong" aria-hidden />
+        <span className="mx-auto h-1.5 w-12 rounded-full bg-border-strong/80" aria-hidden />
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-1.5">
-            <h2 id={titleId} className="text-xl font-semibold text-balance">
+            <h2 id={titleId} className="text-[1.625rem] leading-tight font-bold text-balance">
               {title}
             </h2>
             {description && (

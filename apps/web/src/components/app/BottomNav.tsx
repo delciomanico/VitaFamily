@@ -41,7 +41,7 @@ export function BottomNav({ unread = 0 }: BottomNavProps) {
   const { pathname, search } = useLocation()
   const active = activeTab(pathname, search)
   return (
-    <nav aria-label="Principal" className="app-mobile fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pb-safe shadow-overlay">
+    <nav aria-label="Principal" className="app-mobile fixed inset-x-0 bottom-0 z-30 mx-auto max-w-[34rem] rounded-t-3xl bg-surface pb-safe shadow-overlay">
       <ul className="mx-auto grid max-w-[34rem] grid-cols-4">
         {TABS.map(({ id, to, label, icon: Icon }) => {
           const isActive = active === id
@@ -53,11 +53,12 @@ export function BottomNav({ unread = 0 }: BottomNavProps) {
                 aria-label={id === 'conversations' && unread > 0 ? `${label}, ${unread} por ler` : undefined}
                 className={cn(
                   'relative flex min-h-16 flex-col items-center justify-center gap-0.5 px-1 py-2 text-sm transition-colors focus-visible:outline-offset-[-3px]',
-                  isActive ? 'font-bold text-primary' : 'font-medium text-muted hover:text-foreground',
+                  isActive ? 'font-extrabold text-primary' : 'font-medium text-muted hover:text-foreground',
                 )}
               >
-                <span className={cn('relative flex h-8 w-14 items-center justify-center rounded-full transition-colors', isActive && 'bg-primary-soft')}>
-                  <Icon className="size-6" strokeWidth={isActive ? 2.4 : 2} aria-hidden />
+                <span className="relative flex h-8 w-14 items-center justify-center">
+                    <span aria-hidden className={cn('absolute inset-0 origin-center rounded-full bg-primary-soft transition-all duration-300 ease-out', isActive ? 'scale-100 opacity-100' : 'scale-x-50 scale-y-75 opacity-0')} />
+                  <Icon className={cn('relative size-6 transition-transform duration-300', isActive && '-translate-y-px scale-110')} strokeWidth={isActive ? 2.4 : 1.8} aria-hidden />
                   {id === 'conversations' && unread > 0 && (
                     <span aria-hidden className="absolute top-0 right-2 flex min-w-5 items-center justify-center rounded-full bg-danger px-1 text-xs leading-5 font-semibold text-white">
                       {unread > 9 ? '9+' : unread}

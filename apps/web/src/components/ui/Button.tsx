@@ -3,7 +3,7 @@ import { Link, type LinkProps } from 'react-router-dom'
 import { LoaderCircle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
-type Variant = 'primary' | 'soft' | 'secondary' | 'ghost' | 'danger' | 'danger-ghost'
+type Variant = 'primary' | 'light' | 'soft' | 'secondary' | 'ghost' | 'danger' | 'danger-ghost'
 type Size = 'sm' | 'md' | 'lg' | 'xl'
 
 interface StyleProps {
@@ -13,7 +13,9 @@ interface StyleProps {
 }
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-primary text-primary-foreground shadow-button hover:bg-primary-hover',
+  primary: 'bg-primary text-primary-foreground shadow-button hover:bg-primary-hover active:shadow-none',
+  /** Sobre fundo azul profundo. */
+  light: 'bg-white text-brand-deep hover:bg-primary-soft',
   soft: 'bg-primary-soft text-primary hover:bg-primary-soft-hover',
   secondary: 'bg-surface text-foreground border border-border hover:bg-surface-muted',
   ghost: 'text-foreground hover:bg-surface-muted',
@@ -33,7 +35,7 @@ const sizes: Record<Size, string> = {
 export function buttonClasses({ variant = 'primary', size = 'md', fullWidth }: StyleProps = {}) {
   return cn(
     'inline-flex shrink-0 items-center justify-center rounded-full font-medium transition-colors',
-    'disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]',
+    'disabled:pointer-events-none disabled:opacity-50 active:translate-y-px active:scale-[0.98]',
     variants[variant],
     sizes[size],
     fullWidth && 'w-full',

@@ -1,10 +1,12 @@
 import { useContext } from 'react'
-import { Page, bandTitleClass } from '@/components/layout/Page'
+import { Sunrise } from '@/components/app/Sunrise'
+import { Page } from '@/components/layout/Page'
 import { UnreadAlertsContext } from '@/components/layout/UnreadAlertsContext'
 import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { firstName } from '@/lib/date'
+import { formatLongDate, luandaDayISO } from '@/lib/format'
 import { reportService } from '@/services/report.service'
 import { HomePrimaryCard } from './HomePrimaryCard'
 import { HomeOptions } from './HomeOptions'
@@ -23,14 +25,23 @@ export function HomePage() {
   const { state, reload } = useAsync(() => reportService.getHomeSummary(familyId, userId), [familyId, userId])
   const name = member?.name ?? user?.name ?? ''
 
-  const greeting = (
-    <h1 className={bandTitleClass}>
-      Olá, {firstName(name)}
-    </h1>
+  const doses = state.status === 'success' ? state.data.todayDoses : []
+  const taken = doses.filter((d) => d.status === 'TAKEN').length
+
+  const hero = (
+    <>
+      <h1 className="font-display text-[2rem] leading-tight font-extrabold text-balance">Olá, {firstName(name)}</h1>
+      <p className="mt-1 text-base text-white/85">{formatLongDate(luandaDayISO(new Date()))}</p>
+      {doses.length > 0 && (
+        <p className="mt-0.5 text-base font-semibold text-sun">
+          {taken} de {doses.length} {doses.length === 1 ? 'toma feita' : 'tomas feitas'}
+        </p>
+      )}
+    </>
   )
 
   return (
-    <Page title="Início" header={greeting}>
+    <Page title="Início" hero={hero} sun={<Sunrise done={taken} total={doses.length} />}>
       {state.status === 'loading' && <LoadingState rows={3} label="A preparar o seu dia…" />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
