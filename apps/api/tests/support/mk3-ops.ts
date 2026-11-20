@@ -1,5 +1,7 @@
 // Utilitários partilhados pelos testes de conformidade/segurança de MK3 (S13): inventário de operações lido do `openapi.yaml`,
 // leitor de corpos binários e PDF mínimo válido. Só leitura do contrato; sem lógica de negócio.
+import { MK4_PENDING_OPERATION_IDS } from "./mk4-pending.js";
+
 export type Method = "get" | "post" | "put" | "patch" | "delete";
 export interface Op {
   id: string;
@@ -32,7 +34,7 @@ export function parseAllOps(text: string): Op[] {
       continue;
     }
     const id = /^ {6}operationId: (\w+)/.exec(line);
-    if (id && path !== null && method !== null) ops.push({ id: id[1] ?? "", method, path });
+    if (id && path !== null && method !== null && !MK4_PENDING_OPERATION_IDS.has(id[1] ?? "")) ops.push({ id: id[1] ?? "", method, path });
   }
   return ops;
 }
