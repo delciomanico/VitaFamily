@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { errorCatalog } from "../../src/platform/errors/codes.js";
 import { openApiSpecPath } from "../support/openapi-spec.js";
 import { MK3_OPERATION_IDS } from "../support/mk3-pending.js";
-import { MK4_PENDING_OPERATION_IDS } from "../support/mk4-pending.js";
+import { MK4_OPERATION_IDS } from "../support/mk4-pending.js";
 import { API, nextIp, startProfessionalsHarness, type ProfessionalsHarness } from "../support/professionals-harness.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -57,7 +57,7 @@ export function parseOperations(yaml: string): OpSpec[] {
       continue;
     }
     const idMatch = /^ {6}operationId: (\w+)/.exec(line);
-    if (idMatch && current !== null && (MK3_OPERATION_IDS.has(idMatch[1] ?? "") || MK4_PENDING_OPERATION_IDS.has(idMatch[1] ?? ""))) {
+    if (idMatch && current !== null && (MK3_OPERATION_IDS.has(idMatch[1] ?? "") || MK4_OPERATION_IDS.has(idMatch[1] ?? ""))) {
       // Operações MK3 ainda por implementar ficam fora até à S13 (tests/support/mk3-pending.ts).
       ops.pop();
       current = null;

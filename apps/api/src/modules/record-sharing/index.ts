@@ -7,11 +7,13 @@ import type { Clock } from "../../platform/clock/index.js";
 import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import type { AuditModule } from "../audit/index.js";
 import { createFamilyShares } from "./application/family-shares.js";
+import { createProfessionalShares } from "./application/professional-shares.js";
 import type { RecordSharingDeps, ShareAccess, ShareAnchor, ShareMembers, ShareNotices, ShareProfessionals } from "./application/ports.js";
 import type { SharedRecordsReader } from "./application/shared-records.js";
 import { PgBossShareNotices } from "./infrastructure/jobs.js";
 import { KyselyRecordShareRepository } from "./infrastructure/repo.js";
 import { createFamilySharesRouter } from "./interface/family-router.js";
+import { createProfessionalSharesRouter } from "./interface/professional-router.js";
 
 export * from "./domain/index.js";
 export { createSharedRecordsReader, type SharedRecordsReader, type SharedRecordsSources } from "./application/shared-records.js";
@@ -39,6 +41,8 @@ export interface RecordSharingModuleDeps {
 export interface RecordSharingModule {
   /** `/families/{f}/members/{m}/record-shares*` (User autenticado). */
   familyRouter: Router;
+  /** `/professional-portal/shares*` (token de `ProfessionalAccount`; lista, detalhe e `open`). */
+  professionalRouter: Router;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -56,5 +60,8 @@ export function createRecordSharingModule(deps: RecordSharingModuleDeps): Record
     notices: deps.notices,
     shares: new KyselyRecordShareRepository(),
   };
-  return { familyRouter: createFamilySharesRouter(createFamilyShares(sharingDeps)) };
+  return {
+    familyRouter: createFamilySharesRouter(createFamilyShares(sharingDeps)),
+    professionalRouter: createProfessionalSharesRouter(createProfessionalShares(sharingDeps)),
+  };
 }

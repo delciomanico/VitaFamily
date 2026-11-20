@@ -254,8 +254,15 @@ export function createAppointmentsModule(deps: AppointmentsModuleDeps): Appointm
     clinicPortalRouter: createAppointmentsClinicPortalRouter(clinicPortalController),
     countActiveBySlot: (trx, slotIds) => appointmentsRepo.countActiveBySlot(trx, slotIds),
     listSharedAppointments: async (trx, familyId, memberId, since) => {
-      const page = await appointmentsRepo.listByMember(trx, familyId, memberId, { from: since }, 200);
-      return page.items
+      // Percorre TODAS as páginas (a ordem do repositório é por criação, não por data: um limite fixo cortaria consultas futuras).
+      const items: Appointment[] = [];
+      let cursor: string | undefined;
+      do {
+        const page = await appointmentsRepo.listByMember(trx, familyId, memberId, { from: since }, 200, cursor);
+        items.push(...page.items);
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor !== undefined);
+      return items
         .map((a) => ({ scheduledAt: a.scheduledAt, status: a.status, specialty: a.specialty ?? null, professionalName: a.professionalName ?? null }))
         .sort((x, y) => x.scheduledAt.getTime() - y.scheduledAt.getTime());
     },

@@ -245,7 +245,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
         },
         notices: { enqueueNewShare: (input) => (failShareNotice.value ? Promise.reject(new Error("fila")) : (shareNoticeCalls.push(input), Promise.resolve())) },
       });
-      return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter, recordSharing.familyRouter];
+      return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter, recordSharing.familyRouter, recordSharing.professionalRouter];
     },
     options.logStream ? { logStream: options.logStream } : {},
   );

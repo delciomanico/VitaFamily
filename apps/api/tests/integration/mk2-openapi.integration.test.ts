@@ -12,7 +12,7 @@ import { createMessagingModule } from "../../src/modules/messaging/index.js";
 import { errorCatalog } from "../../src/platform/errors/codes.js";
 import { openApiSpecPath } from "../support/openapi-spec.js";
 import { MK3_OPERATION_IDS } from "../support/mk3-pending.js";
-import { MK4_PENDING_OPERATION_IDS } from "../support/mk4-pending.js";
+import { MK4_OPERATION_IDS } from "../support/mk4-pending.js";
 import { API, nextIp, startProfessionalsHarness, type ProfessionalsHarness } from "../support/professionals-harness.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -65,7 +65,7 @@ function parseOps(text: string): Op[] {
     const id = /^ {6}operationId: (\w+)/.exec(line);
     if (id && pending) {
       // Operações MK3 ainda por implementar ficam fora até à S13 (tests/support/mk3-pending.ts).
-      if (MK3_OPERATION_IDS.has(id[1] ?? "") || MK4_PENDING_OPERATION_IDS.has(id[1] ?? "")) ops.pop();
+      if (MK3_OPERATION_IDS.has(id[1] ?? "") || MK4_OPERATION_IDS.has(id[1] ?? "")) ops.pop();
       pending = false;
     }
   }
