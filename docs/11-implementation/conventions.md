@@ -53,6 +53,7 @@ Comandos na raiz do repo: `pnpm gen | test | lint | build | migrate | up | down`
 7. Sem dados de saúde em logs, erros ou notificações (logger com redação de campos marcados — `pino` `redact`). O serializador `err` do logger (`platform/logger`) redige ainda `detail`, `where`, `parameters`, `params`, `values`, `hint`, `internalQuery` e `query` dos erros do driver de BD (podem conter valores de linhas).
 8. SQL: sempre parametrizado (Kysely/`pg`, nunca concatenar strings). Migrações pequenas; constraints do `schema.md` implementadas **todas**.
 9. TypeScript em modo `strict`; `domain` e `application` não importam bibliotecas de I/O (Express, Kysely, pg-boss, minio, nodemailer…) — só `infrastructure`/`interface` o fazem.
+10. **Não consultar por outra ligação com a transação aberta** (leituras de catálogo/outros repositórios fora de `tx`): esgota o *pool*. Ler antes de abrir a transação ou dentro de `tx`. `platform/db` tem um portão FIFO (capacidade `max-1`) como rede de segurança, não como licença (`modules.md` nota 39, OP-130(c)).
 
 ## 4. Testes
 - Tabela de casos (`it.each`), regras puras sem I/O em `domain`/`application`; integração com **testcontainers** (PostgreSQL e MinIO reais); API com **Supertest**.
