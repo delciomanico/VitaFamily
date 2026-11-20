@@ -1,26 +1,27 @@
 import { useState, type FormEvent } from 'react'
 import { Flag, Star } from 'lucide-react'
+import { FilterChips, type ChipItem } from '@/components/app/FilterChips'
+import { ScreenHeader } from '@/components/app/ScreenHeader'
+import { Sheet } from '@/components/app/Sheet'
 import { ReviewCard } from '@/components/consultations/ReviewCard'
 import { LockedNotice } from '@/components/professional/LockedNotice'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
-import { Tabs, type TabItem } from '@/components/ui/Tabs'
 import { Textarea } from '@/components/ui/Textarea'
-import { EmptyState, ErrorState, FormError, LoadingState } from '@/components/ui/states'
+import { ErrorState, FormError, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useCursorPages } from '@/hooks/useCursorPages'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useProfessionalProfile } from '@/hooks/useProfessionalProfile'
 import { NOTE_MAX, REPLY_MAX, REVIEW_REPORT_REASONS, plainText, reviewReportReasonLabel } from '@/lib/consultations'
 import { errorMessage, isAppError } from '@/lib/errors'
+import { paths } from '@/routes/paths'
 import { professionalBookingService } from '@/services/professionalBooking.service'
 import type { ProfessionalReview, ReviewReportReason } from '@/types/consultations'
 
 type Filter = 'ALL' | 'UNANSWERED'
-const filterItems: TabItem<Filter>[] = [
+const CHIPS: ChipItem<Filter>[] = [
   { value: 'ALL', label: 'Todas' },
   { value: 'UNANSWERED', label: 'Sem resposta' },
 ]
@@ -36,20 +37,23 @@ export function ProfessionalReviewsPage() {
   const approved = profile.profile?.validationStatus === 'APPROVED'
 
   return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold">Avaliações</h1>
-      <p className="text-sm text-muted">São anónimas e só de quem consultou consigo. Pode responder a cada uma uma só vez.</p>
+    <div className="flex flex-col gap-5">
+      <ScreenHeader title="Avaliações" backTo={paths.professionalProfile} backLabel="Perfil" subtitle="São anónimas e só de quem consultou consigo. Pode responder a cada uma uma só vez." />
       {profile.profile && !approved && <LockedNotice>A sua conta não está aprovada: as avaliações estão só de leitura.</LockedNotice>}
-      <Tabs items={filterItems} value={filter} onChange={setFilter} label="Filtro das avaliações" />
+      <FilterChips items={CHIPS} value={filter} onChange={setFilter} label="Filtro das avaliações" />
 
       {list.state.status === 'loading' && <LoadingState rows={3} />}
       {list.state.status === 'error' && <ErrorState message={errorMessage(list.state.error)} onRetry={list.reload} />}
       {list.state.status === 'success' &&
         (list.items.length === 0 ? (
-          <EmptyState icon={Star} title={filter === 'UNANSWERED' ? 'Todas as avaliações têm resposta.' : 'Ainda sem avaliações.'} />
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border-strong px-6 py-10 text-center">
+            <Star className="size-10 text-muted" aria-hidden />
+            <p className="text-lg font-semibold">{filter === 'UNANSWERED' ? 'Todas as avaliações têm resposta.' : 'Ainda sem avaliações.'}</p>
+            {filter === 'ALL' && <p className="text-base text-muted">Depois de uma consulta, a família pode avaliar. As avaliações aparecem aqui.</p>}
+          </div>
         ) : (
           <>
-            <Card className="py-1">
+            <div className="rounded-2xl border border-border bg-surface px-4 py-1 shadow-card">
               <ul className="divide-y divide-border">
                 {list.items.map((review) => (
                   <ReviewCard key={review.id} review={review}>
@@ -57,12 +61,12 @@ export function ProfessionalReviewsPage() {
                       {!review.reply && <Badge tone="warning">Sem resposta</Badge>}
                       {review.reported && <Badge>Denunciada</Badge>}
                       {approved && !review.reply && (
-                        <Button size="sm" variant="secondary" onClick={() => setReplying(review)}>
+                        <Button variant="secondary" onClick={() => setReplying(review)}>
                           Responder
                         </Button>
                       )}
                       {approved && !review.reported && (
-                        <Button size="sm" variant="soft" icon={<Flag className="size-4" aria-hidden />} onClick={() => setReporting(review)}>
+                        <Button variant="soft" icon={<Flag className="size-4" aria-hidden />} onClick={() => setReporting(review)}>
                           Denunciar
                         </Button>
                       )}
@@ -70,9 +74,9 @@ export function ProfessionalReviewsPage() {
                   </ReviewCard>
                 ))}
               </ul>
-            </Card>
+            </div>
             {list.nextCursor && (
-              <Button variant="secondary" onClick={() => void list.loadMore()} loading={list.loadingMore}>
+              <Button variant="secondary" size="lg" fullWidth onClick={() => void list.loadMore()} loading={list.loadingMore}>
                 Carregar mais
               </Button>
             )}
@@ -107,20 +111,18 @@ function ReplyModal({ review, onClose, onDone }: { review: ProfessionalReview; o
   }
 
   return (
-    <Modal open onClose={onClose} title="Responder à avaliação" description="A resposta fica pública junto da avaliação e não se pode alterar.">
+    <Sheet open onClose={onClose} title="Responder à avaliação" description="A resposta fica pública junto da avaliação e não se pode alterar.">
       <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-4">
         <Textarea label="Resposta" value={text} onChange={(event) => setText(event.target.value)} maxLength={REPLY_MAX} hint={`${text.length}/${REPLY_MAX} caracteres`} />
         <FormError message={error} />
-        <div className="flex flex-col-reverse gap-2 md:flex-row md:justify-end">
-          <Button variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button type="submit" loading={sending}>
-            Publicar resposta
-          </Button>
-        </div>
+        <Button type="submit" size="xl" fullWidth loading={sending}>
+          Publicar resposta
+        </Button>
+        <Button size="xl" variant="secondary" fullWidth onClick={onClose} disabled={sending}>
+          Cancelar
+        </Button>
       </form>
-    </Modal>
+    </Sheet>
   )
 }
 
@@ -147,20 +149,18 @@ function ReportModal({ review, onClose, onDone }: { review: ProfessionalReview; 
   }
 
   return (
-    <Modal open onClose={onClose} title="Denunciar a avaliação" description="A equipa da Vita Family analisa. A avaliação continua visível até haver decisão.">
+    <Sheet open onClose={onClose} title="Denunciar a avaliação" description="A equipa da Vita Family analisa. A avaliação continua visível até haver decisão.">
       <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-4">
         <Select label="Motivo" options={REVIEW_REPORT_REASONS.map((value) => ({ value, label: reviewReportReasonLabel[value] }))} value={reason} onChange={(event) => setReason(event.target.value as ReviewReportReason)} />
         <Textarea label="Nota (opcional)" value={note} onChange={(event) => setNote(event.target.value)} maxLength={NOTE_MAX} hint={`${note.length}/${NOTE_MAX} caracteres`} />
         <FormError message={error} />
-        <div className="flex flex-col-reverse gap-2 md:flex-row md:justify-end">
-          <Button variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button type="submit" loading={sending}>
-            Enviar denúncia
-          </Button>
-        </div>
+        <Button type="submit" size="xl" fullWidth loading={sending}>
+          Enviar denúncia
+        </Button>
+        <Button size="xl" variant="secondary" fullWidth onClick={onClose} disabled={sending}>
+          Cancelar
+        </Button>
       </form>
-    </Modal>
+    </Sheet>
   )
 }

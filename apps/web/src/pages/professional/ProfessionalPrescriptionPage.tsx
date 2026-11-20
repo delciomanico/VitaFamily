@@ -1,19 +1,22 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, CircleSlash, Plus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { CircleSlash, Pencil, Plus } from 'lucide-react'
+import { ScreenHeader } from '@/components/app/ScreenHeader'
+import { ConfirmSheet } from '@/components/app/Sheet'
+import { Wizard } from '@/components/app/Wizard'
 import { ScheduleFields, emptySchedule, scheduleError, toScheduleInput, type ScheduleValue } from '@/components/domain/ScheduleFields'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
-import { EmptyState, ErrorState, FormError, LoadingState } from '@/components/ui/states'
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useDraft } from '@/lib/draft'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { formatLongDate, formatShortDateLuanda } from '@/lib/format'
+import { canNavigateBack } from '@/lib/navigation'
 import { MAX_PRESCRIPTION_MEDICATIONS, PRESCRIPTION_NOTES_MAX, PRESCRIPTION_NOTICE, frequencyText } from '@/lib/recordSharing'
 import { paths } from '@/routes/paths'
 import { professionalBookingService } from '@/services/professionalBooking.service'
@@ -21,7 +24,6 @@ import { professionalShareService } from '@/services/professionalShare.service'
 import type { ProfessionalPrescription, ProfessionalPrescriptionMedication } from '@/types/recordSharing'
 
 interface Row {
-  key: number
   name: string
   dosage: string
   schedule: ScheduleValue
@@ -30,8 +32,7 @@ interface Row {
   notes: string
 }
 
-let rowKey = 0
-const newRow = (): Row => ({ key: (rowKey += 1), name: '', dosage: '', schedule: emptySchedule(), continuous: false, durationDays: '7', notes: '' })
+const newRow = (): Row => ({ name: '', dosage: '', schedule: emptySchedule(), continuous: false, durationDays: '7', notes: '' })
 
 function atToday(time: string): string {
   const [hours = 0, minutes = 0] = time.split(':').map(Number)
@@ -56,13 +57,13 @@ function toMedication(row: Row): ProfessionalPrescriptionMedication {
     : { ...base, scheduleType: 'INTERVAL', intervalHours: schedule.intervalHours, startAt: atToday(schedule.firstTime) }
 }
 
-function rowError(row: Row): string | null {
-  if (!row.name.trim() || !row.dosage.trim()) return 'Indique o medicamento e a dosagem.'
-  const schedule = scheduleError(row.schedule)
-  if (schedule) return schedule
+/** Erro humano de cada parte de um medicamento (ou `null`). */
+function nameError(row: Row): string | null {
+  return !row.name.trim() || !row.dosage.trim() ? 'Indique o medicamento e a dosagem.' : null
+}
+function durationError(row: Row): string | null {
   const days = Number(row.durationDays)
-  if (!row.continuous && !(Number.isInteger(days) && days >= 1 && days <= 365)) return 'Indique a duração em dias (1 a 365).'
-  return null
+  return !row.continuous && !(Number.isInteger(days) && days >= 1 && days <= 365) ? 'Indique a duração em dias (1 a 365).' : null
 }
 
 /**
@@ -86,31 +87,33 @@ export function ProfessionalPrescriptionPage() {
     [bookingId],
   )
   const [issued, setIssued] = useState<ProfessionalPrescription | null>(null)
-  const back = (
-    <Link to={paths.professionalBooking(bookingId)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-primary">
-      <ArrowLeft className="size-4" aria-hidden />
-      Voltar à marcação
-    </Link>
-  )
+  const back = <ScreenHeader title="Receita" backTo={paths.professionalBooking(bookingId)} backLabel="Marcação" />
 
   const loading = booking.state.status === 'loading' || existing.state.status === 'loading'
   const failed = booking.state.status === 'error' ? booking.state.error : existing.state.status === 'error' ? existing.state.error : null
-  let body
-  if (loading) body = <LoadingState rows={3} />
-  else if (failed) body = isAppError(failed, 'NOT_FOUND') ? <EmptyState icon={CircleSlash} title="Marcação não encontrada." /> : <ErrorState message={errorMessage(failed)} onRetry={() => { booking.reload(); existing.reload() }} />
-  else {
-    const current = issued ?? (existing.state.status === 'success' ? existing.state.data.value : null)
-    const canPrescribe = booking.state.status === 'success' && booking.state.data.canPrescribe === true
-    if (current) body = <PrescriptionView prescription={current} />
-    else if (canPrescribe) body = <PrescriptionForm bookingId={bookingId} onIssued={setIssued} />
-    else body = <EmptyState icon={CircleSlash} title="Não é possível emitir receita nesta marcação." description="A receita digital não está disponível para esta marcação." />
-  }
+  if (loading) return <div className="flex flex-col gap-5">{back}<LoadingState rows={3} /></div>
+  if (failed)
+    return (
+      <div className="flex flex-col gap-5">
+        {back}
+        {isAppError(failed, 'NOT_FOUND') ? <EmptyState icon={CircleSlash} title="Marcação não encontrada." /> : <ErrorState message={errorMessage(failed)} onRetry={() => { booking.reload(); existing.reload() }} />}
+      </div>
+    )
 
+  const current = issued ?? (existing.state.status === 'success' ? existing.state.data.value : null)
+  const canPrescribe = booking.state.status === 'success' && booking.state.data.canPrescribe === true
+  if (current)
+    return (
+      <div className="flex flex-col gap-5">
+        {back}
+        <PrescriptionView prescription={current} />
+      </div>
+    )
+  if (canPrescribe) return <PrescriptionWizard bookingId={bookingId} onIssued={setIssued} />
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {back}
-      <h1 className="text-xl font-semibold">Receita</h1>
-      {body}
+      <EmptyState icon={CircleSlash} title="Não é possível emitir receita nesta marcação." description="A receita digital não está disponível para esta marcação." />
     </div>
   )
 }
@@ -118,55 +121,86 @@ export function ProfessionalPrescriptionPage() {
 function PrescriptionView({ prescription }: { prescription: ProfessionalPrescription }) {
   return (
     <div className="flex flex-col gap-4">
-      <Card className="flex flex-col gap-1">
-        <p className="font-medium">Receita emitida em {formatLongDate(prescription.issuedOn)}</p>
-        <p className="text-sm text-muted">Este é o que escreveu. A família só a pode ler: pode ajustar os horários dos lembretes, mas não alterar os medicamentos.</p>
-      </Card>
-      <Card className="flex flex-col divide-y divide-border py-1">
+      <section className="flex flex-col gap-1 rounded-2xl border border-border bg-surface p-4 shadow-card">
+        <p className="text-lg font-semibold">Receita emitida em {formatLongDate(prescription.issuedOn)}</p>
+        <p className="text-base text-muted">Isto é o que escreveu. A família só a pode ler: pode ajustar os horários dos lembretes, mas não mudar os medicamentos.</p>
+      </section>
+      <ul className="flex flex-col divide-y divide-border rounded-2xl border border-border bg-surface px-4 shadow-card">
         {prescription.medications.map((m, index) => (
-          <div key={index} className="flex flex-col gap-0.5 py-3">
-            <p className="font-medium">
+          <li key={index} className="flex flex-col gap-0.5 py-3">
+            <p className="text-lg font-semibold">
               {m.name} <span className="font-normal text-muted">{m.dosage}</span>
             </p>
-            <p className="text-sm text-muted">
+            <p className="text-base text-muted">
               {frequencyText(m)} · {m.continuous || !m.endAt ? 'Uso contínuo' : `Até ${formatShortDateLuanda(m.endAt)}`}
             </p>
-            {m.notes && <p className="text-sm">{m.notes}</p>}
-          </div>
+            {m.notes && <p className="text-base">{m.notes}</p>}
+          </li>
         ))}
-      </Card>
+      </ul>
       {prescription.notes && (
-        <Card>
-          <p className="text-sm text-muted">Observações</p>
-          <p className="whitespace-pre-line">{prescription.notes}</p>
-        </Card>
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
+          <p className="text-base text-muted">Observações</p>
+          <p className="text-base whitespace-pre-line">{prescription.notes}</p>
+        </section>
       )}
     </div>
   )
 }
 
-function PrescriptionForm({ bookingId, onIssued }: { bookingId: string; onIssued: (value: ProfessionalPrescription) => void }) {
+type Phase = 'name' | 'schedule' | 'duration' | 'review' | 'notes'
+const PHASES: Phase[] = ['name', 'schedule', 'duration', 'review', 'notes']
+
+/** Emitir a receita passo a passo: por medicamento (nome, horário, duração), rever e observações. */
+function PrescriptionWizard({ bookingId, onIssued }: { bookingId: string; onIssued: (value: ProfessionalPrescription) => void }) {
   const toast = useToast()
-  const [rows, setRows] = useState<Row[]>(() => [newRow()])
-  const [notes, setNotes] = useState('')
+  const navigate = useNavigate()
+  const [draft, update, clearDraft] = useDraft<{ rows: Row[]; notes: string }>(`prescription-${bookingId}`, { rows: [newRow()], notes: '' })
+  const [index, setIndex] = useState(0)
+  const [phase, setPhase] = useState<Phase>('name')
   const [error, setError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [sending, setSending] = useState(false)
-  const patch = (key: number, change: Partial<Row>) => setRows((current) => current.map((r) => (r.key === key ? { ...r, ...change } : r)))
-
-  function review(event: FormEvent) {
-    event.preventDefault()
-    const first = rows.map(rowError).find(Boolean)
-    if (first) return setError(first)
-    if (notes.length > PRESCRIPTION_NOTES_MAX) return setError(`As observações têm no máximo ${PRESCRIPTION_NOTES_MAX} caracteres.`)
+  const rows = draft.rows
+  const row = rows[index] ?? rows[0] ?? newRow()
+  const patch = (change: Partial<Row>) => {
     setError(null)
-    setConfirming(true)
+    update({ rows: rows.map((r, i) => (i === index ? { ...r, ...change } : r)) })
+  }
+  const exit = () => (canNavigateBack() ? navigate(-1) : navigate(paths.professionalBooking(bookingId), { replace: true }))
+
+  function onBack() {
+    setError(null)
+    if (phase === 'name') return index > 0 ? setPhase('review') : exit()
+    setPhase(PHASES[PHASES.indexOf(phase) - 1] ?? 'name')
+  }
+
+  function onNext() {
+    if (phase === 'name') {
+      const problem = nameError(row)
+      if (problem) return setError(problem)
+    }
+    if (phase === 'schedule') {
+      const problem = scheduleError(row.schedule)
+      if (problem) return setError(problem)
+    }
+    if (phase === 'duration') {
+      const problem = durationError(row)
+      if (problem) return setError(problem)
+    }
+    if (phase === 'notes') {
+      if (draft.notes.length > PRESCRIPTION_NOTES_MAX) return setError(`As observações têm no máximo ${PRESCRIPTION_NOTES_MAX} caracteres.`)
+      return setConfirming(true)
+    }
+    setError(null)
+    setPhase(PHASES[PHASES.indexOf(phase) + 1] ?? 'notes')
   }
 
   async function issue() {
     setSending(true)
     try {
-      const value = await professionalShareService.issuePrescription(bookingId, { notes: notes.trim() || undefined, medications: rows.map(toMedication) })
+      const value = await professionalShareService.issuePrescription(bookingId, { notes: draft.notes.trim() || undefined, medications: rows.map(toMedication) })
+      clearDraft()
       toast.show('Receita emitida.')
       onIssued(value)
     } catch (e) {
@@ -176,50 +210,102 @@ function PrescriptionForm({ bookingId, onIssued }: { bookingId: string; onIssued
     }
   }
 
+  const step = PHASES.indexOf(phase)
+  const medTitle = rows.length > 1 ? ` ${index + 1}` : ''
+  const titles: Record<Phase, string> = {
+    name: `Medicamento${medTitle}`,
+    schedule: 'Quando toma?',
+    duration: 'Durante quanto tempo?',
+    review: 'Reveja a receita',
+    notes: 'Alguma observação?',
+  }
+
   return (
-    <form onSubmit={review} noValidate className="flex flex-col gap-5">
-      <p role="note" className="rounded-md bg-warning-soft px-3.5 py-3 text-sm">
-        {PRESCRIPTION_NOTICE}
-      </p>
-      {rows.map((row, index) => (
-        <Card key={row.key} className="flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold">Medicamento {index + 1}</h2>
-            {rows.length > 1 && (
-              <Button variant="ghost" size="sm" onClick={() => setRows((current) => current.filter((r) => r.key !== row.key))} icon={<Trash2 className="size-4" aria-hidden />}>
-                Remover
+    <>
+      <Wizard
+        title="Emitir receita"
+        stepTitle={titles[phase]}
+        description={phase === 'name' ? 'Escreva o nome e a dose, como na receita em papel.' : phase === 'notes' ? 'Opcional. A família vê isto junto à receita.' : undefined}
+        step={step}
+        total={PHASES.length}
+        onBack={onBack}
+        onNext={onNext}
+        nextLabel={phase === 'notes' ? 'Emitir receita' : 'Continuar'}
+        busy={sending}
+        error={error}
+      >
+        {phase === 'name' && (
+          <>
+            {index === 0 && (
+              <p role="note" className="rounded-xl bg-warning-soft px-4 py-3 text-base">
+                {PRESCRIPTION_NOTICE}
+              </p>
+            )}
+            <Input label="Medicamento" value={row.name} maxLength={200} onChange={(event) => patch({ name: event.target.value })} />
+            <Input label="Dosagem" value={row.dosage} maxLength={200} onChange={(event) => patch({ dosage: event.target.value })} />
+            <Input label="Observações do medicamento (opcional)" value={row.notes} maxLength={200} onChange={(event) => patch({ notes: event.target.value })} />
+          </>
+        )}
+        {phase === 'schedule' && <ScheduleFields value={row.schedule} onChange={(schedule) => patch({ schedule })} />}
+        {phase === 'duration' && (
+          <>
+            <Checkbox label="Uso contínuo (sem data de fim)" checked={row.continuous} onChange={(event) => patch({ continuous: event.target.checked })} />
+            {!row.continuous && <Input label="Duração (dias)" type="number" min={1} max={365} value={row.durationDays} onChange={(event) => patch({ durationDays: event.target.value })} />}
+          </>
+        )}
+        {phase === 'review' && (
+          <>
+            <ul className="flex flex-col gap-3">
+              {rows.map((r, i) => (
+                <li key={i} className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-surface p-4 shadow-card">
+                  <div className="min-w-0">
+                    <p className="text-lg font-semibold">
+                      {r.name || 'Sem nome'} <span className="font-normal text-muted">{r.dosage}</span>
+                    </p>
+                    <p className="text-base text-muted">{r.continuous ? 'Uso contínuo' : `${r.durationDays} dias`}</p>
+                  </div>
+                  <Button
+                    variant="soft"
+                    icon={<Pencil className="size-4" aria-hidden />}
+                    aria-label={`Mudar o medicamento ${r.name || i + 1}`}
+                    onClick={() => {
+                      setIndex(i)
+                      setPhase('name')
+                    }}
+                  >
+                    Mudar
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            {rows.length < MAX_PRESCRIPTION_MEDICATIONS && (
+              <Button
+                variant="secondary"
+                size="lg"
+                fullWidth
+                icon={<Plus className="size-5" aria-hidden />}
+                onClick={() => {
+                  update({ rows: [...rows, newRow()] })
+                  setIndex(rows.length)
+                  setPhase('name')
+                }}
+              >
+                Acrescentar outro medicamento
               </Button>
             )}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input label="Medicamento" value={row.name} maxLength={200} onChange={(event) => patch(row.key, { name: event.target.value })} />
-            <Input label="Dosagem" value={row.dosage} maxLength={200} onChange={(event) => patch(row.key, { dosage: event.target.value })} />
-          </div>
-          <ScheduleFields value={row.schedule} onChange={(schedule) => patch(row.key, { schedule })} />
-          <Checkbox label="Uso contínuo (sem data de fim)" checked={row.continuous} onChange={(event) => patch(row.key, { continuous: event.target.checked })} />
-          {!row.continuous && <Input label="Duração (dias)" type="number" min={1} max={365} value={row.durationDays} onChange={(event) => patch(row.key, { durationDays: event.target.value })} className="sm:w-40" />}
-          <Input label="Observações (opcional)" value={row.notes} maxLength={200} onChange={(event) => patch(row.key, { notes: event.target.value })} />
-        </Card>
-      ))}
-      {rows.length < MAX_PRESCRIPTION_MEDICATIONS && (
-        <Button variant="soft" className="w-fit" onClick={() => setRows((current) => [...current, newRow()])} icon={<Plus className="size-4" aria-hidden />}>
-          Acrescentar medicamento
-        </Button>
-      )}
-      <Textarea label="Observações da receita (opcional)" value={notes} maxLength={PRESCRIPTION_NOTES_MAX} onChange={(event) => setNotes(event.target.value)} hint={`${notes.length}/${PRESCRIPTION_NOTES_MAX} caracteres`} />
-      <FormError message={error} />
-      <Button type="submit" size="lg" className="sm:w-fit">
-        Emitir receita
-      </Button>
-      <ConfirmDialog
+          </>
+        )}
+        {phase === 'notes' && <Textarea label="Observações da receita (opcional)" rows={5} value={draft.notes} maxLength={PRESCRIPTION_NOTES_MAX} onChange={(event) => { setError(null); update({ notes: event.target.value }) }} hint={`${draft.notes.length}/${PRESCRIPTION_NOTES_MAX} letras`} />}
+      </Wizard>
+      <ConfirmSheet
         open={confirming}
         title="Emitir esta receita?"
         description="Depois de emitida, a receita fica no registo do membro e não pode ser alterada por si nem pela família."
-        confirmLabel="Emitir"
+        yesLabel="Sim, emitir"
         loading={sending}
-        onConfirm={() => void issue()}
-        onCancel={() => setConfirming(false)}
+        onYes={() => void issue()}
+        onNo={() => setConfirming(false)}
       />
-    </form>
+    </>
   )
 }

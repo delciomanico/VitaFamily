@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { ToastProvider } from '@/components/ui/Toast'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { resetDb } from '@/mocks/db'
-import { resetConsultationsDb } from '@/mocks/consultationsDb'
+import { consultationsDb, resetConsultationsDb } from '@/mocks/consultationsDb'
+import { resetRecordSharingDb, setDigitalPrescriptionEnabled } from '@/mocks/recordSharingDb'
 import { resetMarketplaceDb } from '@/mocks/marketplaceDb'
 import { resetProfessionalDb } from '@/mocks/professionalDb'
 import { routes } from './router'
@@ -23,11 +24,15 @@ function asProfessional(path: string, accountId = 'pro_aprovada') {
   return router
 }
 
+const type = (label: string | RegExp, value: string) => fireEvent.input(screen.getByLabelText(label), { target: { value } })
+const consultationsDbFor = (id: string) => consultationsDb.bookings.find((b) => b.id === id)!
+
 beforeEach(() => {
   resetDb()
   resetProfessionalDb()
   resetMarketplaceDb()
   resetConsultationsDb()
+  resetRecordSharingDb()
   window.sessionStorage.clear()
   window.localStorage.clear()
 })
@@ -222,5 +227,58 @@ describe('Conversas', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Sim, fechar' }))
     expect(await screen.findByText('Conversa fechada.')).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByLabelText('Escrever mensagem')).not.toBeInTheDocument())
+  })
+})
+
+describe('receita e partilhas recebidas', () => {
+  it('receita: o rascunho sobrevive a «Voltar» e a sair do ecrã', async () => {
+    setDigitalPrescriptionEnabled(true)
+    consultationsDbFor('bkg_seed_pa_done').offer.category = 'HEALTH'
+    asProfessional('/profissional/marcacoes/bkg_seed_pa_done/receita')
+    await screen.findByLabelText('Medicamento')
+    type('Medicamento', 'Paracetamol')
+    type('Dosagem', '1 g')
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+    expect(await screen.findByRole('heading', { name: 'Quando toma?' })).toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Passo 2 de 5')
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }))
+    expect(await screen.findByLabelText('Medicamento')).toHaveValue('Paracetamol')
+
+    cleanup()
+    asProfessional('/profissional/marcacoes/bkg_seed_pa_done/receita')
+    expect(await screen.findByLabelText('Medicamento')).toHaveValue('Paracetamol')
+    expect(screen.queryByRole('navigation', { name: 'Principal' })).not.toBeInTheDocument()
+  })
+
+  it('partilhas recebidas: lista em cartões; a ação de abrir pede «Sim»/«Não»', async () => {
+    asProfessional('/profissional/partilhas')
+    expect(await screen.findByRole('heading', { name: 'Partilhas recebidas' })).toBeInTheDocument()
+    const group = screen.getByRole('group', { name: 'Estado das partilhas' })
+    expect(within(group).getByRole('button', { name: 'Para abrir' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click((await screen.findAllByText('Monarca'))[0]!)
+    fireEvent.click(await screen.findByRole('button', { name: 'Abrir partilha' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Não' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByTestId('shared-records')).not.toBeInTheDocument()
+  })
+
+  it('a partilha acede-se também a partir do detalhe da marcação (filtrada por essa marcação)', async () => {
+    const router = asProfessional('/profissional/marcacoes/bkg_seed_pa_conf')
+    fireEvent.click(await screen.findByRole('button', { name: /^Partilha de registos/ }))
+    fireEvent.click(screen.getByRole('link', { name: 'Ver partilhas desta marcação' }))
+    await waitFor(() => expect(router.state.location.search).toBe('?marcacao=bkg_seed_pa_conf'))
+    const nav = await screen.findByRole('navigation', { name: 'Principal' })
+    // Vindo de uma marcação, o separador ativo continua a ser «Marcações».
+    expect(within(nav).getByRole('link', { name: /Marcações/ })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('avaliações: filtros em pílulas e resposta numa folha com botões grandes', async () => {
+    asProfessional('/profissional/avaliacoes')
+    expect(await screen.findByRole('group', { name: 'Filtro das avaliações' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Responder' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
   })
 })
