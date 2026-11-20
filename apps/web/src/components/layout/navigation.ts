@@ -24,3 +24,13 @@ export const primaryNav: NavItem[] = [
 export const alertsNav: NavItem = { to: paths.alerts, label: 'Alertas', icon: Bell }
 
 export const settingsNav: NavItem = { to: paths.settings, label: 'Configurações', icon: Settings }
+
+/** Barra inferior do telemóvel: poucas áreas por ordem de importância; o último item é o perfil (avatar). */
+export const bottomNav: NavItem[] = [
+  { to: paths.home, label: 'Início', icon: House, end: true },
+  { to: paths.health, label: 'Saúde', icon: HeartPulse },
+  { to: paths.bookings, label: 'Marcações', icon: CalendarCheck },
+  { to: paths.messages, label: 'Conversas', icon: MessageCircle },
+]
+
+export const profileNav: NavItem = { to: paths.settings, label: 'Perfil', icon: Settings }

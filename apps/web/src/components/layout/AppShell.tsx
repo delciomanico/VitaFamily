@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { alertService } from '@/services/alert.service'
 import { RefreshUnreadAlertsContext, UnreadAlertsContext } from './UnreadAlertsContext'
+import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
 
 /** Alertas por ler para o menu e a sidebar; atualiza a cada navegação. */
@@ -20,7 +21,7 @@ function useUnreadAlerts() {
 
 /**
  * Estrutura da área autenticada.
- * Mobile/tablet: cada página com a sua faixa (voltar, título, menu); a Home dá acesso às áreas.
+ * Mobile/tablet: barra inferior (BottomNav) e, em cada página, faixa com voltar, título e alertas.
  * Desktop (≥ lg): Sidebar + conteúdo.
  */
 export function AppShell() {
@@ -29,7 +30,7 @@ export function AppShell() {
   return (
     <UnreadAlertsContext.Provider value={unread.count}>
       <RefreshUnreadAlertsContext.Provider value={unread.reload}>
-        <div className="min-h-dvh">
+        <div className="app-mobile min-h-dvh pb-(--bottom-nav-h) [--bottom-nav-h:calc(5rem+env(safe-area-inset-bottom))] lg:[--bottom-nav-h:0px]">
           <a
             href="#conteudo"
             className="sr-only z-50 rounded-md bg-surface px-4 py-2 focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
@@ -40,6 +41,7 @@ export function AppShell() {
           <main id="conteudo" className="lg:pl-(--spacing-sidebar)">
             <Outlet />
           </main>
+          <BottomNav />
         </div>
       </RefreshUnreadAlertsContext.Provider>
     </UnreadAlertsContext.Provider>

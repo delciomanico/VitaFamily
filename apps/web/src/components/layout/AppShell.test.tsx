@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -60,15 +60,19 @@ describe('AppShell', () => {
     expect(within(sidebar).getByRole('link', { name: 'Início' })).not.toHaveAttribute('aria-current')
   })
 
-  it('a faixa tem voltar, título e o botão de menu que abre a navegação', async () => {
+  it('no telemóvel tem a barra inferior com poucas áreas e o perfil no fim', async () => {
+    renderAt('/app/health')
+    const bar = screen.getByRole('navigation', { name: 'Barra inferior' })
+    const links = within(bar).getAllByRole('link')
+    expect(links.map((l) => l.textContent)).toEqual(['Início', 'Saúde', 'Marcações', 'Conversas', expect.stringMatching(/Perfil$/)])
+    expect(links[1]).toHaveAttribute('aria-current', 'page')
+    expect(links[4]).toHaveAttribute('href', '/app/settings')
+  })
+
+  it('a faixa tem voltar, título e o sino dos alertas com contador', async () => {
     renderAt('/app/health')
     expect(screen.getByRole('heading', { name: 'Página de teste' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Voltar' })).toHaveAttribute('href', '/app')
-
-    fireEvent.click(await screen.findByRole('button', { name: /^Abrir menu, \d+ alertas por ler$/ }))
-    const menu = screen.getByRole('navigation', { name: 'Menu principal', hidden: true })
-    for (const label of ['Início', 'Saúde', 'Agenda', 'Família', 'Configurações']) {
-      expect(within(menu).getByRole('link', { name: label, hidden: true })).toBeInTheDocument()
-    }
+    expect((await screen.findAllByRole('link', { name: /^Alertas, \d+ por ler$/ }))[0]).toHaveAttribute('href', '/app/alerts')
   })
 })

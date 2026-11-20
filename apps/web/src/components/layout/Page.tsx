@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { useBackTo } from '@/hooks/useBackTo'
-import { MenuButton } from './MenuButton'
+import { AlertsButton } from './AlertsButton'
 
 interface PageProps {
   title: string
@@ -28,8 +28,8 @@ interface PageProps {
 export const bandTitleClass = 'truncate text-[1.1875rem] leading-tight font-bold tracking-tight'
 
 /**
- * Página da área autenticada: faixa ciano compacta numa só linha (voltar, título, menu),
- * seguida do conteúdo centrado.
+ * Página da área autenticada: faixa ciano compacta numa só linha (voltar, título, alertas),
+ * seguida do conteúdo centrado. A navegação está na barra inferior (BottomNav).
  */
 export function Page({
   title,
@@ -43,7 +43,7 @@ export function Page({
 }: PageProps) {
   const handleBack = useBackTo(backTo ?? '/')
   return (
-    <div className={cn(fullScreen && 'flex h-dvh flex-col overflow-hidden')}>
+    <div className={cn(fullScreen && 'flex h-[calc(100dvh-var(--bottom-nav-h,0px))] flex-col overflow-hidden')}>
       <header className="shrink-0 bg-brand pt-safe text-white">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4 lg:px-8">
           {backTo && (
@@ -57,7 +57,7 @@ export function Page({
             </Link>
           )}
           <div className="min-w-0 flex-1">{header ?? <h1 className={bandTitleClass}>{title}</h1>}</div>
-          <MenuButton />
+          <AlertsButton />
         </div>
       </header>
       <div
