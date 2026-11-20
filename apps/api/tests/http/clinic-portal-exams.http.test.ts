@@ -225,7 +225,8 @@ describe("fluxo completo conforme o contrato (UC-EXM-08, UC-CLN-09..10, ADR-023 
       .send({ results: [{ parameter: "Glicemia", valueNumeric: 250, unit: "mg/dL", referenceMin: 70, referenceMax: 100 }], resultNote: "ok" });
     expect(completed.status).toBe(200);
     expect(completed.body).toMatchObject({ status: "COMPLETED", resultsCount: 1 });
-    expect(JSON.stringify(completed.body)).not.toContain("250");
+    // Sem UUIDs (hex aleatório pode conter «250»): o valor sai como número ou texto de campo, nunca como `"valueNumeric"`/`250`.
+    expect(JSON.stringify(completed.body).replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "<uuid>")).not.toContain("250");
 
     const after = await request(h.app).get(`${EXAMS}/${id}`).set("Authorization", user);
     expect(after.body).toMatchObject({ status: "COMPLETED", issuedBy: "CLINIC", issuedByClinicAccountId: ACCOUNT_A, clinicResultNote: "ok", resultsIssuedAt: NOW.toISOString() });
