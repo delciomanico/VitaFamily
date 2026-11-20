@@ -330,6 +330,9 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
-.app-mobile :is(button, a).rounded-full {
-  min-height: 3rem;
+/* Em camada de componentes: um `min-h-*` maior na própria utilitária continua a prevalecer. */
+@layer components {
+  .app-mobile :is(button, a).rounded-full {
+    min-height: 3rem;
+  }
 }

@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, MessageCircle } from 'lucide-react'
+import { ChevronLeft, Ellipsis, MessageCircle } from 'lucide-react'
 import { ChatThread } from '@/components/chat/ChatThread'
-import { Badge } from '@/components/ui/Badge'
+import { ConfirmSheet, Sheet } from '@/components/app/Sheet'
+import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
@@ -18,8 +17,8 @@ import { professionalConversationService } from '@/services/professionalConversa
 import type { ProfessionalConversation } from '@/types/marketplace'
 
 /**
- * Conversa do lado do profissional. A vista só mostra a identidade de apresentação da família
- * (`participantLabel`); nunca ids de família, membro ou utilizador (BR-MKT-38).
+ * Conversa do lado do profissional, em ecrã inteiro (como uma app de mensagens). A vista só mostra a identidade de
+ * apresentação da família (`participantLabel`); nunca ids de família, membro ou utilizador (BR-MKT-38).
  */
 export function ProfessionalConversationPage() {
   usePageTitle('Conversa')
@@ -28,6 +27,7 @@ export function ProfessionalConversationPage() {
   const profile = useProfessionalProfile()
   const approved = profile.profile?.validationStatus === 'APPROVED'
 
+  const [optionsOpen, setOptionsOpen] = useState(false)
   const [closeOpen, setCloseOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   // Atualização silenciosa: o fio não pode desmontar ao recarregar a conversa.
@@ -59,85 +59,93 @@ export function ProfessionalConversationPage() {
     } finally {
       setBusy(false)
       setCloseOpen(false)
+      setOptionsOpen(false)
     }
   }
 
   // Fechar exige conversa aberta e conta aprovada (canSend); reabrir só o que o próprio profissional fechou.
   const canClose = conv?.status === 'OPEN' && conv.canSend
   const canReopen = conv?.status === 'CLOSED' && conv.closedBy === 'PROFESSIONAL' && approved
+  const stateText = !conv ? '' : conv.status === 'CLOSED' ? (conv.closedBy ? closedByLabel[conv.closedBy] : 'Conversa fechada') : conv.canSend ? 'Aberta' : 'Só leitura'
 
   return (
-    <div className="flex h-[calc(100dvh-10rem)] min-h-[32rem] flex-col gap-4">
-      <Link to={paths.professionalConversations} className="inline-flex w-fit items-center gap-1 text-sm text-muted hover:text-foreground">
-        <ChevronLeft className="size-4" aria-hidden />
-        Voltar às conversas
-      </Link>
-
-      {base.state.status === 'loading' && <LoadingState rows={2} />}
-      {base.state.status === 'error' &&
-        (notFound ? (
-          <EmptyState icon={MessageCircle} title="Não encontrámos esta conversa" description="Volte à lista de conversas." />
-        ) : (
-          <ErrorState onRetry={base.reload} />
-        ))}
-
-      {conv && (
-        <>
-          <div className="flex shrink-0 flex-col gap-3">
-            <div className="flex items-start justify-between gap-3">
-              <h1 className="min-w-0 truncate text-xl font-semibold">{conv.participantLabel}</h1>
-              {conv.status === 'CLOSED' ? (
-                <Badge>{conv.closedBy ? closedByLabel[conv.closedBy] : 'Fechada'}</Badge>
-              ) : conv.canSend ? (
-                <Badge tone="success" dot>
-                  Aberta
-                </Badge>
-              ) : (
-                <Badge tone="warning" dot>
-                  Só leitura
-                </Badge>
-              )}
+    <div className="flex h-dvh flex-col bg-background">
+      <header className="flex min-h-16 shrink-0 items-center gap-1 border-b border-border bg-surface px-2 pt-[env(safe-area-inset-top)]">
+        <Link to={paths.professionalConversations} className="inline-flex min-h-14 items-center gap-0.5 rounded-full pe-3 ps-1 text-base font-medium text-primary hover:bg-primary-soft">
+          <ChevronLeft className="size-6" aria-hidden />
+          Voltar
+        </Link>
+        {conv && (
+          <>
+            <Avatar name={conv.participantLabel} size="md" />
+            <div className="min-w-0 flex-1 ps-1">
+              <h1 className="truncate text-lg leading-6 font-semibold">{conv.participantLabel}</h1>
+              <p className="truncate text-sm text-muted">{stateText}</p>
             </div>
-
             {(canClose || canReopen) && (
-              <Card className="flex flex-wrap gap-2 p-3">
-                {canClose && (
-                  <Button variant="secondary" size="sm" onClick={() => setCloseOpen(true)} disabled={busy}>
-                    Fechar conversa
-                  </Button>
-                )}
-                {canReopen && (
-                  <Button variant="soft" size="sm" onClick={() => void changeState('reopen')} loading={busy}>
-                    Reabrir
-                  </Button>
-                )}
-              </Card>
+              <Button variant="ghost" onClick={() => setOptionsOpen(true)} icon={<Ellipsis className="size-5" aria-hidden />}>
+                Opções
+              </Button>
             )}
-          </div>
+          </>
+        )}
+      </header>
 
-          <div className="flex min-h-0 flex-1 flex-col">
-            <ChatThread
-              side="PROFESSIONAL"
-              conversation={{ id: conv.id, status: conv.status, closedBy: conv.closedBy, canSend: conv.canSend }}
-              load={(cursor) => professionalConversationService.messages(conversationId, cursor)}
-              send={(text, clientMessageId) => professionalConversationService.send(conversationId, { text, clientMessageId })}
-              markRead={(upToSeq) => professionalConversationService.markRead(conversationId, upToSeq)}
-              report={(messageId, input) => professionalConversationService.report(conversationId, messageId, input)}
-              onChanged={() => void refresh()}
-            />
-          </div>
-        </>
+      {base.state.status === 'loading' && (
+        <div className="p-5">
+          <LoadingState rows={2} />
+        </div>
+      )}
+      {base.state.status === 'error' && (
+        <div className="p-5">
+          {notFound ? <EmptyState icon={MessageCircle} title="Não encontrámos esta conversa" description="Volte à lista de conversas." /> : <ErrorState onRetry={base.reload} />}
+        </div>
       )}
 
-      <ConfirmDialog
+      {conv && (
+        <ChatThread
+          variant="app"
+          warning
+          side="PROFESSIONAL"
+          conversation={{ id: conv.id, status: conv.status, closedBy: conv.closedBy, canSend: conv.canSend }}
+          load={(cursor) => professionalConversationService.messages(conversationId, cursor)}
+          send={(text, clientMessageId) => professionalConversationService.send(conversationId, { text, clientMessageId })}
+          markRead={(upToSeq) => professionalConversationService.markRead(conversationId, upToSeq)}
+          report={(messageId, input) => professionalConversationService.report(conversationId, messageId, input)}
+          onChanged={() => void refresh()}
+        />
+      )}
+
+      <Sheet open={optionsOpen} onClose={() => setOptionsOpen(false)} title="Opções da conversa">
+        {canClose && (
+          <Button
+            size="xl"
+            variant="secondary"
+            fullWidth
+            onClick={() => {
+              setOptionsOpen(false)
+              setCloseOpen(true)
+            }}
+          >
+            Fechar a conversa
+          </Button>
+        )}
+        {canReopen && (
+          <Button size="xl" variant="primary" fullWidth onClick={() => void changeState('reopen')} loading={busy}>
+            Reabrir a conversa
+          </Button>
+        )}
+      </Sheet>
+
+      <ConfirmSheet
         open={closeOpen}
         title="Fechar esta conversa?"
-        description="Fechar trava novas mensagens; só você a pode reabrir."
-        confirmLabel="Fechar conversa"
+        description="Ninguém poderá escrever mais. Só você a pode reabrir."
+        yesLabel="Sim, fechar"
         destructive
         loading={busy}
-        onCancel={() => setCloseOpen(false)}
-        onConfirm={() => void changeState('close')}
+        onNo={() => setCloseOpen(false)}
+        onYes={() => void changeState('close')}
       />
     </div>
   )

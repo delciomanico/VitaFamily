@@ -404,6 +404,8 @@ export const routes: RouteObject[] = [
               { path: 'conversas', ...page(() => import('@/pages/professional/ProfessionalConversationsPage'), 'ProfessionalConversationsPage') },
               {
                 path: 'conversas/:conversationId',
+                // Conversa em ecrã inteiro: sem barra inferior (a caixa de escrita ocupa o fundo).
+                handle: { hideNav: true, bare: true },
                 ...page(() => import('@/pages/professional/ProfessionalConversationPage'), 'ProfessionalConversationPage'),
               },
             ],

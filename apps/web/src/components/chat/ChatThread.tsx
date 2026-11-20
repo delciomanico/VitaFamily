@@ -1,5 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
-import { TriangleAlert } from 'lucide-react'
+import { Send, TriangleAlert } from 'lucide-react'
+import { PrivacyStrip } from '@/components/app/PrivacyStrip'
+import { Sheet } from '@/components/app/Sheet'
 import { Button } from '@/components/ui/Button'
 import { controlClasses, controlState } from '@/components/ui/Field'
 import { Modal } from '@/components/ui/Modal'
@@ -49,6 +51,8 @@ export interface ChatThreadProps {
   onChanged?: () => void
   /** Mostra o aviso fixo sobre dados de saúde perto do campo de escrita (a família). */
   warning?: boolean
+  /** `app`: conversa em ecrã inteiro da app do profissional (bolhas maiores, caixa fixa em baixo, aviso recolhível). */
+  variant?: 'default' | 'app'
 }
 
 type Phase = 'loading' | 'ready' | 'error'
@@ -69,7 +73,8 @@ function sendErrorMessage(error: unknown): string {
  * Conversa de mercado (MK2) partilhada pela família e pelo profissional. Texto sempre como texto simples
  * (nunca HTML); o texto das mensagens é dado de saúde potencial e não vai para logs (BR-MKT-46).
  */
-export function ChatThread({ side, conversation, load, send, markRead, report, onChanged, warning = false }: ChatThreadProps) {
+export function ChatThread({ side, conversation, load, send, markRead, report, onChanged, warning = false, variant = 'default' }: ChatThreadProps) {
+  const app = variant === 'app'
   const toast = useToast()
   const fieldId = useId()
   const warningId = useId()
@@ -222,12 +227,14 @@ export function ChatThread({ side, conversation, load, send, markRead, report, o
     }
   }
 
+  const ReportDialog = app ? Sheet : Modal
   const readOnly = conversation.canSend ? null : readOnlyNotice(conversation.canSend, conversation.status, conversation.closedBy, side)
   const counterText = `${draft.length}/${CHAT_MAX_LENGTH}`
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div ref={listRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+    <div className={cn('flex min-h-0 flex-1 flex-col', !app && 'gap-3')}>
+      {app && warning && <PrivacyStrip warning={CHAT_WARNING} />}
+      <div ref={listRef} className={cn('flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto', app ? 'px-4 py-4' : 'pr-1')}>
         {phase === 'loading' && <LoadingState rows={3} label="A carregar mensagens…" />}
         {phase === 'error' && (
           <ErrorState message="Não foi possível carregar as mensagens." onRetry={() => setAttempt((n) => n + 1)} />
@@ -245,16 +252,42 @@ export function ChatThread({ side, conversation, load, send, markRead, report, o
         )}
         <ul role="log" aria-live="polite" aria-label="Mensagens" className="flex flex-col gap-3">
           {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} reportable={message.side !== side} onReport={openReport} />
+            <MessageBubble key={message.id} message={message} reportable={message.side !== side} onReport={openReport} app={app} />
           ))}
         </ul>
       </div>
 
-      <div className="flex shrink-0 flex-col gap-2">
+      <div className={cn('flex shrink-0 flex-col gap-2', app && 'border-t border-border bg-surface px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]')}>
         {readOnly ? (
           <p role="status" className="rounded-md bg-surface-muted px-3.5 py-3 text-sm text-muted">
             {readOnly}
           </p>
+        ) : app ? (
+          <form onSubmit={onSend} className="flex flex-col gap-2">
+            <label htmlFor={fieldId} className="sr-only">
+              Escrever mensagem
+            </label>
+            <div className="flex items-end gap-2">
+              <textarea
+                id={fieldId}
+                rows={1}
+                maxLength={CHAT_MAX_LENGTH}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                readOnly={sending}
+                aria-describedby={counterId}
+                placeholder="Escreva a sua mensagem"
+                className={cn(controlClasses, controlState(), 'max-h-32 min-h-14 flex-1 resize-none rounded-2xl py-3.5')}
+              />
+              <Button type="submit" size="xl" disabled={text === null} loading={sending} icon={<Send className="size-5" aria-hidden />}>
+                Enviar
+              </Button>
+            </div>
+            <span id={counterId} className={cn('text-end text-sm text-muted', draft.length < CHAT_MAX_LENGTH * 0.8 && 'sr-only')}>
+              {counterText}
+            </span>
+            <FormError message={sendError} />
+          </form>
         ) : (
           <form onSubmit={onSend} className="flex flex-col gap-2">
             {warning && (
@@ -290,16 +323,16 @@ export function ChatThread({ side, conversation, load, send, markRead, report, o
         )}
       </div>
 
-      <Modal
+      <ReportDialog
         open={reportTarget !== null}
         onClose={closeReport}
         title="Denunciar mensagem"
         footer={
           <>
-            <Button variant="secondary" onClick={closeReport} disabled={reporting}>
+            <Button size={app ? 'xl' : undefined} variant="secondary" onClick={closeReport} disabled={reporting}>
               Voltar
             </Button>
-            <Button onClick={() => void submitReport()} loading={reporting} disabled={reason === ''}>
+            <Button size={app ? 'xl' : undefined} onClick={() => void submitReport()} loading={reporting} disabled={reason === ''}>
               Enviar denúncia
             </Button>
           </>
@@ -324,7 +357,7 @@ export function ChatThread({ side, conversation, load, send, markRead, report, o
           />
           <FormError message={reportError} />
         </div>
-      </Modal>
+      </ReportDialog>
     </div>
   )
 }
@@ -334,16 +367,18 @@ interface MessageBubbleProps {
   /** Só mensagens do outro lado se denunciam (o outro tutor da família é o mesmo lado). */
   reportable: boolean
   onReport: (message: ChatMessage) => void
+  app: boolean
 }
 
-function MessageBubble({ message, reportable, onReport }: MessageBubbleProps) {
+function MessageBubble({ message, reportable, onReport, app }: MessageBubbleProps) {
   const { mine } = message
   return (
     <li className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
-      <div className={cn('flex max-w-[85%] flex-col gap-1', mine ? 'items-end' : 'items-start')}>
+      <div className={cn('flex flex-col gap-1', app ? 'max-w-[88%]' : 'max-w-[85%]', mine ? 'items-end' : 'items-start')}>
         <div
           className={cn(
-            'rounded-2xl px-3.5 py-2.5 text-sm',
+            'rounded-2xl px-3.5 py-2.5',
+            app ? 'text-base' : 'text-sm',
             mine ? 'rounded-br-md bg-primary text-primary-foreground' : 'rounded-bl-md bg-surface-muted text-foreground',
           )}
         >
@@ -355,9 +390,14 @@ function MessageBubble({ message, reportable, onReport }: MessageBubbleProps) {
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
           <time dateTime={message.createdAt}>{formatWhenLuanda(message.createdAt)}</time>
-          <span aria-hidden="true">#{message.seq}</span>
+          {!app && <span aria-hidden="true">#{message.seq}</span>}
           {mine && <span>{message.readByOtherSide ? 'Lida' : 'Enviada'}</span>}
-          {!mine && reportable && !message.hidden && (
+          {!mine && reportable && !message.hidden && app && (
+            <button type="button" onClick={() => onReport(message)} className="rounded-md px-1.5 py-1 text-sm text-muted underline">
+              Denunciar
+            </button>
+          )}
+          {!mine && reportable && !message.hidden && !app && (
             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onReport(message)}>
               Denunciar
             </Button>
