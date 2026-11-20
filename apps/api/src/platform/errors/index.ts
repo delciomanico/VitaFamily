@@ -18,7 +18,7 @@ export interface DomainErrorOptions {
   /** Mensagem curta em pt-PT, sem dados de saúde (errors.md regra 1). */
   detail?: string;
   fields?: FieldError[];
-  /** Só para RATE_LIMITED (cabeçalho `Retry-After`). */
+  /** Só para RATE_LIMITED e SERVICE_UNAVAILABLE (cabeçalho `Retry-After`). */
   retryAfterMs?: number;
   cause?: unknown;
 }
@@ -119,7 +119,7 @@ export const PROBLEM_TYPE_BASE = "https://vitafamily.cassfrei.com/problems/";
 export interface ProblemResult {
   status: number;
   body: Problem;
-  /** Segundos para o cabeçalho `Retry-After` (só em RATE_LIMITED). */
+  /** Segundos para o cabeçalho `Retry-After` (RATE_LIMITED e SERVICE_UNAVAILABLE). */
   retryAfterSeconds?: number;
 }
 
@@ -153,7 +153,7 @@ export function toProblem(err: unknown, requestId: string): ProblemResult {
   }
 
   const result: ProblemResult = { status, body };
-  if (domainError.code === "RATE_LIMITED" && domainError.retryAfterMs) {
+  if ((domainError.code === "RATE_LIMITED" || domainError.code === "SERVICE_UNAVAILABLE") && domainError.retryAfterMs) {
     result.retryAfterSeconds = Math.max(1, Math.round(domainError.retryAfterMs / 1000));
   }
   return result;

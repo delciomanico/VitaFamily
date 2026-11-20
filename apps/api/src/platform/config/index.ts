@@ -68,6 +68,15 @@ const envSchema = z.object({
   // (ver `loadConfig`); em local/test usa-se um valor fixo de desenvolvimento.
   CLINIC_LINK_CODE_SECRET: z.string().min(16, "CLINIC_LINK_CODE_SECRET deve ter pelo menos 16 caracteres").optional(),
 
+  // Limitadores de taxa em Redis (ADR-038). Em production: REDIS_URL e RATE_LIMIT_KEY_SECRET obrigatórios e
+  // `memory` recusado (ver `loadConfig`); fora de production sem REDIS_URL o limitador usa memória (aviso no arranque).
+  REDIS_URL: z.string().min(1).optional(),
+  REDIS_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().default(200),
+  REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(1000),
+  RATE_LIMIT_KEY_PREFIX: z.string().min(1).optional(),
+  RATE_LIMIT_KEY_SECRET: z.string().min(32, "RATE_LIMIT_KEY_SECRET deve ter pelo menos 32 bytes").optional(),
+  RATE_LIMIT_BACKEND: z.enum(["redis", "memory"]).default("redis"),
+
   // E-mail
   SMTP_URL: z.string().min(1, "SMTP_URL é obrigatória"),
   MAIL_FROM: z.string().min(1, "MAIL_FROM é obrigatória"),
@@ -88,8 +97,16 @@ const envSchema = z.object({
 
 /** Valor só para `local`/`test` (nunca produção: `loadConfig` exige o segredo real em staging/production). */
 const DEV_CLINIC_LINK_CODE_SECRET = "dev-only-clinic-link-code-secret-change-me";
+/** Valor só para `local`/`test` (production exige `RATE_LIMIT_KEY_SECRET`, ADR-038 §8). */
+const DEV_RATE_LIMIT_KEY_SECRET = "dev-only-rate-limit-key-secret-change-me-0123456789";
 
-export type Config = Readonly<Omit<z.infer<typeof envSchema>, "CLINIC_LINK_CODE_SECRET"> & { CLINIC_LINK_CODE_SECRET: string }>;
+export type Config = Readonly<
+  Omit<z.infer<typeof envSchema>, "CLINIC_LINK_CODE_SECRET" | "RATE_LIMIT_KEY_SECRET" | "RATE_LIMIT_KEY_PREFIX"> & {
+    CLINIC_LINK_CODE_SECRET: string;
+    RATE_LIMIT_KEY_SECRET: string;
+    RATE_LIMIT_KEY_PREFIX: string;
+  }
+>;
 
 /** Nomes de variáveis cujo valor nunca deve ser registado em logs/erros (ver platform/logger). */
 export const SENSITIVE_ENV_VARS = [
@@ -99,6 +116,8 @@ export const SENSITIVE_ENV_VARS = [
   "S3_SECRET_KEY",
   "JWT_SIGNING_KEYS",
   "CLINIC_LINK_CODE_SECRET",
+  "REDIS_URL",
+  "RATE_LIMIT_KEY_SECRET",
   "SMTP_URL",
   "VAPID_PRIVATE_KEY",
   "SENTRY_DSN",
@@ -120,5 +139,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (secret === undefined && (result.data.NODE_ENV === "production" || result.data.NODE_ENV === "staging")) {
     throw new Error("Configuração inválida: CLINIC_LINK_CODE_SECRET: obrigatória em staging/production (BR-CLN-20)");
   }
-  return { ...result.data, CLINIC_LINK_CODE_SECRET: secret ?? DEV_CLINIC_LINK_CODE_SECRET };
+  if (result.data.NODE_ENV === "production") {
+    if (result.data.RATE_LIMIT_BACKEND === "memory") {
+      throw new Error("Configuração inválida: RATE_LIMIT_BACKEND: 'memory' é proibido em production (ADR-038)");
+    }
+    if (result.data.REDIS_URL === undefined) {
+      throw new Error("Configuração inválida: REDIS_URL: obrigatória em production (ADR-038)");
+    }
+    if (result.data.RATE_LIMIT_KEY_SECRET === undefined) {
+      throw new Error("Configuração inválida: RATE_LIMIT_KEY_SECRET: obrigatória em production (ADR-038)");
+    }
+  }
+  return {
+    ...result.data,
+    CLINIC_LINK_CODE_SECRET: secret ?? DEV_CLINIC_LINK_CODE_SECRET,
+    RATE_LIMIT_KEY_SECRET: result.data.RATE_LIMIT_KEY_SECRET ?? DEV_RATE_LIMIT_KEY_SECRET,
+    RATE_LIMIT_KEY_PREFIX: result.data.RATE_LIMIT_KEY_PREFIX ?? `vita:${result.data.NODE_ENV}`,
+  };
 }

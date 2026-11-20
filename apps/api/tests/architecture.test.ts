@@ -65,6 +65,19 @@ describe("arquitetura do código real (src/)", () => {
     expect(MODULE_DEPENDENCIES.alerts).not.toContain("processes");
   });
 
+  it("ADR-038: cliente Redis só em platform/rate-limit/infrastructure; adaptador em memória async só em testes e na composição", async () => {
+    const files = await collectImports(SRC_ROOT);
+    for (const file of files) {
+      const isTest = file.file.endsWith(".test") || file.file.endsWith("/contract") || file.file.endsWith("/fixtures");
+      if (!file.file.startsWith("platform/rate-limit/infrastructure/")) {
+        expect(file.bareImports.filter((p) => p === "ioredis" || p === "redis"), file.file).toEqual([]);
+      }
+      if (!isTest && !file.file.startsWith("main/") && !file.file.startsWith("platform/rate-limit/")) {
+        expect(file.relativeImports.filter((t) => t === "platform/rate-limit/in-memory" || t === "platform/rate-limit/failing"), file.file).toEqual([]);
+      }
+    }
+  });
+
   it("platform nunca importa de main ou de modules/*", async () => {
     const files = await collectImports(SRC_ROOT);
     const platformFiles = files.filter((f) => f.file.startsWith("platform/"));

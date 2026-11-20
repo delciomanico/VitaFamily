@@ -13,6 +13,7 @@ import { createLogger } from "../platform/logger/index.js";
 import { createDb, createPool, checkConnection, withTransaction, type Database } from "../platform/db/index.js";
 import { SystemClock } from "../platform/clock/index.js";
 import { MinioStorage } from "../platform/storage/index.js";
+import { createRateLimiting } from "../platform/rate-limit/async.js";
 import { createApp } from "../platform/http/index.js";
 import { createMetrics } from "../platform/metrics/index.js";
 import { asyncHandler } from "../platform/http/async-handler.js";
@@ -85,6 +86,9 @@ export function main(): void {
   const pool = createPool(config.DATABASE_URL);
   const db = createDb(pool);
   const clock = new SystemClock();
+  // ADR-038: a porta assíncrona `RateLimiter` (Redis) convive com os limitadores síncronos até RL3..RL7;
+  // por ora só a readiness a usa (PING). `createRateLimiter(namespace)` é para os módulos migrados.
+  const rateLimiting = createRateLimiting(config, { clock, logger });
 
   // O MinIO pode ainda estar a arrancar quando a API sobe (mesmo compose): sem repetir, o bucket
   // ficava por criar até ao próximo reinício e todos os uploads davam 500.
@@ -722,6 +726,10 @@ export function main(): void {
           next(new ServiceUnavailableError({ detail: "Base de dados indisponível." }));
           return;
         }
+        if (!(await rateLimiting.ping())) {
+          next(new ServiceUnavailableError({ detail: "Serviço de limites indisponível." }));
+          return;
+        }
         res.json({ status: "ok" });
       }),
     );
@@ -820,6 +828,9 @@ export function main(): void {
           logger.error({ err }, "pg_boss_stop_failed");
         })
         .finally(() => {
+          rateLimiting.close().catch((err: unknown) => {
+            logger.error({ err }, "rate_limit_close_failed");
+          });
           pool
             .end()
             .catch((err: unknown) => {
