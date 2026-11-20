@@ -81,7 +81,7 @@ import { createUpdatePrivateClinicUseCase } from "./application/update-private-c
 import type { ClinicAccountRole } from "./domain/clinic-account.js";
 import type { ClinicSigningKey } from "./domain/clinic-jwt.js";
 import type { ClinicSlot } from "./domain/clinic-slot.js";
-import { ClinicInMemoryRateLimiter } from "./domain/clinic-rate-limiter.js";
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import { ClinicTtlCache } from "./domain/clinic-ttl-cache.js";
 import { KyselyClinicAccountRepository, KyselyClinicSessionRepository } from "./infrastructure/clinic-account-repo.js";
 import { KyselyClinicCatalogRepository, KyselyClinicScheduleRulesRepository, KyselyClinicTimeOffRepository } from "./infrastructure/clinic-catalog-repo.js";
@@ -115,6 +115,8 @@ export interface ClinicsModuleDeps {
   audit: AuditModule;
   access: AccessModule;
   clock: Clock;
+  /** Porta assíncrona (ADR-038), namespace `clinics`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   // Portal da clínica (D17/D18, ADR-020):
   clinicMailer: ClinicMailer;
   logger: Logger;
@@ -181,7 +183,6 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
   const catalogRepo = new KyselyClinicCatalogRepository();
   const scheduleRulesRepo = new KyselyClinicScheduleRulesRepository();
   const timeOffRepo = new KyselyClinicTimeOffRepository();
-  const clinicRateLimiter = new ClinicInMemoryRateLimiter(deps.clock);
   const clinicAccountStateCache = new ClinicTtlCache<{
     clinicId: string;
     role: ClinicAccountRole;
@@ -205,7 +206,7 @@ export function createClinicsModule(deps: ClinicsModuleDeps): ClinicsModule {
     timeOffRepo,
     clinicMailer: deps.clinicMailer,
     logger: deps.logger,
-    clinicRateLimiter,
+    clinicRateLimiter: deps.rateLimiter,
     clinicSigningKeys: deps.clinicSigningKeys,
     clinicAccessTtlSeconds: deps.clinicAccessTtlSeconds,
     clinicRefreshTtlMs: deps.clinicRefreshTtlMs,

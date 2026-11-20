@@ -24,7 +24,7 @@ export function normalizeEmail(email: string): string {
 
 export function createRegisterUseCase<Trx>(deps: ProfessionalsDeps<Trx>) {
   return async function register(input: RegisterInput, context: RequestContext): Promise<void> {
-    const decision = deps.rateLimiter.consume(`register:ip:${context.ip ?? "unknown"}`, REGISTER_RATE_LIMIT);
+    const decision = await deps.rateLimiter.consume({ rule: "register-ip", subject: context.ip ?? "unknown", pii: true }, REGISTER_RATE_LIMIT);
     if (!decision.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: decision.retryAfterMs });
     }

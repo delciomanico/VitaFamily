@@ -12,8 +12,8 @@ const PER_IP_RULE = { max: 20, windowMs: 60 * 60 * 1000 };
 export function createVerifyEmailUseCase<Trx>(deps: ProfessionalsDeps<Trx>) {
   return async function verifyEmail(email: string, code: string, context: RequestContext): Promise<void> {
     const normalizedEmail = normalizeEmail(email);
-    const byEmail = deps.rateLimiter.consume(`verify-email:email:${normalizedEmail}`, PER_EMAIL_RULE);
-    const byIp = deps.rateLimiter.consume(`verify-email:ip:${context.ip ?? "unknown"}`, PER_IP_RULE);
+    const byEmail = await deps.rateLimiter.consume({ rule: "verify-email-email", subject: normalizedEmail, pii: true }, PER_EMAIL_RULE);
+    const byIp = await deps.rateLimiter.consume({ rule: "verify-email-ip", subject: context.ip ?? "unknown", pii: true }, PER_IP_RULE);
     if (!byEmail.allowed || !byIp.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: Math.max(byEmail.retryAfterMs, byIp.retryAfterMs) });
     }

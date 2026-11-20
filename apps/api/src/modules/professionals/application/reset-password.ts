@@ -13,8 +13,8 @@ const PER_IP_RULE = { max: 20, windowMs: 60 * 60 * 1000 };
 export function createResetPasswordUseCase<Trx>(deps: ProfessionalsDeps<Trx>) {
   return async function resetPassword(email: string, code: string, newPassword: string, context: RequestContext): Promise<void> {
     const normalizedEmail = normalizeEmail(email);
-    const byEmail = deps.rateLimiter.consume(`reset-password:email:${normalizedEmail}`, PER_EMAIL_RULE);
-    const byIp = deps.rateLimiter.consume(`reset-password:ip:${context.ip ?? "unknown"}`, PER_IP_RULE);
+    const byEmail = await deps.rateLimiter.consume({ rule: "reset-password-email", subject: normalizedEmail, pii: true }, PER_EMAIL_RULE);
+    const byIp = await deps.rateLimiter.consume({ rule: "reset-password-ip", subject: context.ip ?? "unknown", pii: true }, PER_IP_RULE);
     if (!byEmail.allowed || !byIp.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: Math.max(byEmail.retryAfterMs, byIp.retryAfterMs) });
     }

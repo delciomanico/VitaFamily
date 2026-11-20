@@ -49,7 +49,7 @@ export function createRefreshUseCase<Trx>(deps: ProfessionalsDeps<Trx>) {
     if (session.expiresAt.getTime() <= now.getTime()) {
       throw new UnauthenticatedError({ detail: "Sem sessão válida." });
     }
-    const rate = deps.rateLimiter.consume(`refresh:session:${session.id}`, REFRESH_RATE_LIMIT);
+    const rate = await deps.rateLimiter.consume({ rule: "refresh-session", subject: session.id }, REFRESH_RATE_LIMIT);
     if (!rate.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: rate.retryAfterMs });
     }

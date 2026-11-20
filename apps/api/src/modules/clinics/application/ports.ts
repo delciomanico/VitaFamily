@@ -8,7 +8,7 @@ import type { AuditEvent } from "../../audit/index.js";
 import type { Clinic, ClinicStatus, ClinicType } from "../domain/clinic.js";
 import type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "../domain/clinic-account.js";
 import type { ClinicSigningKey } from "../domain/clinic-jwt.js";
-import type { ClinicInMemoryRateLimiter } from "../domain/clinic-rate-limiter.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { ClinicSession } from "../domain/clinic-session.js";
 import type { ClinicSlot, ClinicSlotKind, SlotBookingCounts } from "../domain/clinic-slot.js";
 import type { ClinicProfessional, ClinicServiceType } from "../domain/clinic-catalog.js";
@@ -365,7 +365,7 @@ export interface ClinicsDeps<Trx> {
   clinicSessionRepo: ClinicSessionRepository<Trx>;
   clinicMailer: ClinicMailer;
   logger: Logger;
-  clinicRateLimiter: ClinicInMemoryRateLimiter;
+  clinicRateLimiter: RateLimiter;
   clinicSigningKeys: ClinicSigningKey[];
   clinicAccessTtlSeconds: number;
   clinicRefreshTtlMs: number;

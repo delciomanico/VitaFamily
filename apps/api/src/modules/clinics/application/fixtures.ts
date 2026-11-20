@@ -5,7 +5,7 @@ import type { Logger } from "../../../platform/logger/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Clinic, ClinicStatus } from "../domain/clinic.js";
 import type { ClinicAccount, ClinicAccountRole, ClinicAccountStatus } from "../domain/clinic-account.js";
-import { ClinicInMemoryRateLimiter } from "../domain/clinic-rate-limiter.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import type { ClinicSession } from "../domain/clinic-session.js";
 import { slotEndsAt, slotsOverlap, type ClinicSlot } from "../domain/clinic-slot.js";
 import { ConflictError } from "../../../platform/errors/index.js";
@@ -688,7 +688,7 @@ export function createClinicsFixtures(clock: Clock): ClinicsFixtures {
     timeOffRepo,
     clinicMailer,
     logger: clinicLogger as unknown as Logger,
-    clinicRateLimiter: new ClinicInMemoryRateLimiter(clock),
+    clinicRateLimiter: new InMemoryRateLimiter(clock, { namespace: "clinics" }),
     clinicSigningKeys: [{ kid: "test", secret: new TextEncoder().encode("a".repeat(32)) }],
     clinicAccessTtlSeconds: 900,
     clinicRefreshTtlMs: 30 * 24 * 60 * 60 * 1000,

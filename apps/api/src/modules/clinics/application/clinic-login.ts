@@ -33,14 +33,15 @@ export function createClinicLoginUseCase<Trx>(deps: ClinicsDeps<Trx>) {
   return async function clinicLogin(input: ClinicLoginInput, context: RequestContext): Promise<ClinicLoginResult> {
     const email = input.email.trim().toLowerCase();
     const ip = context.ip ?? "unknown";
-    const failureKey = `clinic-login:fail:${email}:${ip}`;
-    const ipKey = `clinic-login:ip:${ip}`;
+    // Sujeitos com e-mail/IP em PII (HMAC no suporte). Todas as chamadas são FECHADAS (ADR-038 §5).
+    const failureKey = { rule: "clinic-login-fail", subject: `${email}:${ip}`, pii: true };
+    const ipKey = { rule: "clinic-login-ip", subject: ip, pii: true };
 
-    const ipDecision = deps.clinicRateLimiter.consume(ipKey, IP_RULE);
+    const ipDecision = await deps.clinicRateLimiter.consume(ipKey, IP_RULE);
     if (!ipDecision.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: ipDecision.retryAfterMs });
     }
-    const failurePeek = deps.clinicRateLimiter.peek(failureKey, FAILURE_RULE);
+    const failurePeek = await deps.clinicRateLimiter.peek(failureKey, FAILURE_RULE);
     if (!failurePeek.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: failurePeek.retryAfterMs });
     }
@@ -48,7 +49,7 @@ export function createClinicLoginUseCase<Trx>(deps: ClinicsDeps<Trx>) {
     const now = deps.clock.now();
 
     async function fail(error: DomainError, accountId?: string, clinicId?: string): Promise<never> {
-      deps.clinicRateLimiter.consume(failureKey, FAILURE_RULE);
+      await deps.clinicRateLimiter.consume(failureKey, FAILURE_RULE);
       await deps.withTransaction(async (trx) => {
         await deps.audit.record(trx, {
           occurredAt: now,
@@ -79,7 +80,13 @@ export function createClinicLoginUseCase<Trx>(deps: ClinicsDeps<Trx>) {
       return fail(new ClinicAccountSuspendedError(), account.id, account.clinicId);
     }
 
-    deps.clinicRateLimiter.reset(failureKey);
+    // O `consume`/`peek` anteriores já passaram fechados; um `reset` que falhe (Redis) não deve impedir
+    // um login legítimo: regista e segue (o contador expira sozinho pela janela).
+    try {
+      await deps.clinicRateLimiter.reset(failureKey);
+    } catch (error) {
+      deps.logger.warn({ err: error, code: "RATE_LIMIT_RESET_FAILED" }, "Falha ao repor o contador de falhas de login");
+    }
 
     const sessionId = newId();
     const tokenChainId = newId();

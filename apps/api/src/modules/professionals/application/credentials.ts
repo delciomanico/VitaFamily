@@ -29,7 +29,7 @@ export interface UploadCredentialInput {
 
 export function createUploadCredentialUseCase<Trx>(deps: ProfessionalsDeps<Trx>) {
   return async function uploadCredential(actor: ProfessionalActor, input: UploadCredentialInput, context: RequestContext): Promise<CredentialRecord> {
-    const decision = deps.rateLimiter.consume(`credential-upload:${actor.professionalAccountId}`, UPLOAD_RATE_LIMIT);
+    const decision = await deps.rateLimiter.consume({ rule: "credential-upload", subject: actor.professionalAccountId }, UPLOAD_RATE_LIMIT);
     if (!decision.allowed) {
       throw new RateLimitedError(decision.retryAfterMs, { detail: "Demasiados carregamentos; tente mais tarde." });
     }

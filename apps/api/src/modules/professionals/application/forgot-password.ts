@@ -11,8 +11,8 @@ const PER_IP_RULE = { max: 10, windowMs: 60 * 60 * 1000 };
 export function createForgotPasswordUseCase<Trx>(deps: ProfessionalsDeps<Trx>) {
   return async function forgotPassword(email: string, context: RequestContext): Promise<void> {
     const normalizedEmail = normalizeEmail(email);
-    const byEmail = deps.rateLimiter.consume(`forgot-password:email:${normalizedEmail}`, PER_EMAIL_RULE);
-    const byIp = deps.rateLimiter.consume(`forgot-password:ip:${context.ip ?? "unknown"}`, PER_IP_RULE);
+    const byEmail = await deps.rateLimiter.consume({ rule: "forgot-password-email", subject: normalizedEmail, pii: true }, PER_EMAIL_RULE);
+    const byIp = await deps.rateLimiter.consume({ rule: "forgot-password-ip", subject: context.ip ?? "unknown", pii: true }, PER_IP_RULE);
     if (!byEmail.allowed || !byIp.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: Math.max(byEmail.retryAfterMs, byIp.retryAfterMs) });
     }

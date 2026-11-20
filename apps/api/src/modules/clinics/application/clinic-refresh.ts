@@ -50,7 +50,7 @@ export function createClinicRefreshUseCase<Trx>(deps: ClinicsDeps<Trx>) {
       throw new UnauthenticatedError({ detail: "Sem sessão válida." });
     }
 
-    const rateDecision = deps.clinicRateLimiter.consume(`clinic-refresh:session:${session.id}`, REFRESH_RATE_LIMIT);
+    const rateDecision = await deps.clinicRateLimiter.consume({ rule: "clinic-refresh-session", subject: session.id }, REFRESH_RATE_LIMIT);
     if (!rateDecision.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: rateDecision.retryAfterMs });
     }

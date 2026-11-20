@@ -26,7 +26,7 @@ import {
 } from "./application/specialties.js";
 import { createVerifyEmailUseCase } from "./application/verify-email.js";
 import type { ProfessionalSigningKey } from "./domain/jwt.js";
-import { ProfessionalInMemoryRateLimiter } from "./domain/rate-limiter.js";
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import { ProfessionalTtlCache } from "./domain/ttl-cache.js";
 import { KyselyProfessionalAccountRepository, KyselyProfessionalAuthTokenRepository, KyselyProfessionalSessionRepository } from "./infrastructure/account-repo.js";
 import { createGetMeUseCase, createSetSpecialtiesUseCase, createSubmitUseCase, createUpdateMeUseCase } from "./application/profile.js";
@@ -84,6 +84,8 @@ export interface ProfessionalsModuleDeps {
   audit: AuditModule;
   clock: Clock;
   logger: Logger;
+  /** Porta assíncrona (ADR-038), namespace `professionals`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   mailer: ProfessionalMailer;
   signingKeys: ProfessionalSigningKey[];
   accessTtlSeconds: number;
@@ -115,11 +117,6 @@ export interface ProfessionalsModule {
 /** Composition root chama isto uma vez por processo (main/api.ts). */
 export function createProfessionalsModule(deps: ProfessionalsModuleDeps): ProfessionalsModule {
   const stateCache = new ProfessionalTtlCache<{ professionalId: string }>(deps.clock, ACCOUNT_STATE_CACHE_TTL_MS);
-  const rateLimiter = new ProfessionalInMemoryRateLimiter(deps.clock);
-  // Sem isto o mapa de janelas cresceria com cada chave distinta (e-mail/IP); `unref` para não segurar o processo.
-  setInterval(() => {
-    rateLimiter.prune(2 * 60 * 60 * 1000);
-  }, 10 * 60 * 1000).unref();
   const profileRepo = new KyselyProfessionalProfileRepository();
   const scheduleRuleRepo = new KyselyScheduleRuleRepository();
   const timeOffRepo = new KyselyTimeOffRepository();
@@ -162,7 +159,7 @@ export function createProfessionalsModule(deps: ProfessionalsModuleDeps): Profes
     fileStore: new StorageCredentialFileStore(deps.storage),
     scanQueue: deps.scanQueue,
     maxFileSizeBytes: deps.maxFileSizeBytes ?? MAX_FILE_BYTES,
-    rateLimiter,
+    rateLimiter: deps.rateLimiter,
     signingKeys: deps.signingKeys,
     accessTtlSeconds: deps.accessTtlSeconds,
     refreshTtlMs: deps.refreshTtlMs,

@@ -10,7 +10,7 @@ import type { ProfilePatch } from "../domain/profile.js";
 import type { CredentialKind, ScanStatus, SpecialtyCategory } from "../domain/requirements.js";
 import type { ProfessionalValidationStatus, ValidationAction, ValidationActor } from "../domain/validation-status.js";
 import type { ProfessionalSigningKey } from "../domain/jwt.js";
-import type { ProfessionalInMemoryRateLimiter } from "../domain/rate-limiter.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { ProfessionalSession } from "../domain/session.js";
 
 export interface AuditPort<Trx> {
@@ -579,7 +579,7 @@ export interface ProfessionalsDeps<Trx> {
   scanQueue: CredentialScanQueue;
   /** `UPLOAD_MAX_BYTES` (≤ 10 MB, BR-MKT-17). */
   maxFileSizeBytes: number;
-  rateLimiter: ProfessionalInMemoryRateLimiter;
+  rateLimiter: RateLimiter;
   signingKeys: ProfessionalSigningKey[];
   accessTtlSeconds: number;
   refreshTtlMs: number;
