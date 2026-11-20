@@ -130,6 +130,8 @@ export const paths = {
   professionalOfferNew: '/profissional/servicos/novo',
   professionalSchedule: '/profissional/horarios',
   professionalScheduleNew: '/profissional/horarios/novo',
+  professionalScheduleEdit: (ruleId: string) => `/profissional/horarios/${ruleId}/editar`,
+  professionalTimeOffNew: '/profissional/horarios/pausa',
   professionalConversations: '/profissional/conversas',
   professionalConversation: (id: string) => `/profissional/conversas/${id}`,
   professionalBookings: '/profissional/marcacoes',

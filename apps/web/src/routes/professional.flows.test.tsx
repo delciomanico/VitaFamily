@@ -61,9 +61,9 @@ describe('portal do profissional', () => {
   it('suspenso entra em só leitura nos serviços', async () => {
     window.sessionStorage.setItem('vf.professional.session.accountId', 'pro_suspensa')
     renderAt('/profissional/servicos')
-    expect(await screen.findByRole('heading', { name: 'Serviços e preços' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Os meus serviços' })).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('note')).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: /Nova oferta/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Novo serviço/ })).not.toBeInTheDocument()
   })
 
   it('aprovado tem o nome de apresentação bloqueado no perfil', async () => {

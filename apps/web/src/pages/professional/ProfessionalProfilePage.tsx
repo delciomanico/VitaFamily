@@ -1,243 +1,180 @@
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ChoiceChecks } from '@/components/app/ChoiceList'
+import { Wizard } from '@/components/app/Wizard'
 import { LockedNotice } from '@/components/professional/LockedNotice'
-import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { Checkbox } from '@/components/ui/Checkbox'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
-import { ErrorState, FormError, LoadingState } from '@/components/ui/states'
+import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useProfessionalProfile } from '@/hooks/useProfessionalProfile'
+import { useWizardStep } from '@/hooks/useWizardStep'
+import { useDraft } from '@/lib/draft'
 import { errorMessage } from '@/lib/errors'
+import { canNavigateBack } from '@/lib/navigation'
 import { categoryLabel, editRights } from '@/lib/professional'
+import { paths } from '@/routes/paths'
 import { professionalPortalService } from '@/services/professionalPortal.service'
 import type { ProfessionalProfile, ProfessionalProfilePatch, Specialty } from '@/types/professional'
 
-type Rights = ReturnType<typeof editRights>
-
-const profileSchema = z.object({
-  // Opcional: fica `undefined` quando o campo está bloqueado (campo disabled não entra nos valores).
-  displayName: z.string().trim().min(2, 'Indique um nome com 2 a 120 caracteres.').max(120, 'Indique um nome com 2 a 120 caracteres.').optional(),
-  city: z.string().trim().min(2, 'Indique a cidade (2 a 80 caracteres).').max(80, 'Indique a cidade (2 a 80 caracteres).').optional(),
-  bio: z.string().max(1000, 'Use no máximo 1000 caracteres.'),
-  paymentInstructions: z.string().max(500, 'Use no máximo 500 caracteres.'),
-})
-type ProfileFormValues = z.infer<typeof profileSchema>
-
-const specialtySchema = z.object({
-  specialtyIds: z
-    .array(z.string())
-    .min(1, 'Escolha pelo menos uma especialidade.')
-    .max(5, 'Pode escolher no máximo 5 especialidades.'),
-})
-type SpecialtyFormValues = z.infer<typeof specialtySchema>
-
 const LOCKED_IDENTITY_TEXT = 'Para alterar o nome ou as especialidades, peça ao administrador para reabrir.'
+const STEPS = ['Como se chama?', 'Onde trabalha?', 'O que faz?', 'Fale um pouco de si', 'Como quer ser pago?'] as const
 
-/** Dados do perfil (UC-MKT-03): só os campos alterados são enviados em `PATCH /professional-portal/me`. */
-function ProfileForm({ profile, rights, onSaved }: { profile: ProfessionalProfile; rights: Rights; onSaved: () => void }) {
-  const toast = useToast()
-  const [formError, setFormError] = useState<string | null>(null)
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      displayName: profile.displayName ?? '',
-      city: profile.city ?? '',
-      bio: profile.bio ?? '',
-      paymentInstructions: profile.paymentInstructions ?? '',
-    },
-  })
-
-  async function save(values: ProfileFormValues) {
-    setFormError(null)
-    const patch: ProfessionalProfilePatch = {}
-    // Campos bloqueados chegam como `undefined`: não se enviam.
-    if (rights.identity && values.displayName !== undefined && values.displayName !== profile.displayName) {
-      patch.displayName = values.displayName
-    }
-    if (rights.profileText) {
-      if (values.city !== undefined && values.city !== (profile.city ?? '')) patch.city = values.city
-      // Vazio → null (apaga o campo opcional).
-      const bio = values.bio.trim() || null
-      if (bio !== (profile.bio ?? null)) patch.bio = bio
-      const paymentInstructions = values.paymentInstructions.trim() || null
-      if (paymentInstructions !== (profile.paymentInstructions ?? null)) patch.paymentInstructions = paymentInstructions
-    }
-    if (Object.keys(patch).length === 0) {
-      toast.show('Não há alterações para guardar.')
-      return
-    }
-    try {
-      await professionalPortalService.updateMe(patch)
-      toast.show('Perfil guardado.')
-      onSaved()
-    } catch (error) {
-      setFormError(errorMessage(error))
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit(save)} noValidate className="flex flex-col gap-4">
-      <Input
-        label="Nome de apresentação"
-        disabled={!rights.identity}
-        autoComplete="name"
-        error={errors.displayName?.message}
-        {...register('displayName')}
-      />
-      <Input
-        label="Cidade"
-        disabled={!rights.profileText}
-        autoComplete="address-level2"
-        error={errors.city?.message}
-        {...register('city')}
-      />
-      <Textarea
-        label="Biografia"
-        rows={4}
-        disabled={!rights.profileText}
-        error={errors.bio?.message}
-        {...register('bio')}
-      />
-      <Textarea
-        label="Instruções de pagamento"
-        rows={3}
-        disabled={!rights.profileText}
-        hint="Só é mostrado depois de a família marcar; o administrador nunca o vê."
-        error={errors.paymentInstructions?.message}
-        {...register('paymentInstructions')}
-      />
-      <FormError message={formError} />
-      {rights.profileText && (
-        <div>
-          <Button type="submit" loading={isSubmitting}>
-            Guardar
-          </Button>
-        </div>
-      )}
-    </form>
-  )
+interface Draft {
+  displayName: string
+  city: string
+  bio: string
+  paymentInstructions: string
+  specialtyIds: string[]
 }
 
-/** Especialidades (UC-MKT-03): entre 1 e 5; bloqueadas fora de DRAFT/NEEDS_INFO. */
-function SpecialtiesForm({
-  profile,
-  catalog,
-  rights,
-  onSaved,
-}: {
-  profile: ProfessionalProfile
-  catalog: Specialty[]
-  rights: Rights
-  onSaved: () => void
-}) {
-  const toast = useToast()
-  const [formError, setFormError] = useState<string | null>(null)
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<SpecialtyFormValues>({
-    resolver: zodResolver(specialtySchema),
-    defaultValues: { specialtyIds: profile.specialties.map((specialty) => specialty.id) },
-  })
+/** Valida um passo e devolve a mensagem humana do erro (ou `null`). */
+function stepError(step: number, draft: Draft, identityOpen: boolean, textOpen: boolean): string | null {
+  if (step === 0 && identityOpen) {
+    const name = draft.displayName.trim()
+    if (name.length < 2 || name.length > 120) return 'Escreva o seu nome, com 2 a 120 letras.'
+  }
+  if (step === 1 && textOpen) {
+    const city = draft.city.trim()
+    if (city.length < 2 || city.length > 80) return 'Escreva a cidade onde trabalha (2 a 80 letras).'
+  }
+  if (step === 2 && identityOpen) {
+    if (draft.specialtyIds.length < 1) return 'Escolha pelo menos uma especialidade.'
+    if (draft.specialtyIds.length > 5) return 'Pode escolher no máximo 5 especialidades.'
+  }
+  if (step === 3 && draft.bio.length > 1000) return 'Use no máximo 1000 letras.'
+  if (step === 4 && draft.paymentInstructions.length > 500) return 'Use no máximo 500 letras.'
+  return null
+}
 
-  async function save({ specialtyIds }: SpecialtyFormValues) {
-    setFormError(null)
-    if (!rights.identity) return
+/** Dados do perfil passo a passo (UC-MKT-03): só os campos alterados são enviados em `PATCH /professional-portal/me`. */
+function ProfileWizard({ profile, catalog }: { profile: ProfessionalProfile; catalog: Specialty[] }) {
+  const toast = useToast()
+  const navigate = useNavigate()
+  const rights = editRights(profile.validationStatus)
+  const exit = () => (canNavigateBack() ? navigate(-1) : navigate(paths.professionalProfile, { replace: true }))
+  const { step, next, back, last } = useWizardStep(STEPS.length, exit)
+  const [draft, update, clearDraft] = useDraft<Draft>('profile', {
+    displayName: profile.displayName ?? '',
+    city: profile.city ?? '',
+    bio: profile.bio ?? '',
+    paymentInstructions: profile.paymentInstructions ?? '',
+    specialtyIds: profile.specialties.map((specialty) => specialty.id),
+  })
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const change = (patch: Partial<Draft>) => {
+    setError(null)
+    update(patch)
+  }
+
+  async function save() {
+    setSaving(true)
     try {
-      await professionalPortalService.setSpecialties(specialtyIds)
-      toast.show('Especialidades guardadas.')
-      onSaved()
-    } catch (error) {
-      // Ex.: CONFLICT ao retirar uma especialidade que tem ofertas ativas.
-      setFormError(errorMessage(error))
+      const patch: ProfessionalProfilePatch = {}
+      if (rights.identity && draft.displayName.trim() !== (profile.displayName ?? '')) patch.displayName = draft.displayName.trim()
+      if (rights.profileText) {
+        if (draft.city.trim() !== (profile.city ?? '')) patch.city = draft.city.trim()
+        const bio = draft.bio.trim() || null
+        if (bio !== (profile.bio ?? null)) patch.bio = bio
+        const payment = draft.paymentInstructions.trim() || null
+        if (payment !== (profile.paymentInstructions ?? null)) patch.paymentInstructions = payment
+      }
+      if (Object.keys(patch).length > 0) await professionalPortalService.updateMe(patch)
+      const before = profile.specialties.map((specialty) => specialty.id).sort().join(',')
+      if (rights.identity && [...draft.specialtyIds].sort().join(',') !== before) await professionalPortalService.setSpecialties(draft.specialtyIds)
+      clearDraft()
+      toast.show('Perfil guardado.')
+      exit()
+    } catch (failure) {
+      // Ex.: CONFLICT ao retirar uma especialidade que tem serviços ativos.
+      setError(errorMessage(failure))
+    } finally {
+      setSaving(false)
     }
   }
 
+  function onNext() {
+    const problem = stepError(step, draft, rights.identity, rights.profileText)
+    if (problem) return setError(problem)
+    setError(null)
+    if (!last) return next()
+    if (rights.profileText || rights.identity) void save()
+    else exit()
+  }
+
   return (
-    <form onSubmit={handleSubmit(save)} noValidate className="flex flex-col gap-4">
-      {!rights.identity && <LockedNotice>{LOCKED_IDENTITY_TEXT}</LockedNotice>}
-      <fieldset disabled={!rights.identity} className="flex flex-col gap-3">
-        <legend className="mb-2 text-sm font-medium">Especialidades (de 1 a 5)</legend>
-        {catalog.map((specialty) => (
-          <Checkbox
-            key={specialty.id}
-            value={specialty.id}
-            label={
-              <>
-                {specialty.name}
-                <span className="block text-xs text-muted">{categoryLabel[specialty.category]}</span>
-              </>
-            }
-            {...register('specialtyIds')}
-          />
-        ))}
-      </fieldset>
-      <FormError message={formError ?? errors.specialtyIds?.message ?? null} />
-      {rights.identity && (
-        <div>
-          <Button type="submit" loading={isSubmitting}>
-            Guardar
-          </Button>
-        </div>
+    <Wizard
+      title="Os meus dados"
+      stepTitle={STEPS[step] ?? ''}
+      description={
+        step === 0
+          ? 'É o nome que as famílias vão ver.'
+          : step === 2
+            ? 'Escolha de 1 a 5 áreas.'
+            : step === 3
+              ? 'Opcional. Duas ou três frases chegam.'
+              : step === 4
+                ? 'Opcional. Só a família que marcar consigo vê isto; a equipa da Vita Family nunca vê.'
+                : undefined
+      }
+      step={step}
+      total={STEPS.length}
+      onBack={() => {
+        setError(null)
+        back()
+      }}
+      onNext={onNext}
+      nextLabel={last ? (rights.profileText || rights.identity ? 'Guardar' : 'Fechar') : 'Continuar'}
+      busy={saving}
+      error={error}
+    >
+      {rights.readOnly && <LockedNotice>Perfil em modo só de leitura: pode ver os dados, mas não os pode alterar.</LockedNotice>}
+      {step === 0 && (
+        <>
+          {!rights.identity && <LockedNotice>{LOCKED_IDENTITY_TEXT}</LockedNotice>}
+          <Input label="Nome de apresentação" value={draft.displayName} disabled={!rights.identity} autoComplete="name" onChange={(event) => change({ displayName: event.target.value })} />
+        </>
       )}
-    </form>
+      {step === 1 && <Input label="Cidade" value={draft.city} disabled={!rights.profileText} autoComplete="address-level2" onChange={(event) => change({ city: event.target.value })} />}
+      {step === 2 && (
+        <>
+          {!rights.identity && <LockedNotice>{LOCKED_IDENTITY_TEXT}</LockedNotice>}
+          <ChoiceChecks
+            legend="Especialidades"
+            hideLegend
+            disabled={!rights.identity}
+            options={catalog.map((specialty) => ({ value: specialty.id, label: specialty.name, hint: categoryLabel[specialty.category] }))}
+            value={draft.specialtyIds}
+            onChange={(specialtyIds) => change({ specialtyIds })}
+          />
+        </>
+      )}
+      {step === 3 && <Textarea label="Biografia" rows={6} value={draft.bio} disabled={!rights.profileText} onChange={(event) => change({ bio: event.target.value })} hint={`${draft.bio.length}/1000`} />}
+      {step === 4 && (
+        <Textarea
+          label="Instruções de pagamento"
+          rows={5}
+          value={draft.paymentInstructions}
+          disabled={!rights.profileText}
+          onChange={(event) => change({ paymentInstructions: event.target.value })}
+          hint="Por exemplo: o IBAN para transferência."
+        />
+      )}
+    </Wizard>
   )
 }
 
 /** Perfil do profissional (UC-MKT-03, `GET/PATCH /professional-portal/me`, `PUT …/specialties`). */
 export function ProfessionalProfilePage() {
-  usePageTitle('Perfil')
+  usePageTitle('Os meus dados')
   const { state, reload, profile } = useProfessionalProfile()
   const catalog = useAsync(() => professionalPortalService.listSpecialtyCatalog(), [])
 
-  // Guarda o último perfil carregado: o reload depois de guardar não desmonta os formulários.
-  const [current, setCurrent] = useState<ProfessionalProfile | null>(null)
-  useEffect(() => {
-    if (profile) setCurrent(profile)
-  }, [profile])
-
-  if (!current) {
-    return (
-      <>
-        <h1 className="text-xl font-semibold">Perfil</h1>
-        {state.status === 'error' ? <ErrorState onRetry={reload} /> : <LoadingState rows={2} />}
-      </>
-    )
-  }
-
-  const rights = editRights(current.validationStatus)
-
-  return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-semibold">Perfil</h1>
-
-      <Card className="flex flex-col gap-4 p-5">
-        <h2 className="text-base font-semibold">Dados do perfil</h2>
-        {!rights.profileText && (
-          <LockedNotice>Perfil em modo só de leitura: não é possível alterar os dados.</LockedNotice>
-        )}
-        <ProfileForm profile={current} rights={rights} onSaved={reload} />
-      </Card>
-
-      <Card className="flex flex-col gap-4 p-5">
-        <h2 className="text-base font-semibold">Especialidades</h2>
-        {catalog.state.status === 'loading' && <LoadingState rows={2} />}
-        {catalog.state.status === 'error' && <ErrorState onRetry={catalog.reload} />}
-        {catalog.state.status === 'success' && (
-          <SpecialtiesForm profile={current} catalog={catalog.state.data} rights={rights} onSaved={reload} />
-        )}
-      </Card>
-    </div>
-  )
+  if (state.status === 'error' || catalog.state.status === 'error') return <ErrorState onRetry={state.status === 'error' ? reload : catalog.reload} />
+  if (!profile || catalog.state.status !== 'success') return <LoadingState rows={2} />
+  return <ProfileWizard profile={profile} catalog={catalog.state.data} />
 }

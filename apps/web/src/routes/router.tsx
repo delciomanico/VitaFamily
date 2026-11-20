@@ -388,13 +388,22 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, ...page(() => import('@/pages/professional/ProfessionalHomePage'), 'ProfessionalHomePage') },
               { path: 'perfil', ...page(() => import('@/pages/professional/ProfessionalProfileHubPage'), 'ProfessionalProfileHubPage') },
-              { path: 'perfil/editar', ...page(() => import('@/pages/professional/ProfessionalProfilePage'), 'ProfessionalProfilePage') },
+              { path: 'perfil/editar', handle: { hideNav: true }, ...page(() => import('@/pages/professional/ProfessionalProfilePage'), 'ProfessionalProfilePage') },
               {
                 path: 'credenciais',
                 ...page(() => import('@/pages/professional/ProfessionalCredentialsPage'), 'ProfessionalCredentialsPage'),
               },
+              {
+                path: 'credenciais/novo',
+                handle: { hideNav: true },
+                ...page(() => import('@/pages/professional/ProfessionalCredentialNewPage'), 'ProfessionalCredentialNewPage'),
+              },
               { path: 'servicos', ...page(() => import('@/pages/professional/ProfessionalOffersPage'), 'ProfessionalOffersPage') },
+              { path: 'servicos/novo', handle: { hideNav: true }, ...page(() => import('@/pages/professional/ProfessionalOfferNewPage'), 'ProfessionalOfferNewPage') },
               { path: 'horarios', ...page(() => import('@/pages/professional/ProfessionalSchedulePage'), 'ProfessionalSchedulePage') },
+              { path: 'horarios/novo', handle: { hideNav: true }, ...page(() => import('@/pages/professional/ProfessionalScheduleRulePage'), 'ProfessionalScheduleRulePage') },
+              { path: 'horarios/:ruleId/editar', handle: { hideNav: true }, ...page(() => import('@/pages/professional/ProfessionalScheduleRulePage'), 'ProfessionalScheduleRulePage') },
+              { path: 'horarios/pausa', handle: { hideNav: true }, ...page(() => import('@/pages/professional/ProfessionalTimeOffNewPage'), 'ProfessionalTimeOffNewPage') },
               { path: 'marcacoes', ...page(() => import('@/pages/professional/ProfessionalBookingsPage'), 'ProfessionalBookingsPage') },
               { path: 'marcacoes/:bookingId', ...page(() => import('@/pages/professional/ProfessionalBookingPage'), 'ProfessionalBookingPage') },
               { path: 'marcacoes/:bookingId/receita', ...page(() => import('@/pages/professional/ProfessionalPrescriptionPage'), 'ProfessionalPrescriptionPage') },
