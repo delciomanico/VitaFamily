@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CalendarCheck, Clock } from 'lucide-react'
 import { ChoiceList, NO_CLINIC, SpecialtyField } from '@/components/domain/AppointmentFields'
 import { DateStrip, TimeSlots, nextDays } from '@/components/domain/DatePickers'
+import { Celebration } from '@/components/app/Celebration'
 import { Page } from '@/components/layout/Page'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { InfoList, InfoRow } from '@/components/ui/InfoList'
@@ -363,7 +364,7 @@ function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) 
       <div className="flex items-center gap-3">
         <StepProgress step={step - firstStep + 1} total={STEPS.length - firstStep} label="Progresso da marcação" />
       </div>
-      <h2 className="text-xl font-semibold">{STEPS[step]}</h2>
+      <h2 className="text-[1.875rem] leading-tight font-extrabold text-balance">{STEPS[step]}</h2>
 
       {step === 0 && (
         <ChoiceList
@@ -453,16 +454,9 @@ function Done({ appointment }: { appointment: Appointment }) {
   const Icon = requested ? Clock : CalendarCheck
   return (
     <div className="flex flex-col items-center gap-4 py-6 text-center">
-      <span
-        className={cn(
-          'flex size-16 items-center justify-center rounded-full',
-          requested ? 'bg-warning-soft text-warning' : 'bg-success-soft text-success',
-        )}
-      >
-        <Icon className="size-8" aria-hidden />
-      </span>
+      <Celebration icon={Icon} tone={requested ? 'warning' : 'success'} />
       <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-semibold">{requested ? 'Pedido enviado' : 'Consulta marcada'}</h2>
+        <h2 className="text-[1.875rem] leading-tight font-extrabold">{requested ? 'Pedido enviado' : 'Consulta marcada'}</h2>
         <p className="text-muted">
           {appointment.specialty} · {formatLongDate(appointment.scheduledAt)}, {formatTime(appointment.scheduledAt)}
         </p>

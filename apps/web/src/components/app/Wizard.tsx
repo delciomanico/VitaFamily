@@ -61,7 +61,7 @@ export function Wizard({ title, stepTitle, description, step, total, onBack, onN
           className="flex w-full gap-1.5"
         >
           {Array.from({ length: total }, (_, index) => (
-            <span key={index} className={`h-2.5 flex-1 rounded-full transition-colors duration-300 ${index < current ? (index === current - 1 ? 'bg-sun' : 'bg-primary') : 'bg-border'}`} />
+            <span key={index} className={`h-2.5 flex-1 rounded-full transition-colors duration-300 ${index < current ? 'bg-primary' : 'bg-border'}`} />
           ))}
         </div>
         <p className="text-base font-medium text-muted">{title}</p>

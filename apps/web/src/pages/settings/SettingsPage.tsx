@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { AccordionSection } from '@/components/app/Accordion'
+import type { Tone } from '@/lib/tones'
 import { ListEntry } from '@/components/app/ListEntry'
 import { ConfirmSheet } from '@/components/app/Sheet'
 import { Page } from '@/components/layout/Page'
@@ -36,14 +37,15 @@ interface SettingsItem {
   label: string
   description?: string
   icon: LucideIcon
+  tone?: Tone
 }
 
 function SettingsGroup({ items }: { items: SettingsItem[] }) {
   return (
     <ul className="flex flex-col gap-2">
-      {items.map(({ to, label, description, icon }) => (
+      {items.map(({ to, label, description, icon, tone }) => (
         <li key={to}>
-          <ListEntry to={to} icon={icon} title={label} subtitle={description} className="min-h-16 shadow-none" />
+          <ListEntry to={to} icon={icon} title={label} subtitle={description} tone={tone} className="min-h-16 shadow-none" />
         </li>
       ))}
     </ul>
@@ -112,11 +114,11 @@ export function SettingsPage() {
   const name = member?.name ?? user?.name ?? ''
 
   const shortcuts: SettingsItem[] = [
-    { to: paths.healthProfile, label: 'Meu perfil de saúde', description: 'Dados básicos, alergias e condições', icon: HeartPulse },
-    { to: paths.family, label: 'A minha família', description: family?.name ?? 'Ver e adicionar membros', icon: Users },
+    { to: paths.healthProfile, label: 'Meu perfil de saúde', description: 'Dados básicos, alergias e condições', icon: HeartPulse, tone: 'health' },
+    { to: paths.family, label: 'A minha família', description: family?.name ?? 'Ver e adicionar membros', icon: Users, tone: 'family' },
     { to: paths.shares, label: 'Partilhas com profissionais', description: 'Quem pode ver os seus registos', icon: Share2 },
-    { to: paths.watch, label: 'Relógio', description: 'Ligar e ver as medições', icon: Watch },
-    { to: paths.alerts, label: 'Alertas', description: 'O que precisa da sua atenção', icon: Bell },
+    { to: paths.watch, label: 'Relógio', description: 'Ligar e ver as medições', icon: Watch, tone: 'meds' },
+    { to: paths.alerts, label: 'Alertas', description: 'O que precisa da sua atenção', icon: Bell, tone: 'chat' },
   ]
   const groups: { title: string; summary: string; icon: LucideIcon; items: SettingsItem[] }[] = [
     {
@@ -153,18 +155,18 @@ export function SettingsPage() {
 
   return (
     <Page title="Perfil">
-      <div className="flex items-center gap-4 rounded-2xl bg-primary-soft p-5">
+      <div className="flex items-center gap-4 rounded-3xl bg-surface p-5 shadow-card">
         <Avatar name={name} size="xl" />
         <div className="min-w-0">
-          <p className="truncate text-2xl font-semibold">{name}</p>
+          <p className="truncate font-display text-[1.75rem] leading-tight font-extrabold">{name}</p>
           {family?.name && <p className="truncate text-lg text-muted">{family.name}</p>}
         </div>
       </div>
 
       <ul className="flex flex-col gap-3">
-        {shortcuts.map(({ to, label, description, icon }) => (
+        {shortcuts.map(({ to, label, description, icon, tone }) => (
           <li key={to}>
-            <ListEntry to={to} icon={icon} title={label} subtitle={description} />
+            <ListEntry to={to} icon={icon} title={label} subtitle={description} tone={tone} />
           </li>
         ))}
       </ul>

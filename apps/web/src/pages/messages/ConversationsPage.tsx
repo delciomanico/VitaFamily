@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { MessageCircle } from 'lucide-react'
 import { Page } from '@/components/layout/Page'
 import { Badge } from '@/components/ui/Badge'
+import { Avatar } from '@/components/ui/Avatar'
 import { ButtonLink } from '@/components/ui/Button'
 import { Link } from 'react-router-dom'
 import { FilterChips, type ChipItem } from '@/components/app/FilterChips'
@@ -67,7 +68,8 @@ export function ConversationsPage() {
             <ul className="flex flex-col gap-3">
               {rows.map((row) => (
                 <li key={`${row.memberId}:${row.id}`}>
-                  <Link to={paths.messageThread(row.memberId, row.id)} className="flex min-h-[4.5rem] items-center gap-3 rounded-2xl border border-border bg-surface p-4 shadow-card transition-colors active:bg-surface-muted">
+                  <Link to={paths.messageThread(row.memberId, row.id)} className="flex min-h-[4.5rem] items-center gap-3 rounded-[1.25rem] bg-surface p-4 shadow-card transition-transform active:scale-[0.98]">
+                    <Avatar name={row.professional.displayName} size="lg" />
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <p className="truncate text-lg font-semibold">{row.professional.displayName}</p>
                       {severalMembers && <p className="text-base text-muted">Em nome de {row.memberName}</p>}

@@ -12,11 +12,11 @@ export function BookingCard({ booking }: { booking: ProfessionalBooking }) {
   return (
     <Link
       to={paths.professionalBooking(booking.id)}
-      className="flex min-h-[5.5rem] items-center gap-4 rounded-2xl border border-border bg-surface px-4 py-3 shadow-card transition-colors hover:border-border-strong active:bg-surface-muted"
+      className="flex min-h-[5.5rem] items-center gap-4 rounded-[1.25rem] bg-surface px-4 py-3 shadow-card transition-transform active:scale-[0.98]"
     >
-      <span className="flex w-20 shrink-0 flex-col items-center rounded-xl bg-primary-soft py-2 text-primary" aria-hidden>
-        <span className="text-xl leading-6 font-semibold tabular-nums">{formatTimeLuanda(booking.startsAt)}</span>
-        <span className="text-sm leading-5">dia {day}</span>
+      <span className="flex w-20 shrink-0 flex-col items-center rounded-2xl bg-brand-deep py-2.5 text-white" aria-hidden>
+        <span className="font-display text-xl leading-6 font-bold tabular-nums">{formatTimeLuanda(booking.startsAt)}</span>
+        <span className="text-sm leading-5 text-white/85">dia {day}</span>
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="truncate text-lg leading-6 font-semibold">{booking.participantLabel}</span>

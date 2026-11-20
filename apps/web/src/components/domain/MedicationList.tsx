@@ -34,7 +34,7 @@ export function MedicationList({ items, selfMemberId, linked = true }: Medicatio
 <Card className="divide-y divide-border py-1">
       {items.map(({ plan, memberName, nextDoseAt, remindersOn }) => (
         <RowLink key={plan.id} to={paths.medication(plan.id)} linked={linked}>
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-meds-soft text-meds-ink">
             <Pill className="size-5" aria-hidden />
           </span>
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">

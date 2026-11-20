@@ -26,7 +26,7 @@ export function FilterChips<T extends string>({ items, value, onChange, label }:
             onClick={() => onChange(item.value)}
             className={cn(
               'min-h-12 shrink-0 rounded-full border px-5 text-base font-medium whitespace-nowrap transition-colors',
-              active ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-surface text-foreground hover:bg-surface-muted',
+              active ? 'border-primary bg-primary font-semibold text-primary-foreground shadow-button' : 'border-transparent bg-surface text-foreground shadow-card hover:bg-surface-muted',
             )}
           >
             {item.label}

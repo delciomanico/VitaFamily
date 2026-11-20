@@ -1,3 +1,4 @@
+import { Avatar } from '@/components/ui/Avatar'
 import { useState } from 'react'
 import { CalendarCheck } from 'lucide-react'
 import { Page } from '@/components/layout/Page'
@@ -79,8 +80,11 @@ export function BookingsPage() {
             <ul className="flex flex-col gap-3">
               {rows.map((b) => (
                 <li key={b.id}>
-                  <Link to={paths.booking(b.memberId, b.id)} className="flex flex-col gap-1.5 rounded-2xl border border-border bg-surface p-4 shadow-card transition-colors active:bg-surface-muted">
-                    <p className="text-lg font-semibold">{b.professional.displayName}</p>
+                  <Link to={paths.booking(b.memberId, b.id)} className="flex flex-col gap-1.5 rounded-[1.25rem] bg-surface p-4 shadow-card transition-transform active:scale-[0.98]">
+                    <p className="flex items-center gap-3 font-display text-xl font-bold">
+                      <Avatar name={b.professional.displayName} size="md" />
+                      {b.professional.displayName}
+                    </p>
                     <p className="text-base text-muted">
                       {b.offer.specialtyName} · {offerMethodLabel[b.offer.method]}
                       {severalMembers ? ` · ${b.memberName}` : ''}

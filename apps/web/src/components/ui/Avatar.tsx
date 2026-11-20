@@ -23,13 +23,22 @@ export function initials(name: string): string {
   return (first + last).toUpperCase()
 }
 
+/** Cada pessoa tem sempre a mesma cor (pelo nome): ajuda a reconhecer quem é de relance. `-ink` cumpre AA sobre `-soft`. */
+const avatarTones = ['bg-primary-soft text-primary', 'bg-health-soft text-health-ink', 'bg-meds-soft text-meds-ink', 'bg-chat-soft text-chat-ink', 'bg-family-soft text-family-ink']
+
+function toneFor(name: string): string {
+  let hash = 0
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997
+  return avatarTones[hash % avatarTones.length]!
+}
+
 export function Avatar({ name, src, size = 'md', className }: AvatarProps) {
   const classes = cn('inline-flex shrink-0 items-center justify-center rounded-full', sizes[size], className)
 
   if (src) return <img src={src} alt={name} className={cn(classes, 'object-cover')} />
 
   return (
-    <span className={cn(classes, 'bg-primary-soft font-semibold text-primary')} role="img" aria-label={name}>
+    <span className={cn(classes, 'font-display font-bold', toneFor(name))} role="img" aria-label={name}>
       {initials(name)}
     </span>
   )
