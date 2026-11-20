@@ -31,4 +31,11 @@ describe("política de falha (FailingRateLimiter)", () => {
     expect((await limiter.consume(key, rule, { failMode: FailMode.LOCAL_FALLBACK })).allowed).toBe(true);
     expect((await limiter.consume(key, rule, { failMode: FailMode.LOCAL_FALLBACK })).allowed).toBe(false);
   });
+
+  it("reset falha fechado (503) mesmo com LOCAL_FALLBACK noutras chamadas", async () => {
+    const limiter = new FailingRateLimiter(new SystemClock());
+    const error = await limiter.reset(key).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(RateLimiterUnavailableError);
+    expect(toProblem(error, "req-1").status).toBe(503);
+  });
 });

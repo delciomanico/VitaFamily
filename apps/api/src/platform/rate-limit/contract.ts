@@ -45,6 +45,31 @@ export function runRateLimiterContract(name: string, make: (namespace: string) =
       expect(peeked.retryAfterMs).toBeGreaterThan(0);
     });
 
+    it("reset apaga o contador e este recomeça", async () => {
+      const limiter = make("contract-r");
+      const rule = { max: 2, windowMs: 5_000 };
+      await limiter.consume(key("u1"), rule);
+      await limiter.consume(key("u1"), rule);
+      expect((await limiter.peek(key("u1"), rule)).allowed).toBe(false);
+      await limiter.reset(key("u1"));
+      expect((await limiter.peek(key("u1"), rule)).allowed).toBe(true);
+      expect((await limiter.consume(key("u1"), rule)).allowed).toBe(true);
+      await limiter.reset(key("inexistente"));
+    });
+
+    it("reset só afeta o sujeito, a regra e o namespace indicados", async () => {
+      const a = make("contract-r1");
+      const b = make("contract-r2");
+      const rule = { max: 1, windowMs: 5_000 };
+      await a.consume(key("u1"), rule);
+      await a.consume(key("u2"), rule);
+      await b.consume(key("u1"), rule);
+      await a.reset(key("u1"));
+      expect((await a.peek(key("u1"), rule)).allowed).toBe(true);
+      expect((await a.peek(key("u2"), rule)).allowed).toBe(false);
+      expect((await b.peek(key("u1"), rule)).allowed).toBe(false);
+    });
+
     it("isola por sujeito, por regra e por namespace", async () => {
       const a = make("contract-d1");
       const b = make("contract-d2");

@@ -11,6 +11,9 @@ class FailingStore implements RateLimitStore {
   peek(): Promise<RateLimitDecision> {
     return Promise.reject(new RateLimitStoreError("falha simulada"));
   }
+  reset(): Promise<void> {
+    return Promise.reject(new RateLimitStoreError("falha simulada"));
+  }
 }
 
 export class FailingRateLimiter extends NamespacedRateLimiter {

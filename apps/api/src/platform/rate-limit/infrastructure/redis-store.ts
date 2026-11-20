@@ -78,6 +78,19 @@ export class RedisRateLimitStore implements RateLimitStore {
     return this.execute(fullKey, rule, "peek");
   }
 
+  async reset(fullKey: string): Promise<void> {
+    if (!this.breaker.tryAcquire()) {
+      throw new RateLimitStoreError("disjuntor aberto");
+    }
+    try {
+      await this.redis.del(fullKey);
+      this.breaker.onSuccess();
+    } catch (error) {
+      this.breaker.onFailure();
+      throw new RateLimitStoreError("falha do suporte de contadores", { cause: error });
+    }
+  }
+
   /** `PING` com timeout próprio (readiness, ADR-038 §9). */
   async ping(timeoutMs = 1_000): Promise<boolean> {
     let timer: NodeJS.Timeout | undefined;

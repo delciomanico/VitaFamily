@@ -19,6 +19,11 @@ export class InMemoryRateLimitStore implements RateLimitStore {
     return Promise.resolve(this.apply(fullKey, rule, false));
   }
 
+  reset(fullKey: string): Promise<void> {
+    this.hits.delete(fullKey);
+    return Promise.resolve();
+  }
+
   private apply(fullKey: string, rule: RateLimitRule, record: boolean): RateLimitDecision {
     const now = this.clock.now().getTime();
     if (this.hits.size > SWEEP_THRESHOLD) {

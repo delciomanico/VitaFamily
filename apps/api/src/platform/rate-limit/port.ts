@@ -31,12 +31,18 @@ export interface RateLimiter {
   consume(key: RateLimitKey, rule: RateLimitRule, options?: RateLimitCallOptions): Promise<RateLimitDecision>;
   /** Lê sem registar (falhas de login, 404 do walk-in). */
   peek(key: RateLimitKey, rule: RateLimitRule, options?: RateLimitCallOptions): Promise<RateLimitDecision>;
+  /**
+   * Apaga o contador (ex.: falhas de login após autenticação com sucesso). Sempre FECHADO, sem fallback local:
+   * se o suporte falhar lança `RateLimiterUnavailableError` (503); o chamador decide se o tolera.
+   */
+  reset(key: RateLimitKey): Promise<void>;
 }
 
 /** Suporte dos contadores (adaptador). Chave já completa; só o núcleo a constrói. */
 export interface RateLimitStore {
   consume(fullKey: string, rule: RateLimitRule): Promise<RateLimitDecision>;
   peek(fullKey: string, rule: RateLimitRule): Promise<RateLimitDecision>;
+  reset(fullKey: string): Promise<void>;
 }
 
 /** Falha do suporte (Redis inacessível, timeout, erro do script, disjuntor aberto). */

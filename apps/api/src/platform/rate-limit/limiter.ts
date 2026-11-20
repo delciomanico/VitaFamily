@@ -41,6 +41,18 @@ export class NamespacedRateLimiter implements RateLimiter {
     return this.run(key, options, (store, fullKey) => store.peek(fullKey, rule));
   }
 
+  async reset(key: RateLimitKey): Promise<void> {
+    const fullKey = buildRateLimitKey(this.options, key);
+    try {
+      await this.options.store.reset(fullKey);
+    } catch (error) {
+      if (!(error instanceof RateLimitStoreError)) {
+        throw error;
+      }
+      throw new RateLimiterUnavailableError({ cause: error });
+    }
+  }
+
   private async run(
     key: RateLimitKey,
     options: RateLimitCallOptions | undefined,
