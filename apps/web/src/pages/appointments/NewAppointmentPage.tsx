@@ -1,15 +1,14 @@
 import { useState } from 'react'
+import { useNavigate, useOutletContext } from 'react-router-dom'
 import { CalendarCheck, Clock } from 'lucide-react'
 import { ChoiceList, NO_CLINIC, SpecialtyField } from '@/components/domain/AppointmentFields'
 import { DateStrip, TimeSlots, nextDays } from '@/components/domain/DatePickers'
 import { Celebration } from '@/components/app/Celebration'
-import { Page } from '@/components/layout/Page'
-import { Button, ButtonLink } from '@/components/ui/Button'
+import { FormSheet, SheetWait, WizardSheet } from '@/components/app/FormSheet'
+import { Button } from '@/components/ui/Button'
 import { InfoList, InfoRow } from '@/components/ui/InfoList'
 import { Input } from '@/components/ui/Input'
-import { StepProgress } from '@/components/ui/StepProgress'
 import { Textarea } from '@/components/ui/Textarea'
-import { ErrorState, FormError, LoadingState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { APPOINTMENT_TIMES, combineDateTime, localDay } from '@/lib/appointment'
@@ -17,6 +16,7 @@ import { cn } from '@/lib/cn'
 import { localTime, todayISO } from '@/lib/date'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { formatCount, formatLongDate, formatTime } from '@/lib/format'
+import { useModalRoute, type ModalOutletContext } from '@/lib/modalRoute'
 import { paths } from '@/routes/paths'
 import { appointmentService } from '@/services/appointment.service'
 import { clinicService } from '@/services/clinic.service'
@@ -229,6 +229,7 @@ interface WizardProps {
   clinics: Clinic[]
   selfMemberId: string
   onDone: (appointment: Appointment) => void
+  onClose: () => void
 }
 
 /**
@@ -236,7 +237,7 @@ interface WizardProps {
  * Clínica parceira: só horários publicados, e o pedido aguarda confirmação (D17).
  * Clínica privada ou sem clínica: registo direto, fica agendada (BR-APT-04).
  */
-function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) {
+function BookingWizard({ members, clinics, selfMemberId, onDone, onClose }: WizardProps) {
   const { user, family } = useAuth()
   const familyId = family?.id ?? ''
   const firstStep = members.length > 1 ? 0 : 1
@@ -360,12 +361,22 @@ function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) 
   const professional = partner ? slot?.professionalName : draft.professionalName.trim()
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-3">
-        <StepProgress step={step - firstStep + 1} total={STEPS.length - firstStep} label="Progresso da marcação" />
-      </div>
-      <h2 className="text-[1.5rem] leading-tight font-semibold text-balance">{STEPS[step]}</h2>
-
+    <WizardSheet
+      title="Marcar consulta"
+      stepTitle={STEPS[step] ?? ''}
+      step={step - firstStep}
+      total={STEPS.length - firstStep}
+      onBack={() => {
+        setError(null)
+        setStep((s) => s - 1)
+      }}
+      onNext={step < 4 ? next : confirm}
+      nextLabel={step < 4 ? 'Continuar' : partner ? 'Enviar pedido' : 'Confirmar marcação'}
+      busy={saving}
+      error={error}
+      dirty={Boolean(draft.specialty || draft.notes || draft.clinicId || (draft.memberId && members.length > 1))}
+      onClose={onClose}
+    >
       {step === 0 && (
         <ChoiceList
           label="Membro"
@@ -414,72 +425,43 @@ function BookingWizard({ members, clinics, selfMemberId, onDone }: WizardProps) 
         />
       )}
 
-      <FormError message={error} />
-
-      <div className="flex flex-col gap-2 sm:flex-row-reverse">
-        {step < 4 ? (
-          <Button size="lg" onClick={next} loading={saving} className="sm:flex-1">
-            Continuar
-          </Button>
-        ) : (
-          <Button size="lg" onClick={confirm} loading={saving} className="sm:flex-1">
-            {partner ? 'Enviar pedido' : 'Confirmar marcação'}
-          </Button>
-        )}
-        {step > firstStep ? (
-          <Button
-            variant="ghost"
-            size="lg"
-            onClick={() => {
-              setError(null)
-              setStep((s) => s - 1)
-            }}
-            className="sm:flex-1"
-          >
-            Voltar
-          </Button>
-        ) : (
-          <ButtonLink to={paths.appointments} variant="ghost" size="lg" className="sm:flex-1">
-            Cancelar
-          </ButtonLink>
-        )}
-      </div>
-    </div>
+    </WizardSheet>
   )
 }
 
-/** Confirmação (fluxo 4: … → Marcar consulta → Confirmação): pedido enviado ou consulta marcada. */
-function Done({ appointment }: { appointment: Appointment }) {
+/** Confirmação (fluxo 4: … → Marcar consulta → Confirmação): pedido enviado ou consulta marcada, ainda na folha. */
+function Done({ appointment, onClose }: { appointment: Appointment; onClose: () => void }) {
+  const navigate = useNavigate()
   const requested = appointment.status === 'REQUESTED'
   const Icon = requested ? Clock : CalendarCheck
   return (
-    <div className="flex flex-col items-center gap-4 py-6 text-center">
-      <Celebration icon={Icon} tone={requested ? 'warning' : 'success'} />
-      <div className="flex flex-col gap-1">
-        <h2 className="text-[1.5rem] leading-tight font-semibold">{requested ? 'Pedido enviado' : 'Consulta marcada'}</h2>
-        <p className="text-muted">
-          {appointment.specialty} · {formatLongDate(appointment.scheduledAt)}, {formatTime(appointment.scheduledAt)}
-        </p>
-        {requested && (
-          <p className="text-sm text-muted">
-            Aguarda a confirmação da {appointment.clinicName}. Pode acompanhar o estado na Agenda.
+    <FormSheet
+      title={requested ? 'Pedido enviado' : 'Consulta marcada'}
+      onClose={onClose}
+      onSubmit={() => navigate(paths.appointment(appointment.id), { replace: true })}
+      submitLabel="Ver consulta"
+    >
+      <div className="flex flex-col items-center gap-4 py-2 text-center">
+        <Celebration icon={Icon} tone={requested ? 'warning' : 'success'} />
+        <div className="flex flex-col gap-1">
+          <p className="text-muted">
+            {appointment.specialty} · {formatLongDate(appointment.scheduledAt)}, {formatTime(appointment.scheduledAt)}
           </p>
-        )}
-      </div>
-      <div className="flex w-full max-w-sm flex-col gap-2">
-        <ButtonLink to={paths.appointment(appointment.id)} size="lg" fullWidth>
-          Ver consulta
-        </ButtonLink>
-        <ButtonLink to={paths.appointments} variant="ghost" size="lg" fullWidth>
+          {requested && <p className="text-base text-muted">Aguarda a confirmação da {appointment.clinicName}. Pode acompanhar o estado na Agenda.</p>}
+        </div>
+        <Button variant="secondary" size="lg" fullWidth onClick={onClose}>
           Voltar à agenda
-        </ButtonLink>
+        </Button>
       </div>
-    </div>
+    </FormSheet>
   )
 }
 
+/** Marcar consulta numa folha em ecrã inteiro por cima da Agenda. */
 export function NewAppointmentPage() {
   const { user, family, member } = useAuth()
+  const { close } = useModalRoute(paths.appointments)
+  const context = useOutletContext<ModalOutletContext | null>()
   const [done, setDone] = useState<Appointment | null>(null)
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
@@ -493,21 +475,18 @@ export function NewAppointmentPage() {
     [familyId, userId],
   )
 
+  if (state.status !== 'success') return <SheetWait title="Marcar consulta" onClose={close} onRetry={reload} failed={state.status === 'error'} />
+  if (done) return <Done appointment={done} onClose={close} />
   return (
-    <Page title="Marcar consulta" backTo={paths.appointments} backLabel="Agenda">
-      {state.status === 'loading' && <LoadingState rows={3} />}
-      {state.status === 'error' && <ErrorState onRetry={reload} />}
-      {state.status === 'success' &&
-        (done ? (
-          <Done appointment={done} />
-        ) : (
-          <BookingWizard
-            members={state.data[0]}
-            clinics={state.data[1]}
-            selfMemberId={member?.id ?? ''}
-            onDone={setDone}
-          />
-        ))}
-    </Page>
+    <BookingWizard
+      members={state.data[0]}
+      clinics={state.data[1]}
+      selfMemberId={member?.id ?? ''}
+      onDone={(appointment) => {
+        context?.onSaved?.()
+        setDone(appointment)
+      }}
+      onClose={close}
+    />
   )
 }

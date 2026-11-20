@@ -79,3 +79,27 @@ describe('nova receita (família)', () => {
     await waitFor(() => expect(screen.getAllByText(/\d medicamentos?$/)).toHaveLength(3))
   })
 })
+
+describe('novo exame e marcar consulta (família)', () => {
+  it('novo exame: a ligação direta abre por cima da lista e guardar atualiza a lista', async () => {
+    const before = db.examinations.length
+    const router = renderAt('/app/health/examinations/new')
+    const sheet = await readySheet('Adicionar exame', 'Continuar')
+    expect(await screen.findByRole('heading', { name: 'Exames', level: 1 })).toBeInTheDocument()
+    fireEvent.input(within(sheet).getByLabelText('Tipo de exame'), { target: { value: 'Análises' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(await within(sheet).findByRole('button', { name: 'Continuar' }))
+    fireEvent.click(await within(sheet).findByRole('button', { name: 'Guardar exame' }))
+    expect(await screen.findByText('Exame registado.')).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app/health/examinations'))
+    expect(db.examinations.length).toBe(before + 1)
+  })
+
+  it('marcar consulta: abre por cima da Agenda e «Voltar» fecha sem perguntar quando nada foi escrito', async () => {
+    const router = renderAt('/app/appointments/new')
+    const sheet = await readySheet('Marcar consulta', 'Continuar')
+    expect(await screen.findByRole('heading', { name: 'Agenda', level: 1 })).toBeInTheDocument()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Voltar' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app/appointments'))
+  })
+})

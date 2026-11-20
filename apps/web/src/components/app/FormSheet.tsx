@@ -19,6 +19,8 @@ interface FrameProps {
   onDiscard?: () => void
   /** Foca o primeiro campo ao abrir (formulário curto «pronto a preencher»). */
   focusFirstField?: boolean
+  /** Folha alta (92 % do ecrã) para formulários com listas de escolha. */
+  tall?: boolean
   children: (requestClose: () => void) => ReactNode
 }
 
@@ -26,7 +28,7 @@ interface FrameProps {
  * Moldura comum das folhas de formulário: <dialog> nativo (foco preso e devolvido a quem a abriu), Esc e toque fora
  * fecham, e com dados por guardar pergunta «Descartar alterações?» numa folha de confirmação.
  */
-function SheetFrame({ label, full = false, dirty, onClose, onDiscard, focusFirstField = false, children }: FrameProps) {
+function SheetFrame({ label, full = false, tall = false, dirty, onClose, onDiscard, focusFirstField = false, children }: FrameProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const [confirming, setConfirming] = useState(false)
 
@@ -63,7 +65,7 @@ function SheetFrame({ label, full = false, dirty, onClose, onDiscard, focusFirst
         onClick={(event) => event.target === ref.current && requestClose()}
         className={cn(
           'mx-auto mt-auto mb-0 w-full max-w-[34rem] animate-sheet-in flex-col p-0 text-foreground shadow-overlay open:flex',
-          full ? 'h-dvh max-h-none rounded-none bg-background' : 'max-h-[92dvh] rounded-t-[2rem] bg-surface',
+          full ? 'h-dvh max-h-none rounded-none bg-background' : cn('max-h-[92dvh] rounded-t-[2rem] bg-surface', tall && 'h-[92dvh]'),
         )}
       >
         <div className="app-mobile flex min-h-0 flex-1 flex-col">{children(requestClose)}</div>
@@ -100,6 +102,7 @@ interface FormSheetProps {
   busy?: boolean
   submitDisabled?: boolean
   error?: string | null
+  tall?: boolean
   children: ReactNode
 }
 
@@ -107,10 +110,10 @@ interface FormSheetProps {
  * Formulário curto (até 5 campos) numa folha inferior: título e «Fechar» em cima, campos com scroll no meio e o botão
  * principal sempre visível em baixo (acima do teclado: altura em `dvh` e margem de segurança).
  */
-export function FormSheet({ title, description, onClose, onDiscard, dirty = false, onSubmit, submitLabel = 'Guardar', busy = false, submitDisabled = false, error = null, children }: FormSheetProps) {
+export function FormSheet({ title, description, onClose, onDiscard, dirty = false, onSubmit, submitLabel = 'Guardar', busy = false, submitDisabled = false, error = null, tall = false, children }: FormSheetProps) {
   const titleId = useId()
   return (
-    <SheetFrame label={title} dirty={dirty} onClose={onClose} onDiscard={onDiscard} focusFirstField>
+    <SheetFrame label={title} dirty={dirty} onClose={onClose} onDiscard={onDiscard} focusFirstField tall={tall}>
       {(requestClose) => (
         <form
           onSubmit={(event) => {

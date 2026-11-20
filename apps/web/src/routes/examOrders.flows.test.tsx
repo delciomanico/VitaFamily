@@ -205,7 +205,9 @@ describe('pedido de exame: paciente Vita (M15 U)', () => {
     const future = new Date()
     future.setDate(future.getDate() + 10)
     type('Data', future.toISOString().slice(0, 10))
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar exame' }))
+    // A folha é um passo a passo: «Que exame?» → «Foto e notas» (sem resultados, o exame fica agendado).
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Guardar exame' }))
     await waitFor(() => expect(db.examOrders[0]!.examinationId).toBeDefined())
     expect(db.examinations.find((e) => e.id === db.examOrders[0]!.examinationId)).toMatchObject({ status: 'SCHEDULED', memberId: 'mem_maria' })
 

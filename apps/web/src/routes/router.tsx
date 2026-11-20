@@ -153,14 +153,10 @@ export const routes: RouteObject[] = [
               {
                 path: 'health/examinations',
                 ...page(() => import('@/pages/examinations/ExaminationsPage'), 'ExaminationsPage'),
-              },
-              {
-                path: 'health/examinations/new',
-                ...page(() => import('@/pages/examinations/NewExaminationPage'), 'NewExaminationPage'),
-              },
-              {
-                path: 'health/examinations/schedule',
-                ...page(() => import('@/pages/examinations/ScheduleExaminationPage'), 'ScheduleExaminationPage'),
+                children: [
+                  { path: 'new', ...page(() => import('@/pages/examinations/NewExaminationPage'), 'NewExaminationPage') },
+                  { path: 'schedule', ...page(() => import('@/pages/examinations/ScheduleExaminationPage'), 'ScheduleExaminationPage') },
+                ],
               },
               {
                 path: 'health/examinations/:id',
@@ -173,10 +169,7 @@ export const routes: RouteObject[] = [
               {
                 path: 'appointments',
                 ...page(() => import('@/pages/appointments/AppointmentsPage'), 'AppointmentsPage'),
-              },
-              {
-                path: 'appointments/new',
-                ...page(() => import('@/pages/appointments/NewAppointmentPage'), 'NewAppointmentPage'),
+                children: [{ path: 'new', ...page(() => import('@/pages/appointments/NewAppointmentPage'), 'NewAppointmentPage') }],
               },
               {
                 path: 'appointments/:id',

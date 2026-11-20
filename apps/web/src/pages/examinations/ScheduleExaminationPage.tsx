@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { DateStrip } from '@/components/domain/DatePickers'
-import { Page } from '@/components/layout/Page'
-import { Button } from '@/components/ui/Button'
+import { FormSheet, SheetWait } from '@/components/app/FormSheet'
 import { Textarea } from '@/components/ui/Textarea'
 import { Select } from '@/components/ui/Select'
-import { EmptyState, ErrorState, FormError, LoadingState } from '@/components/ui/states'
+import { EmptyState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
@@ -13,6 +12,7 @@ import { localDay } from '@/lib/appointment'
 import { cn } from '@/lib/cn'
 import { errorMessage } from '@/lib/errors'
 import { formatCount, formatTime } from '@/lib/format'
+import { useModalRoute } from '@/lib/modalRoute'
 import { paths } from '@/routes/paths'
 import { appointmentService } from '@/services/appointment.service'
 import { examinationService } from '@/services/examination.service'
@@ -26,6 +26,7 @@ interface ScheduleFormProps {
   selfMemberId: string
   slots: AvailableSlot[]
   onBooked: () => void
+  onClose: () => void
   /** M15 U: pedido de exame a marcar (tipo pré-escolhido; liga o exame ao pedido). */
   order?: { examOrderId: string; name: string; memberId?: string }
 }
@@ -34,7 +35,7 @@ interface ScheduleFormProps {
  * Agendar um exame num horário com vagas de uma clínica parceira (ADR-023, BR-APT-11).
  * Não há pedido nem confirmação: ao confirmar, o exame fica logo agendado e ocupa uma vaga.
  */
-function ScheduleForm({ members, selfMemberId, slots, onBooked, order }: ScheduleFormProps) {
+function ScheduleForm({ members, selfMemberId, slots, onBooked, onClose, order }: ScheduleFormProps) {
   const { user, family } = useAuth()
   const toast = useToast()
   const types = [...new Set(slots.map((s) => s.specialty))].sort((a, b) => a.localeCompare(b, 'pt-PT'))
@@ -82,11 +83,25 @@ function ScheduleForm({ members, selfMemberId, slots, onBooked, order }: Schedul
   }
 
   if (slots.length === 0) {
-    return <EmptyState icon={CalendarClock} title="As clínicas parceiras não têm horários de exame disponíveis." />
+    return (
+      <FormSheet title="Agendar exame" onClose={onClose} onSubmit={onClose} submitLabel="Fechar">
+        <EmptyState icon={CalendarClock} title="As clínicas parceiras não têm horários de exame disponíveis." />
+      </FormSheet>
+    )
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <FormSheet
+      title="Agendar exame"
+      tall
+      onClose={onClose}
+      dirty={Boolean(slotId || day || notes)}
+      onSubmit={() => (slot ? book() : setError('Escolha um horário.'))}
+      submitLabel="Agendar exame"
+      submitDisabled={!slot}
+      busy={saving}
+      error={error}
+    >
       {members.length > 1 && (
         <Select
           label="Para quem"
@@ -154,18 +169,14 @@ function ScheduleForm({ members, selfMemberId, slots, onBooked, order }: Schedul
         </div>
       )}
       <Textarea label="Observações (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-      <FormError message={error} />
-      <Button size="lg" loading={saving} disabled={!slot} onClick={() => void book()}>
-        Agendar exame
-      </Button>
-    </div>
+    </FormSheet>
   )
 }
 
 /** Agendar exame numa clínica parceira (ADR-023). */
 export function ScheduleExaminationPage() {
   const { user, family, member } = useAuth()
-  const navigate = useNavigate()
+  const { close, saved } = useModalRoute(paths.examinations)
   const [params] = useSearchParams()
   const examOrderId = params.get('examOrderId')
   const familyId = family?.id ?? ''
@@ -179,19 +190,15 @@ export function ScheduleExaminationPage() {
     [familyId, userId],
   )
 
+  if (state.status !== 'success') return <SheetWait title="Agendar exame" onClose={close} onRetry={reload} failed={state.status === 'error'} />
   return (
-    <Page title="Agendar exame" backTo={paths.examinationNew} backLabel="Adicionar exame">
-      {state.status === 'loading' && <LoadingState rows={4} />}
-      {state.status === 'error' && <ErrorState onRetry={reload} />}
-      {state.status === 'success' && (
-        <ScheduleForm
-          members={state.data[0]}
-          selfMemberId={member?.id ?? ''}
-          slots={state.data[1]}
-          order={examOrderId ? { examOrderId, name: params.get('name') ?? '', memberId: params.get('memberId') ?? undefined } : undefined}
-          onBooked={() => navigate(paths.examinations, { replace: true })}
-        />
-      )}
-    </Page>
+    <ScheduleForm
+      members={state.data[0]}
+      selfMemberId={member?.id ?? ''}
+      slots={state.data[1]}
+      order={examOrderId ? { examOrderId, name: params.get('name') ?? '', memberId: params.get('memberId') ?? undefined } : undefined}
+      onBooked={saved}
+      onClose={close}
+    />
   )
 }

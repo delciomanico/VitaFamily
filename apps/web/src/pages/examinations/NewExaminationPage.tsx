@@ -1,18 +1,16 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { Controller, useFieldArray, useForm, type FieldErrors, type UseFormRegister } from 'react-hook-form'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { z } from 'zod'
 import { DocumentPicker } from '@/components/domain/Documents'
-import { Page } from '@/components/layout/Page'
+import { SheetWait, WizardSheet } from '@/components/app/FormSheet'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { DetailSection } from '@/components/ui/InfoList'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
-import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
@@ -20,6 +18,8 @@ import { isValidISODate, todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { parseNumber } from '@/lib/examination'
 import { extractClinicName, extractDateISO, extractExamResults } from '@/lib/ocrParse'
+import { useModalRoute } from '@/lib/modalRoute'
+import { useWizardStep } from '@/hooks/useWizardStep'
 import { paths } from '@/routes/paths'
 import { examinationService, type ExamResultInput } from '@/services/examination.service'
 import { clinicService } from '@/services/clinic.service'
@@ -142,11 +142,29 @@ interface NewExaminationFormProps {
   prefill?: OrderPrefill
 }
 
+/** Pedido de exame de uma clínica a marcar (`?examOrderId&name&clinicId&memberId`, M15 U). */
+interface OrderPrefill {
+  examOrderId: string
+  name: string
+  memberId?: string
+  clinicName?: string
+}
+
+interface NewExaminationFormProps {
+  members: FamilyMember[]
+  clinics: string[]
+  selfMemberId: string
+  prefill?: OrderPrefill
+}
+
 function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExaminationFormProps) {
   const { user, family } = useAuth()
   const toast = useToast()
-  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const { close, saved } = useModalRoute(paths.examinations)
   const clinicListId = useId()
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
   const {
     register,
     control,
@@ -154,7 +172,8 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExam
     watch,
     setValue,
     getValues,
-    formState: { errors, isSubmitting, dirtyFields },
+    trigger,
+    formState: { errors, isSubmitting, isDirty, dirtyFields },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -168,8 +187,11 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExam
     },
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'results' })
-  // Exame futuro fica agendado e ainda não tem resultados (ST5).
+  // Exame futuro fica agendado e ainda não tem resultados (ST5): sem o passo dos resultados.
   const scheduled = watch('examDate') > todayISO()
+  const steps = scheduled ? (['Que exame?', 'Foto e notas'] as const) : (['Que exame?', 'Resultados', 'Foto e notas'] as const)
+  const { step, next, back, last } = useWizardStep(steps.length, close)
+  const stepName = steps[step] ?? ''
 
   /** Pré-preenche a partir da leitura da foto (melhor esforço); nunca substitui o que já foi escrito. */
   function handleOcrExtract(text: string) {
@@ -201,114 +223,100 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExam
   }
 
   async function onSubmit({ results, ...values }: FormValues) {
+    setSubmitError(null)
     try {
-      const examination = await examinationService.createExamination(family?.id ?? '', user?.id ?? '', {
+      await examinationService.createExamination(family?.id ?? '', user?.id ?? '', {
         ...values,
         ...(prefill ? { examOrderId: prefill.examOrderId } : {}),
         results: scheduled ? [] : results.map(toResultInput),
       })
       toast.show(scheduled ? 'Exame agendado.' : 'Exame registado.')
-      navigate(paths.examination(examination.id), { replace: true })
+      setDone(true)
+      saved()
     } catch (error) {
-      toast.show(errorMessage(error), 'error')
+      setSubmitError(errorMessage(error))
     }
   }
 
+  async function onNext() {
+    setSubmitError(null)
+    if (stepName === 'Que exame?' && !(await trigger(['memberId', 'name', 'examDate']))) return
+    if (stepName === 'Resultados' && !(await trigger('results'))) return
+    if (!last) return next()
+    await handleSubmit(onSubmit)()
+  }
+
   const memberOptions = members.map((m) => ({ value: m.id, label: m.id === selfMemberId ? `${m.name} (eu)` : m.name }))
+  const search = prefill ? `?${params}` : ''
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-6">
-      {prefill && (
-        <p className="rounded-xl bg-primary-soft px-3.5 py-3 text-sm text-primary">
-          A marcar o exame pedido pela clínica: <strong>{prefill.name}</strong>. Escolha a data e, se quiser, outra clínica.
-        </p>
+    <WizardSheet
+      title="Adicionar exame"
+      stepTitle={stepName}
+      description={stepName === 'Resultados' ? 'Copie os valores e as referências do boletim. A Vita Family guarda-os sem os interpretar.' : stepName === 'Foto e notas' ? 'Opcional. Tirar uma foto ajuda a preencher.' : undefined}
+      step={step}
+      total={steps.length}
+      onBack={() => {
+        setSubmitError(null)
+        back()
+      }}
+      onNext={onNext}
+      nextLabel={last ? 'Guardar exame' : 'Continuar'}
+      busy={isSubmitting}
+      error={submitError}
+      dirty={isDirty && !done}
+      onClose={close}
+    >
+      {stepName === 'Que exame?' && (
+        <>
+          {prefill && (
+            <p className="rounded-xl bg-primary-soft px-3.5 py-3 text-base text-primary">
+              A marcar o exame pedido pela clínica: <strong>{prefill.name}</strong>. Escolha a data e, se quiser, outra clínica.
+            </p>
+          )}
+          {members.length > 1 && <Select label="Para quem" options={memberOptions} error={errors.memberId?.message} {...register('memberId')} />}
+          <Input label="Tipo de exame" placeholder="Ex.: Análises clínicas" error={errors.name?.message} {...register('name')} />
+          <Input label="Data" type="date" error={errors.examDate?.message} hint={scheduled ? 'Data futura: o exame fica agendado.' : undefined} {...register('examDate')} />
+          <Input label="Clínica/Laboratório (opcional)" placeholder="Ex.: Laboratório Vida Plena" list={clinicListId} {...register('clinicName')} />
+          <datalist id={clinicListId}>
+            {clinics.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+          <ButtonLink to={`${paths.examinationSchedule}${search}`} replace variant="soft" size="lg">
+            Agendar numa clínica parceira
+          </ButtonLink>
+        </>
       )}
-      <div className="flex flex-col gap-4">
-        {members.length > 1 && (
-          <Select
-            label="Para quem"
-            options={memberOptions}
-            error={errors.memberId?.message}
-            {...register('memberId')}
-          />
-        )}
-        <Input
-          label="Tipo de exame"
-          placeholder="Ex.: Análises clínicas"
-          error={errors.name?.message}
-          {...register('name')}
-        />
-        <Input
-          label="Data"
-          type="date"
-          error={errors.examDate?.message}
-          hint={scheduled ? 'Data futura: o exame fica agendado.' : undefined}
-          {...register('examDate')}
-        />
-        <Input
-          label="Clínica/Laboratório (opcional)"
-          placeholder="Ex.: Laboratório Vida Plena"
-          list={clinicListId}
-          {...register('clinicName')}
-        />
-        <datalist id={clinicListId}>
-          {clinics.map((name) => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
-      </div>
-
-      {!scheduled && (
-        <DetailSection title="Resultados">
+      {stepName === 'Resultados' && (
+        <>
           {fields.map((field, index) => (
-            <ResultFields
-              key={field.id}
-              index={index}
-              register={register}
-              errors={errors.results?.[index]}
-              onRemove={() => remove(index)}
-            />
+            <ResultFields key={field.id} index={index} register={register} errors={errors.results?.[index]} onRemove={() => remove(index)} />
           ))}
-          <Button variant="soft" onClick={() => append(emptyResult())} icon={<Plus className="size-4" aria-hidden />}>
+          <Button variant="soft" size="lg" onClick={() => append(emptyResult())} icon={<Plus className="size-4" aria-hidden />}>
             Adicionar resultado
           </Button>
-          <p className="text-sm text-muted">
-            Copie os valores e as referências do boletim. A Vita Family guarda-os sem os interpretar.
-          </p>
-        </DetailSection>
+        </>
       )}
-
-      <Controller
-        control={control}
-        name="documents"
-        render={({ field }) => (
-          <DocumentPicker
-            label="Documento (opcional)"
-            value={field.value}
-            onChange={field.onChange}
-            ocr={{ onExtract: handleOcrExtract }}
+      {stepName === 'Foto e notas' && (
+        <>
+          <Controller
+            control={control}
+            name="documents"
+            render={({ field }) => <DocumentPicker label="Documento (opcional)" value={field.value} onChange={field.onChange} ocr={{ onExtract: handleOcrExtract }} />}
           />
-        )}
-      />
-
-      <Textarea label="Observações (opcional)" {...register('notes')} />
-
-      <div className="flex flex-col gap-2 sm:flex-row-reverse">
-        <Button type="submit" size="lg" loading={isSubmitting} className="sm:flex-1">
-          Guardar exame
-        </Button>
-        <ButtonLink to={paths.examinations} variant="ghost" size="lg" className="sm:flex-1">
-          Cancelar
-        </ButtonLink>
-      </div>
-    </form>
+          <Textarea label="Observações (opcional)" {...register('notes')} />
+        </>
+      )}
+    </WizardSheet>
   )
 }
 
-/** Registar exame (UC-EXM-01/02/03), com vários resultados e documento. */
+/** Registar exame (UC-EXM-01/02/03), com vários resultados e documento, numa folha em ecrã inteiro por cima da lista. */
 export function NewExaminationPage() {
   const { user, family, member } = useAuth()
   const [params] = useSearchParams()
+  const { close } = useModalRoute(paths.examinations)
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
   const { state, reload } = useAsync(
@@ -317,7 +325,6 @@ export function NewExaminationPage() {
   )
 
   const examOrderId = params.get('examOrderId')
-  const search = examOrderId ? `?${params}` : ''
   const prefill = (clinics: Array<{ id: string; name: string }>): OrderPrefill | undefined =>
     examOrderId
       ? {
@@ -328,21 +335,6 @@ export function NewExaminationPage() {
         }
       : undefined
 
-  return (
-    <Page title="Adicionar exame" backTo={paths.examinations} backLabel="Exames">
-      <ButtonLink to={`${paths.examinationSchedule}${search}`} variant="soft">
-        Agendar numa clínica parceira
-      </ButtonLink>
-      {state.status === 'loading' && <LoadingState rows={4} />}
-      {state.status === 'error' && <ErrorState onRetry={reload} />}
-      {state.status === 'success' && (
-        <NewExaminationForm
-          members={state.data[0]}
-          clinics={state.data[1].map((c) => c.name)}
-          selfMemberId={member?.id ?? ''}
-          prefill={prefill(state.data[1])}
-        />
-      )}
-    </Page>
-  )
+  if (state.status !== 'success') return <SheetWait title="Adicionar exame" onClose={close} onRetry={reload} failed={state.status === 'error'} />
+  return <NewExaminationForm members={state.data[0]} clinics={state.data[1].map((c) => c.name)} selfMemberId={member?.id ?? ''} prefill={prefill(state.data[1])} />
 }

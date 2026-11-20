@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Outlet } from 'react-router-dom'
 import { FlaskConical, Plus } from 'lucide-react'
 import { ExaminationList } from '@/components/domain/ExaminationList'
 import { Page } from '@/components/layout/Page'
@@ -67,6 +68,7 @@ export function ExaminationsPage() {
             description="Exames com mais de 90 dias ou cancelados aparecem aqui."
           />
         ))}
+      <Outlet context={{ onSaved: reload }} />
     </Page>
   )
 }

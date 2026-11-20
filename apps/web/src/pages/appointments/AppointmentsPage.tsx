@@ -1,3 +1,4 @@
+import { Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import { CalendarDays, CalendarPlus } from 'lucide-react'
 import { AppointmentList } from '@/components/domain/AppointmentList'
@@ -111,6 +112,7 @@ export function AppointmentsPage() {
         ) : (
           <EmptyState icon={CalendarDays} title="Sem consultas anteriores." />
         ))}
+      <Outlet context={{ onSaved: reload }} />
     </Page>
   )
 }
