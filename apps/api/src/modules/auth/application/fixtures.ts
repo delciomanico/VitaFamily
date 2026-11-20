@@ -28,7 +28,7 @@ import type {
   UsersPort,
 } from "./ports.js";
 import { isSessionUsable, type Session } from "../domain/session.js";
-import { InMemoryRateLimiter } from "../domain/rate-limiter.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 
 /** Marcador opaco: os fakes não têm transações reais, só executam a função recebida. */
 export type FakeTrx = Record<string, never>;
@@ -423,7 +423,7 @@ export function createAuthFixtures(clock: Clock): AuthFixtures {
     clock,
     mailer,
     logger: logger as unknown as Logger,
-    rateLimiter: new InMemoryRateLimiter(clock),
+    rateLimiter: new InMemoryRateLimiter(clock, { namespace: "auth" }),
     signingKeys: [{ kid: "test", secret: new TextEncoder().encode("a".repeat(32)) }],
     accessTtlSeconds: 900,
     refreshTtlMs: 30 * 24 * 60 * 60 * 1000,

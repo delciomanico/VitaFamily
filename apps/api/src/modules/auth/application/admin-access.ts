@@ -19,7 +19,7 @@ export function createResetUserAccessUseCase<Trx>(deps: AuthDeps<Trx>) {
     if (!user) {
       throw new NotFoundError();
     }
-    const decision = deps.rateLimiter.consume(`admin-reset-access:user:${userId}`, PER_USER_RULE);
+    const decision = await deps.rateLimiter.consume({ rule: "admin-reset-access-user", subject: userId }, PER_USER_RULE);
     if (!decision.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: decision.retryAfterMs });
     }

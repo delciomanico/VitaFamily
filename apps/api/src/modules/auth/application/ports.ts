@@ -5,7 +5,7 @@ import type { Clock } from "../../../platform/clock/index.js";
 import type { Logger } from "../../../platform/logger/index.js";
 import type { NewUserRecord, User } from "../../users/index.js";
 import type { SigningKey } from "../domain/jwt.js";
-import type { InMemoryRateLimiter } from "../domain/rate-limiter.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { Session } from "../domain/session.js";
 
 export type AuthTokenType = "EMAIL_VERIFICATION" | "PASSWORD_RESET";
@@ -175,7 +175,7 @@ export interface AuthDeps<Trx> {
   mailer: Mailer;
   /** Para `trySendMail` (application/send-mail.ts) registar falhas de entrega sem derrubar o pedido. */
   logger: Logger;
-  rateLimiter: InMemoryRateLimiter;
+  rateLimiter: RateLimiter;
   signingKeys: SigningKey[];
   accessTtlSeconds: number;
   refreshTtlMs: number;

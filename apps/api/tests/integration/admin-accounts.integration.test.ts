@@ -20,7 +20,7 @@ import {
 import { createGetSessionStatsUseCase, createResetUserAccessUseCase } from "../../src/modules/auth/application/admin-access.js";
 import { FakeLogger, FakeMailer } from "../../src/modules/auth/application/fixtures.js";
 import type { AuthDeps } from "../../src/modules/auth/application/ports.js";
-import { InMemoryRateLimiter } from "../../src/modules/auth/domain/rate-limiter.js";
+import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
 import { KyselyAuthTokenRepository, KyselySessionRepository } from "../../src/modules/auth/infrastructure/repo.js";
 import {
   createAdminListClinicAccountsUseCase,

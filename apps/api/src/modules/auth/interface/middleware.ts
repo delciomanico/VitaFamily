@@ -17,7 +17,7 @@ import { runWithActor, type ActorInfo } from "../../../platform/actor/index.js";
 import { DomainError } from "../../../platform/errors/index.js";
 import type { Clock } from "../../../platform/clock/index.js";
 import { verifyAccessToken, type SigningKey } from "../domain/jwt.js";
-import { InMemoryRateLimiter } from "../domain/rate-limiter.js";
+import { FailMode, type RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { ActorState } from "../application/resolve-actor-state.js";
 
 declare global {
@@ -76,7 +76,7 @@ export function createBearerAuthSecurityHandler(deps: {
  */
 export function createActorContextMiddleware(deps: {
   resolveActorState: (userId: string, sessionId: string) => Promise<ActorState>;
-  generalRateLimiter: InMemoryRateLimiter;
+  generalRateLimiter: RateLimiter;
 }): RequestHandler {
   const GENERAL_RULE = { max: 300, windowMs: 60 * 1000 };
 
@@ -89,7 +89,7 @@ export function createActorContextMiddleware(deps: {
 
     deps
       .resolveActorState(req.authSubject.userId, req.authSubject.sessionId)
-      .then((state) => {
+      .then(async (state) => {
         if (state.suspended) {
           next(new DomainError("ACCOUNT_SUSPENDED", { detail: "Conta suspensa." }));
           return;
@@ -102,7 +102,12 @@ export function createActorContextMiddleware(deps: {
           return;
         }
 
-        const decision = deps.generalRateLimiter.consume(`actor:${state.userId}`, GENERAL_RULE);
+        // Limite geral por ator (ADR-038 §5): leituras degradam para memória local se o suporte falhar;
+        // escritas falham fechadas (503).
+        const readOnly = req.method === "GET" || req.method === "HEAD";
+        const decision = await deps.generalRateLimiter.consume({ rule: "actor", subject: state.userId }, GENERAL_RULE, {
+          failMode: readOnly ? FailMode.LOCAL_FALLBACK : FailMode.CLOSED,
+        });
         if (!decision.allowed) {
           next(new DomainError("RATE_LIMITED", { retryAfterMs: decision.retryAfterMs }));
           return;

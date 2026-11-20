@@ -1,6 +1,7 @@
 // Raiz do módulo `auth` (ADR-015/conventions.md §1): única API pública importável pelo composition
 // root (`main/api.ts`) — regista as rotas de `/auth/*` e liga a autenticação ao `createApp` de
 // `platform/http` (CLAUDE.md M1 §4).
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import type { Router } from "express";
 import type { SecurityHandlers } from "express-openapi-validator/dist/framework/types.js";
 import type { Kysely } from "kysely";
@@ -25,7 +26,6 @@ import { createResolveActorStateUseCase } from "./application/resolve-actor-stat
 import { createVerifyEmailUseCase } from "./application/verify-email.js";
 import { verifyPassword } from "./domain/password.js";
 import type { SigningKey } from "./domain/jwt.js";
-import { InMemoryRateLimiter } from "./domain/rate-limiter.js";
 import { TtlCache } from "./domain/ttl-cache.js";
 import { KyselyAuthTokenRepository, KyselySessionRepository } from "./infrastructure/repo.js";
 import {
@@ -51,6 +51,8 @@ export interface AuthModuleDeps {
   clock: Clock;
   mailer: Mailer;
   logger: Logger;
+  /** Porta assíncrona (ADR-038), namespace `auth`; injetada pela composição. */
+  rateLimiter: RateLimiter;
   signingKeys: SigningKey[];
   accessTtlSeconds: number;
   refreshTtlMs: number;
@@ -77,8 +79,6 @@ export interface AuthModule {
 export function createAuthModule(deps: AuthModuleDeps): AuthModule {
   const authTokenRepo = new KyselyAuthTokenRepository();
   const sessionRepo = new KyselySessionRepository();
-  const rateLimiter = new InMemoryRateLimiter(deps.clock);
-  const generalRateLimiter = new InMemoryRateLimiter(deps.clock);
   const accountStateCache = new TtlCache<{
     platformAdmin: boolean;
     suspended: boolean;
@@ -108,7 +108,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     clock: deps.clock,
     mailer: deps.mailer,
     logger: deps.logger,
-    rateLimiter,
+    rateLimiter: deps.rateLimiter,
     signingKeys: deps.signingKeys,
     accessTtlSeconds: deps.accessTtlSeconds,
     refreshTtlMs: deps.refreshTtlMs,
@@ -147,6 +147,6 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
         clock: deps.clock,
       }),
     },
-    actorContextMiddleware: createActorContextMiddleware({ resolveActorState, generalRateLimiter }),
+    actorContextMiddleware: createActorContextMiddleware({ resolveActorState, generalRateLimiter: deps.rateLimiter }),
   };
 }

@@ -40,7 +40,7 @@ const REGISTER_RATE_LIMIT = { max: 5, windowMs: 5 * 60 * 1000 };
 
 export function createRegisterUseCase<Trx>(deps: AuthDeps<Trx>) {
   return async function register(input: RegisterInput, context: RequestContext): Promise<void> {
-    const decision = deps.rateLimiter.consume(`register:ip:${context.ip ?? "unknown"}`, REGISTER_RATE_LIMIT);
+    const decision = await deps.rateLimiter.consume({ rule: "register-ip", subject: context.ip ?? "unknown", pii: true }, REGISTER_RATE_LIMIT);
     if (!decision.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: decision.retryAfterMs });
     }

@@ -28,16 +28,17 @@ export function createLoginUseCase<Trx>(deps: AuthDeps<Trx>) {
   return async function login(input: LoginInput, context: RequestContext): Promise<LoginResult> {
     const email = input.email.trim().toLowerCase();
     const ip = context.ip ?? "unknown";
-    const failureKey = `login:fail:${email}:${ip}`;
-    const ipKey = `login:ip:${ip}`;
+    // Sujeitos com e-mail/IP em PII (HMAC no suporte). Todas as chamadas são FECHADAS (ADR-038 §5).
+    const failureKey = { rule: "login-fail", subject: `${email}:${ip}`, pii: true };
+    const ipKey = { rule: "login-ip", subject: ip, pii: true };
 
-    const ipDecision = deps.rateLimiter.consume(ipKey, IP_RULE);
+    const ipDecision = await deps.rateLimiter.consume(ipKey, IP_RULE);
     if (!ipDecision.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: ipDecision.retryAfterMs });
     }
     // Falha fechada: se já atingiu o limite de falhas, recusa sem voltar a verificar a password
     // (authentication.md §3: "atraso crescente"; também evita reduzir o efeito do limite).
-    const failurePeek = deps.rateLimiter.peek(failureKey, FAILURE_RULE);
+    const failurePeek = await deps.rateLimiter.peek(failureKey, FAILURE_RULE);
     if (!failurePeek.allowed) {
       throw new DomainError("RATE_LIMITED", { retryAfterMs: failurePeek.retryAfterMs });
     }
@@ -45,7 +46,7 @@ export function createLoginUseCase<Trx>(deps: AuthDeps<Trx>) {
     const now = deps.clock.now();
 
     async function fail(error: DomainError, userId?: string): Promise<never> {
-      deps.rateLimiter.consume(failureKey, FAILURE_RULE);
+      await deps.rateLimiter.consume(failureKey, FAILURE_RULE);
       await deps.withTransaction(async (trx) => {
         await deps.audit.record(trx, {
           occurredAt: now,
@@ -78,7 +79,13 @@ export function createLoginUseCase<Trx>(deps: AuthDeps<Trx>) {
       return fail(new EmailNotVerifiedError(), user.id);
     }
 
-    deps.rateLimiter.reset(failureKey);
+    // O `consume`/`peek` anteriores já passaram fechados; um `reset` que falhe (Redis) não deve impedir
+    // um login legítimo: regista e segue (o contador expira sozinho pela janela).
+    try {
+      await deps.rateLimiter.reset(failureKey);
+    } catch (error) {
+      deps.logger.warn({ err: error, code: "RATE_LIMIT_RESET_FAILED" }, "Falha ao repor o contador de falhas de login");
+    }
 
     const sessionId = newId();
     const tokenChainId = newId();

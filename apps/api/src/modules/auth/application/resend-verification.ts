@@ -11,8 +11,8 @@ export function createResendVerificationUseCase<Trx>(deps: AuthDeps<Trx>) {
   return async function resendVerification(email: string, context: RequestContext): Promise<void> {
     const normalizedEmail = email.trim().toLowerCase();
 
-    const byEmail = deps.rateLimiter.consume(`resend-verification:email:${normalizedEmail}`, PER_EMAIL_RULE);
-    const byIp = deps.rateLimiter.consume(`resend-verification:ip:${context.ip ?? "unknown"}`, PER_IP_RULE);
+    const byEmail = await deps.rateLimiter.consume({ rule: "resend-verification-email", subject: normalizedEmail, pii: true }, PER_EMAIL_RULE);
+    const byIp = await deps.rateLimiter.consume({ rule: "resend-verification-ip", subject: context.ip ?? "unknown", pii: true }, PER_IP_RULE);
     if (!byEmail.allowed || !byIp.allowed) {
       throw new DomainError("RATE_LIMITED", {
         retryAfterMs: Math.max(byEmail.retryAfterMs, byIp.retryAfterMs),

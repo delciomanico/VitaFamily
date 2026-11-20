@@ -142,6 +142,7 @@ export function main(): void {
     clock,
     mailer: new SmtpMailer(config.SMTP_URL, config.MAIL_FROM),
     logger,
+    rateLimiter: rateLimiting.createRateLimiter("auth"),
     signingKeys: parseSigningKeys(config.JWT_SIGNING_KEYS),
     accessTtlSeconds: Math.round(parseDurationMs(config.JWT_ACCESS_TTL) / 1000),
     refreshTtlMs: parseDurationMs(config.REFRESH_TTL),
