@@ -101,19 +101,21 @@ describe("integração: limitadores sobre um Redis real", () => {
   });
 
   it("todas as chaves têm TTL e nenhuma contém e-mail/IP em claro", async () => {
-    const limiter = make("pii");
+    const ns = `pii${String(Date.now())}${Math.random().toString(36).slice(2, 8)}`;
+    const limiter = make(ns);
     const rule = { max: 5, windowMs: 20_000 };
     await limiter.consume({ rule: "login", subject: "canario@exemplo.pt", pii: true }, rule);
     await limiter.consume({ rule: "login", subject: "203.0.113.77", pii: true }, rule);
     await limiter.consume({ rule: "user", subject: "6f1c1b3a-0000-4000-8000-000000000001" }, rule);
-    const keys = await admin.keys(`${PREFIX}:rl:v1:*`);
+    // Só as chaves deste teste (namespace único): chaves de outros testes podem expirar a meio.
+    const keys = await admin.keys(`${PREFIX}:rl:v1:${ns}:*`);
     expect(keys.length).toBeGreaterThan(0);
     for (const k of keys) {
       expect(await admin.pttl(k)).toBeGreaterThan(0);
       expect(k).not.toContain("canario");
       expect(k).not.toContain("203.0.113.77");
     }
-    expect(keys.some((k) => k.startsWith(`${PREFIX}:rl:v1:pii:login:`))).toBe(true);
+    expect(keys.some((k) => k.startsWith(`${PREFIX}:rl:v1:${ns}:login:`))).toBe(true);
   });
 
   describe("falha do Redis", () => {
