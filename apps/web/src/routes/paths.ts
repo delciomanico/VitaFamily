@@ -76,6 +76,10 @@ export const paths = {
   /** Marcações da família com profissionais (MK3). */
   bookings: '/app/bookings',
   booking: (memberId: string, bookingId: string) => `/app/bookings/${memberId}/${bookingId}`,
+  /** Partilha do registo com um profissional, a partir de uma marcação confirmada (MK4). */
+  shareCreate: (memberId: string, bookingId: string) => `/app/bookings/${memberId}/${bookingId}/partilhar`,
+  shares: '/app/shares',
+  share: (memberId: string, shareId: string) => `/app/shares/${memberId}/${shareId}`,
 
   settings: '/app/settings',
   settingsAccount: '/app/settings/account',
@@ -123,6 +127,11 @@ export const paths = {
   professionalBookings: '/profissional/marcacoes',
   professionalBooking: (id: string) => `/profissional/marcacoes/${id}`,
   professionalReviews: '/profissional/avaliacoes',
+  /** Partilhas recebidas (MK4); `?marcacao=` filtra por marcação. */
+  professionalShares: '/profissional/partilhas',
+  professionalShare: (id: string) => `/profissional/partilhas/${id}`,
+  /** Receita digital da marcação (MK4; só com a receita digital ligada). */
+  professionalPrescription: (bookingId: string) => `/profissional/marcacoes/${bookingId}/receita`,
 
   // Área do Platform Admin: mesma conta/login de `User` (platformRole), mas sem família.
   admin: '/admin',

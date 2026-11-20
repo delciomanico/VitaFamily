@@ -15,6 +15,7 @@ import { useAsync } from '@/hooks/useAsync'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { formatLongDate } from '@/lib/format'
 import { prescriptionStatus } from '@/lib/labels'
+import { PRESCRIPTION_READ_ONLY_NOTICE } from '@/lib/recordSharing'
 import { describeDuration, describeFrequency } from '@/lib/medication'
 import { paths } from '@/routes/paths'
 import { prescriptionService } from '@/services/prescription.service'
@@ -80,6 +81,7 @@ function PrescriptionContent({ detail, selfMemberId, onClose }: PrescriptionCont
         <InfoRow label="Data" value={formatLongDate(prescription.issuedOn)} />
         {/* Origem da receita (BR-RX-07, D18): emitida pela clínica na consulta, ou pela família. */}
         {prescription.issuedBy === 'CLINIC' && <InfoRow label="Origem" value="Emitida pela clínica na consulta" />}
+        {prescription.issuedBy === 'PROFESSIONAL' && <InfoRow label="Origem" value="Emitida por profissional" />}
         {prescription.memberId !== selfMemberId && <InfoRow label="Para" value={memberName} />}
         <InfoRow
           label="Estado"
@@ -90,6 +92,12 @@ function PrescriptionContent({ detail, selfMemberId, onClose }: PrescriptionCont
           }
         />
       </InfoList>
+
+      {prescription.issuedBy === 'PROFESSIONAL' && (
+        <p role="note" className="rounded-md bg-surface-muted px-3.5 py-3 text-sm">
+          {PRESCRIPTION_READ_ONLY_NOTICE}
+        </p>
+      )}
 
       <DetailSection title="Medicamentos">
         <Card className="divide-y divide-border py-1">

@@ -117,6 +117,9 @@ export const routes: RouteObject[] = [
               },
               { path: 'bookings', ...page(() => import('@/pages/bookings/BookingsPage'), 'BookingsPage') },
               { path: 'bookings/:memberId/:bookingId', ...page(() => import('@/pages/bookings/BookingPage'), 'BookingPage') },
+              { path: 'bookings/:memberId/:bookingId/partilhar', ...page(() => import('@/pages/shares/ShareCreatePage'), 'ShareCreatePage') },
+              { path: 'shares', ...page(() => import('@/pages/shares/SharesPage'), 'SharesPage') },
+              { path: 'shares/:memberId/:shareId', ...page(() => import('@/pages/shares/ShareDetailPage'), 'ShareDetailPage') },
               { path: 'messages', ...page(() => import('@/pages/messages/ConversationsPage'), 'ConversationsPage') },
               { path: 'messages/:memberId/:conversationId', ...page(() => import('@/pages/messages/ConversationPage'), 'ConversationPage') },
               {
@@ -391,6 +394,9 @@ export const routes: RouteObject[] = [
               { path: 'horarios', ...page(() => import('@/pages/professional/ProfessionalSchedulePage'), 'ProfessionalSchedulePage') },
               { path: 'marcacoes', ...page(() => import('@/pages/professional/ProfessionalBookingsPage'), 'ProfessionalBookingsPage') },
               { path: 'marcacoes/:bookingId', ...page(() => import('@/pages/professional/ProfessionalBookingPage'), 'ProfessionalBookingPage') },
+              { path: 'marcacoes/:bookingId/receita', ...page(() => import('@/pages/professional/ProfessionalPrescriptionPage'), 'ProfessionalPrescriptionPage') },
+              { path: 'partilhas', ...page(() => import('@/pages/professional/ProfessionalSharesPage'), 'ProfessionalSharesPage') },
+              { path: 'partilhas/:shareId', ...page(() => import('@/pages/professional/ProfessionalSharePage'), 'ProfessionalSharePage') },
               { path: 'avaliacoes', ...page(() => import('@/pages/professional/ProfessionalReviewsPage'), 'ProfessionalReviewsPage') },
               { path: 'conversas', ...page(() => import('@/pages/professional/ProfessionalConversationsPage'), 'ProfessionalConversationsPage') },
               {

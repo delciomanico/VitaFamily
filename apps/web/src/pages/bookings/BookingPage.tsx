@@ -4,6 +4,7 @@ import { CircleSlash } from 'lucide-react'
 import { Page } from '@/components/layout/Page'
 import { PaymentSection } from '@/components/consultations/PaymentSection'
 import { ReviewSection } from '@/components/consultations/ReviewSection'
+import { ShareSection } from '@/components/shares/ShareSection'
 import { StatusBadges } from '@/components/consultations/StatusBadges'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -19,6 +20,7 @@ import { errorMessage, isAppError } from '@/lib/errors'
 import { formatWhenLuanda } from '@/lib/format'
 import { nextStepSentence } from '@/lib/labels'
 import { formatKz, offerMethodLabel } from '@/lib/professional'
+import { safeHref } from '@/lib/recordSharing'
 import { paths } from '@/routes/paths'
 import { consultationService } from '@/services/consultation.service'
 import { processService } from '@/services/process.service'
@@ -93,7 +95,13 @@ function BookingDetail({ booking, onChanged }: { booking: FamilyBooking; onChang
         {booking.meetingInfo && (
           <p className="text-sm">
             <span className="text-muted">{booking.offer.method === 'PHONE' ? 'Número a ligar: ' : 'Ligação: '}</span>
-            <span className="break-all">{booking.meetingInfo}</span>
+            {safeHref(booking.meetingInfo) ? (
+              <a href={safeHref(booking.meetingInfo)} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-primary underline">
+                {booking.meetingInfo}
+              </a>
+            ) : (
+              <span className="break-all">{booking.meetingInfo}</span>
+            )}
           </p>
         )}
         {booking.status === 'REJECTED' && <p className="text-sm">O profissional recusou o pedido.{booking.statusReason ? ` Motivo: ${booking.statusReason}` : ''}</p>}
@@ -116,6 +124,7 @@ function BookingDetail({ booking, onChanged }: { booking: FamilyBooking; onChang
 
       <PaymentSection booking={booking} onChanged={onChanged} />
       <ReviewSection booking={booking} onChanged={onChanged} />
+      <ShareSection booking={booking} />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {booking.appointmentId && !terminal && (

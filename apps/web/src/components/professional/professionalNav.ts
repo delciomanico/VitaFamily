@@ -1,4 +1,4 @@
-import { CalendarCheck, CalendarClock, ClipboardCheck, FileBadge, MessageCircle, Star, Tags, UserRound, type LucideIcon } from 'lucide-react'
+import { CalendarCheck, CalendarClock, ClipboardCheck, FileBadge, MessageCircle, Share2, Star, Tags, UserRound, type LucideIcon } from 'lucide-react'
 import { paths } from '@/routes/paths'
 
 export interface ProfessionalNavItem {
@@ -8,7 +8,7 @@ export interface ProfessionalNavItem {
   end: boolean
 }
 
-/** Navegação do portal do profissional (UC-MKT-03..12): áreas de MK1 a MK3 (marcações e avaliações). */
+/** Navegação do portal do profissional (UC-MKT-03..12): áreas de MK1 a MK4 (marcações, avaliações e partilhas recebidas). */
 export const professionalNavItems: ProfessionalNavItem[] = [
   { to: paths.professional, label: 'Estado', icon: ClipboardCheck, end: true },
   { to: paths.professionalProfile, label: 'Perfil', icon: UserRound, end: false },
@@ -16,6 +16,7 @@ export const professionalNavItems: ProfessionalNavItem[] = [
   { to: paths.professionalOffers, label: 'Serviços e preços', icon: Tags, end: false },
   { to: paths.professionalSchedule, label: 'Horários', icon: CalendarClock, end: false },
   { to: paths.professionalBookings, label: 'Marcações', icon: CalendarCheck, end: false },
+  { to: paths.professionalShares, label: 'Partilhas', icon: Share2, end: false },
   { to: paths.professionalConversations, label: 'Conversas', icon: MessageCircle, end: false },
   { to: paths.professionalReviews, label: 'Avaliações', icon: Star, end: false },
 ]

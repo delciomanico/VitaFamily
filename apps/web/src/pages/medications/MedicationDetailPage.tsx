@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -28,6 +28,7 @@ import { isValidISODate, todayISO } from '@/lib/date'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { formatLongDate, formatWhen } from '@/lib/format'
 import { medicationStatus } from '@/lib/labels'
+import { PRESCRIPTION_READ_ONLY_NOTICE } from '@/lib/recordSharing'
 import { dailyTimes, describeDuration, describeFrequency } from '@/lib/medication'
 import { paths } from '@/routes/paths'
 import { medicationService, type UpdateMedicationInput } from '@/services/medication.service'
@@ -124,6 +125,54 @@ function MedicationEditForm({ detail: { plan }, onSubmit, onCancel }: EditFormPr
   )
 }
 
+/** Receita do profissional (OP-127): o conteúdo é só leitura; só se acertam os horários dos lembretes. */
+function ScheduleOnlyForm({ detail: { plan }, onSubmit, onCancel }: EditFormProps) {
+  const [schedule, setSchedule] = useState<ScheduleValue>(scheduleFromPlan(plan))
+  const [saving, setSaving] = useState(false)
+  const error = scheduleError(schedule)
+  const [shown, setShown] = useState(false)
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    setShown(true)
+    if (error) return
+    setSaving(true)
+    try {
+      await onSubmit({
+        name: plan.name,
+        dosage: plan.dosage,
+        notes: plan.notes,
+        continuous: plan.continuous,
+        ...toScheduleInput(schedule),
+        scheduleOnly: true,
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-4">
+      <p role="note" className="rounded-md bg-surface-muted px-3.5 py-3 text-sm">
+        {PRESCRIPTION_READ_ONLY_NOTICE}
+      </p>
+      <p className="font-medium">
+        {plan.name} <span className="font-normal text-muted">{plan.dosage}</span>
+      </p>
+      <ScheduleFields value={schedule} onChange={setSchedule} error={shown ? (error ?? undefined) : undefined} />
+      <p className="text-sm text-muted">As alterações aplicam-se às próximas tomas; as já registadas mantêm-se.</p>
+      <div className="flex flex-col gap-2 pt-2 sm:flex-row-reverse">
+        <Button type="submit" size="lg" loading={saving} className="sm:flex-1">
+          Guardar horários
+        </Button>
+        <Button variant="ghost" size="lg" onClick={onCancel} className="sm:flex-1">
+          Cancelar
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 function TimePills({ times }: { times: string[] }) {
   return (
     <ul className="flex flex-wrap justify-end gap-1.5">
@@ -185,6 +234,12 @@ function MedicationView({ detail, selfMemberId, onEnd }: MedicationViewProps) {
         </DetailSection>
       )}
 
+      {prescription?.issuedBy === 'PROFESSIONAL' && (
+        <p role="note" className="rounded-md bg-surface-muted px-3.5 py-3 text-sm">
+          {PRESCRIPTION_READ_ONLY_NOTICE}
+        </p>
+      )}
+
       <DetailSection title="Receita associada">
         {prescription ? (
           <Link
@@ -237,7 +292,7 @@ export function MedicationDetailPage() {
       setEditing(false)
       reload()
     } catch (error) {
-      toast.show(errorMessage(error), 'error')
+      toast.show(isAppError(error, 'CONFLICT') ? 'O conteúdo desta receita só pode ser lido.' : errorMessage(error), 'error')
     }
   }
 
@@ -282,7 +337,11 @@ export function MedicationDetailPage() {
         ))}
       {state.status === 'success' &&
         (editing ? (
-          <MedicationEditForm detail={state.data} onSubmit={save} onCancel={() => setEditing(false)} />
+          state.data.prescription?.issuedBy === 'PROFESSIONAL' ? (
+            <ScheduleOnlyForm detail={state.data} onSubmit={save} onCancel={() => setEditing(false)} />
+          ) : (
+            <MedicationEditForm detail={state.data} onSubmit={save} onCancel={() => setEditing(false)} />
+          )
         ) : (
           <MedicationView detail={state.data} selfMemberId={member?.id} onEnd={() => setConfirming(true)} />
         ))}

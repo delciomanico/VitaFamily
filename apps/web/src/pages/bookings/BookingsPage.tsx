@@ -49,7 +49,15 @@ export function BookingsPage() {
   const severalMembers = new Set(all.map((b) => b.memberId)).size > 1
 
   return (
-    <Page title="Marcações" backTo={paths.home}>
+    <Page
+      title="Marcações"
+      backTo={paths.home}
+      action={
+        <ButtonLink to={paths.shares} variant="secondary" size="sm">
+          Partilhas com profissionais
+        </ButtonLink>
+      }
+    >
       {list.state.status === 'loading' && <LoadingState rows={3} />}
       {list.state.status === 'error' && <ErrorState onRetry={list.reload} />}
       {list.state.status === 'success' && (

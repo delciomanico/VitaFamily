@@ -193,6 +193,19 @@ function Detail({ booking, approved, onChanged }: { booking: ProfessionalBooking
         </Card>
       )}
 
+      {/* Receita digital: só aparece com a receita digital ligada (canPrescribe/hasPrescription vêm omitidos senão). */}
+      {(booking.canPrescribe || booking.hasPrescription) && (
+        <ButtonLink to={paths.professionalPrescription(booking.id)} variant="soft" className="w-fit">
+          {booking.hasPrescription ? 'Ver a receita emitida' : 'Emitir receita'}
+        </ButtonLink>
+      )}
+
+      {(booking.status === 'CONFIRMED' || booking.status === 'COMPLETED') && (
+        <ButtonLink to={`${paths.professionalShares}?marcacao=${booking.id}`} variant="secondary" className="w-fit">
+          Partilhas desta marcação
+        </ButtonLink>
+      )}
+
       {booking.conversationId && (
         <ButtonLink to={paths.professionalConversation(booking.conversationId)} variant="soft" className="w-fit">
           Abrir a conversa
