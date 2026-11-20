@@ -19,6 +19,7 @@ import { db } from '../db'
 import { marketplaceDb } from '../marketplaceDb'
 import { professionalDb } from '../professionalDb'
 import { respond, respondBlob } from '../respond'
+import { prescriptionIdOf } from './professionalPrescriptions'
 import { isApprovedProfessional, publicProfessionalName, reviewSummaryOf } from './marketplace'
 
 /*
@@ -172,6 +173,7 @@ function toFamilyBooking(b: MockBooking, detail: boolean): FamilyBooking {
     processId: processIdOf(b.id),
     appointmentId: b.appointmentId,
     conversationId: conversation?.id,
+    prescriptionId: prescriptionIdOf(b.id),
     canCancel: isActive(b) && now < Date.parse(b.startsAt),
     canSendProof: showInstructions && (b.paymentStatus === 'AWAITING_PROOF' || b.paymentStatus === 'REJECTED'),
     canReview: reviewWindowOpen(b, now) && !reviewOfBooking(b.id),
@@ -185,7 +187,7 @@ function toFamilyBooking(b: MockBooking, detail: boolean): FamilyBooking {
  * Ação `BOOK_PROFESSIONALS` (authorization.md §12.1): `SELF` ou `TUTOR_OF`; dependente com conta e restantes
  * ⇒ `FORBIDDEN`; membro/família alheios ⇒ `NOT_FOUND`; membro bloqueado ⇒ `MEMBER_BLOCKED`.
  */
-function requireBooking(familyId: string, userId: string, memberId: string) {
+export function requireBooking(familyId: string, userId: string, memberId: string) {
   requireSelf(familyId, userId)
   const member = db.members.find((m) => m.id === memberId && m.familyId === familyId)
   if (!member) throw new AppError('NOT_FOUND')

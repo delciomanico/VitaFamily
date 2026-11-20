@@ -19,9 +19,11 @@ export interface Prescription {
    * Quem emitiu a receita (BR-RX-07, D18): a própria família ou a clínica parceira ao completar
    * a consulta. Omisso = `FAMILY` (receitas antigas).
    */
-  issuedBy?: 'FAMILY' | 'CLINIC'
+  issuedBy?: 'FAMILY' | 'CLINIC' | 'PROFESSIONAL'
   /** Consulta de origem, só quando `issuedBy=CLINIC` (rastreabilidade, BR-RX-07). */
   appointmentId?: string
+  /** MK4 (BR-MKT-81): marcação de origem, só com `issuedBy=PROFESSIONAL`. O conteúdo é só leitura para a família (OP-127). */
+  bookingId?: string
 }
 
 /** Linha da lista de receitas. */

@@ -56,6 +56,8 @@ export function toErrorCode(code: string): ErrorCode {
     'SLOT_UNAVAILABLE',
     'SELF_BOOKING_NOT_ALLOWED',
     'REVIEW_NOT_ALLOWED',
+    'SHARE_NOT_AVAILABLE',
+    'SHARE_ALREADY_VIEWED',
   ]
   return (known as string[]).includes(code) ? (code as ErrorCode) : 'UNKNOWN'
 }

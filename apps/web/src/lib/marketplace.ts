@@ -5,7 +5,8 @@ import type { SpecialtyCategory } from '@/types/professional'
 /** Textos em pt-AO do mercado (descoberta e chat, MK2). */
 
 /** Aviso fixo antes de escrever (BR-MKT-46, OP-85): em MK2 não há referência à partilha com prazo. */
-export const CHAT_WARNING = 'Não envie dados de saúde sensíveis por aqui.'
+/** Aviso fixo do chat (BR-MKT-75): remete para a partilha com prazo, agora que existe (OP-85/OP-128, `[PROVISÓRIO]`). */
+export const CHAT_WARNING = 'Não envie dados de saúde sensíveis por aqui; use a partilha com prazo.'
 export const CHAT_MAX_LENGTH = 1000
 export const PARTICIPANT_LABEL_MAX = 40
 export const REPORT_NOTE_MAX = 300

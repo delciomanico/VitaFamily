@@ -24,8 +24,10 @@ export interface ApiPrescription {
   notes?: string | null
   status: PrescriptionStatus
   /** BR-RX-07/D18: origem da receita e consulta onde foi emitida pela clínica. */
-  issuedBy?: 'FAMILY' | 'CLINIC'
+  issuedBy?: 'FAMILY' | 'CLINIC' | 'PROFESSIONAL'
   appointmentId?: string | null
+  /** MK4 (BR-MKT-81): marcação de origem da receita do profissional. */
+  bookingId?: string | null
   medications: ApiPlan[]
 }
 
@@ -42,6 +44,7 @@ export function toPrescription(familyId: string, rx: ApiPrescription): Prescript
     status: rx.status,
     issuedBy: rx.issuedBy ?? 'FAMILY',
     appointmentId: rx.appointmentId ?? undefined,
+    bookingId: rx.bookingId ?? undefined,
   }
 }
 

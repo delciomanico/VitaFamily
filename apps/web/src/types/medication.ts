@@ -51,5 +51,5 @@ export interface MedicationSummary {
 
 export interface MedicationDetail extends MedicationSummary {
   /** Receita associada; ausente nos medicamentos avulsos (BR-RX-03). */
-  prescription?: Pick<Prescription, 'id' | 'issuedOn' | 'doctorName'>
+  prescription?: Pick<Prescription, 'id' | 'issuedOn' | 'doctorName' | 'issuedBy'>
 }

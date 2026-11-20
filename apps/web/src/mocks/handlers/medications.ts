@@ -4,6 +4,7 @@ import { todayISO } from '@/lib/date'
 import type { MedicationDetail, MedicationPlan, MedicationSummary } from '@/types/medication'
 import type { DocumentUpload } from '@/types/document'
 import type { Prescription, PrescriptionDetail, PrescriptionStatus, PrescriptionSummary } from '@/types/prescription'
+import type { ProfessionalPrescriptionInput } from '@/types/recordSharing'
 import { findVisibleMember, memberName, visibleMemberIds } from '../access'
 import { db, newId } from '../db'
 import { attachDocuments, documentsOf, validateUploads } from '../documents'
@@ -24,7 +25,12 @@ interface MedicationBaseInput {
 
 export type NewMedicationInput = MedicationBaseInput & ScheduleInput & { durationDays?: number }
 
-export type UpdateMedicationInput = MedicationBaseInput & ScheduleInput & { endDate?: string }
+export type UpdateMedicationInput = MedicationBaseInput &
+  ScheduleInput & {
+    endDate?: string
+    /** Receita de profissional (OP-127): só os horários seguem no pedido; o conteúdo é só leitura. */
+    scheduleOnly?: boolean
+  }
 
 export interface NewPrescriptionInput {
   memberId: string
@@ -222,6 +228,71 @@ export function insertPrescription(
   return prescription
 }
 
+const MAX_TEXT = 200
+
+/**
+ * Receita emitida por um profissional (MK4, BR-MKT-80): o servidor fixa a data, o nome e a origem; um plano
+ * de toma por medicamento no registo do membro. Sem controlo de acesso (quem chama já o fez).
+ */
+export function insertProfessionalPrescription(
+  origin: { familyId: string; memberId: string; bookingId: string; doctorName: string },
+  input: ProfessionalPrescriptionInput,
+  now: Date,
+): Prescription {
+  const text = (value: string | undefined, max: number, required: boolean) => {
+    const trimmed = (value ?? '').trim()
+    if ((required && trimmed.length < 1) || trimmed.length > max) throw new AppError('VALIDATION_ERROR')
+    return trimmed || undefined
+  }
+  const notes = text(input.notes, 500, false)
+  if (input.medications.length < 1 || input.medications.length > 10) throw new AppError('VALIDATION_ERROR')
+  for (const m of input.medications) {
+    text(m.name, MAX_TEXT, true)
+    text(m.dosage, MAX_TEXT, true)
+    text(m.notes, MAX_TEXT, false)
+    if (Number.isNaN(Date.parse(m.startAt)) || (m.endAt && Number.isNaN(Date.parse(m.endAt)))) throw new AppError('VALIDATION_ERROR')
+    validateSchedule(
+      m.scheduleType === 'FIXED_TIMES'
+        ? { scheduleType: 'FIXED_TIMES', times: m.times ?? [] }
+        : { scheduleType: 'INTERVAL', intervalHours: m.intervalHours ?? 0, firstTime: '00:00' },
+    )
+  }
+  const prescription: Prescription = {
+    id: newId('rx'),
+    familyId: origin.familyId,
+    memberId: origin.memberId,
+    issuedOn: todayISO(now),
+    doctorName: origin.doctorName,
+    notes,
+    status: 'ACTIVE',
+    issuedBy: 'PROFESSIONAL',
+    bookingId: origin.bookingId,
+  }
+  db.prescriptions.push(prescription)
+  for (const m of input.medications) {
+    const plan: MedicationPlan = {
+      id: newId('med'),
+      familyId: origin.familyId,
+      memberId: origin.memberId,
+      prescriptionId: prescription.id,
+      name: m.name.trim(),
+      dosage: m.dosage.trim(),
+      ...(m.scheduleType === 'FIXED_TIMES'
+        ? { scheduleType: 'FIXED_TIMES' as const, times: [...(m.times ?? [])].sort(), intervalHours: undefined }
+        : { scheduleType: 'INTERVAL' as const, times: undefined, intervalHours: m.intervalHours }),
+      daysOfWeek: m.daysOfWeek?.length ? m.daysOfWeek : undefined,
+      startAt: m.startAt,
+      endAt: m.continuous ? undefined : m.endAt,
+      continuous: m.continuous === true || !m.endAt,
+      notes: m.notes?.trim() || undefined,
+      status: 'ACTIVE',
+    }
+    db.medicationPlans.push(plan)
+    generateTodayDoses(plan, now)
+  }
+  return prescription
+}
+
 /**
  * Regista a receita ATIVA e cria um plano de toma por medicamento (UC-RX-01, BR-RX-01/02).
  * Os planos começam hoje; as tomas de hoje já passadas não são criadas.
@@ -277,6 +348,7 @@ export function getMedication(familyId: string, userId: string, id: string, now:
         id: prescription.id,
         issuedOn: prescription.issuedOn,
         doctorName: prescription.doctorName,
+        issuedBy: prescription.issuedBy,
       },
     }
   })
@@ -294,6 +366,16 @@ export function updateMedication(
     const plan = findPlan(familyId, userId, id)
     if (plan.status !== 'ACTIVE') throw new AppError('VALIDATION_ERROR')
     validateSchedule(input)
+    // Receita do profissional (OP-127, BR-MKT-81): o conteúdo é só leitura; só os horários se ajustam e um
+    // pedido que traga campos de conteúdo é recusado por inteiro (`409 CONFLICT`), sem efeito.
+    const professional = db.prescriptions.find((p) => p.id === plan.prescriptionId)?.issuedBy === 'PROFESSIONAL'
+    if (professional) {
+      if (!input.scheduleOnly) throw new AppError('CONFLICT')
+      Object.assign(plan, scheduleFields(input))
+      dropFutureDoses(plan, now)
+      generateTodayDoses(plan, now)
+      return plan
+    }
     if (!input.continuous && (!input.endDate || input.endDate < todayISO(now))) throw new AppError('VALIDATION_ERROR')
 
     plan.name = input.name.trim()

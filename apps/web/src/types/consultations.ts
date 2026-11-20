@@ -67,6 +67,8 @@ export interface FamilyBooking {
   processId?: string
   appointmentId?: string
   conversationId?: string
+  /** MK4 (BR-MKT-81): receita digital emitida para esta marcação; só existe com a receita digital ligada. */
+  prescriptionId?: string
   canCancel: boolean
   canSendProof: boolean
   canReview: boolean
@@ -108,6 +110,10 @@ export interface ProfessionalBooking {
   cancelledLate: boolean
   meetingInfo?: string
   conversationId?: string
+  /** MK4 (BR-MKT-80): derivado; ausente (= falso) com a receita digital desligada. */
+  canPrescribe?: boolean
+  /** MK4: já emitiu receita nesta marcação. */
+  hasPrescription?: boolean
   /** Comprovativo em curso ou o mais recente; ausente quando não há. */
   proof?: PaymentProof
   createdAt: string

@@ -4,10 +4,12 @@ import type { Page } from '@/types/marketplace'
 import type { PaymentProof, ProfessionalBooking, ProfessionalBookingQuery, ProfessionalReview, ReviewReportInput, ReviewReportReceipt } from '@/types/consultations'
 import { ACTIVE_STATUSES, consId, consultationsDb, type MockBooking, type MockReview } from '../consultationsDb'
 import { db } from '../db'
+import { professionalDb } from '../professionalDb'
 import { respond, respondBlob } from '../respond'
 import { isActive, proofsOf, settleScans, syncAppointment, toProof, toPublicReview } from './consultations'
 import { marketplaceDb } from '../marketplaceDb'
 import { requireProfessional } from './professionalPortal'
+import { prescriptionFlagsOf } from './professionalPrescriptions'
 
 /*
  * Portal do profissional, marcações e avaliações (MK3: `/professional-portal/bookings*` e `/reviews*`). O
@@ -40,6 +42,8 @@ function ownBooking(professionalId: string, bookingId: string): MockBooking {
   return booking
 }
 
+const isApproved = (professionalId: string) => professionalDb.professionals.find((p) => p.id === professionalId)?.validationStatus === 'APPROVED'
+
 function toProfessionalBooking(b: MockBooking): ProfessionalBooking {
   settleScans(b.id)
   const proof = proofsOf(b.id)[0]
@@ -59,6 +63,7 @@ function toProfessionalBooking(b: MockBooking): ProfessionalBooking {
     cancelledLate: b.cancelledBy === 'FAMILY' && b.cancelledAt !== undefined && Date.parse(b.startsAt) - Date.parse(b.cancelledAt) < DAY,
     meetingInfo: b.status === 'CONFIRMED' || b.status === 'COMPLETED' ? b.meetingInfo : undefined,
     conversationId: conversation?.id,
+    ...prescriptionFlagsOf(b, isApproved(b.professionalId)),
     proof: proof ? toProof(proof) : undefined,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,

@@ -92,7 +92,7 @@ describe('mercado de profissionais (família)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Escrever' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Escrever para Dra. Teresa Neto')).toBeInTheDocument()
-    expect(within(dialog).getByText('Não envie dados de saúde sensíveis por aqui.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Não envie dados de saúde sensíveis por aqui; use a partilha com prazo.')).toBeInTheDocument()
 
     await waitFor(() => expect(within(dialog).getByLabelText('Para quem?')).toBeEnabled())
     fireEvent.change(within(dialog).getByLabelText('Para quem?'), { target: { value: 'mem_monarca' } })

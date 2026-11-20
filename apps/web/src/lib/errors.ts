@@ -31,6 +31,8 @@ export type ErrorCode =
   | 'SLOT_UNAVAILABLE'
   | 'SELF_BOOKING_NOT_ALLOWED'
   | 'REVIEW_NOT_ALLOWED'
+  | 'SHARE_NOT_AVAILABLE'
+  | 'SHARE_ALREADY_VIEWED'
   | 'UNKNOWN'
 
 export class AppError extends Error {
@@ -79,6 +81,8 @@ const messages: Record<ErrorCode, string> = {
   SLOT_UNAVAILABLE: 'Esse horário acabou de ser ocupado. Escolha outro.',
   SELF_BOOKING_NOT_ALLOWED: 'Não pode marcar nem avaliar o seu próprio serviço.',
   REVIEW_NOT_ALLOWED: 'Já não é possível avaliar esta consulta.',
+  SHARE_NOT_AVAILABLE: 'Esta partilha já não está disponível.',
+  SHARE_ALREADY_VIEWED: 'Esta partilha já foi vista e não pode ser aberta outra vez.',
   UNKNOWN: 'Algo correu mal. Tente novamente.',
 }
 

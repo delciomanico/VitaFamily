@@ -73,10 +73,10 @@ async function apiGetMedication(familyId: string, id: string): Promise<Medicatio
   const plan = toPlan(familyId, item)
   let prescription: MedicationDetail['prescription']
   if (plan.prescriptionId) {
-    prescription = await apiFetch<{ id: string; issuedOn: string; doctorName?: string | null }>(
+    prescription = await apiFetch<{ id: string; issuedOn: string; doctorName?: string | null; issuedBy?: 'FAMILY' | 'CLINIC' | 'PROFESSIONAL' }>(
       `/families/${familyId}/members/${member.id}/prescriptions/${plan.prescriptionId}`,
     )
-      .then((p) => ({ id: p.id, issuedOn: p.issuedOn, doctorName: p.doctorName ?? undefined }))
+      .then((p) => ({ id: p.id, issuedOn: p.issuedOn, doctorName: p.doctorName ?? undefined, issuedBy: p.issuedBy }))
       .catch(() => undefined)
   }
   return { ...summarize(plan, member.name, new Date()), prescription }
@@ -92,6 +92,11 @@ async function apiUpdateMedication(
     input.scheduleType === 'FIXED_TIMES'
       ? { scheduleType: 'FIXED_TIMES', times: input.times, intervalHours: null }
       : { scheduleType: 'INTERVAL', intervalHours: input.intervalHours }
+  // Receita de profissional (OP-127): o conteúdo é só leitura e o servidor recusa por inteiro (409) um pedido que o traga.
+  if (input.scheduleOnly) {
+    const only = await apiFetch<ApiPlan>(`${planPath(familyId, member.id)}/${id}`, { method: 'PATCH', body: schedule })
+    return toPlan(familyId, only)
+  }
   // TBD: o contrato não permite mudar `startAt`, logo a hora da 1.ª toma de um intervalo não é editável.
   const updated = await apiFetch<ApiPlan>(`${planPath(familyId, member.id)}/${id}`, {
     method: 'PATCH',
