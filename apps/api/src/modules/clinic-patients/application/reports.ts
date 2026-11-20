@@ -5,7 +5,7 @@
 import { NotFoundError, RateLimitedError, ValidationError } from "../../../platform/errors/index.js";
 import { addDaysIso, isIsoDate, localDateIso } from "../../../platform/time/index.js";
 import { isFollowUpNotified } from "../domain/day-flow.js";
-import { REPORT_ACCOUNT_RULE } from "../domain/rate-limiter.js";
+import { REPORT_ACCOUNT_RULE } from "../domain/rate-limits.js";
 import { buildReport, parseReportWindow, type ReportCounts, type ReportFact } from "../domain/report.js";
 import { isDoctor, slotsOfDoctor } from "./doctor-scope.js";
 import type { ClinicPatientsDeps, ClinicPortalActor } from "./ports.js";
@@ -26,7 +26,7 @@ export interface ClinicReportSummaryView {
 export function createGetClinicReportSummaryUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
   return async function getClinicReportSummary(actor: ClinicPortalActor, query: { from: unknown; to: unknown; professionalId?: string | undefined }): Promise<ClinicReportSummaryView> {
     const window = parseReportWindow(query.from, query.to);
-    const decision = deps.reportLimiter.consume(`clinic-report:${actor.clinicAccountId}`, REPORT_ACCOUNT_RULE);
+    const decision = await deps.reportLimiter.consume({ rule: "clinic-report", subject: actor.clinicAccountId }, REPORT_ACCOUNT_RULE);
     if (!decision.allowed) {
       throw new RateLimitedError(decision.retryAfterMs);
     }

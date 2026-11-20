@@ -1,6 +1,7 @@
 // Integração real (testcontainers + PostgreSQL 16) de pacientes da clínica (M14 P, migração 0028, BR-CLN-17..24,
 // TC-CLN-08..12): constraints, cascatas (membro/conta/família/clínica), consumo concorrente do código, concorrência
 // visita×consulta Vita, expiração do consentimento, apagamento do membro e job de limpeza.
+import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 import { Pool } from "pg";
@@ -11,7 +12,6 @@ import { FixedClock } from "../../src/platform/clock/index.js";
 import { createDb, withTransaction, type Database } from "../../src/platform/db/index.js";
 import { createCreateWalkInAppointmentUseCase } from "../../src/modules/appointments/application/clinic-walk-in.js";
 import type { AppointmentsDeps } from "../../src/modules/appointments/application/ports.js";
-import { WalkInInMemoryRateLimiter } from "../../src/modules/appointments/domain/walk-in.js";
 import { KyselyAppointmentsRepository } from "../../src/modules/appointments/infrastructure/repo.js";
 import { createClinicGlobalSearchUseCase } from "../../src/modules/clinic-patients/application/calendar.js";
 import { createCreateClinicLinkCodeUseCase, createPutClinicConsentUseCase } from "../../src/modules/clinic-patients/application/consents.js";
@@ -23,7 +23,6 @@ import { createPurgeLinkCodesJobUseCase } from "../../src/modules/clinic-patient
 import { createGetSharedHistoryUseCase } from "../../src/modules/clinic-patients/application/shared-history.js";
 import { createArriveVisitUseCase, createClearVisitFollowUpUseCase, createConfirmVisitUseCase, createNoShowVisitUseCase, createSetVisitFollowUpUseCase, createStartVisitUseCase } from "../../src/modules/clinic-patients/application/visit-day-flow.js";
 import { createBookVisitUseCase, createCancelVisitUseCase, createCompleteVisitUseCase, createListVisitsUseCase } from "../../src/modules/clinic-patients/application/visits.js";
-import { InMemoryRateLimiter } from "../../src/modules/clinic-patients/domain/rate-limiter.js";
 import { KyselyConsentsRepository, KyselyLinkCodesRepository, KyselyLinksRepository, KyselyPatientsRepository, KyselyVisitsRepository } from "../../src/modules/clinic-patients/infrastructure/repo.js";
 import { KyselyClinicSlotsRepository } from "../../src/modules/clinics/infrastructure/clinic-slots-repo.js";
 import { KyselyClinicsRepository } from "../../src/modules/clinics/infrastructure/repo.js";
@@ -87,9 +86,9 @@ describe("integração: pacientes da clínica (migração 0028)", () => {
       listProfessionalSlotsOverlapping: async (trx, p, from, to, ex) => (await slotsRepo.listByProfessional(trx, p, { endsAfter: from, startsBefore: to })).filter((s) => s.id !== ex).map((s) => s.id),
       findProfessional: () => Promise.resolve(null),
     },
-    searchLimiter: new InMemoryRateLimiter(clock),
-    reportLimiter: new InMemoryRateLimiter(clock),
-    sharedLimiter: new InMemoryRateLimiter(clock),
+    searchLimiter: new InMemoryRateLimiter(clock, { namespace: "clinic-patients" }),
+    reportLimiter: new InMemoryRateLimiter(clock, { namespace: "clinic-patients" }),
+    sharedLimiter: new InMemoryRateLimiter(clock, { namespace: "clinic-walkin" }),
     audit: { record: (_t, e) => Promise.resolve(void audit.push(e)) },
     linkCodeSecret: "integration-secret-0123456789",
     withTransaction: (fn) => withTransaction(db, fn),
@@ -124,7 +123,7 @@ describe("integração: pacientes da clínica (migração 0028)", () => {
       },
       processes: createRealProcessLinker(db),
       consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()), createExamOrdersWithComplete: () => Promise.resolve(), examOrderCounts: () => Promise.resolve(new Map()), appointmentExamOrderCounts: () => Promise.resolve(new Map()) },
-      walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
+      walkInRateLimiter: new InMemoryRateLimiter(clock, { namespace: "clinic-walkin" }),
       audit: cp.audit, db, withTransaction: cp.withTransaction, clock,
     };
   }

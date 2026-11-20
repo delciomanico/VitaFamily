@@ -3,7 +3,7 @@
 import { NotFoundError, RateLimitedError } from "../../../platform/errors/index.js";
 import type { ClinicPatient, ClinicLinkVia } from "../domain/clinic-patient.js";
 import { effectiveConsent } from "../domain/consent.js";
-import { SEARCH_ACCOUNT_RULE } from "../domain/rate-limiter.js";
+import { SEARCH_ACCOUNT_RULE } from "../domain/rate-limits.js";
 import { doctorPatientIds, isDoctor } from "./doctor-scope.js";
 import type { ClinicPatientsDeps, ClinicPortalActor } from "./ports.js";
 
@@ -67,8 +67,8 @@ export async function requireOwnPatient<Trx>(deps: ClinicPatientsDeps<Trx>, trx:
 }
 
 /** BR-CLN-22: 60 pedidos/min por conta nas rotas de pesquisa/listagem; não se audita (volume). */
-export function enforceSearchRateLimit<Trx>(deps: ClinicPatientsDeps<Trx>, actor: ClinicPortalActor): void {
-  const decision = deps.searchLimiter.consume(`clinic-search:${actor.clinicAccountId}`, SEARCH_ACCOUNT_RULE);
+export async function enforceSearchRateLimit<Trx>(deps: ClinicPatientsDeps<Trx>, actor: ClinicPortalActor): Promise<void> {
+  const decision = await deps.searchLimiter.consume({ rule: "clinic-search", subject: actor.clinicAccountId }, SEARCH_ACCOUNT_RULE);
   if (!decision.allowed) {
     throw new RateLimitedError(decision.retryAfterMs);
   }

@@ -1,4 +1,4 @@
-// ADR-038 §5 (RL5): com o suporte dos limitadores em falha, estas rotas falham fechadas (503, nunca passam);
+// ADR-038 §5 (RL5, RL6): com o suporte dos limitadores em falha, estas rotas falham fechadas (503, nunca passam);
 // quando o limitador recusa, o 429 mantém-se. O limitador é a primeira operação de cada caso de uso.
 import { describe, expect, it } from "vitest";
 import { FixedClock } from "../src/platform/clock/index.js";
@@ -9,6 +9,8 @@ import { createListReceiptsUseCase } from "../src/modules/clinic-receipts/applic
 import { createUploadClinicExamDocumentUseCase } from "../src/modules/documents/application/clinic-documents.js";
 import { createUploadDocumentUseCase } from "../src/modules/documents/application/upload-document.js";
 import { createSaveResultsDraftUseCase } from "../src/modules/examinations/application/results-draft.js";
+import { createClinicPatientLookupUseCase } from "../src/modules/appointments/application/clinic-walk-in.js";
+import { createListClinicPatientsUseCase } from "../src/modules/clinic-patients/application/patients.js";
 import { createLookupInvitationUseCase } from "../src/modules/families/application/lookup-invitation.js";
 
 const CONTEXT = { requestId: "req-1", ip: "203.0.113.1" } as never;
@@ -28,6 +30,18 @@ const cases: [string, (limiter: RateLimiter) => Promise<unknown>][] = [
   ["audit: auditoria da clínica", (l) => createListClinicAuditUseCase({ limiter: l } as never)(CLINIC_ACTOR, {})],
   ["clinic-receipts: listagem", (l) => createListReceiptsUseCase({ listLimiter: l } as never)(CLINIC_ACTOR, {})],
   ["examinations: rascunho de resultados", (l) => createSaveResultsDraftUseCase({ limiter: l } as never)(CLINIC_ACTOR, "e1", {}, CONTEXT)],
+  // `withTransaction`/`audit`/`clock` só são usados no ramo 429 (auditoria DENIED antes do RateLimitedError).
+  [
+    "appointments: walk-in (pesquisa de paciente)",
+    (l) =>
+      createClinicPatientLookupUseCase({
+        walkInRateLimiter: l,
+        withTransaction: (fn: (trx: unknown) => Promise<unknown>) => fn({}),
+        audit: { record: () => Promise.resolve() },
+        clock: { now: () => new Date("2026-10-12T10:00:00Z") },
+      } as never)(CLINIC_ACTOR, { email: "a@b.pt" }, CONTEXT),
+  ],
+  ["clinic-patients: pesquisa", (l) => createListClinicPatientsUseCase({ searchLimiter: l } as never)(CLINIC_ACTOR, {})],
 ];
 
 const denying: RateLimiter = {
@@ -36,7 +50,7 @@ const denying: RateLimiter = {
   reset: () => Promise.resolve(),
 };
 
-describe("RL5: limitador em falha e 429", () => {
+describe("RL5/RL6: limitador em falha e 429", () => {
   const failing = new FailingRateLimiter(new FixedClock(new Date("2026-10-12T10:00:00Z")), "teste");
 
   it.each(cases)("%s: 503 com o limitador em falha", async (_name, call) => {

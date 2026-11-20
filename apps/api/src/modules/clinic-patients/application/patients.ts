@@ -106,7 +106,7 @@ export function createListClinicPatientsUseCase<Trx>(deps: ClinicPatientsDeps<Tr
     const q = parseSearchQuery(query.q, false);
     const limit = query.limit ?? 25;
     const after = query.cursor ? decodeCursor(query.cursor) : undefined;
-    enforceSearchRateLimit(deps, actor);
+    await enforceSearchRateLimit(deps, actor);
     return deps.withTransaction(async (trx) => {
       const ids = isDoctor(actor) ? await doctorPatientIds(deps, trx, actor) : undefined;
       const rows = await deps.patientsRepo.list(trx, actor.clinicId, { ...(ids ? { ids } : {}), ...(q ? { terms: buildSearchTerms(q) } : {}), ...(after ? { after } : {}) }, limit + 1);

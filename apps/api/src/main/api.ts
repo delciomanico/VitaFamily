@@ -324,6 +324,7 @@ export function main(): void {
   // ocupação de horários `EXAM` (`examinations.countScheduledBySlot`).
   const appointments = createAppointmentsModule({
     db,
+    walkInRateLimiter: rateLimiting.createRateLimiter("clinic-walkin"),
     audit,
     access,
     clinics,
@@ -493,6 +494,7 @@ export function main(): void {
   // (`SharedHistoryReader`, `CalendarSource`, ocupação de horários, recomendações) sobre as suas APIs públicas, só leitura.
   const clinicPatients = createClinicPatientsModule({
     db,
+    rateLimiter: rateLimiting.createRateLimiter("clinic-patients"),
     audit,
     access,
     clinics,

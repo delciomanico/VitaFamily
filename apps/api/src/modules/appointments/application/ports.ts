@@ -7,7 +7,7 @@ import type { AccessContext, CanInput } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { ActPhase } from "../domain/act-phase.js";
 import type { Appointment, AppointmentStatus, ConfirmationSource, ConfirmationStatus } from "../domain/appointment.js";
-import type { WalkInRateLimiter } from "../domain/walk-in.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 
 export interface ActorIdentity {
   userId: string;
@@ -484,7 +484,7 @@ export interface AppointmentsDeps<Trx> {
   /** Marco B fatia 1 (BR-PRC-01): abre/apaga o `Process` do ato (implementada por `processes`). */
   processes: ProcessLinkerPort<Trx>;
   /** BR-CLN-10: rate limit dos endpoints walk-in (por conta, por IP, falhas 404). */
-  walkInRateLimiter: WalkInRateLimiter;
+  walkInRateLimiter: RateLimiter;
   audit: AuditPort<Trx>;
   db: Trx;
   withTransaction: WithTransaction<Trx>;

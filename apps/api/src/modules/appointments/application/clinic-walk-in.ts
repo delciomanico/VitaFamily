@@ -29,9 +29,11 @@ async function enforceRateLimit<Trx>(
   context: RequestContext,
   action: "CLINIC_WALKIN_LOOKUP" | "CLINIC_WALKIN_BOOK",
 ): Promise<void> {
-  const ipDecision = deps.walkInRateLimiter.consume(`walk-in:ip:${context.ip ?? "unknown"}`, WALK_IN_IP_RULE);
-  const accountDecision = deps.walkInRateLimiter.consume(`walk-in:account:${actor.clinicAccountId}`, WALK_IN_ACCOUNT_RULE);
-  const failurePeek = deps.walkInRateLimiter.peek(`walk-in:404:${actor.clinicAccountId}`, WALK_IN_NOT_FOUND_RULE);
+  // Namespace comum `clinic-walkin` partilhado com `clinic-patients` (BR-CLN-10/20): as chaves lógicas
+  // (regra + sujeito) têm de ser idênticas nos dois módulos. Todas FECHADAS (ADR-038 §5).
+  const ipDecision = await deps.walkInRateLimiter.consume({ rule: "ip", subject: context.ip ?? "unknown", pii: true }, WALK_IN_IP_RULE);
+  const accountDecision = await deps.walkInRateLimiter.consume({ rule: "account", subject: actor.clinicAccountId }, WALK_IN_ACCOUNT_RULE);
+  const failurePeek = await deps.walkInRateLimiter.peek({ rule: "not-found", subject: actor.clinicAccountId }, WALK_IN_NOT_FOUND_RULE);
   const blocked = [ipDecision, accountDecision, failurePeek].find((decision) => !decision.allowed);
   if (!blocked) {
     return;
@@ -53,8 +55,8 @@ async function enforceRateLimit<Trx>(
   throw new RateLimitedError(retryAfterMs);
 }
 
-function countPatientNotFound<Trx>(deps: AppointmentsDeps<Trx>, actor: ClinicPortalActor): void {
-  deps.walkInRateLimiter.consume(`walk-in:404:${actor.clinicAccountId}`, WALK_IN_NOT_FOUND_RULE);
+async function countPatientNotFound<Trx>(deps: AppointmentsDeps<Trx>, actor: ClinicPortalActor): Promise<void> {
+  await deps.walkInRateLimiter.consume({ rule: "not-found", subject: actor.clinicAccountId }, WALK_IN_NOT_FOUND_RULE);
 }
 
 export interface ClinicPatientLookupResult {
@@ -84,7 +86,7 @@ export function createClinicPatientLookupUseCase<Trx>(deps: AppointmentsDeps<Trx
     });
 
     if (!found) {
-      countPatientNotFound(deps, actor);
+      await countPatientNotFound(deps, actor);
       throw new NotFoundError({ detail: PATIENT_NOT_FOUND_DETAIL });
     }
     return { displayName: buildPatientDisplayName(found.fullName) };
@@ -239,7 +241,7 @@ export function createCreateWalkInAppointmentUseCase<Trx>(deps: AppointmentsDeps
     });
 
     if (!outcome) {
-      countPatientNotFound(deps, actor);
+      await countPatientNotFound(deps, actor);
       throw new NotFoundError({ detail: PATIENT_NOT_FOUND_DETAIL });
     }
     return outcome;

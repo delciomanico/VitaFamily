@@ -7,7 +7,7 @@ import { auditContextFields } from "../../audit/index.js";
 import { buildPatientDisplayName } from "../domain/display-name.js";
 import { hashLinkCode, normalizeLinkCode } from "../domain/link-code.js";
 import { normalizeSearchText } from "../domain/clinic-patient.js";
-import { LINK_ACCOUNT_RULE, LINK_IP_RULE, LINK_NOT_FOUND_RULE } from "../domain/rate-limiter.js";
+import { LINK_ACCOUNT_RULE, LINK_IP_RULE, LINK_NOT_FOUND_RULE } from "../domain/rate-limits.js";
 import type { ClinicPatientsDeps, ClinicPortalActor, RequestContext } from "./ports.js";
 import { toPatientView, type ClinicPatientView } from "./support.js";
 
@@ -19,9 +19,10 @@ export interface LinkClinicPatientInput {
 }
 
 async function enforceLinkRateLimit<Trx>(deps: ClinicPatientsDeps<Trx>, actor: ClinicPortalActor, context: RequestContext): Promise<void> {
-  const ip = deps.sharedLimiter.consume(`walk-in:ip:${context.ip ?? "unknown"}`, LINK_IP_RULE);
-  const account = deps.sharedLimiter.consume(`walk-in:account:${actor.clinicAccountId}`, LINK_ACCOUNT_RULE);
-  const failures = deps.sharedLimiter.peek(`walk-in:404:${actor.clinicAccountId}`, LINK_NOT_FOUND_RULE);
+  // Namespace comum `clinic-walkin` (BR-CLN-10/20): mesmas chaves lógicas que `appointments`. FECHADAS (ADR-038 §5).
+  const ip = await deps.sharedLimiter.consume({ rule: "ip", subject: context.ip ?? "unknown", pii: true }, LINK_IP_RULE);
+  const account = await deps.sharedLimiter.consume({ rule: "account", subject: actor.clinicAccountId }, LINK_ACCOUNT_RULE);
+  const failures = await deps.sharedLimiter.peek({ rule: "not-found", subject: actor.clinicAccountId }, LINK_NOT_FOUND_RULE);
   const blocked = [ip, account, failures].find((decision) => !decision.allowed);
   if (!blocked) return;
   await deps.withTransaction(async (trx) => {
@@ -132,7 +133,7 @@ export function createLinkClinicPatientUseCase<Trx>(deps: ClinicPatientsDeps<Trx
     });
 
     if (outcome.kind === "NOT_FOUND") {
-      deps.sharedLimiter.consume(`walk-in:404:${actor.clinicAccountId}`, LINK_NOT_FOUND_RULE);
+      await deps.sharedLimiter.consume({ rule: "not-found", subject: actor.clinicAccountId }, LINK_NOT_FOUND_RULE);
       throw new NotFoundError({ detail: NOT_FOUND_DETAIL });
     }
     return outcome.view;

@@ -1,6 +1,7 @@
 // Integração real (testcontainers + PostgreSQL 16) da marcação presencial pela clínica (D20, ADR-024,
 // BR-CLN-10, AC-CLN-06, TC-CLN-03): migração 0026 (colunas e CHECK), repositório Kysely e o caso de uso real
 // sobre o repositório real (SELECT … FOR UPDATE: duas marcações simultâneas no mesmo horário => só uma vence).
+import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 import { Pool } from "pg";
@@ -12,7 +13,6 @@ import { createDb, withTransaction, type Database } from "../../src/platform/db/
 import { createListClinicAgendaUseCase } from "../../src/modules/appointments/application/clinic-appointments.js";
 import { createClinicPatientLookupUseCase, createCreateWalkInAppointmentUseCase } from "../../src/modules/appointments/application/clinic-walk-in.js";
 import type { AppointmentsDeps } from "../../src/modules/appointments/application/ports.js";
-import { WalkInInMemoryRateLimiter } from "../../src/modules/appointments/domain/walk-in.js";
 import { KyselyAppointmentsRepository } from "../../src/modules/appointments/infrastructure/repo.js";
 import { KyselyClinicSlotsRepository } from "../../src/modules/clinics/infrastructure/clinic-slots-repo.js";
 import { KyselyClinicsRepository } from "../../src/modules/clinics/infrastructure/repo.js";
@@ -112,7 +112,7 @@ describe("integração: marcação presencial (walk-in) — migração 0026 e re
       },
       processes: createRealProcessLinker(db),
       consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()), createExamOrdersWithComplete: () => Promise.resolve(), examOrderCounts: () => Promise.resolve(new Map()), appointmentExamOrderCounts: () => Promise.resolve(new Map()) },
-      walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
+      walkInRateLimiter: new InMemoryRateLimiter(clock, { namespace: "clinic-walkin" }),
       audit: { record: (_trx, event) => Promise.resolve(void audit.push(event)) },
       db,
       withTransaction: (fn) => withTransaction(db, fn),

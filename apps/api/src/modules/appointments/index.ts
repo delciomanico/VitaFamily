@@ -38,7 +38,7 @@ import type { ActFactOfAppointment, AppointmentsDeps, ClinicAppointmentsFilter, 
 import { createSetAppointmentConfirmationUseCase } from "./application/set-appointment-confirmation.js";
 import { createSetAppointmentStatusUseCase } from "./application/set-appointment-status.js";
 import { createUpdateAppointmentUseCase } from "./application/update-appointment.js";
-import { WalkInInMemoryRateLimiter, type WalkInRateLimiter } from "./domain/walk-in.js";
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import { KyselyAppointmentActFactsSource, KyselyAppointmentsRepository } from "./infrastructure/repo.js";
 import { createAppointmentsClinicPortalRouter, type AppointmentsClinicPortalController } from "./interface/clinic-portal-router.js";
 import { toAppointmentPage } from "./interface/dto.js";
@@ -68,6 +68,8 @@ export interface AppointmentsPrescriptionsDeps {
 
 export interface AppointmentsModuleDeps {
   db: Kysely<Database>;
+  /** Porta assíncrona (ADR-038), namespace comum `clinic-walkin` (BR-CLN-10/20): o MESMO limitador é partilhado com `clinic-patients` (`appointments.walkInRateLimiter`). */
+  walkInRateLimiter: RateLimiter;
   audit: AuditModule;
   access: AccessModule;
   clinics: ClinicsModule;
@@ -106,7 +108,7 @@ export interface AppointmentsModule {
   /** BR-CLN-04/BR-APT-11 (`clinics`, ligado no composition root): consultas `REQUESTED`/`SCHEDULED` por horário. */
   countActiveBySlot: (trx: Kysely<Database>, slotIds: string[]) => Promise<{ slotId: string; requested: number; scheduled: number }[]>;
   /** M14 P (BR-CLN-20, `clinic-patients`): o limiter do walk-in (BR-CLN-10), partilhado com a ligação por código. */
-  walkInRateLimiter: WalkInRateLimiter;
+  walkInRateLimiter: RateLimiter;
   /** M14 P (`clinic-patients`, só leitura): consultas da própria clínica por janela/membro (calendário, ficha, pesquisa). */
   listClinicFacts: (trx: Kysely<Database>, clinicId: string, filter: ClinicAppointmentsFilter, limit?: number) => Promise<ClinicAppointmentFact[]>;
   /** M14 Q (BR-CLN-30, `clinic-patients`, só leitura): retornos por tratar da clínica (consultas `COMPLETED` com `followUpDueOn <= until`). */
@@ -184,7 +186,7 @@ export interface ClinicOrigin {
 /** Composition root chama isto uma vez por processo (main/api.ts). */
 export function createAppointmentsModule(deps: AppointmentsModuleDeps): AppointmentsModule {
   const appointmentsRepo = new KyselyAppointmentsRepository();
-  const walkInRateLimiter = new WalkInInMemoryRateLimiter(deps.clock);
+  const walkInRateLimiter = deps.walkInRateLimiter;
 
   const appointmentsDeps: AppointmentsDeps<Kysely<Database>> = {
     appointmentsRepo,

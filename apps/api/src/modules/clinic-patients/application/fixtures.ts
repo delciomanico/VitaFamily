@@ -7,7 +7,7 @@ import type { AuditEvent } from "../../audit/index.js";
 import { patientMatches, type ClinicPatient } from "../domain/clinic-patient.js";
 import type { ClinicConsent } from "../domain/consent.js";
 import type { ClinicVisit } from "../domain/clinic-visit.js";
-import { InMemoryRateLimiter } from "../domain/rate-limiter.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import type {
   AccessPolicyPort,
   AppointmentFact,
@@ -467,9 +467,9 @@ export function createClinicPatientsFixtures(clock: Clock): ClinicPatientsFixtur
   const recommendations = new FakeRecommendationsSource();
   const slots = new FakeSlotReservation();
   const receipts = new FakeReceiptIdsPort();
-  const sharedLimiter = new InMemoryRateLimiter(clock);
-  const searchLimiter = new InMemoryRateLimiter(clock);
-  const reportLimiter = new InMemoryRateLimiter(clock);
+  const sharedLimiter = new InMemoryRateLimiter(clock, { namespace: "clinic-walkin" });
+  const searchLimiter = new InMemoryRateLimiter(clock, { namespace: "clinic-patients" });
+  const reportLimiter = new InMemoryRateLimiter(clock, { namespace: "clinic-patients" });
   const audit = new FakeAuditPort();
   const deps: ClinicPatientsDeps<FakeTrx> = {
     patientsRepo,

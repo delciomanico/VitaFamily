@@ -9,7 +9,7 @@ import type { CalendarEntryStatus } from "../domain/calendar.js";
 import type { ClinicConsent, ClinicConsentLevel } from "../domain/consent.js";
 import type { ClinicLinkVia, ClinicPatient, ClinicPatientOrigin, PatientCursor, PatientSearchTerms } from "../domain/clinic-patient.js";
 import type { ClinicVisit, ClinicVisitStatus } from "../domain/clinic-visit.js";
-import type { RateLimiter } from "../domain/rate-limiter.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 
 export interface ActorIdentity {
   userId: string;

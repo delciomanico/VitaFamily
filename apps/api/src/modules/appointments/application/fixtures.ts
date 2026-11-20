@@ -6,7 +6,7 @@ import type { Clock } from "../../../platform/clock/index.js";
 import type { AccessContext, CanInput, Relation } from "../../access/index.js";
 import type { AuditEvent } from "../../audit/index.js";
 import type { Appointment, AppointmentStatus } from "../domain/appointment.js";
-import { WalkInInMemoryRateLimiter } from "../domain/walk-in.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import type {
   AccessPolicyPort,
   AppointmentChanges,
@@ -769,7 +769,7 @@ export function createAppointmentsFixtures(clock: Clock): AppointmentsFixtures {
     consultationReports,
     completionReceipts,
     processes,
-    walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
+    walkInRateLimiter: new InMemoryRateLimiter(clock, { namespace: "clinic-walkin" }),
     audit,
     db: FAKE_TRX,
     withTransaction: (fn) => fn(FAKE_TRX),

@@ -207,7 +207,7 @@ export interface ClinicSearchView {
 export function createClinicGlobalSearchUseCase<Trx>(deps: ClinicPatientsDeps<Trx>) {
   return async function clinicGlobalSearch(actor: ClinicPortalActor, rawQ: unknown): Promise<ClinicSearchView> {
     const q = parseSearchQuery(rawQ, true) ?? "";
-    enforceSearchRateLimit(deps, actor);
+    await enforceSearchRateLimit(deps, actor);
     return deps.withTransaction(async (trx) => {
       const patients = await deps.patientsRepo.list(trx, actor.clinicId, { terms: buildSearchTerms(q) }, 10);
       const [appointments, examinations, visits] = await Promise.all([

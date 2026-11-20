@@ -47,14 +47,13 @@ import {
   createSetVisitFollowUpUseCase,
   createStartVisitUseCase,
 } from "./application/visit-day-flow.js";
-import { InMemoryRateLimiter, type RateLimiter } from "./domain/rate-limiter.js";
+import type { RateLimiter } from "../../platform/rate-limit/async.js";
 import { registerPurgeLinkCodesWorker } from "./infrastructure/jobs.js";
 import { KyselyConsentsRepository, KyselyLinkCodesRepository, KyselyLinksRepository, KyselyPatientsRepository, KyselyVisitsRepository } from "./infrastructure/repo.js";
 import { createClinicPatientsFamilyRouter, type ClinicPatientsFamilyController } from "./interface/family-router.js";
 import { createClinicPatientsPortalRouter, type ClinicPatientsPortalController } from "./interface/portal-router.js";
 
 export type { CalendarSourcePort, RecommendationsSourcePort, ReportSourcePort, FollowUpFact, SharedHistoryReaderPort, AppointmentFact, ExaminationFact, RecommendationFact, SharedExam, SharedMedication } from "./application/ports.js";
-export type { RateLimiter } from "./domain/rate-limiter.js";
 
 /** Ocupação de horários por consultas e exames (ligada no composition root a `appointments`+`examinations`). */
 export interface ClinicPatientsSlotOccupancy {
@@ -77,7 +76,9 @@ export interface ClinicPatientsModuleDeps {
   recommendations: RecommendationsSourcePort<Kysely<Database>>;
   /** M14 R (BR-CLN-31): `receiptId` nas visitas concluídas — ligada no composition root a `clinic-receipts`. */
   receipts: ReceiptIdsPort<Kysely<Database>>;
-  /** BR-CLN-20: o MESMO limiter do walk-in (chaves `walk-in:*`), para o limite ser partilhado (BR-CLN-10). */
+  /** Porta assíncrona (ADR-038), namespace `clinic-patients` (pesquisa e relatórios); injetada pela composição. */
+  rateLimiter: RateLimiter;
+  /** BR-CLN-20: o MESMO limitador do walk-in (namespace `clinic-walkin`), para o limite ser partilhado (BR-CLN-10). */
   sharedLimiter: RateLimiter;
   /** `CLINIC_LINK_CODE_SECRET` (BR-CLN-20). */
   linkCodeSecret: string;
@@ -179,8 +180,8 @@ export function createClinicPatientsModule(deps: ClinicPatientsModuleDeps): Clin
     recommendations: deps.recommendations,
     slots,
     receipts: deps.receipts,
-    searchLimiter: new InMemoryRateLimiter(deps.clock),
-    reportLimiter: new InMemoryRateLimiter(deps.clock),
+    searchLimiter: deps.rateLimiter,
+    reportLimiter: deps.rateLimiter,
     sharedLimiter: deps.sharedLimiter,
     audit: deps.audit,
     linkCodeSecret: deps.linkCodeSecret,

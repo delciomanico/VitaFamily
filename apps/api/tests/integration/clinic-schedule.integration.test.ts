@@ -2,6 +2,7 @@
 // migração 0027 sobre dados existentes, EXCLUDE/CHECK/FKs, cascata da clínica, repositórios Kysely, geração
 // idempotente (job + regenerar), concorrência (serializada pelo bloqueio do profissional e dos horários),
 // bloqueio com horários marcados e walk-in com sobreposição por duração.
+import { InMemoryRateLimiter } from "../../src/platform/rate-limit/in-memory.js";
 import { randomUUID } from "node:crypto";
 import { copyFile, mkdtemp, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -16,7 +17,6 @@ import { createDb, withTransaction, type Database } from "../../src/platform/db/
 import { createAuditModule, type AuditEvent } from "../../src/modules/audit/index.js";
 import { createCreateWalkInAppointmentUseCase } from "../../src/modules/appointments/application/clinic-walk-in.js";
 import type { AppointmentsDeps } from "../../src/modules/appointments/application/ports.js";
-import { WalkInInMemoryRateLimiter } from "../../src/modules/appointments/domain/walk-in.js";
 import { KyselyAppointmentsRepository } from "../../src/modules/appointments/infrastructure/repo.js";
 import { createCreateClinicProfessionalUseCase, createCreateClinicServiceTypeUseCase, createUpdateClinicProfessionalUseCase } from "../../src/modules/clinics/application/clinic-catalog.js";
 import { createCreateClinicScheduleRuleUseCase, createRegenerateClinicScheduleRuleUseCase, createUpdateClinicScheduleRuleUseCase } from "../../src/modules/clinics/application/clinic-schedule-rules.js";
@@ -426,7 +426,7 @@ describe("integração: catálogo, regras, bloqueios e duração (migração 002
         clinicPatients: { resolvePatient: () => Promise.resolve(null), ensureLinkedByEmail: () => Promise.resolve({ clinicPatientId: randomUUID() }), bookVisit: () => Promise.reject(new Error("não usado")), listVisits: () => Promise.resolve([]), cancelVisit: () => Promise.resolve(null), completeVisit: () => Promise.resolve(null), confirmVisit: () => Promise.resolve(null), arriveVisit: () => Promise.resolve(null), startVisit: () => Promise.resolve(null), noShowVisit: () => Promise.resolve(null), setVisitFollowUp: () => Promise.resolve(null), clearVisitFollowUp: () => Promise.resolve(null), countActiveVisitsBySlot: () => Promise.resolve([]), findPatientIdsByMembers: () => Promise.resolve(new Map()) },
         processes: createRealProcessLinker(db),
         consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()), createExamOrdersWithComplete: () => Promise.resolve(), examOrderCounts: () => Promise.resolve(new Map()), appointmentExamOrderCounts: () => Promise.resolve(new Map()) },
-        walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
+        walkInRateLimiter: new InMemoryRateLimiter(clock, { namespace: "clinic-walkin" }),
         audit: { record: () => Promise.resolve() },
         db,
         withTransaction: (fn) => withTransaction(db, fn),
@@ -497,7 +497,7 @@ describe("integração: catálogo, regras, bloqueios e duração (migração 002
         clinicPatients: { resolvePatient: () => Promise.resolve(null), ensureLinkedByEmail: () => Promise.resolve({ clinicPatientId: randomUUID() }), bookVisit: () => Promise.reject(new Error("não usado")), listVisits: () => Promise.resolve([]), cancelVisit: () => Promise.resolve(null), completeVisit: () => Promise.resolve(null), countActiveVisitsBySlot: () => Promise.resolve([]), findPatientIdsByMembers: () => Promise.resolve(new Map()) },
         processes: createRealProcessLinker(db),
         consultationReports: { finalizeWithComplete: () => Promise.resolve(), statuses: () => Promise.resolve(new Map()), sharedAvailability: () => Promise.resolve(new Set()), createExamOrdersWithComplete: () => Promise.resolve(), examOrderCounts: () => Promise.resolve(new Map()), appointmentExamOrderCounts: () => Promise.resolve(new Map()) },
-        walkInRateLimiter: new WalkInInMemoryRateLimiter(clock),
+        walkInRateLimiter: new InMemoryRateLimiter(clock, { namespace: "clinic-walkin" }),
         audit: { record: () => Promise.resolve() },
         db,
         withTransaction: <T>(fn: (trx: Kysely<Database>) => Promise<T>) => withTransaction(db, fn),
