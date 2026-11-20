@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { CircleCheck, CircleAlert } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
@@ -28,13 +28,24 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const api = useMemo(() => ({ show }), [show])
+  const layerRef = useRef<HTMLDivElement>(null)
+
+  // Camada superior do browser (popover): o aviso fica por cima das folhas de formulário (<dialog> modal) abertas.
+  useEffect(() => {
+    const layer = layerRef.current
+    if (!layer || typeof layer.showPopover !== 'function') return
+    if (toasts.length > 0 && !layer.matches(':popover-open')) layer.showPopover()
+    if (toasts.length === 0 && layer.matches(':popover-open')) layer.hidePopover()
+  }, [toasts.length])
 
   return (
     <ToastContext.Provider value={api}>
       {children}
       <div
+        ref={layerRef}
+        popover="manual"
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex flex-col items-center gap-2 px-4"
+        className="pointer-events-none fixed inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 m-0 flex h-auto max-h-none w-full flex-col items-center gap-2 overflow-visible border-0 bg-transparent px-4 py-0"
       >
         {toasts.map((toast) => {
           const Icon = toast.tone === 'success' ? CircleCheck : CircleAlert

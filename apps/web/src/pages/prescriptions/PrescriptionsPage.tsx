@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Outlet } from 'react-router-dom'
 import { FileText, Plus } from 'lucide-react'
 import { PrescriptionList } from '@/components/domain/PrescriptionList'
 import { Page } from '@/components/layout/Page'
@@ -68,6 +69,7 @@ export function PrescriptionsPage() {
             description="Receitas concluídas ou canceladas aparecem aqui."
           />
         ))}
+      <Outlet context={{ onSaved: reload }} />
     </Page>
   )
 }

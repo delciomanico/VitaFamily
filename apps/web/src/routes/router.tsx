@@ -135,10 +135,8 @@ export const routes: RouteObject[] = [
               {
                 path: 'health/prescriptions',
                 ...page(() => import('@/pages/prescriptions/PrescriptionsPage'), 'PrescriptionsPage'),
-              },
-              {
-                path: 'health/prescriptions/new',
-                ...page(() => import('@/pages/prescriptions/NewPrescriptionPage'), 'NewPrescriptionPage'),
+                // Formulário como folha por cima da lista (a lista continua montada por baixo).
+                children: [{ path: 'new', ...page(() => import('@/pages/prescriptions/NewPrescriptionPage'), 'NewPrescriptionPage') }],
               },
               {
                 path: 'health/prescriptions/:id',

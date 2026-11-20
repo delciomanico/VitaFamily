@@ -7,7 +7,6 @@ import {
   type FieldErrors,
   type UseFormRegister,
 } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { z } from 'zod'
@@ -19,22 +18,22 @@ import {
   toScheduleInput,
   type ScheduleValue,
 } from '@/components/domain/ScheduleFields'
-import { Page } from '@/components/layout/Page'
-import { Button, ButtonLink } from '@/components/ui/Button'
+import { SheetWait, WizardSheet } from '@/components/app/FormSheet'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Disclosure } from '@/components/ui/Disclosure'
-import { DetailSection } from '@/components/ui/InfoList'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
-import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { isValidISODate, todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { extractClinicName, extractDateISO, extractDoctorName, extractMedication } from '@/lib/ocrParse'
+import { useModalRoute } from '@/lib/modalRoute'
+import { useWizardStep } from '@/hooks/useWizardStep'
 import { paths } from '@/routes/paths'
 import { familyService } from '@/services/family.service'
 import { prescriptionService } from '@/services/prescription.service'
@@ -154,10 +153,16 @@ function MedicationFields({ index, control, register, errors, continuous, onRemo
   )
 }
 
+const STEPS = ['Dados da receita', 'Medicamentos', 'Foto e notas'] as const
+/** Campos a validar antes de passar de cada passo. */
+const STEP_FIELDS: Record<number, (keyof FormValues)[]> = { 0: ['memberId', 'issuedOn'], 1: ['medications'], 2: [] }
+
 function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[]; selfMemberId: string }) {
   const { user, family } = useAuth()
   const toast = useToast()
-  const navigate = useNavigate()
+  const { close, saved } = useModalRoute(paths.prescriptions)
+  const { step, next, back, last } = useWizardStep(STEPS.length, close)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const {
     register,
     control,
@@ -165,7 +170,8 @@ function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[
     watch,
     setValue,
     getValues,
-    formState: { errors, isSubmitting, dirtyFields },
+    trigger,
+    formState: { errors, isSubmitting, isDirty, dirtyFields },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -181,6 +187,7 @@ function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[
   const { fields, append, remove } = useFieldArray({ control, name: 'medications' })
   const medications = watch('medications')
   const [doctorDetailsOpen, setDoctorDetailsOpen] = useState(false)
+  const [done, setDone] = useState(false)
 
   /** Pré-preenche a partir da leitura da foto (melhor esforço); nunca substitui o que já foi escrito. */
   function handleOcrExtract(text: string) {
@@ -220,8 +227,9 @@ function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[
   }
 
   async function onSubmit(values: FormValues) {
+    setSubmitError(null)
     try {
-      const prescription = await prescriptionService.createPrescription(family?.id ?? '', user?.id ?? '', {
+      await prescriptionService.createPrescription(family?.id ?? '', user?.id ?? '', {
         memberId: values.memberId,
         issuedOn: values.issuedOn,
         doctorName: values.doctorName,
@@ -238,97 +246,93 @@ function NewPrescriptionForm({ members, selfMemberId }: { members: FamilyMember[
         })),
       })
       toast.show('Receita registada.')
-      navigate(paths.prescription(prescription.id), { replace: true })
+      setDone(true)
+      saved()
     } catch (error) {
-      toast.show(errorMessage(error), 'error')
+      setSubmitError(errorMessage(error))
     }
+  }
+
+  async function onNext() {
+    setSubmitError(null)
+    const fieldsToCheck = STEP_FIELDS[step] ?? []
+    if (fieldsToCheck.length > 0 && !(await trigger(fieldsToCheck))) return
+    if (!last) return next()
+    await handleSubmit(onSubmit)()
   }
 
   const memberOptions = members.map((m) => ({ value: m.id, label: m.id === selfMemberId ? `${m.name} (eu)` : m.name }))
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4">
-        {members.length > 1 && (
-          <Select
-            label="Para quem"
-            options={memberOptions}
-            error={errors.memberId?.message}
-            {...register('memberId')}
-          />
-        )}
-        <Input
-          label="Data da receita"
-          type="date"
-          max={todayISO()}
-          error={errors.issuedOn?.message}
-          {...register('issuedOn')}
-        />
-        <Disclosure label="Médico e clínica" open={doctorDetailsOpen} onOpenChange={setDoctorDetailsOpen}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input label="Médico" placeholder="Ex.: Dra. Ana Costa" {...register('doctorName')} />
-            <Input label="Clínica" placeholder="Ex.: Centro de Saúde" {...register('clinicName')} />
-          </div>
-        </Disclosure>
-      </div>
-
-      <DetailSection title="Medicamentos">
-        {fields.map((field, index) => (
-          <MedicationFields
-            key={field.id}
-            index={index}
-            control={control}
-            register={register}
-            errors={errors.medications?.[index]}
-            continuous={medications[index]?.continuous ?? false}
-            onRemove={fields.length > 1 ? () => remove(index) : undefined}
-          />
-        ))}
-        <Button variant="soft" onClick={() => append(newMedication())} icon={<Plus className="size-4" aria-hidden />}>
-          Adicionar medicamento
-        </Button>
-      </DetailSection>
-
-      <Disclosure label="Documento e observações">
-        <Controller
-          control={control}
-          name="documents"
-          render={({ field }) => (
-            <DocumentPicker
-              label="Documento"
-              value={field.value}
-              onChange={field.onChange}
-              ocr={{ onExtract: handleOcrExtract }}
+    <WizardSheet
+      title="Adicionar receita"
+      stepTitle={STEPS[step] ?? ''}
+      description={step === 1 ? 'Cada medicamento cria um horário de tomas.' : step === 2 ? 'Opcional. Tirar uma foto ajuda a preencher.' : undefined}
+      step={step}
+      total={STEPS.length}
+      onBack={() => {
+        setSubmitError(null)
+        back()
+      }}
+      onNext={onNext}
+      nextLabel={last ? 'Guardar receita' : 'Continuar'}
+      busy={isSubmitting}
+      error={submitError}
+      dirty={isDirty && !done}
+      onClose={close}
+    >
+      {step === 0 && (
+        <>
+          {members.length > 1 && <Select label="Para quem" options={memberOptions} error={errors.memberId?.message} {...register('memberId')} />}
+          <Input label="Data da receita" type="date" max={todayISO()} error={errors.issuedOn?.message} {...register('issuedOn')} />
+          <Disclosure label="Médico e clínica" open={doctorDetailsOpen} onOpenChange={setDoctorDetailsOpen}>
+            <div className="flex flex-col gap-4">
+              <Input label="Médico" placeholder="Ex.: Dra. Ana Costa" {...register('doctorName')} />
+              <Input label="Clínica" placeholder="Ex.: Centro de Saúde" {...register('clinicName')} />
+            </div>
+          </Disclosure>
+        </>
+      )}
+      {step === 1 && (
+        <>
+          {fields.map((field, index) => (
+            <MedicationFields
+              key={field.id}
+              index={index}
+              control={control}
+              register={register}
+              errors={errors.medications?.[index]}
+              continuous={medications[index]?.continuous ?? false}
+              onRemove={fields.length > 1 ? () => remove(index) : undefined}
             />
-          )}
-        />
-        <Textarea label="Observações" {...register('notes')} />
-      </Disclosure>
-
-      <div className="flex flex-col gap-2 sm:flex-row-reverse">
-        <Button type="submit" size="lg" loading={isSubmitting} className="sm:flex-1">
-          Guardar receita
-        </Button>
-        <ButtonLink to={paths.prescriptions} variant="ghost" size="lg" className="sm:flex-1">
-          Cancelar
-        </ButtonLink>
-      </div>
-    </form>
+          ))}
+          <Button variant="soft" size="lg" onClick={() => append(newMedication())} icon={<Plus className="size-4" aria-hidden />}>
+            Adicionar medicamento
+          </Button>
+        </>
+      )}
+      {step === 2 && (
+        <>
+          <Controller
+            control={control}
+            name="documents"
+            render={({ field }) => <DocumentPicker label="Documento" value={field.value} onChange={field.onChange} ocr={{ onExtract: handleOcrExtract }} />}
+          />
+          <Textarea label="Observações" {...register('notes')} />
+        </>
+      )}
+    </WizardSheet>
   )
 }
 
-/** Registar receita (UC-RX-01): cada medicamento cria um plano de toma. */
+/** Registar receita (UC-RX-01) numa folha em ecrã inteiro, por cima da lista: cada medicamento cria um plano de toma. */
 export function NewPrescriptionPage() {
   const { user, family, member } = useAuth()
+  const { close } = useModalRoute(paths.prescriptions)
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
   const { state, reload } = useAsync(() => familyService.listManagedMembers(familyId, userId), [familyId, userId])
 
-  return (
-    <Page title="Adicionar receita" backTo={paths.prescriptions} backLabel="Receitas">
-      {state.status === 'loading' && <LoadingState rows={4} />}
-      {state.status === 'error' && <ErrorState onRetry={reload} />}
-      {state.status === 'success' && <NewPrescriptionForm members={state.data} selfMemberId={member?.id ?? ''} />}
-    </Page>
-  )
+  if (state.status === 'success') return <NewPrescriptionForm members={state.data} selfMemberId={member?.id ?? ''} />
+  return <SheetWait title="Adicionar receita" onClose={close} onRetry={reload} failed={state.status === 'error'} />
 }
