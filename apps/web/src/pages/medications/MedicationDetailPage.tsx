@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ChevronRight, Pencil } from 'lucide-react'
+import { ChevronRight, Clock, FileText, Pencil, StickyNote } from 'lucide-react'
 import { z } from 'zod'
 import { ReminderState } from '@/components/domain/MedicationList'
 import {
@@ -12,13 +12,13 @@ import {
   toScheduleInput,
   type ScheduleValue,
 } from '@/components/domain/ScheduleFields'
+import { AccordionSection } from '@/components/app/Accordion'
+import { ConfirmSheet } from '@/components/app/Sheet'
 import { Page } from '@/components/layout/Page'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
-import { DetailSection, InfoList, InfoRow } from '@/components/ui/InfoList'
+import { InfoList, InfoRow } from '@/components/ui/InfoList'
 import { Input } from '@/components/ui/Input'
 import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
@@ -114,10 +114,10 @@ function MedicationEditForm({ detail: { plan }, onSubmit, onCancel }: EditFormPr
       <Input label="Observações (opcional)" {...register('notes')} />
       <p className="text-sm text-muted">As alterações aplicam-se às próximas tomas; as já registadas mantêm-se.</p>
       <div className="flex flex-col gap-2 pt-2 sm:flex-row-reverse">
-        <Button type="submit" size="lg" loading={isSubmitting} className="sm:flex-1">
+        <Button type="submit" size="xl" loading={isSubmitting} className="sm:flex-1">
           Guardar
         </Button>
-        <Button variant="ghost" size="lg" onClick={onCancel} className="sm:flex-1">
+        <Button variant="ghost" size="xl" onClick={onCancel} className="sm:flex-1">
           Cancelar
         </Button>
       </div>
@@ -162,10 +162,10 @@ function ScheduleOnlyForm({ detail: { plan }, onSubmit, onCancel }: EditFormProp
       <ScheduleFields value={schedule} onChange={setSchedule} error={shown ? (error ?? undefined) : undefined} />
       <p className="text-sm text-muted">As alterações aplicam-se às próximas tomas; as já registadas mantêm-se.</p>
       <div className="flex flex-col gap-2 pt-2 sm:flex-row-reverse">
-        <Button type="submit" size="lg" loading={saving} className="sm:flex-1">
+        <Button type="submit" size="xl" loading={saving} className="sm:flex-1">
           Guardar horários
         </Button>
-        <Button variant="ghost" size="lg" onClick={onCancel} className="sm:flex-1">
+        <Button variant="ghost" size="xl" onClick={onCancel} className="sm:flex-1">
           Cancelar
         </Button>
       </div>
@@ -194,71 +194,79 @@ interface MedicationViewProps {
   onEnd: () => void
 }
 
-/** Nome, dosagem, frequência, horários, início, término e receita associada. */
+/** Resumo no topo (nome, dosagem, próxima dose); o resto em acordeões fechados: horários, observações e receita. */
 function MedicationView({ detail, selfMemberId, onEnd }: MedicationViewProps) {
   const { plan, memberName, nextDoseAt, remindersOn, prescription } = detail
   const status = medicationStatus[plan.status]
   return (
     <>
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold">{plan.name}</h2>
+      <div className="flex flex-col gap-2 rounded-2xl bg-primary-soft p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-2xl font-semibold">{plan.name}</h2>
           <Badge tone={status.tone} dot>
             {status.label}
           </Badge>
         </div>
-        <p className="text-muted">
+        <p className="text-lg">
           {plan.dosage}
           {plan.memberId !== selfMemberId && ` · ${memberName}`}
         </p>
-        <ReminderState on={remindersOn} className="mt-1" />
+        {nextDoseAt && (
+          <p className="text-lg">
+            Próxima dose: <span className="font-semibold">{formatWhen(nextDoseAt)}</span>
+          </p>
+        )}
+        <ReminderState on={remindersOn} className="text-base" />
       </div>
 
-      <InfoList>
-        {nextDoseAt && <InfoRow label="Próxima dose" value={formatWhen(nextDoseAt)} />}
-        <InfoRow label="Frequência" value={describeFrequency(plan)} />
-        <InfoRow label="Horários" value={<TimePills times={dailyTimes(plan)} />} />
-        <InfoRow label="Data de início" value={formatLongDate(plan.startAt)} />
-        <InfoRow
-          label="Data de término"
-          value={plan.continuous || !plan.endAt ? 'Uso contínuo' : formatLongDate(plan.endedAt ?? plan.endAt)}
-        />
-        {!plan.continuous && <InfoRow label="Duração" value={describeDuration(plan)} />}
-      </InfoList>
+      <AccordionSection title="Horários e duração" summary={describeFrequency(plan, { short: true })} icon={Clock}>
+        <InfoList>
+          <InfoRow label="Frequência" value={describeFrequency(plan)} />
+          <InfoRow label="Horários" value={<TimePills times={dailyTimes(plan)} />} />
+          <InfoRow label="Data de início" value={formatLongDate(plan.startAt)} />
+          <InfoRow
+            label="Data de término"
+            value={plan.continuous || !plan.endAt ? 'Uso contínuo' : formatLongDate(plan.endedAt ?? plan.endAt)}
+          />
+          {!plan.continuous && <InfoRow label="Duração" value={describeDuration(plan)} />}
+        </InfoList>
+      </AccordionSection>
 
       {plan.notes && (
-        <DetailSection title="Observações">
-          <Card>
-            <p className="whitespace-pre-line">{plan.notes}</p>
-          </Card>
-        </DetailSection>
+        <AccordionSection title="Observações" icon={StickyNote}>
+          <p className="whitespace-pre-line">{plan.notes}</p>
+        </AccordionSection>
       )}
 
       {prescription?.issuedBy === 'PROFESSIONAL' && (
-        <p role="note" className="rounded-md bg-surface-muted px-3.5 py-3 text-sm">
+        <p role="note" className="rounded-xl bg-surface-muted px-4 py-3 text-base">
           {PRESCRIPTION_READ_ONLY_NOTICE}
         </p>
       )}
 
-      <DetailSection title="Receita associada">
+      <AccordionSection
+        title="Receita associada"
+        summary={prescription ? (prescription.doctorName ?? 'Receita') : 'Sem receita associada'}
+        icon={FileText}
+      >
         {prescription ? (
           <Link
             to={paths.prescription(prescription.id)}
-            className="flex items-center gap-3 rounded-xl border border-border bg-surface p-4 shadow-card transition-colors hover:border-border-strong"
+            className="flex min-h-14 items-center gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:border-border-strong"
           >
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{prescription.doctorName ?? 'Receita'}</span>
-              <span className="block text-sm text-muted">{formatLongDate(prescription.issuedOn)}</span>
+              <span className="block truncate text-lg font-medium">{prescription.doctorName ?? 'Receita'}</span>
+              <span className="block text-base text-muted">{formatLongDate(prescription.issuedOn)}</span>
             </span>
-            <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />
+            <ChevronRight className="size-6 shrink-0 text-muted" aria-hidden />
           </Link>
         ) : (
-          <p className="text-sm text-muted">Medicamento sem receita associada.</p>
+          <p className="text-base text-muted">Medicamento sem receita associada.</p>
         )}
-      </DetailSection>
+      </AccordionSection>
 
       {plan.status === 'ACTIVE' && (
-        <Button variant="danger-ghost" size="lg" onClick={onEnd}>
+        <Button variant="danger-ghost" size="xl" onClick={onEnd}>
           Desativar medicamento
         </Button>
       )}
@@ -313,7 +321,7 @@ export function MedicationDetailPage() {
   const editButton = canEdit && !editing && (
     <Button
       variant="secondary"
-      size="sm"
+      size="lg"
       onClick={() => setEditing(true)}
       icon={<Pencil className="size-4" aria-hidden />}
     >
@@ -346,15 +354,15 @@ export function MedicationDetailPage() {
           <MedicationView detail={state.data} selfMemberId={member?.id} onEnd={() => setConfirming(true)} />
         ))}
 
-      <ConfirmDialog
+      <ConfirmSheet
         open={confirming}
         title="Desativar medicamento?"
         description="Os lembretes param e as próximas tomas deixam de aparecer. O histórico de tomas mantém-se."
-        confirmLabel="Desativar"
+        yesLabel="Sim, desativar"
         destructive
         loading={ending}
-        onConfirm={end}
-        onCancel={() => setConfirming(false)}
+        onYes={end}
+        onNo={() => setConfirming(false)}
       />
     </Page>
   )

@@ -3,7 +3,7 @@ import { Pill } from 'lucide-react'
 import { MedicationList } from '@/components/domain/MedicationList'
 import { Page } from '@/components/layout/Page'
 import { ButtonLink } from '@/components/ui/Button'
-import { Tabs, type TabItem } from '@/components/ui/Tabs'
+import { FilterChips, type ChipItem } from '@/components/app/FilterChips'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
@@ -11,7 +11,7 @@ import { paths } from '@/routes/paths'
 import { medicationService } from '@/services/medication.service'
 import type { MedicationPlanStatus } from '@/types/medication'
 
-const filters: TabItem<MedicationPlanStatus>[] = [
+const filters: ChipItem<MedicationPlanStatus>[] = [
   { value: 'ACTIVE', label: 'Ativos' },
   { value: 'ENDED', label: 'Terminados' },
 ]
@@ -28,12 +28,12 @@ export function MedicationsPage() {
 
   return (
     <Page title="Medicamentos" backTo={paths.health} backLabel="Saúde">
-      <Tabs label="Filtrar medicamentos" items={filters} value={filter} onChange={setFilter} />
+      <FilterChips label="Filtrar medicamentos" items={filters} value={filter} onChange={setFilter} />
       {state.status === 'loading' && <LoadingState rows={3} />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' &&
         (items.length > 0 ? (
-          <div role="tabpanel">
+          <div>
             <MedicationList items={items} selfMemberId={member?.id} />
           </div>
         ) : filter === 'ACTIVE' ? (
@@ -41,7 +41,7 @@ export function MedicationsPage() {
             icon={Pill}
             title="Sem medicamentos ativos."
             description="Os medicamentos são criados a partir das receitas."
-            action={<ButtonLink to={paths.prescriptionNew}>Adicionar receita</ButtonLink>}
+            action={<ButtonLink to={paths.prescriptionNew} size="xl">Adicionar receita</ButtonLink>}
           />
         ) : (
           <EmptyState icon={Pill} title="Sem medicamentos terminados." />
