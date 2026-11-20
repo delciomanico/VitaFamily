@@ -4,7 +4,7 @@ import { LoaderCircle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 type Variant = 'primary' | 'soft' | 'secondary' | 'ghost' | 'danger' | 'danger-ghost'
-type Size = 'sm' | 'md' | 'lg'
+type Size = 'sm' | 'md' | 'lg' | 'xl'
 
 interface StyleProps {
   variant?: Variant
@@ -26,6 +26,8 @@ const sizes: Record<Size, string> = {
   sm: 'h-9 px-3 text-sm gap-1.5',
   md: 'h-11 px-4 text-sm gap-2',
   lg: 'h-12 px-6 text-base gap-2',
+  /** Ação principal de um ecrã da app móvel. */
+  xl: 'h-14 px-6 text-lg font-semibold gap-2',
 }
 
 export function buttonClasses({ variant = 'primary', size = 'md', fullWidth }: StyleProps = {}) {

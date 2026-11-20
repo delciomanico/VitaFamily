@@ -387,7 +387,8 @@ export const routes: RouteObject[] = [
             element: <ProfessionalShell />,
             children: [
               { index: true, ...page(() => import('@/pages/professional/ProfessionalHomePage'), 'ProfessionalHomePage') },
-              { path: 'perfil', ...page(() => import('@/pages/professional/ProfessionalProfilePage'), 'ProfessionalProfilePage') },
+              { path: 'perfil', ...page(() => import('@/pages/professional/ProfessionalProfileHubPage'), 'ProfessionalProfileHubPage') },
+              { path: 'perfil/editar', ...page(() => import('@/pages/professional/ProfessionalProfilePage'), 'ProfessionalProfilePage') },
               {
                 path: 'credenciais',
                 ...page(() => import('@/pages/professional/ProfessionalCredentialsPage'), 'ProfessionalCredentialsPage'),

@@ -62,7 +62,7 @@ describe('ecrã único de entrada', () => {
     type('E-mail', DEMO_PROFESSIONAL_EMAIL)
     type('Palavra-passe', DEMO_PASSWORD)
     submit()
-    expect(await screen.findByRole('heading', { name: 'Estado da validação' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), Dra\. Helena$/ })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/profissional')
   })
 

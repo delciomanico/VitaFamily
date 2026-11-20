@@ -1,9 +1,18 @@
-import { Outlet, useNavigate } from 'react-router-dom'
-import { professionalNavItems } from '@/components/professional/professionalNav'
-import { ProfessionalAuthProvider, useProfessionalAuth } from '@/contexts/ProfessionalAuthContext'
-import { paths } from '@/routes/paths'
-import { PortalMobileHeader } from './PortalMobileHeader'
-import { PortalSidebar, portalMainClass, type PortalNavGroup } from './PortalSidebar'
+import { useEffect, useState } from 'react'
+import { Outlet, useLocation, useMatches } from 'react-router-dom'
+import { BottomNav } from '@/components/app/BottomNav'
+import { ProfessionalAuthProvider } from '@/contexts/ProfessionalAuthContext'
+import { useProfessionalProfile } from '@/hooks/useProfessionalProfile'
+import { cn } from '@/lib/cn'
+import { professionalConversationService } from '@/services/professionalConversation.service'
+
+/** Opções de uma rota do portal (`handle` no router): ecrãs de passo a passo e conversa escondem a barra inferior. */
+export interface ProfessionalRouteHandle {
+  /** Sem barra inferior (passo a passo, conversa em ecrã inteiro). */
+  hideNav?: boolean
+  /** Sem margens: o ecrã gere o seu próprio espaço (conversa). */
+  bare?: boolean
+}
 
 /**
  * Raiz de `/profissional/*` (ADR-037): monta a sessão de `ProfessionalAccount` **só** nesta árvore de rotas,
@@ -17,38 +26,48 @@ export function ProfessionalPortalRoot() {
   )
 }
 
-/** Portal do profissional: barra lateral (desktop) e menu (telemóvel) com a mesma navegação dos outros portais. */
-export function ProfessionalShell() {
-  const { session, logout } = useProfessionalAuth()
-  const navigate = useNavigate()
-  const groups: PortalNavGroup[] = [{ items: professionalNavItems }]
+/** Mensagens por ler, relidas a cada mudança de ecrã (o contador da barra inferior nunca fica desatualizado). */
+function useUnreadMessages(): number {
+  const { pathname } = useLocation()
+  const [unread, setUnread] = useState(0)
+  useEffect(() => {
+    let active = true
+    professionalConversationService.list('OPEN').then(
+      (page) => active && setUnread(page.items.reduce((sum, row) => sum + row.unreadCount, 0)),
+      () => undefined,
+    )
+    return () => {
+      active = false
+    }
+  }, [pathname])
+  return unread
+}
 
-  async function signOut() {
-    await logout()
-    navigate(paths.professionalLogin, { replace: true })
-  }
+/**
+ * Portal do profissional como app móvel: uma coluna centrada de largura de telemóvel (também em ecrã largo),
+ * barra inferior fixa com 4 separadores e conteúdo por ecrã. A família nunca partilha esta árvore.
+ */
+export function ProfessionalShell() {
+  const { profile } = useProfessionalProfile()
+  const unread = useUnreadMessages()
+  const handle = (useMatches().at(-1)?.handle ?? {}) as ProfessionalRouteHandle
+  const name = profile?.displayName ?? profile?.email ?? 'Profissional'
 
   return (
-    <div className="min-h-dvh">
-      <PortalSidebar
-        ariaLabel="Portal do profissional"
-        title="Portal do profissional"
-        subtitle="Vita Family"
-        email={session?.email}
-        groups={groups}
-        onSignOut={() => void signOut()}
-      />
-      <PortalMobileHeader
-        ariaLabel="Portal do profissional"
-        title="Portal do profissional"
-        subtitle="Vita Family"
-        email={session?.email}
-        groups={groups}
-        onSignOut={() => void signOut()}
-      />
-      <main id="conteudo" className={portalMainClass}>
-        <Outlet />
-      </main>
+    <div className="app-mobile min-h-dvh bg-surface-muted">
+      <div className="mx-auto flex min-h-dvh w-full max-w-[34rem] flex-col bg-background sm:shadow-overlay">
+        <main
+          id="conteudo"
+          className={cn(
+            'flex flex-1 flex-col',
+            !handle.bare && 'gap-5 px-5 pt-[max(1.25rem,env(safe-area-inset-top))]',
+            !handle.bare && (handle.hideNav ? 'pb-0' : 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]'),
+          )}
+        >
+          <Outlet />
+        </main>
+      </div>
+      {!handle.hideNav && <BottomNav professionalId={profile?.id} name={name} unread={unread} />}
     </div>
   )
 }

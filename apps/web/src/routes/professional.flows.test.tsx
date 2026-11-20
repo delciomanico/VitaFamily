@@ -50,9 +50,12 @@ describe('portal do profissional', () => {
     type(/E-mail/, DEMO_PROFESSIONAL_EMAIL)
     type('Palavra-passe', DEMO_PASSWORD)
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
-    expect(await screen.findByRole('heading', { name: 'Estado da validação' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), Dra\. Helena$/ })).toBeInTheDocument()
     expect(await screen.findByText('A preencher')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Submeter para validação/ })).toBeDisabled()
+    // Um só próximo passo, com um só botão principal: primeiro o perfil.
+    expect(screen.getByRole('heading', { name: 'O que falta fazer' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Completar o perfil' })).toHaveAttribute('href', '/profissional/perfil/editar')
+    expect(screen.queryByRole('button', { name: /Enviar para validação/ })).not.toBeInTheDocument()
   })
 
   it('suspenso entra em só leitura nos serviços', async () => {
@@ -65,7 +68,7 @@ describe('portal do profissional', () => {
 
   it('aprovado tem o nome de apresentação bloqueado no perfil', async () => {
     window.sessionStorage.setItem('vf.professional.session.accountId', 'pro_aprovada')
-    renderAt('/profissional/perfil')
+    renderAt('/profissional/perfil/editar')
     const name = await screen.findByLabelText(/Nome de apresentação/)
     expect(name).toBeDisabled()
   })

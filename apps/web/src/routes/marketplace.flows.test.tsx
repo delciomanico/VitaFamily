@@ -165,6 +165,7 @@ describe('mercado de profissionais (família)', () => {
   it('profissional aprovada (Marta Lopes) vê a família como «Monarca» e responde na conversa', async () => {
     const router = await loginProfessional('marta.lopes@exemplo.ao', paths.professionalConversations)
     expect(router.state.location.pathname).toBe(paths.professionalConversations)
+    await screen.findByRole('heading', { name: 'Conversas' })
     fireEvent.click(await screen.findByRole('link', { name: /Monarca/ }))
 
     await waitFor(() => expect(router.state.location.pathname).toBe(paths.professionalConversation('cnv_seed_4')))
@@ -178,6 +179,7 @@ describe('mercado de profissionais (família)', () => {
 
   it('profissional suspenso (Rui Tavares) lê a conversa e não tem campo de escrita', async () => {
     const router = await loginProfessional('rui.tavares@exemplo.ao', paths.professionalConversations)
+    await screen.findByRole('heading', { name: 'Conversas' })
     fireEvent.click(await screen.findByRole('link', { name: /Monarca/ }))
 
     await waitFor(() => expect(router.state.location.pathname).toBe(paths.professionalConversation('cnv_seed_3')))
