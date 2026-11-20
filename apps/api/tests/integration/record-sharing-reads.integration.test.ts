@@ -134,7 +134,7 @@ describe("integração: leituras mínimas partilhadas (MK4, TC-MKT-124, BR-MKT-6
     });
     const access = createAccessModule({ db, audit, families, clock });
     healthRecords = createHealthRecordsModule({ db, audit, access, families, clock });
-    medications = createMedicationsModule({ db, audit, access, clock });
+    medications = createMedicationsModule({ db, audit, access, clock, prescriptionOrigin: { isContentReadOnly: () => Promise.resolve(false) } });
     appointments = createAppointmentsModule({
       db,
       walkInRateLimiter: UNUSED,

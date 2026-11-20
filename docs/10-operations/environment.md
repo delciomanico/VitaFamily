@@ -30,6 +30,7 @@ Regra: **dados reais só em produção** (NFR-OPS-04). Ferramentas de suporte/de
 | Limites | `UPLOAD_MAX_BYTES=10485760`, `FAMILY_STORAGE_QUOTA_BYTES=104857600` |
 | Portal da clínica (M14 P) | `CLINIC_LINK_CODE_SECRET` (segredo do HMAC dos códigos de ligação, BR-CLN-20; distinto por ambiente; rodá-lo invalida os códigos ativos, que duram só 10 min) |
 | Rede / proxies | `TRUST_PROXY` (default `1`): nº de saltos de proxy confiáveis (inteiro ≥ 0) **ou** lista de IP/CIDR separada por vírgulas; qualquer outro valor (ex. `true`) falha no arranque. Determina `req.ip` (rate limits e auditoria). **Produção: `2`** (Traefik → nginx do `web` → `api`, ADR-017/019); `3` se houver CDN à frente. Ver `deployment.md` §4. |
+| Receita digital (MK4, BR-MKT-79) | `DIGITAL_PRESCRIPTION_ENABLED` (`false` por omissão; lida no arranque, reiniciar a API para mudar; **nunca ligar sem o parecer jurídico**, OP-61/OP-125) |
 | Observabilidade | `METRICS_ENABLED`, `SENTRY_DSN` (opcional; com redação de dados) |
 
 ## 3. Segredos

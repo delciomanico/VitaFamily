@@ -36,6 +36,8 @@ export function toPrescriptionResponse(prescription: PrescriptionView) {
     // BR-RX-07/D18: `issuedBy`/`appointmentId` (origem da receita emitida pelo portal da clínica).
     issuedBy: prescription.issuedBy,
     appointmentId: prescription.appointmentId ?? null,
+    // MK4 (BR-MKT-81): marcação de origem, só nas receitas `PROFESSIONAL`; propriedade opcional. `issuedByProfessionalId` NUNCA sai.
+    ...(prescription.bookingId ? { bookingId: prescription.bookingId } : {}),
     medications: prescription.medications.map(toEmbeddedMedicationPlan),
     documentIds: prescription.documentIds,
   };

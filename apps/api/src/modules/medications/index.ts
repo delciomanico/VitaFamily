@@ -21,7 +21,7 @@ import type { AccessModule } from "../access/index.js";
 import type { AuditModule } from "../audit/index.js";
 import type { DoseOccurrence } from "./domain/dose-occurrence.js";
 import { createCorrectDoseUseCase } from "./application/correct-dose.js";
-import { createCreatePlanUseCase, createPlanForClinicWithTrx, createPlanWithTrx } from "./application/create-plan.js";
+import { createCreatePlanUseCase, createPlanForClinicWithTrx, createPlanForProfessionalWithTrx, createPlanWithTrx } from "./application/create-plan.js";
 import { createDeletePlanUseCase } from "./application/delete-plan.js";
 import { createEndPlansForPrescriptionUseCase, createListPlansForPrescriptionUseCase } from "./application/for-prescription.js";
 import { createGenerateDosesJobUseCase } from "./application/generate-doses-job.js";
@@ -32,7 +32,7 @@ import { createMarkDoseNotTakenUseCase } from "./application/mark-dose-not-taken
 import { createMarkDoseTakenUseCase } from "./application/mark-dose-taken.js";
 import { createMarkUnconfirmedJobUseCase } from "./application/mark-unconfirmed-job.js";
 import { createMedicationAdherenceUseCase } from "./application/medication-adherence.js";
-import type { MedicationsDeps, MedicationsWorkerDeps } from "./application/ports.js";
+import type { MedicationsDeps, MedicationsWorkerDeps, PrescriptionOrigin } from "./application/ports.js";
 import { createSetPlanStatusUseCase } from "./application/set-plan-status.js";
 import { createUpdatePlanUseCase } from "./application/update-plan.js";
 import { KyselyDoseOccurrencesRepository, KyselyMedicationPlansRepository } from "./infrastructure/repo.js";
@@ -49,6 +49,8 @@ export interface MedicationsModuleDeps {
   audit: AuditModule;
   access: AccessModule;
   clock: Clock;
+  /** Origem da receita de um plano (OP-127): ligada em `main/` a `prescriptions` (ligação tardia; `prescriptions` depende de `medications`). */
+  prescriptionOrigin: PrescriptionOrigin<Kysely<Database>>;
 }
 
 export interface MedicationsModule {
@@ -67,12 +69,15 @@ export interface MedicationsModule {
   /** Portal da clínica (D18, BR-CLN-06/BR-RX-07): nunca chama `AccessPolicy` (ator `ClinicAccount`,
    * ver `application/create-plan.js#createPlanForClinicWithTrx`). */
   createPlanForClinic: ReturnType<typeof createPlanForClinicWithTrx<Kysely<Database>>>;
+  /** Receita digital do profissional (MK4): chamada só por `prescriptions` (pela raiz), na transação da emissão; sem `AccessPolicy`. */
+  createPlanForProfessional: ReturnType<typeof createPlanForProfessionalWithTrx<Kysely<Database>>>;
   listPlansForPrescription: ReturnType<typeof createListPlansForPrescriptionUseCase<Kysely<Database>>>;
   endPlansForPrescription: ReturnType<typeof createEndPlansForPrescriptionUseCase<Kysely<Database>>>;
 }
 
 function buildDeps(deps: MedicationsModuleDeps): MedicationsDeps<Kysely<Database>> {
   return {
+    prescriptionOrigin: deps.prescriptionOrigin,
     plansRepo: new KyselyMedicationPlansRepository(),
     dosesRepo: new KyselyDoseOccurrencesRepository(),
     policy: deps.access.policy,
@@ -115,6 +120,7 @@ export function createMedicationsModule(deps: MedicationsModuleDeps): Medication
       return page.items.map((plan) => ({ name: plan.name, dosage: plan.dosage, startAt: plan.startAt, endAt: plan.endAt ?? null, continuous: plan.continuous }));
     },
     createPlanForClinic: createPlanForClinicWithTrx(medicationsDeps),
+    createPlanForProfessional: createPlanForProfessionalWithTrx(medicationsDeps),
     listPlansForPrescription: createListPlansForPrescriptionUseCase(medicationsDeps),
     endPlansForPrescription: createEndPlansForPrescriptionUseCase(medicationsDeps),
   };
@@ -138,7 +144,14 @@ export interface MedicationsWorkerModule {
 
 /** Composition root do processo "worker" (main/worker.ts). */
 export function createMedicationsWorkerModule(deps: MedicationsWorkerModuleDeps): MedicationsWorkerModule {
-  const medicationsDeps: MedicationsWorkerDeps<Kysely<Database>> = buildDeps({ db: deps.db, audit: deps.audit, access: deps.access, clock: deps.clock });
+  const medicationsDeps: MedicationsWorkerDeps<Kysely<Database>> = buildDeps({
+    db: deps.db,
+    audit: deps.audit,
+    access: deps.access,
+    clock: deps.clock,
+    // O worker (jobs de sistema) nunca decide sobre conteúdo de receitas: `MedicationsWorkerDeps` não inclui esta porta.
+    prescriptionOrigin: { isContentReadOnly: () => Promise.reject(new Error("prescriptionOrigin não é usada no worker")) },
+  });
   const generateDosesJob = createGenerateDosesJobUseCase(medicationsDeps);
   const markUnconfirmedJob = createMarkUnconfirmedJobUseCase(medicationsDeps);
 

@@ -19,6 +19,7 @@ import { createFamilyBookings } from "./application/family-bookings.js";
 import { createFamilyProofs, createProfessionalProofs, createProofJobs } from "./application/proofs.js";
 import { createReviews } from "./application/reviews.js";
 import { createProfessionalBookings } from "./application/professional-bookings.js";
+import { createProfessionalPrescriptions } from "./application/professional-prescriptions.js";
 import type {
   BookingAccess,
   BookingAlerts,
@@ -29,6 +30,7 @@ import type {
   ConversationLookup,
   FamilyAppointmentWriter,
   ProcessLinker,
+  PrescriptionIssuer,
   ProfessionalAgenda,
   ProofScanQueue,
   ProofScanner,
@@ -44,6 +46,7 @@ import { createAdminDisputesRouter } from "./interface/admin-router.js";
 import { createFamilyBookingsRouter } from "./interface/family-router.js";
 import { createReviewsRouters } from "./interface/reviews-router.js";
 import { createProfessionalBookingsRouter } from "./interface/professional-router.js";
+import { createProfessionalPrescriptionsRouter } from "./interface/professional-prescriptions-router.js";
 import { createFamilyProofsRouter, createProfessionalProofsRouter } from "./interface/proofs-router.js";
 
 export * from "./domain/index.js";
@@ -76,6 +79,12 @@ export interface ConsultationsModuleDeps {
   /** Armazenamento de objetos (MinIO; `InMemoryStorage` nos testes): só pela porta `ProofFileStore`. */
   storage: Storage;
   scanQueue: ProofScanQueue;
+  /** `DIGITAL_PRESCRIPTION_ENABLED` (`platform/config`, lida no arranque; desligada por omissão): sem ela as rotas da receita nem se montam (BR-MKT-79). */
+  digitalPrescriptionEnabled: boolean;
+  /** Receita digital (MK4): porta implementada por `prescriptions` em `main/api.ts`. */
+  prescriptions: PrescriptionIssuer<Trx>;
+  /** Porta assíncrona (ADR-038), namespace `record-sharing` (BR-MKT-77): emitir 20/dia, ler 60/min por conta de profissional. */
+  prescriptionRateLimiter: RateLimiter;
 }
 
 export interface ConsultationsModule {
@@ -116,6 +125,9 @@ export function createConsultationsModule(deps: ConsultationsModuleDeps): Consul
     reviews: new KyselyReviewRepository(),
     fileStore: new StorageProofFileStore(deps.storage),
     scanQueue: deps.scanQueue,
+    digitalPrescriptionEnabled: deps.digitalPrescriptionEnabled,
+    prescriptions: deps.prescriptions,
+    prescriptionRateLimiter: deps.prescriptionRateLimiter,
   };
   const reviews = createReviews(consultationsDeps);
   const reviewRouters = createReviewsRouters(reviews);
@@ -127,6 +139,8 @@ export function createConsultationsModule(deps: ConsultationsModuleDeps): Consul
   professionalRouter.use(reviewRouters.professionalRouter);
   professionalRouter.use(createProfessionalBookingsRouter(createProfessionalBookings(consultationsDeps)));
   professionalRouter.use(createProfessionalProofsRouter(createProfessionalProofs(consultationsDeps)));
+  // BR-MKT-79: com a flag desligada as rotas da receita não existem (404 geral, indistinguível de rota inexistente).
+  if (deps.digitalPrescriptionEnabled) professionalRouter.use(createProfessionalPrescriptionsRouter(createProfessionalPrescriptions(consultationsDeps)));
   const adminRouter = Router();
   adminRouter.use(createAdminDisputesRouter(createAdminDisputes(consultationsDeps)));
   adminRouter.use(reviewRouters.adminRouter);

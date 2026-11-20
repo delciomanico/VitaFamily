@@ -330,7 +330,62 @@ export interface ProfessionalMailer {
   sendNotice(to: string): Promise<void>;
 }
 
+/** Medicamento de uma receita digital (texto livre, forma de `MedicationPlanInput`; sem catálogo, BR-HLT-03). Nunca em logs, erros nem auditoria. */
+export interface PrescriptionMedicationInput {
+  name: string;
+  dosage: string;
+  scheduleType: "FIXED_TIMES" | "INTERVAL";
+  times?: string[] | null;
+  daysOfWeek?: number[] | null;
+  intervalHours?: number | null;
+  startAt: string;
+  endAt?: string | null;
+  continuous?: boolean | null;
+  notes?: string | null;
+}
+
+/** O que o profissional escreveu (sem ids de registo). */
+export interface IssuedPrescription {
+  issuedOn: string;
+  notes: string | null;
+  medications: PrescriptionMedicationInput[];
+  createdAt: Date;
+}
+
+/**
+ * Receita digital (MK4, BR-MKT-79..81; modules.md nota 38(d)): `consultations` NÃO importa `prescriptions`; esta porta é implementada por
+ * `prescriptions` (pela raiz) em `main/api.ts`. Recebe a transação da emissão, já sob bloqueio da marcação.
+ */
+export interface PrescriptionIssuer<Trx> {
+  /** Cria a `Prescription` (`issuedBy=PROFESSIONAL`) e os planos de toma do membro, com a auditoria `PRESCRIPTION_ISSUED_BY_PROFESSIONAL`. */
+  issue(
+    trx: Trx,
+    input: {
+      familyId: string;
+      memberId: string;
+      bookingId: string;
+      professionalId: string;
+      professionalAccountId: string;
+      professionalName: string;
+      issuedOn: string;
+      notes: string | null;
+      medications: PrescriptionMedicationInput[];
+    },
+    context: RequestContext,
+  ): Promise<{ prescriptionId: string }>;
+  /** A receita desta marcação emitida por este profissional; `null` se não existe ou a família a apagou. */
+  findIssued(trx: Trx, bookingId: string, professionalId: string): Promise<IssuedPrescription | null>;
+  /** `bookingId → prescriptionId` em lote (existência da receita). */
+  findPrescriptionIds(trx: Trx, bookingIds: string[]): Promise<Map<string, string>>;
+}
+
 export interface ConsultationsDeps<Trx> {
+  /** `DIGITAL_PRESCRIPTION_ENABLED`, lida no arranque (BR-MKT-79); desligada por omissão. */
+  digitalPrescriptionEnabled: boolean;
+  /** Receita digital (MK4). */
+  prescriptions: PrescriptionIssuer<Trx>;
+  /** Porta assíncrona (ADR-038), namespace `record-sharing` (BR-MKT-77: emitir 20/dia e ler 60/min por conta de profissional). */
+  prescriptionRateLimiter: RateLimiter;
   withTransaction: WithTransaction<Trx>;
   clock: ConsultationsClock;
   /** Porta assíncrona (ADR-038), namespace `consultations`; injetada pela composição. */

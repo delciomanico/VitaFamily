@@ -157,7 +157,14 @@ export interface DoseOccurrencesRepository<Trx> {
   adherenceByMember(trx: Trx, familyId: string, memberId: string, from: Date, to: Date): Promise<AdherenceItem[]>;
 }
 
+/** Origem da receita de um plano (OP-127/BR-MKT-81): implementada por `prescriptions`, ligada em `main/` (ligação tardia). */
+export interface PrescriptionOrigin<Trx> {
+  /** `true` se o plano pertence a uma receita cujo conteúdo é só leitura para a família (`issuedBy=PROFESSIONAL`). */
+  isContentReadOnly(trx: Trx, familyId: string, memberId: string, prescriptionId: string): Promise<boolean>;
+}
+
 export interface MedicationsDeps<Trx> {
+  prescriptionOrigin: PrescriptionOrigin<Trx>;
   plansRepo: MedicationPlansRepository<Trx>;
   dosesRepo: DoseOccurrencesRepository<Trx>;
   policy: AccessPolicyPort<Trx>;

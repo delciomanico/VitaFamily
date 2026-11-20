@@ -1,7 +1,7 @@
 // openapi.yaml `updatePrescription`: "Autorização: WRITE(MEDICATION)."
 import { auditContextFields } from "../../audit/index.js";
 import { NotFoundError, ValidationError } from "../../../platform/errors/index.js";
-import { assertValidIssuedOn } from "../domain/prescription.js";
+import { assertContentWritable, assertValidIssuedOn } from "../domain/prescription.js";
 import { buildPrescriptionView, type PrescriptionView } from "./prescription-view.js";
 import type { ActorIdentity, PrescriptionChanges, PrescriptionsDeps, RequestContext } from "./ports.js";
 
@@ -45,6 +45,8 @@ export function createUpdatePrescriptionUseCase<Trx>(deps: PrescriptionsDeps<Trx
       if (!existing) {
         throw new NotFoundError({ detail: "Receita não encontrada." });
       }
+      // OP-127/BR-MKT-81: o conteúdo da receita do profissional é só leitura para a família (409, sem efeito).
+      assertContentWritable(existing);
 
       const changes: PrescriptionChanges = {
         ...(issuedOn !== undefined ? { issuedOn } : {}),

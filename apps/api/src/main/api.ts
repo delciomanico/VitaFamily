@@ -28,7 +28,7 @@ import { createAccessModule } from "../modules/access/index.js";
 import { createHealthRecordsModule } from "../modules/health-records/index.js";
 import { ClamAvScanner, createDocumentsModule, type DocumentsModule } from "../modules/documents/index.js";
 import { createMedicationsModule } from "../modules/medications/index.js";
-import { createPrescriptionsModule } from "../modules/prescriptions/index.js";
+import { createPrescriptionsModule, type PrescriptionsModule } from "../modules/prescriptions/index.js";
 import { ClinicSmtpMailer, createClinicsModule, parseClinicSigningKeys } from "../modules/clinics/index.js";
 import { createAppointmentsModule, type AppointmentsModule } from "../modules/appointments/index.js";
 import { createExaminationsModule, type ExaminationsModule } from "../modules/examinations/index.js";
@@ -117,7 +117,7 @@ export function main(): void {
   // da criação do User.
   // `families` precisa de `documents` (ficheiros) e `lifecycle` (pacote de dados), que dependem dele:
   // a porta `memberData` resolve-os tardiamente (atribuídos mais abaixo, antes de o servidor ouvir).
-  const late: { documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule; clinicReports?: ClinicReportsModule; processes?: ProcessesModule; alerts?: AlertsModule; consultations?: ConsultationsModule } = {};
+  const late: { prescriptions?: PrescriptionsModule; documents?: DocumentsModule; lifecycle?: LifecycleModule; examinations?: ExaminationsModule; appointments?: AppointmentsModule; clinicPatients?: ClinicPatientsModule; clinicReceipts?: ClinicReceiptsModule; clinicReports?: ClinicReportsModule; processes?: ProcessesModule; alerts?: AlertsModule; consultations?: ConsultationsModule } = {};
   const required = <T>(module: T | undefined, name: string): T => {
     if (!module) throw new Error(`${name} ainda não inicializado`);
     return module;
@@ -194,8 +194,16 @@ export function main(): void {
 
   // M6 (plan.md §4): `medications` antes de `prescriptions` — `prescriptions` depende de
   // `medications` pela raiz (modules.md §3.6), nunca o inverso.
-  const medications = createMedicationsModule({ db, audit, access, clock });
+  // OP-127: `medications` consulta a origem da receita de um plano por uma porta, com ligação tardia (`prescriptions` depende de `medications`).
+  const medications = createMedicationsModule({
+    db,
+    audit,
+    access,
+    clock,
+    prescriptionOrigin: { isContentReadOnly: (trx, familyId, memberId, prescriptionId) => required(late.prescriptions, "prescriptions").isContentReadOnly(trx, familyId, memberId, prescriptionId) },
+  });
   const prescriptions = createPrescriptionsModule({ db, audit, access, medications, documents, clock });
+  late.prescriptions = prescriptions;
 
   // M7 (plan.md §4): `clinics` antes de `appointments`/`examinations` — ambos dependem de
   // `clinics.getBookableClinic` (ClinicLookup, modules.md §2), nunca o inverso.
@@ -478,6 +486,18 @@ export function main(): void {
     notices: new PgBossProfessionalNotices(boss),
     storage,
     scanQueue: new PgBossProofScanQueue(boss),
+    // MK4 (BR-MKT-79..81): receita digital — flag lida no arranque; `prescriptions` implementa a porta `PrescriptionIssuer` (sem aresta entre módulos).
+    digitalPrescriptionEnabled: config.DIGITAL_PRESCRIPTION_ENABLED,
+    prescriptionRateLimiter: rateLimiting.createRateLimiter("record-sharing"),
+    prescriptions: {
+      issue: async (trx, input, context) =>
+        prescriptions.issuePrescriptionForProfessional(trx, { ...input, medications: input.medications.map((m) => ({ ...m })) }, context),
+      findIssued: async (trx, bookingId, professionalId) => {
+        const found = await prescriptions.getProfessionalPrescription(trx, bookingId, professionalId);
+        return found ? { issuedOn: found.issuedOn, notes: found.notes, medications: found.medications, createdAt: found.createdAt } : null;
+      },
+      findPrescriptionIds: (trx, bookingIds) => prescriptions.findPrescriptionIdsByBookings(trx, bookingIds),
+    },
   });
   late.consultations = consultations;
 

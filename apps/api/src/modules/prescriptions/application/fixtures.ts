@@ -125,6 +125,21 @@ export class FakeMedicationsPort implements MedicationsPort<FakeTrx> {
     return Promise.resolve(plan);
   }
 
+  readonly createForProfessionalCalls: { professionalAccountId: string; familyId: string; memberId: string; input: CreateMedicationPlanInput; options?: CreateMedicationPlanOptions }[] = [];
+
+  async createPlanForProfessional(
+    trx: FakeTrx,
+    professionalAccountId: string,
+    familyId: string,
+    memberId: string,
+    input: CreateMedicationPlanInput,
+    context: RequestContext,
+    options?: CreateMedicationPlanOptions,
+  ): Promise<MedicationPlan> {
+    this.createForProfessionalCalls.push({ professionalAccountId, familyId, memberId, input, ...(options ? { options } : {}) });
+    return this.createPlanForClinic(trx, "professional", familyId, memberId, input, context, options);
+  }
+
   async listPlansForPrescription(_trx: FakeTrx, familyId: string, memberId: string, prescriptionId: string): Promise<MedicationPlan[]> {
     return Promise.resolve([...this.plans.values()].filter((plan) => plan.familyId === familyId && plan.memberId === memberId && plan.prescriptionId === prescriptionId));
   }
@@ -193,6 +208,8 @@ export class FakePrescriptionsRepository implements PrescriptionsRepository<Fake
       ...(record.notes !== undefined ? { notes: record.notes } : {}),
       ...(record.issuedByClinicAccountId !== undefined ? { issuedByClinicAccountId: record.issuedByClinicAccountId } : {}),
       ...(record.appointmentId !== undefined ? { appointmentId: record.appointmentId } : {}),
+      ...(record.issuedByProfessionalId !== undefined ? { issuedByProfessionalId: record.issuedByProfessionalId } : {}),
+      ...(record.bookingId !== undefined ? { bookingId: record.bookingId } : {}),
     };
     this.byId.set(prescription.id, prescription);
     return Promise.resolve(prescription);
@@ -201,6 +218,15 @@ export class FakePrescriptionsRepository implements PrescriptionsRepository<Fake
   async findById(_trx: FakeTrx, familyId: string, memberId: string, prescriptionId: string): Promise<Prescription | null> {
     const prescription = this.byId.get(prescriptionId);
     return Promise.resolve(prescription?.familyId === familyId && prescription.memberId === memberId ? prescription : null);
+  }
+
+  async findByBooking(_trx: FakeTrx, bookingId: string): Promise<Prescription | null> {
+    return Promise.resolve([...this.byId.values()].find((prescription) => prescription.bookingId === bookingId) ?? null);
+  }
+
+  async findIdsByBookings(_trx: FakeTrx, bookingIds: string[]): Promise<Map<string, string>> {
+    const found = [...this.byId.values()].flatMap((prescription) => (prescription.bookingId && bookingIds.includes(prescription.bookingId) ? [[prescription.bookingId, prescription.id] as const] : []));
+    return Promise.resolve(new Map(found));
   }
 
   async listByMember(_trx: FakeTrx, familyId: string, memberId: string, filter: PrescriptionListFilter, limit: number, cursor?: string): Promise<CursorPage<Prescription>> {

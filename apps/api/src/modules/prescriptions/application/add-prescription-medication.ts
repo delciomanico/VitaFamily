@@ -2,6 +2,7 @@
 // medicamento (plano) a uma receita existente — chama `medications.createPlan` (modules.md §3.6).
 import type { CreateMedicationPlanInput, MedicationPlan } from "../../medications/index.js";
 import { NotFoundError } from "../../../platform/errors/index.js";
+import { assertContentWritable } from "../domain/prescription.js";
 import type { ActorIdentity, PrescriptionsDeps, RequestContext } from "./ports.js";
 
 export function createAddPrescriptionMedicationUseCase<Trx>(deps: PrescriptionsDeps<Trx>) {
@@ -30,6 +31,8 @@ export function createAddPrescriptionMedicationUseCase<Trx>(deps: PrescriptionsD
       if (!prescription) {
         throw new NotFoundError({ detail: "Receita não encontrada." });
       }
+      // OP-127/BR-MKT-81: não se acrescentam medicamentos a uma receita do profissional (409, sem efeito).
+      assertContentWritable(prescription);
 
       return deps.medications.createPlan(trx, actor, familyId, memberId, input, context, { prescriptionId });
     });

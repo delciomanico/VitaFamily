@@ -45,6 +45,16 @@ export interface MedicationsPort<Trx> {
     context: RequestContext,
     options?: CreateMedicationPlanOptions,
   ): Promise<MedicationPlan>;
+  /** Receita digital do profissional (MK4, BR-MKT-80) — `medications.createPlanForProfessional`, nunca chama `AccessPolicy`. */
+  createPlanForProfessional(
+    trx: Trx,
+    professionalAccountId: string,
+    familyId: string,
+    memberId: string,
+    input: CreateMedicationPlanInput,
+    context: RequestContext,
+    options?: CreateMedicationPlanOptions,
+  ): Promise<MedicationPlan>;
   listPlansForPrescription(trx: Trx, familyId: string, memberId: string, prescriptionId: string): Promise<MedicationPlan[]>;
   endPlansForPrescription(trx: Trx, familyId: string, memberId: string, prescriptionId: string, endedAt: Date): Promise<void>;
 }
@@ -82,6 +92,9 @@ export interface NewPrescriptionRecord {
   issuedBy?: PrescriptionIssuer;
   issuedByClinicAccountId?: string;
   appointmentId?: string;
+  /** MK4: só `PROFESSIONAL` (via `issuePrescriptionForProfessional`). */
+  issuedByProfessionalId?: string;
+  bookingId?: string;
 }
 
 export interface PrescriptionChanges {
@@ -102,6 +115,10 @@ export interface CursorPage<T> {
 /** `prescriptions` (schema.md §3) — propriedade exclusiva deste módulo (conventions.md §3.5). */
 export interface PrescriptionsRepository<Trx> {
   insert(trx: Trx, record: NewPrescriptionRecord): Promise<Prescription>;
+  /** MK4: receita digital de uma marcação (única por marcação; índice parcial). */
+  findByBooking(trx: Trx, bookingId: string): Promise<Prescription | null>;
+  /** MK4: `bookingId → prescriptionId` em lote. */
+  findIdsByBookings(trx: Trx, bookingIds: string[]): Promise<Map<string, string>>;
   findById(trx: Trx, familyId: string, memberId: string, prescriptionId: string): Promise<Prescription | null>;
   listByMember(trx: Trx, familyId: string, memberId: string, filter: PrescriptionListFilter, limit: number, cursor?: string): Promise<CursorPage<Prescription>>;
   update(trx: Trx, familyId: string, memberId: string, prescriptionId: string, changes: PrescriptionChanges): Promise<Prescription>;

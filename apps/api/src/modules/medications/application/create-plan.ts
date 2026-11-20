@@ -156,6 +156,42 @@ export function createPlanForClinicWithTrx<Trx>(deps: MedicationsDeps<Trx>) {
   };
 }
 
+/**
+ * Variante para a receita digital do profissional (MK4, BR-MKT-80): chamada só por `prescriptions.issuePrescriptionForProfessional`
+ * (pela raiz, na transação da emissão), depois de `consultations` ter validado a marcação, o profissional e a elegibilidade. **Nunca chama
+ * `AccessPolicy`** (o ator é uma `ProfessionalAccount`, sem `FamilyMember`). A auditoria não leva nomes nem dosagens.
+ */
+export function createPlanForProfessionalWithTrx<Trx>(deps: MedicationsDeps<Trx>) {
+  return async function createPlanForProfessional(
+    trx: Trx,
+    professionalAccountId: string,
+    familyId: string,
+    memberId: string,
+    input: CreateMedicationPlanInput,
+    context: RequestContext,
+    options: CreateMedicationPlanOptions = {},
+  ): Promise<MedicationPlan> {
+    const now = deps.clock.now();
+    const plan = await insertPlanAndGenerate(deps, trx, familyId, memberId, input, options, now);
+
+    await deps.audit.record(trx, {
+      occurredAt: now,
+      actorType: "PROFESSIONAL_ACCOUNT",
+      actorProfessionalAccountId: professionalAccountId,
+      action: "PLAN_CREATE",
+      resourceType: "MedicationPlan",
+      resourceId: plan.id,
+      familyId,
+      subjectMemberId: memberId,
+      result: "SUCCESS",
+      requestId: context.requestId,
+      ...auditContextFields(context),
+    });
+
+    return plan;
+  };
+}
+
 export function createCreatePlanUseCase<Trx>(deps: MedicationsDeps<Trx>) {
   const createPlan = createPlanWithTrx(deps);
   return async function createPlanUseCase(

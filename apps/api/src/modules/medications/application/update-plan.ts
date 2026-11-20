@@ -6,7 +6,7 @@ import { auditContextFields } from "../../audit/index.js";
 import { assertValidSchedule, type MedicationPlan } from "../domain/medication-plan.js";
 import { regeneratePlanOccurrences } from "./generation.js";
 import type { ActorIdentity, MedicationPlanChanges, MedicationsDeps, RequestContext } from "./ports.js";
-import { NotFoundError } from "../../../platform/errors/index.js";
+import { ConflictError, NotFoundError } from "../../../platform/errors/index.js";
 
 export interface UpdateMedicationPlanInput {
   name?: string;
@@ -42,6 +42,13 @@ export function createUpdatePlanUseCase<Trx>(deps: MedicationsDeps<Trx>) {
       const existing = await deps.plansRepo.findById(trx, familyId, memberId, planId);
       if (!existing) {
         throw new NotFoundError({ detail: "Plano não encontrado." });
+      }
+
+      // OP-127/BR-MKT-81: num plano de receita do profissional só se ajustam os horários (scheduleType, times, daysOfWeek, intervalHours);
+      // qualquer campo de conteúdo recusa o pedido inteiro, sem efeito.
+      const touchesContent = input.name !== undefined || input.dosage !== undefined || input.notes !== undefined || input.endAt !== undefined || input.continuous !== undefined;
+      if (touchesContent && existing.prescriptionId && (await deps.prescriptionOrigin.isContentReadOnly(trx, familyId, memberId, existing.prescriptionId))) {
+        throw new ConflictError({ detail: "O conteúdo desta receita só pode ser lido." });
       }
 
       const scheduleType = input.scheduleType ?? existing.scheduleType;

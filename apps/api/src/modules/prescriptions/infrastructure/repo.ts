@@ -18,6 +18,8 @@ interface PrescriptionRow {
   issued_by: PrescriptionIssuer;
   issued_by_clinic_account_id: string | null;
   appointment_id: string | null;
+  issued_by_professional_id: string | null;
+  booking_id: string | null;
   created_at: Date;
 }
 
@@ -35,6 +37,8 @@ function toPrescription(row: PrescriptionRow): Prescription {
   if (row.notes !== null) prescription.notes = row.notes;
   if (row.issued_by_clinic_account_id !== null) prescription.issuedByClinicAccountId = row.issued_by_clinic_account_id;
   if (row.appointment_id !== null) prescription.appointmentId = row.appointment_id;
+  if (row.issued_by_professional_id !== null) prescription.issuedByProfessionalId = row.issued_by_professional_id;
+  if (row.booking_id !== null) prescription.bookingId = row.booking_id;
   return prescription;
 }
 
@@ -49,6 +53,8 @@ const PRESCRIPTION_COLUMNS = [
   "issued_by",
   "issued_by_clinic_account_id",
   "appointment_id",
+  "issued_by_professional_id",
+  "booking_id",
   "created_at",
 ] as const;
 
@@ -67,6 +73,8 @@ export class KyselyPrescriptionsRepository implements PrescriptionsRepository<Ky
         issued_by: record.issuedBy ?? "FAMILY",
         issued_by_clinic_account_id: record.issuedByClinicAccountId ?? null,
         appointment_id: record.appointmentId ?? null,
+        issued_by_professional_id: record.issuedByProfessionalId ?? null,
+        booking_id: record.bookingId ?? null,
         created_at: record.createdAt,
       })
       .returning(PRESCRIPTION_COLUMNS)
@@ -83,6 +91,17 @@ export class KyselyPrescriptionsRepository implements PrescriptionsRepository<Ky
       .where("id", "=", prescriptionId)
       .executeTakeFirst();
     return row ? toPrescription(row) : null;
+  }
+
+  async findByBooking(trx: Kysely<Database>, bookingId: string): Promise<Prescription | null> {
+    const row = await trx.selectFrom("prescriptions").select(PRESCRIPTION_COLUMNS).where("booking_id", "=", bookingId).executeTakeFirst();
+    return row ? toPrescription(row) : null;
+  }
+
+  async findIdsByBookings(trx: Kysely<Database>, bookingIds: string[]): Promise<Map<string, string>> {
+    if (bookingIds.length === 0) return new Map();
+    const rows = await trx.selectFrom("prescriptions").select(["id", "booking_id"]).where("booking_id", "in", bookingIds).execute();
+    return new Map(rows.flatMap((row) => (row.booking_id === null ? [] : [[row.booking_id, row.id] as const])));
   }
 
   async listByMember(trx: Kysely<Database>, familyId: string, memberId: string, filter: PrescriptionListFilter, limit: number, cursor?: string): Promise<CursorPage<Prescription>> {

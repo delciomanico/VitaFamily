@@ -30,11 +30,14 @@ export interface FamilyBookingView {
   canSendProof: boolean;
   canReview: boolean;
   hasReview: boolean;
+  /** MK4 (BR-MKT-81): receita digital emitida para esta marcação; só com a receita digital ligada e se existir. */
+  prescriptionId?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface ViewContext {
+  prescriptionId?: string | undefined;
   now: Date;
   professional: { displayName: string; city: string | null } | undefined;
   specialty: { name: string; category: SpecialtyCategory } | undefined;
@@ -75,6 +78,7 @@ export function toFamilyBookingView(b: BookingRecord, c: ViewContext): FamilyBoo
     canSendProof,
     canReview: eligible && !c.hasReview,
     hasReview: c.hasReview,
+    ...(c.prescriptionId ? { prescriptionId: c.prescriptionId } : {}),
     createdAt: b.createdAt.toISOString(),
     updatedAt: b.updatedAt.toISOString(),
   };

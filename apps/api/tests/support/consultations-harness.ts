@@ -14,6 +14,8 @@ import { createRecordSharingMaintenance, createRecordSharingModule, createShared
 import { createDiscoveryModule } from "../../src/modules/discovery/index.js";
 import { createFamiliesModule } from "../../src/modules/families/index.js";
 import { signProfessionalAccessToken } from "../../src/modules/professionals/domain/jwt.js";
+import { createMedicationsModule } from "../../src/modules/medications/index.js";
+import { createPrescriptionsModule, type PrescriptionsModule } from "../../src/modules/prescriptions/index.js";
 import { createMessagingModule } from "../../src/modules/messaging/index.js";
 import { createUsersModule } from "../../src/modules/users/index.js";
 import type { FixedClock } from "../../src/platform/clock/index.js";
@@ -122,7 +124,7 @@ export interface ConsultationsHarness {
 }
 
 /** Arranca PostgreSQL + app real com o módulo `consultations` ligado (rota da família e descoberta pública). */
-export async function startConsultationsHarness(options: { logStream?: LogSink; poolMax?: number } = {}): Promise<ConsultationsHarness> {
+export async function startConsultationsHarness(options: { logStream?: LogSink; poolMax?: number; digitalPrescription?: boolean } = {}): Promise<ConsultationsHarness> {
   let appointments: FamilyAppointmentWriterImpl<Kysely<Database>> | undefined;
   let exportBookings: ConsultationsHarness["exportBookings"] | undefined;
   let exportRecordShares: ConsultationsHarness["exportRecordShares"] | undefined;
@@ -161,6 +163,17 @@ export async function startConsultationsHarness(options: { logStream?: LogSink; 
         memberData: { purgeMemberFiles: () => Promise.resolve(), purgeFamilyFiles: () => Promise.resolve(), exportBeforeRemoval: () => Promise.reject(new Error("não usado")) },
       });
       const access = createAccessModule({ db, audit, families, clock });
+      // MK4 S9: `medications`/`prescriptions` reais, ligados como em `main/api.ts` (origem da receita por ligação tardia; sem `documents`).
+      const lateRx: { prescriptions?: PrescriptionsModule } = {};
+      const medications = createMedicationsModule({
+        db,
+        audit,
+        access,
+        clock,
+        prescriptionOrigin: { isContentReadOnly: (trx, familyId, memberId, prescriptionId) => (lateRx.prescriptions ? lateRx.prescriptions.isContentReadOnly(trx, familyId, memberId, prescriptionId) : Promise.resolve(false)) },
+      });
+      const prescriptions = createPrescriptionsModule({ db, audit, access, medications, documents: { listForResource: () => Promise.resolve([]), deleteAllForResource: () => Promise.resolve() } as never, clock });
+      lateRx.prescriptions = prescriptions;
       const late: { stats?: ReturnType<typeof createConsultationsModule>["reviewStats"] } = {};
       const discovery = createDiscoveryModule({ clock, rateLimiter: switchableLimiter(clock, "discovery"), reviewStats: { forSpecialty: (id) => late.stats?.forSpecialty(id) ?? Promise.resolve([]), forProfessionals: (ids) => late.stats?.forProfessionals(ids) ?? Promise.resolve([]) }, catalog: { listApprovedFacts: (q) => module.directory.listApprovedFacts(q), getApprovedFacts: (ids) => module.directory.getApprovedFacts(ids) } });
       const messaging = createMessagingModule({
@@ -215,6 +228,16 @@ export async function startConsultationsHarness(options: { logStream?: LogSink; 
         notices: { enqueue: (input) => { noticeCalls.push(input); return Promise.resolve(); } },
         storage,
         scanQueue: proofQueue,
+        digitalPrescriptionEnabled: options.digitalPrescription === true,
+        prescriptionRateLimiter: switchableLimiter(clock, "record-sharing"),
+        prescriptions: {
+          issue: (trx, input, context) => prescriptions.issuePrescriptionForProfessional(trx, input, context),
+          findIssued: async (trx, bookingId, professionalId) => {
+            const found = await prescriptions.getProfessionalPrescription(trx, bookingId, professionalId);
+            return found ? { issuedOn: found.issuedOn, notes: found.notes, medications: found.medications, createdAt: found.createdAt } : null;
+          },
+          findPrescriptionIds: (trx, bookingIds) => prescriptions.findPrescriptionIdsByBookings(trx, bookingIds),
+        },
       });
       late.stats = consultations.reviewStats;
       exportBookings = consultations.reads.bookings;
@@ -254,7 +277,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink; 
         notices: { enqueueNewShare: (input) => (failShareNotice.value ? Promise.reject(new Error("fila")) : (shareNoticeCalls.push(input), Promise.resolve())) },
       });
       exportRecordShares = recordSharing.reads.recordShares;
-      return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter, recordSharing.familyRouter, recordSharing.professionalRouter];
+      return [medications.router, prescriptions.router, discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter, recordSharing.familyRouter, recordSharing.professionalRouter];
     },
     { ...(options.logStream ? { logStream: options.logStream } : {}), ...(options.poolMax ? { poolMax: options.poolMax } : {}) },
   );

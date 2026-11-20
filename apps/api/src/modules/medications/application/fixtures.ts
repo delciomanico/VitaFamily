@@ -338,15 +338,19 @@ export interface MedicationsFixtures {
   policy: FakeAccessPolicy;
   timezone: FakeTimezone;
   audit: FakeAuditPort;
+  /** Receitas cujo conteúdo é só leitura (`issuedBy=PROFESSIONAL`, OP-127). */
+  readOnlyPrescriptionIds: Set<string>;
 }
 
 export function createMedicationsFixtures(clock: Clock): MedicationsFixtures {
+  const readOnlyPrescriptionIds = new Set<string>();
   const plansRepo = new FakeMedicationPlansRepository();
   const dosesRepo = new FakeDoseOccurrencesRepository();
   const policy = new FakeAccessPolicy();
   const timezone = new FakeTimezone();
   const audit = new FakeAuditPort();
   const deps: MedicationsDeps<FakeTrx> = {
+    prescriptionOrigin: { isContentReadOnly: (_trx, _familyId, _memberId, prescriptionId) => Promise.resolve(readOnlyPrescriptionIds.has(prescriptionId)) },
     plansRepo,
     dosesRepo,
     policy,
@@ -356,5 +360,5 @@ export function createMedicationsFixtures(clock: Clock): MedicationsFixtures {
     withTransaction: (fn) => fn(FAKE_TRX),
     clock,
   };
-  return { deps, plansRepo, dosesRepo, policy, timezone, audit };
+  return { deps, plansRepo, dosesRepo, policy, timezone, audit, readOnlyPrescriptionIds };
 }

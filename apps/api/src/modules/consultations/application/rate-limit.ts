@@ -37,3 +37,16 @@ export async function enforceRate(limiter: RateLimiter, rule: ConsultationLimit,
   const decision = await limiter.consume({ rule, subject }, CONSULTATION_LIMITS[rule]);
   if (!decision.allowed) throw new RateLimitedError(Math.max(1, decision.retryAfterMs));
 }
+
+/** Receita digital (BR-MKT-77/81), no namespace `record-sharing` da porta assíncrona: `subject` é o id da conta de profissional. */
+export const PRESCRIPTION_LIMITS = {
+  "prescription-issue": { max: 20, windowMs: DAY_MS },
+  "prescription-read": { max: 60, windowMs: MINUTE_MS },
+} as const satisfies Record<string, RateLimitRule>;
+
+export type PrescriptionLimit = keyof typeof PRESCRIPTION_LIMITS;
+
+export async function enforcePrescriptionRate(limiter: RateLimiter, rule: PrescriptionLimit, subject: string): Promise<void> {
+  const decision = await limiter.consume({ rule, subject }, PRESCRIPTION_LIMITS[rule]);
+  if (!decision.allowed) throw new RateLimitedError(Math.max(1, decision.retryAfterMs));
+}

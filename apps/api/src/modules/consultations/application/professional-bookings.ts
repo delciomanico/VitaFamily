@@ -8,6 +8,7 @@
 import { DomainError, NotFoundError, ValidationError } from "../../../platform/errors/index.js";
 import { auditContextFields } from "../../audit/index.js";
 import type { AuditEvent } from "../../audit/index.js";
+import { canPrescribe } from "../domain/prescribe.js";
 import { checkBookingAction, isRequestExpired, meetingInfoRequired, transitionEffects, type BookingAction, type BookingStatus } from "../domain/booking.js";
 import { TEXT_LIMITS, validateOptionalFreeText, validateRequiredFreeText, type TextError } from "../domain/text.js";
 import { decodeBookingCursor, encodeBookingCursor } from "./cursor.js";
@@ -32,15 +33,24 @@ export function createProfessionalBookings<Trx>(deps: ConsultationsDeps<Trx>) {
     if (records.length === 0) return [];
     const specialties = await deps.agenda.findSpecialties([...new Set(records.map((r) => r.specialtyId))]);
     const latestProofs = await deps.proofs.latestForBookings(trx, records.map((r) => r.id));
+    // MK4 (BR-MKT-80): só com a receita digital ligada há `canPrescribe`/`hasPrescription` (a identidade lê-se uma vez; o profissional é o mesmo).
+    const rx = deps.digitalPrescriptionEnabled && records.some((r) => r.status === "COMPLETED") ? await prescriptionFacts(trx, records) : null;
     const views: ProfessionalBookingView[] = [];
     for (const record of records) {
       // O profissional vê o id da conversa do par, nunca o par (família/membro ficam no servidor).
       const conversationId = (await deps.conversations.findConversationIds(trx, record.familyId, record.memberId, [record.professionalId])).get(record.professionalId) ?? null;
       const specialty = specialties.find((s) => s.id === record.specialtyId);
       const latest = latestProofs.get(record.id);
-      views.push(toProfessionalBookingView(record, { specialty: specialty ? { name: specialty.name, category: specialty.category } : undefined, conversationId, proof: latest ? toProofView(latest) : undefined }));
+      const hasPrescription = rx ? rx.ids.has(record.id) : undefined;
+      const canRx = rx ? canPrescribe({ flagEnabled: true, professionalApproved: rx.approved, bookingStatus: record.status, specialtyCategory: specialty?.category ?? "WELLNESS", completedAtMs: record.completedAt?.getTime() ?? null, prescriptionExists: hasPrescription ?? false }, now().getTime()) : false;
+      views.push(toProfessionalBookingView(record, { specialty: specialty ? { name: specialty.name, category: specialty.category } : undefined, conversationId, proof: latest ? toProofView(latest) : undefined, canPrescribe: canRx, ...(hasPrescription !== undefined ? { hasPrescription } : {}) }));
     }
     return views;
+  }
+
+  async function prescriptionFacts(trx: Trx, records: BookingRecord[]): Promise<{ approved: boolean; ids: Map<string, string> }> {
+    const [identities, ids] = await Promise.all([deps.agenda.findIdentities([records[0]?.professionalId ?? ""]), deps.prescriptions.findPrescriptionIds(trx, records.map((r) => r.id))]);
+    return { approved: identities[0]?.approved ?? false, ids };
   }
 
   async function load(trx: Trx, actor: ProfessionalActor, bookingId: string, forUpdate: boolean): Promise<BookingRecord> {

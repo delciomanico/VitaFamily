@@ -1,11 +1,12 @@
 // Entidade pura `Prescription` (entities.md, categoria C4) e regras simples (BR-RX-01, ST1). Sem I/O.
-import { DomainError, ValidationError } from "../../../platform/errors/index.js";
+import { ConflictError, DomainError, ValidationError } from "../../../platform/errors/index.js";
 
 export type PrescriptionStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
 
 /** BR-RX-07/D18: `FAMILY` (default) nas receitas normais; `CLINIC` quando emitida pelo portal da
- * clínica parceira (`completeClinicAppointment`), sempre com `issuedByClinicAccountId`+`appointmentId`. */
-export type PrescriptionIssuer = "FAMILY" | "CLINIC";
+ * clínica parceira (`completeClinicAppointment`), sempre com `issuedByClinicAccountId`+`appointmentId`;
+ * `PROFESSIONAL` (MK4, BR-MKT-79..81) quando emitida por um profissional após uma marcação concluída. */
+export type PrescriptionIssuer = "FAMILY" | "CLINIC" | "PROFESSIONAL";
 
 export interface Prescription {
   id: string;
@@ -20,7 +21,22 @@ export interface Prescription {
   issuedByClinicAccountId?: string;
   /** Consulta de origem; preenchida só quando `issuedBy==='CLINIC'` (BR-RX-07). */
   appointmentId?: string;
+  /** MK4: marcação de origem (só `PROFESSIONAL`; nula se a marcação desaparecer). */
+  bookingId?: string;
+  /** MK4: **só servidor** — nunca sai por nenhuma vista (BR-MKT-81). */
+  issuedByProfessionalId?: string;
   createdAt: Date;
+}
+
+/** OP-127/BR-MKT-81: o conteúdo de uma receita `PROFESSIONAL` é só leitura para a família (`409 CONFLICT`, sem efeito). */
+export const READ_ONLY_CONTENT_DETAIL = "O conteúdo desta receita só pode ser lido.";
+
+export function isContentReadOnly(prescription: Pick<Prescription, "issuedBy">): boolean {
+  return prescription.issuedBy === "PROFESSIONAL";
+}
+
+export function assertContentWritable(prescription: Pick<Prescription, "issuedBy">): void {
+  if (isContentReadOnly(prescription)) throw new ConflictError({ detail: READ_ONLY_CONTENT_DETAIL });
 }
 
 /** BR-RX-01: data de emissão obrigatória e não futura. */

@@ -18,6 +18,7 @@ import { createCreatePrescriptionUseCase } from "./application/create-prescripti
 import { createDeletePrescriptionUseCase } from "./application/delete-prescription.js";
 import { createGetPrescriptionUseCase } from "./application/get-prescription.js";
 import { createIssuePrescriptionForClinicUseCase } from "./application/issue-for-clinic.js";
+import { createFindPrescriptionIdsByBookingsUseCase, createGetProfessionalPrescriptionUseCase, createIsContentReadOnlyUseCase, createIssuePrescriptionForProfessionalUseCase } from "./application/issue-for-professional.js";
 import { createListPrescriptionsUseCase } from "./application/list-prescriptions.js";
 import type { PrescriptionsDeps } from "./application/ports.js";
 import { createSetPrescriptionStatusUseCase } from "./application/set-prescription-status.js";
@@ -46,6 +47,13 @@ export interface PrescriptionsModule {
    * nova no grafo de módulos (`appointments` não importa `modules/prescriptions`, modules.md §3
    * notas 16/20). Recebe `trx` já aberto — a mesma transação de `completeConsultation`. */
   issuePrescriptionForClinic: ReturnType<typeof createIssuePrescriptionForClinicUseCase<Kysely<Database>>>;
+  /** Receita digital (MK4, BR-MKT-79..81): porta `PrescriptionIssuer` de `consultations`, ligada em `main/api.ts` (sem aresta entre
+   * módulos). Recebem `trx` já aberto (a transação da emissão, sob bloqueio da marcação). */
+  issuePrescriptionForProfessional: ReturnType<typeof createIssuePrescriptionForProfessionalUseCase<Kysely<Database>>>;
+  getProfessionalPrescription: ReturnType<typeof createGetProfessionalPrescriptionUseCase<Kysely<Database>>>;
+  findPrescriptionIdsByBookings: ReturnType<typeof createFindPrescriptionIdsByBookingsUseCase<Kysely<Database>>>;
+  /** Porta `PrescriptionOrigin` de `medications` (OP-127). */
+  isContentReadOnly: ReturnType<typeof createIsContentReadOnlyUseCase<Kysely<Database>>>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -58,6 +66,7 @@ export function createPrescriptionsModule(deps: PrescriptionsModuleDeps): Prescr
     medications: {
       createPlan: deps.medications.createPlan,
       createPlanForClinic: deps.medications.createPlanForClinic,
+      createPlanForProfessional: deps.medications.createPlanForProfessional,
       listPlansForPrescription: deps.medications.listPlansForPrescription,
       endPlansForPrescription: deps.medications.endPlansForPrescription,
     },
@@ -87,5 +96,9 @@ export function createPrescriptionsModule(deps: PrescriptionsModuleDeps): Prescr
       prescriptions: async (actor, familyId, memberId, query, context) => toPrescriptionPage(await controller.listPrescriptions(actor, familyId, memberId, query, context)),
     },
     issuePrescriptionForClinic: createIssuePrescriptionForClinicUseCase(prescriptionsDeps),
+    issuePrescriptionForProfessional: createIssuePrescriptionForProfessionalUseCase(prescriptionsDeps),
+    getProfessionalPrescription: createGetProfessionalPrescriptionUseCase(prescriptionsDeps),
+    findPrescriptionIdsByBookings: createFindPrescriptionIdsByBookingsUseCase(prescriptionsDeps),
+    isContentReadOnly: createIsContentReadOnlyUseCase(prescriptionsDeps),
   };
 }

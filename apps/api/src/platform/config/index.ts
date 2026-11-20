@@ -92,6 +92,10 @@ const envSchema = z.object({
 
   // Observabilidade
   METRICS_ENABLED: booleanEnv(false),
+
+  // MK4 (BR-MKT-79): receita digital do profissional. Desligada por omissão até ao parecer jurídico (OP-61/OP-125); lida no arranque
+  // (ligá-la ou desligá-la exige reiniciar a API). Nunca ligar sem o parecer.
+  DIGITAL_PRESCRIPTION_ENABLED: booleanEnv(false),
   SENTRY_DSN: z.string().optional(),
 });
 

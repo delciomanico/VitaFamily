@@ -37,6 +37,12 @@ describe("loadConfig", () => {
     expect(config.UPLOAD_MAX_BYTES).toBe(10_485_760);
     expect(config.FAMILY_STORAGE_QUOTA_BYTES).toBe(104_857_600);
     expect(config.METRICS_ENABLED).toBe(false);
+    expect(config.DIGITAL_PRESCRIPTION_ENABLED).toBe(false);
+  });
+
+  it("DIGITAL_PRESCRIPTION_ENABLED só liga com a string exata 'true'", () => {
+    expect(loadConfig(validEnv({ DIGITAL_PRESCRIPTION_ENABLED: "true" })).DIGITAL_PRESCRIPTION_ENABLED).toBe(true);
+    expect(loadConfig(validEnv({ DIGITAL_PRESCRIPTION_ENABLED: "false" })).DIGITAL_PRESCRIPTION_ENABLED).toBe(false);
   });
 
   it.each([

@@ -57,13 +57,15 @@ export function createFamilyBookings<Trx>(deps: ConsultationsDeps<Trx>) {
     if (records.length === 0) return [];
     const at = now();
     const professionalIds = [...new Set(records.map((r) => r.professionalId))];
-    const [identities, specialties, appointmentIds, conversationIds, reviewed] = await Promise.all([
+    const [identities, specialties, appointmentIds, conversationIds, reviewed, prescriptionIds] = await Promise.all([
       deps.agenda.findIdentities(professionalIds),
       deps.agenda.findSpecialties([...new Set(records.map((r) => r.specialtyId))]),
       deps.appointments.findAppointmentIds(trx, records.map((r) => r.id)),
       // O par é (membro, profissional): as marcações da lista são todas do mesmo membro.
       deps.conversations.findConversationIds(trx, records[0]?.familyId ?? "", records[0]?.memberId ?? "", professionalIds),
       deps.bookings.bookingIdsWithReview(trx, records.map((r) => r.id)),
+      // MK4 (BR-MKT-81): `prescriptionId` só com a receita digital ligada.
+      deps.digitalPrescriptionEnabled ? deps.prescriptions.findPrescriptionIds(trx, records.map((r) => r.id)) : Promise.resolve(new Map<string, string>()),
     ]);
     const views: FamilyBookingView[] = [];
     for (const record of records) {
@@ -77,6 +79,7 @@ export function createFamilyBookings<Trx>(deps: ConsultationsDeps<Trx>) {
           appointmentId: appointmentIds.get(record.id) ?? null,
           conversationId: conversationIds.get(record.professionalId) ?? null,
           hasReview: reviewed.has(record.id),
+          prescriptionId: prescriptionIds.get(record.id),
           paymentInstructions: withInstructions ? await deps.agenda.readPaymentInstructions(record.professionalId) : null,
         }),
       );
