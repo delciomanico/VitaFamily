@@ -71,21 +71,32 @@ describe('marcar e avaliar (família)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Marcar consulta' }))
     const dialog = await screen.findByRole('dialog')
+    // Passo a passo: um assunto por ecrã, com «Passo X de Y».
+    expect(await within(dialog).findByRole('heading', { name: 'Para quem é a consulta?' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('progressbar')).toHaveAttribute('aria-valuetext', expect.stringMatching(/^Passo 1 de \d$/))
+    const next = () => within(dialog).getByRole('button', { name: /^(Continuar|Pedir marcação)$/ })
+    // Sem escolher, não avança.
+    expect(next()).toBeDisabled()
+    fireEvent.click(await within(dialog).findByLabelText(/\(eu\)/))
+    fireEvent.click(next())
+
+    // Com vários serviços há um passo para escolher (fica o já pré-escolhido).
+    const stepHeading = await within(dialog).findByRole('heading', { name: /^(Que serviço quer\?|Quando prefere\?)$/ })
+    if (stepHeading.textContent === 'Que serviço quer?') fireEvent.click(next())
+
+    const group = await within(dialog).findByRole('group', { name: 'Horários livres' })
+    expect(next()).toBeDisabled()
+    fireEvent.click(within(group).getAllByRole('button')[0]!)
+    fireEvent.click(next())
+
+    expect(await within(dialog).findByRole('heading', { name: 'Confirme o pedido' })).toBeInTheDocument()
     expect(within(dialog).getByText('Não substitui atendimento de urgência.')).toBeInTheDocument()
     // Textos legais provisórios marcados (OP-112).
     expect(within(dialog).getAllByText(/\[PROVISÓRIO\]/).length).toBeGreaterThanOrEqual(2)
-
-    await waitFor(() => expect(within(dialog).getByLabelText('Para quem?')).toBeEnabled())
-    fireEvent.change(within(dialog).getByLabelText('Para quem?'), { target: { value: 'mem_monarca' } })
-    const group = await within(dialog).findByRole('group', { name: 'Horários livres' })
-    // Sem aceitar os termos nem escolher horário, não marca.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Marcar' }))
-    expect(await within(dialog).findByText('Escolha um horário.')).toBeInTheDocument()
-    expect(within(dialog).getByText('Aceite os termos para marcar.')).toBeInTheDocument()
-
-    fireEvent.click(within(group).getAllByRole('button')[0]!)
+    // Sem aceitar os termos, não marca.
+    expect(within(dialog).getByRole('button', { name: 'Pedir marcação' })).toBeDisabled()
     fireEvent.click(within(dialog).getByLabelText('Li e aceito os termos'))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Marcar' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Pedir marcação' }))
 
     await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/app\/bookings\/mem_monarca\/.+/))
     expect((await screen.findAllByText('A aguardar resposta do profissional')).length).toBeGreaterThan(0)
@@ -100,7 +111,7 @@ describe('marcar e avaliar (família)', () => {
     expect(screen.getByText('Dr. Paulo Quissanga')).toBeInTheDocument()
     expect(screen.getByText('Falta enviar o comprovativo de pagamento.')).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(TECHNICAL)
-    fireEvent.click(screen.getByRole('tab', { name: 'Anteriores' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Anteriores' }))
     expect((await screen.findAllByText('Pode avaliar esta consulta.')).length).toBeGreaterThan(0)
     expect(screen.getByText('Em análise pela Vita Family')).toBeInTheDocument()
   })
@@ -127,7 +138,7 @@ describe('marcar e avaliar (família)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Cancelar marcação' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(/Pode cancelar até à hora da consulta/)).toBeInTheDocument()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar marcação' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sim, cancelar marcação' }))
     expect((await screen.findAllByText('Cancelada')).length).toBeGreaterThan(0)
     expect(screen.getByText(/Cancelada por si/)).toBeInTheDocument()
   })

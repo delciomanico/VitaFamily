@@ -3,9 +3,8 @@ import { CalendarCheck } from 'lucide-react'
 import { Page } from '@/components/layout/Page'
 import { StatusBadges } from '@/components/consultations/StatusBadges'
 import { ButtonLink } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
-import { RowLink } from '@/components/ui/RowLink'
-import { Tabs, type TabItem } from '@/components/ui/Tabs'
+import { Link } from 'react-router-dom'
+import { FilterChips, type ChipItem } from '@/components/app/FilterChips'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
@@ -19,7 +18,7 @@ import type { FamilyBooking } from '@/types/consultations'
 
 type Filter = 'ACTIVE' | 'PAST' | 'ALL'
 
-const filterItems: TabItem<Filter>[] = [
+const filterItems: ChipItem<Filter>[] = [
   { value: 'ACTIVE', label: 'Em curso' },
   { value: 'PAST', label: 'Anteriores' },
   { value: 'ALL', label: 'Todas' },
@@ -52,17 +51,17 @@ export function BookingsPage() {
     <Page
       title="Marcações"
       backTo={paths.home}
-      action={
-        <ButtonLink to={paths.shares} variant="secondary" size="sm">
-          Partilhas com profissionais
-        </ButtonLink>
-      }
     >
       {list.state.status === 'loading' && <LoadingState rows={3} />}
       {list.state.status === 'error' && <ErrorState onRetry={list.reload} />}
       {list.state.status === 'success' && (
         <div className="flex flex-col gap-4">
-          <Tabs items={filterItems} value={filter} onChange={setFilter} label="Estado das marcações" />
+          {all.length > 0 && (
+            <ButtonLink to={paths.marketplace} size="xl" fullWidth>
+              Marcar uma nova consulta
+            </ButtonLink>
+          )}
+          <FilterChips items={filterItems} value={filter} onChange={setFilter} label="Estado das marcações" />
           {rows.length === 0 ? (
             <EmptyState
               icon={CalendarCheck}
@@ -70,37 +69,36 @@ export function BookingsPage() {
               description={all.length === 0 ? 'Escolha um profissional e um horário livre para marcar uma consulta.' : undefined}
               action={
                 all.length === 0 ? (
-                  <ButtonLink to={paths.marketplace} size="sm">
+                  <ButtonLink to={paths.marketplace} size="xl">
                     Encontrar profissionais
                   </ButtonLink>
                 ) : undefined
               }
             />
           ) : (
-            <Card>
-              <ul className="flex flex-col divide-y divide-border">
-                {rows.map((b) => (
-                  <li key={b.id}>
-                    <RowLink to={paths.booking(b.memberId, b.id)}>
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <p className="truncate font-medium">{b.professional.displayName}</p>
-                        <p className="text-sm text-muted">
-                          {b.offer.specialtyName} · {offerMethodLabel[b.offer.method]}
-                          {severalMembers ? ` · ${b.memberName}` : ''}
-                        </p>
-                        <time className="text-sm" dateTime={b.startsAt}>
-                          {formatWhenLuanda(b.startsAt)}
-                        </time>
-                        <StatusBadges status={b.status} paymentStatus={b.paymentStatus} priceKz={b.priceKz} />
-                        {b.canSendProof && <p className="text-sm font-medium text-warning">Falta enviar o comprovativo de pagamento.</p>}
-                        {b.canReview && <p className="text-sm font-medium text-primary">Pode avaliar esta consulta.</p>}
-                      </div>
-                    </RowLink>
-                  </li>
-                ))}
-              </ul>
-            </Card>
+            <ul className="flex flex-col gap-3">
+              {rows.map((b) => (
+                <li key={b.id}>
+                  <Link to={paths.booking(b.memberId, b.id)} className="flex flex-col gap-1.5 rounded-2xl border border-border bg-surface p-4 shadow-card transition-colors active:bg-surface-muted">
+                    <p className="text-lg font-semibold">{b.professional.displayName}</p>
+                    <p className="text-base text-muted">
+                      {b.offer.specialtyName} · {offerMethodLabel[b.offer.method]}
+                      {severalMembers ? ` · ${b.memberName}` : ''}
+                    </p>
+                    <time className="text-base font-medium" dateTime={b.startsAt}>
+                      {formatWhenLuanda(b.startsAt)}
+                    </time>
+                    <StatusBadges status={b.status} paymentStatus={b.paymentStatus} priceKz={b.priceKz} />
+                    {b.canSendProof && <p className="text-base font-medium text-warning">Falta enviar o comprovativo de pagamento.</p>}
+                    {b.canReview && <p className="text-base font-medium text-primary">Pode avaliar esta consulta.</p>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           )}
+          <ButtonLink to={paths.shares} variant="secondary" size="lg" fullWidth>
+            Partilhas com profissionais
+          </ButtonLink>
         </div>
       )}
     </Page>

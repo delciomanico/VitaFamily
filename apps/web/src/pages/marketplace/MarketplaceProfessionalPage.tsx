@@ -124,14 +124,14 @@ export function MarketplaceProfessionalPage() {
 
       <ProfessionalReviews professionalId={p.id} specialtyId={specialtyParam || undefined} />
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Button onClick={() => setBooking(true)} disabled={p.offers.length === 0}>
+      <div className="flex flex-col gap-3">
+        <Button size="xl" onClick={() => setBooking(true)} disabled={p.offers.length === 0}>
           Marcar consulta
         </Button>
-        <Button variant="secondary" onClick={() => setWriting(true)}>
+        <Button variant="secondary" size="lg" onClick={() => setWriting(true)}>
           Escrever
         </Button>
-        <ButtonLink to={compareTo} variant="secondary">
+        <ButtonLink to={compareTo} variant="secondary" size="lg">
           Comparar com outros
         </ButtonLink>
       </div>
