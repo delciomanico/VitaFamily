@@ -61,7 +61,10 @@ describe('fluxos de autenticação', () => {
     type('Palavra-passe', DEMO_PASSWORD)
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
     expect(await screen.findByRole('heading', { name: /Olá, Monarca/ })).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: /Próximo compromisso/ })).toHaveAttribute('href', '/app/appointments/apt_cardio')
+    expect(await screen.findByRole('heading', { name: 'Próximo compromisso' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ver compromisso' })).toHaveAttribute('href', '/app/appointments/apt_cardio')
+    // O que não cabe nos 4 atalhos está na folha «Mais opções».
+    fireEvent.click(screen.getByRole('button', { name: 'Mais opções' }))
     expect(screen.getByRole('link', { name: 'Relatórios, 1 pendente' })).toHaveAttribute('href', '/app/reports/family')
     expect(screen.getByRole('link', { name: 'Marcar consulta' })).toHaveAttribute('href', '/app/appointments/new')
   })
