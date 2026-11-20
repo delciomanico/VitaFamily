@@ -68,7 +68,7 @@ function Tile({ to, label, icon: Icon, tone, count = 0, countLabel, onNavigate }
       to={to}
       onClick={onNavigate}
       aria-label={hasCount && countLabel ? `${label}, ${formatCount(count, ...countLabel)}` : label}
-      className={cn('flex min-h-32 flex-col justify-between gap-4 rounded-[1.25rem] p-4 transition-transform active:scale-[0.97]', toneBlock[tone])}
+      className={cn('flex h-full min-h-32 flex-col justify-between gap-4 rounded-[1.25rem] p-4 transition-transform active:scale-[0.97]', toneBlock[tone])}
     >
       <span className="flex items-start justify-between">
         <span className="flex size-12 items-center justify-center rounded-2xl bg-white/80">

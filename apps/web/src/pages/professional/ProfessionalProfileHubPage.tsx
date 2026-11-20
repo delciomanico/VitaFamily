@@ -101,21 +101,24 @@ export function ProfessionalProfileHubPage() {
         <ListEntry
           to={paths.professionalProfileEdit}
           icon={UserPen}
+          tone="health"
           title="Os meus dados"
           subtitle={[profile.city, formatCount(profile.specialties.length, 'especialidade', 'especialidades')].filter(Boolean).join(' · ')}
         />
-        <ListEntry to={paths.professionalOffers} icon={Tags} title="Os meus serviços" subtitle={countText(offerItems, 'serviço ativo', 'serviços ativos', 'Ainda sem serviços')} />
-        <ListEntry to={paths.professionalSchedule} icon={CalendarClock} title="Os meus horários" subtitle={countText(ruleItems, 'regra ativa', 'regras ativas', 'Ainda sem horários')} />
-        <ListEntry to={paths.professionalCredentials} icon={FileBadge} title="Os meus documentos" subtitle={countText(credentialItems, 'documento carregado', 'documentos carregados', 'Ainda sem documentos')} />
+        <ListEntry to={paths.professionalOffers} icon={Tags} tone="chat" title="Os meus serviços" subtitle={countText(offerItems, 'serviço ativo', 'serviços ativos', 'Ainda sem serviços')} />
+        <ListEntry to={paths.professionalSchedule} icon={CalendarClock} tone="meds" title="Os meus horários" subtitle={countText(ruleItems, 'regra ativa', 'regras ativas', 'Ainda sem horários')} />
+        <ListEntry to={paths.professionalCredentials} icon={FileBadge} tone="family" title="Os meus documentos" subtitle={countText(credentialItems, 'documento carregado', 'documentos carregados', 'Ainda sem documentos')} />
         <ListEntry
           to={paths.professionalReviews}
           icon={Star}
+          tone="chat"
           title="Avaliações"
           subtitle={unanswered === null ? undefined : unanswered === 0 ? 'Todas respondidas' : formatCount(unanswered, 'por responder', 'por responder')}
         />
         <ListEntry
           to={paths.professionalShares}
           icon={Share2}
+          tone="brand"
           title="Registos partilhados consigo"
           subtitle={availableShares === null ? undefined : availableShares === 0 ? 'Nada para abrir' : formatCount(availableShares, 'para abrir', 'para abrir')}
         />
