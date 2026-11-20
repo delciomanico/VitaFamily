@@ -1,5 +1,6 @@
 // Ligação PostgreSQL (`pg`) + Kysely (query builder tipado, sem ORM/geração de código) e
 // transações — só a `infrastructure` de cada módulo importa este ficheiro (conventions.md §1/§3.9).
+import { AsyncLocalStorage } from "node:async_hooks";
 import { Kysely, PostgresDialect, type Transaction } from "kysely";
 import pg, { Pool, type PoolConfig } from "pg";
 
@@ -33,9 +34,43 @@ export function createPool(
   return new Pool({ connectionString: databaseUrl, ...config });
 }
 
+/** Semáforo FIFO (sem dependências) que limita as transações simultâneas de um `Kysely`. */
+class Gate {
+  private free: number;
+  private readonly waiting: (() => void)[] = [];
+
+  constructor(capacity: number) {
+    this.free = capacity;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.free > 0) {
+      this.free -= 1;
+      return;
+    }
+    await new Promise<void>((resolve) => this.waiting.push(resolve));
+  }
+
+  release(): void {
+    const next = this.waiting.shift();
+    if (next) next();
+    else this.free += 1;
+  }
+}
+
+const transactionGates = new WeakMap<Kysely<Database>, Gate>();
+/** Marca o contexto assíncrono que já ocupa um lugar do portão: as transações ANINHADAS (leituras de outros módulos) não esperam por ele. */
+const insideGate = new AsyncLocalStorage<Gate>();
+
 /** Cria a instância Kysely sobre o pool indicado. */
 export function createDb(pool: Pool): Kysely<Database> {
-  return new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
+  const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
+  // Com `max` ligações, no máximo `max - 1` transações EXTERNAS em simultâneo: sobra sempre uma ligação para as leituras feitas por
+  // OUTRA ligação com a transação aberta (catálogos de outros módulos, que abrem a sua própria transação curta). Sem isto, `max`
+  // transações a esperar cada uma por uma segunda ligação esgotariam o pool (impasse).
+  const max = pool.options.max > 0 ? pool.options.max : 10;
+  transactionGates.set(db, new Gate(Math.max(1, max - 1)));
+  return db;
 }
 
 /** Verifica a ligação real à BD (usado por `/health/ready`). */
@@ -56,5 +91,14 @@ export async function withTransaction<T>(
   db: Kysely<Database>,
   fn: (trx: Transaction<Database>) => Promise<T>,
 ): Promise<T> {
-  return db.transaction().execute(fn);
+  const gate = transactionGates.get(db);
+  if (!gate) return db.transaction().execute(fn);
+  // Aninhada (chamada de dentro de uma transação já aberta): não ocupa lugar no portão, senão as externas esperariam por ela.
+  if (insideGate.getStore() === gate) return db.transaction().execute(fn);
+  await gate.acquire();
+  try {
+    return await insideGate.run(gate, () => db.transaction().execute(fn));
+  } finally {
+    gate.release();
+  }
 }

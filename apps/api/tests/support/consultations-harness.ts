@@ -122,7 +122,7 @@ export interface ConsultationsHarness {
 }
 
 /** Arranca PostgreSQL + app real com o módulo `consultations` ligado (rota da família e descoberta pública). */
-export async function startConsultationsHarness(options: { logStream?: LogSink } = {}): Promise<ConsultationsHarness> {
+export async function startConsultationsHarness(options: { logStream?: LogSink; poolMax?: number } = {}): Promise<ConsultationsHarness> {
   let appointments: FamilyAppointmentWriterImpl<Kysely<Database>> | undefined;
   let exportBookings: ConsultationsHarness["exportBookings"] | undefined;
   let exportRecordShares: ConsultationsHarness["exportRecordShares"] | undefined;
@@ -256,7 +256,7 @@ export async function startConsultationsHarness(options: { logStream?: LogSink }
       exportRecordShares = recordSharing.reads.recordShares;
       return [discovery.router, consultations.familyRouter, consultations.professionalRouter, consultations.adminRouter, recordSharing.familyRouter, recordSharing.professionalRouter];
     },
-    options.logStream ? { logStream: options.logStream } : {},
+    { ...(options.logStream ? { logStream: options.logStream } : {}), ...(options.poolMax ? { poolMax: options.poolMax } : {}) },
   );
 
   if (!appointments) throw new Error("consultations não ligado");

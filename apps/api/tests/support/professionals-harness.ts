@@ -56,6 +56,8 @@ export type LogSink = { write(chunk: string): void } | string[];
 export interface ProfessionalsHarnessOptions {
   /** Captura os logs técnicos reais (logger da API e dos módulos) com nível `debug`; sem a opção o logger fica `silent`. */
   logStream?: LogSink;
+  /** Tamanho máximo do pool de ligações (por omissão o do `pg`, 10): testes de concorrência usam um pool pequeno para expor consultas por outra ligação com a transação aberta. */
+  poolMax?: number;
 }
 
 function logSinkToWritable(sink: LogSink): Writable {
@@ -113,7 +115,7 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
     .withExposedPorts(5432)
     .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
     .start();
-  const pool = new Pool({ connectionString: `postgres://vita:vita@${container.getHost()}:${String(container.getMappedPort(5432))}/vita` });
+  const pool = new Pool({ connectionString: `postgres://vita:vita@${container.getHost()}:${String(container.getMappedPort(5432))}/vita`, ...(options.poolMax ? { max: options.poolMax } : {}) });
   await runMigrations(pool, defaultMigrationsDir());
   const db = createDb(pool);
   const clock = new FixedClock(START);
