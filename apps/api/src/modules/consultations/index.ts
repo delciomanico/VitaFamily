@@ -13,6 +13,7 @@ import { createAdminDisputes } from "./application/admin-disputes.js";
 import { createNotifyProfessional } from "./application/notify-professional.js";
 import { createReconcileBookings, createRequeuePendingProofs } from "./application/reconcile.js";
 import { createExportBookings } from "./application/export.js";
+import { createShareAnchor } from "./application/share-anchor.js";
 import { createPurgeExpiredProofs } from "./application/purge-expired.js";
 import { createFamilyBookings } from "./application/family-bookings.js";
 import { createFamilyProofs, createProfessionalProofs, createProofJobs } from "./application/proofs.js";
@@ -90,6 +91,8 @@ export interface ConsultationsModule {
   reviewStats: ReturnType<typeof createReviews<Trx>>["stats"];
   /** Fonte `bookings` da exportação do titular (BR-MKT-64): ligada a `lifecycle` em `main/api.ts`, sem `lifecycle` importar `consultations`. */
   reads: { bookings: ReturnType<typeof createExportBookings<Trx>> };
+  /** Porta `ShareAnchor` de `record-sharing` (MK4, nota 38(b)): factos da marcação-âncora; só leitura, ligada em `main/api.ts`. */
+  shareAnchor: ReturnType<typeof createShareAnchor<Trx>>;
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
@@ -134,6 +137,7 @@ export function createConsultationsModule(deps: ConsultationsModuleDeps): Consul
     getActFacts: createGetBookingActFacts({ bookings, clock: deps.clock }),
     reviewStats: reviews.stats,
     reads: { bookings: createExportBookings(consultationsDeps) },
+    shareAnchor: createShareAnchor({ bookings, agenda: deps.agenda }),
   };
 }
 
