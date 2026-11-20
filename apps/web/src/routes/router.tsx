@@ -23,6 +23,7 @@ import { RouteError } from '@/components/ui/RouteError'
 import {
   ClinicGuestOnly,
   GuestOnly,
+  LegacyLoginRedirect,
   ProfessionalGuestOnly,
   RequireAuth,
   RequireClinicAccount,
@@ -52,7 +53,6 @@ export const routes: RouteObject[] = [
     // Site público: páginas informativas e entrada nos portais (F0.2).
     element: <PublicSiteLayout />,
     children: [
-      { path: paths.enter, ...page(() => import('@/pages/site/EnterPage'), 'EnterPage') },
       { path: paths.requestAccessPattern, ...page(() => import('@/pages/site/RequestAccessPage'), 'RequestAccessPage') },
       { path: paths.partners, ...page(() => import('@/pages/site/PartnersPage'), 'PartnersPage') },
       { path: paths.partnersLegacy, element: <Navigate to={paths.partners} replace /> },
@@ -68,10 +68,12 @@ export const routes: RouteObject[] = [
     children: [
       { path: paths.onboarding, element: <OnboardingPage /> },
       { path: paths.inviteAccept, element: <InviteAcceptPage /> },
+      // Entrada única: o separador do profissional precisa da sua sessão, montada só aqui (ADR-037).
+      { element: <ProfessionalPortalRoot />, children: [{ path: paths.enter, element: <LoginPage /> }] },
+      { path: paths.loginLegacy, element: <LegacyLoginRedirect kind="familia" /> },
       {
         element: <GuestOnly />,
         children: [
-          { path: paths.login, element: <LoginPage /> },
           { path: paths.register, element: <RegisterPage /> },
           { path: paths.forgotPassword, element: <ForgotPasswordPage /> },
           { path: paths.resetPassword, element: <ResetPasswordPage /> },
@@ -368,10 +370,10 @@ export const routes: RouteObject[] = [
     path: paths.professional,
     element: <ProfessionalPortalRoot />,
     children: [
+      { path: 'entrar', element: <LegacyLoginRedirect kind="profissional" /> },
       {
         element: <ProfessionalGuestOnly />,
         children: [
-          { path: 'entrar', ...page(() => import('@/pages/professional/ProfessionalLoginPage'), 'ProfessionalLoginPage') },
           { path: 'registo', ...page(() => import('@/pages/professional/ProfessionalRegisterPage'), 'ProfessionalRegisterPage') },
           { path: 'verificar', ...page(() => import('@/pages/professional/ProfessionalVerifyPage'), 'ProfessionalVerifyPage') },
           { path: 'recuperar', ...page(() => import('@/pages/professional/ProfessionalForgotPage'), 'ProfessionalForgotPage') },

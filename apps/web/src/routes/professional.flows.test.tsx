@@ -31,13 +31,13 @@ beforeEach(() => {
 describe('portal do profissional', () => {
   it('sem sessão, /profissional/perfil vai para o login próprio', async () => {
     const router = renderAt('/profissional/perfil')
-    expect(await screen.findByRole('heading', { name: 'Entrar na área do profissional' })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/profissional/entrar')
+    expect(await screen.findByRole('tab', { name: 'Médico ou especialista', selected: true })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/entrar')
   })
 
   it('credenciais erradas mostram mensagem amigável', async () => {
-    renderAt('/profissional/entrar')
-    await screen.findByRole('heading', { name: 'Entrar na área do profissional' })
+    renderAt('/entrar?tipo=profissional')
+    await screen.findByRole('tab', { name: 'Médico ou especialista', selected: true })
     type(/E-mail/, DEMO_PROFESSIONAL_EMAIL)
     type('Palavra-passe', 'errada-errada')
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
@@ -45,8 +45,8 @@ describe('portal do profissional', () => {
   })
 
   it('login mostra o estado da validação e o que falta', async () => {
-    renderAt('/profissional/entrar')
-    await screen.findByRole('heading', { name: 'Entrar na área do profissional' })
+    renderAt('/entrar?tipo=profissional')
+    await screen.findByRole('tab', { name: 'Médico ou especialista', selected: true })
     type(/E-mail/, DEMO_PROFESSIONAL_EMAIL)
     type('Palavra-passe', DEMO_PASSWORD)
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))

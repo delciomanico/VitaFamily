@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ToastProvider } from '@/components/ui/Toast'
@@ -31,12 +31,10 @@ describe('site público (F0.2)', () => {
     expect(screen.getAllByRole('link', { name: 'Entrar' }).length).toBeGreaterThan(0)
   })
 
-  it('o hub de entrada leva a cada portal', async () => {
+  it('o ecrã de entrada oferece os portais da clínica e do backoffice', async () => {
     renderAt('/entrar')
-    const main = within(await screen.findByRole('main'))
-    expect(await main.findByRole('link', { name: /entrar como família/i })).toHaveAttribute('href', '/login')
-    expect(main.getByRole('link', { name: /entrar como clínica/i })).toHaveAttribute('href', '/clinic/login')
-    expect(main.getByRole('link', { name: /entrar como backoffice/i })).toHaveAttribute('href', '/backoffice')
+    expect(await screen.findByRole('link', { name: 'Portal da clínica' })).toHaveAttribute('href', '/clinic/login')
+    expect(screen.getByRole('link', { name: 'Acesso interno' })).toHaveAttribute('href', '/backoffice')
   })
 
   it('quem tem sessão continua a ver o site, com «Abrir a app»', async () => {
@@ -49,7 +47,7 @@ describe('site público (F0.2)', () => {
 
   it('as páginas públicas não expulsam quem tem sessão', async () => {
     window.sessionStorage.setItem('vf.session.userId', 'usr_monarca')
-    for (const path of ['/faq', '/contacto', '/entrar', '/termos', '/privacidade']) {
+    for (const path of ['/faq', '/contacto', '/termos', '/privacidade']) {
       const router = renderAt(path)
       await screen.findByRole('main')
       expect(router.state.location.pathname).toBe(path)

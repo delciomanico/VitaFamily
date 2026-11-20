@@ -2,7 +2,9 @@
 export const paths = {
   splash: '/',
   onboarding: '/onboarding',
-  login: '/login',
+  /** Ecrã único de entrada (família e profissional, separador `?tipo=`); `/login` e `/profissional/entrar` redirecionam. */
+  login: '/entrar',
+  loginLegacy: '/login',
   register: '/register',
   forgotPassword: '/forgot-password',
   resetPassword: '/reset-password',
@@ -112,7 +114,8 @@ export const paths = {
   clinicAudit: '/clinic/settings/audit',
 
   // Portal do profissional (MK1, ADR-037): login e sessão próprios, espaço de identidade separado.
-  professionalLogin: '/profissional/entrar',
+  professionalLogin: '/entrar?tipo=profissional',
+  professionalLoginLegacy: '/profissional/entrar',
   professionalRegister: '/profissional/registo',
   professionalVerify: '/profissional/verificar',
   professionalForgot: '/profissional/recuperar',

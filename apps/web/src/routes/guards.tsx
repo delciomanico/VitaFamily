@@ -10,9 +10,9 @@ interface FromState {
 }
 
 /** Destino depois de entrar: a página pedida, a Home ou a configuração da família. */
-function useSignedInTarget(): string {
+export function useSignedInTarget(requested?: string | null): string {
   const { user, family } = useAuth()
-  const from = (useLocation().state as FromState | null)?.from
+  const from = (useLocation().state as FromState | null)?.from ?? requested ?? undefined
   // Login a meio de "Entrar numa família" por convite: volta para lá para concluir o accept,
   // mesmo sem família ainda (é precisamente o que esta tela vai estabelecer).
   if (from?.startsWith(paths.inviteAccept)) return from
@@ -27,7 +27,7 @@ export function RequireAuth() {
   const { status, user } = useAuth()
   const location = useLocation()
   if (status === 'loading') return <FullScreenLoader />
-  if (!user) return <Navigate to={paths.login} replace state={{ from: location.pathname } satisfies FromState} />
+  if (!user) return <Navigate to={paths.enter} replace state={{ from: location.pathname } satisfies FromState} />
   return <Outlet />
 }
 
@@ -124,4 +124,17 @@ export function RequirePendingVerification() {
   if (user) return <Navigate to={target} replace />
   if (!pendingEmail) return <Navigate to={paths.register} replace />
   return <Outlet />
+}
+
+/**
+ * Endereços antigos de login (família e portal do profissional): seguem para o ecrã único,
+ * preservando o destino pós-login (`state.from`, `next` ou `returnTo`).
+ */
+export function LegacyLoginRedirect({ kind }: { kind: 'familia' | 'profissional' }) {
+  const location = useLocation()
+  const incoming = new URLSearchParams(location.search)
+  const search = new URLSearchParams({ tipo: kind })
+  const next = incoming.get('next') ?? incoming.get('returnTo')
+  if (next) search.set('next', next)
+  return <Navigate to={`${paths.enter}?${search}`} replace state={location.state} />
 }

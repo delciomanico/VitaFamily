@@ -41,11 +41,11 @@ function signInAsAdmin(path: string) {
 
 async function loginProfessional(email: string, path: string) {
   const router = renderAt(paths.professionalLogin)
-  await screen.findByRole('heading', { name: 'Entrar na área do profissional' })
+  await screen.findByRole('tab', { name: 'Médico ou especialista', selected: true })
   type(/E-mail/, email)
   type('Palavra-passe', DEMO_PROFESSIONAL_PASSWORD)
   fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
-  await waitFor(() => expect(router.state.location.pathname).not.toBe(paths.professionalLogin))
+  await waitFor(() => expect(router.state.location.pathname).not.toBe('/entrar'))
   await router.navigate(path)
   return router
 }

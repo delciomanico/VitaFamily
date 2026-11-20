@@ -41,7 +41,7 @@ describe('fluxos de autenticação', () => {
   it('sem sessão, /app redireciona para o login', async () => {
     const router = renderAt('/app/health')
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/login')
+    expect(router.state.location.pathname).toBe('/entrar')
   })
 
   it('login demo leva à página pedida', async () => {
@@ -134,7 +134,7 @@ describe('fluxos de autenticação', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Já tenho conta: entrar' }))
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/login')
+    expect(router.state.location.pathname).toBe('/entrar')
   })
 
   it('autenticado com o e-mail convidado aceita o convite e entra na família', async () => {
