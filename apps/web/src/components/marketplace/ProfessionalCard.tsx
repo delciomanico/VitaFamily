@@ -1,10 +1,8 @@
 import { Link } from 'react-router-dom'
-import { RatingSummary } from '@/components/consultations/Stars'
-import { RankingBadges } from '@/components/marketplace/RankingBadges'
-import { Card } from '@/components/ui/Card'
-import { Checkbox } from '@/components/ui/Checkbox'
-import { formatWhenLuanda } from '@/lib/format'
-import { formatKz, offerMethodLabel } from '@/lib/professional'
+import { Star } from 'lucide-react'
+import { Avatar } from '@/components/ui/Avatar'
+import { formatRating } from '@/lib/consultations'
+import { formatKz } from '@/lib/professional'
 import { paths } from '@/routes/paths'
 import type { MarketplaceProfessionalItem } from '@/types/marketplace'
 
@@ -18,51 +16,52 @@ interface ProfessionalCardProps {
   compareDisabled?: boolean
 }
 
-/** Cartão de um profissional na pesquisa do mercado. */
+/** Avaliação em poucas palavras: «★ 4,8 (12)», «Novo» ou nada. */
+function Rating({ item }: { item: MarketplaceProfessionalItem }) {
+  const summary = item.reviewSummary
+  if (summary?.averageRating !== undefined) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <Star className="size-4 fill-current text-warning" aria-hidden />
+        <span className="font-semibold">{formatRating(summary.averageRating)}</span>
+        <span className="text-muted">({summary.count})</span>
+        <span className="sr-only">avaliações de quem consultou</span>
+      </span>
+    )
+  }
+  return <span className="text-muted">Novo</span>
+}
+
+/** Linha compacta de um profissional: foto, nome, especialidade, preço e avaliação. */
 export function ProfessionalCard({ item, specialtyId, selected = false, onToggleCompare, compareDisabled = false }: ProfessionalCardProps) {
   const specialties = item.specialties.map((specialty) => specialty.name).join(', ')
 
   return (
-    <Card className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-semibold">
-          <Link to={paths.marketplaceProfessional(item.id, specialtyId)} className="hover:underline">
-            {item.displayName}
-          </Link>
-        </h2>
-        <p className="text-sm text-muted">{item.city}</p>
-        <p className="text-sm">{specialties || 'Sem especialidades'}</p>
-      </div>
-
-      <p className="font-semibold">A partir de {formatKz(item.fromPriceKz)}</p>
-
-      {item.matchingOffers.length > 0 && (
-        <ul className="flex flex-col gap-1 text-sm">
-          {item.matchingOffers.map((offer) => (
-            <li key={offer.id}>
-              {offerMethodLabel[offer.method]} · {offer.durationMinutes} min · {formatKz(offer.priceKz)}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <p className="text-sm">
-        <span className="text-muted">Próxima disponibilidade: </span>
-        {item.nextAvailableAt ? formatWhenLuanda(item.nextAvailableAt) : 'Sem horários livres'}
-      </p>
-
-      <RatingSummary summary={item.reviewSummary} showNew={!item.ranking} />
-      <RankingBadges ranking={item.ranking} />
-
+    <div className="flex items-center gap-2 rounded-2xl border border-border bg-surface pr-3 shadow-card">
+      <Link
+        to={paths.marketplaceProfessional(item.id, specialtyId)}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-3"
+      >
+        <Avatar name={item.displayName} size="lg" />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-base font-semibold">{item.displayName}</span>
+          <span className="truncate text-sm text-muted">{specialties || 'Sem especialidades'}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-sm">
+            <span className="font-semibold">{formatKz(item.fromPriceKz)}</span>
+            <Rating item={item} />
+          </span>
+        </span>
+      </Link>
       {onToggleCompare && (
-        <Checkbox
-          label="Comparar"
+        <input
+          type="checkbox"
           aria-label={`Comparar ${item.displayName}`}
           checked={selected}
           disabled={compareDisabled && !selected}
           onChange={onToggleCompare}
+          className="size-6 shrink-0 accent-primary"
         />
       )}
-    </Card>
+    </div>
   )
 }

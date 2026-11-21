@@ -78,6 +78,28 @@ describe('mercado de profissionais (família)', () => {
     expect((await screen.findAllByText('Mais barato')).length).toBeGreaterThan(0)
   })
 
+  it('lista limpa: os campos de pesquisa estão numa folha e cada linha mostra só nome, especialidade, preço e avaliação', async () => {
+    await loginFamily(paths.marketplace)
+    const link = (await screen.findByText('Dra. Teresa Neto')).closest('a')!
+    expect(link).toHaveAttribute('href', expect.stringContaining('/app/marketplace/'))
+    expect(within(link).getByText('Psicologia')).toBeInTheDocument()
+    expect(within(link).getByText(/15\s?000\s?Kz/)).toBeInTheDocument()
+    expect(within(link).getByText('4,8')).toBeInTheDocument()
+    // Nada de cidade, métodos, próxima disponibilidade nem selos na linha.
+    expect(within(link).queryByText(/Próxima disponibilidade/)).not.toBeInTheDocument()
+    expect(within(link).queryByText(/A partir de/)).not.toBeInTheDocument()
+
+    // Os campos só aparecem ao abrir «Pesquisar e filtrar».
+    expect(screen.getByRole('button', { name: /Pesquisar e filtrar/ })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Pesquisar e filtrar/ }))
+    const sheet = await screen.findByRole('dialog')
+    fireEvent.change(within(sheet).getByLabelText('Especialidade'), { target: { value: 'spc_psico' } })
+    await waitFor(() => expect(within(sheet).getByRole('button', { name: /^Ver / })).toBeInTheDocument())
+    fireEvent.click(within(sheet).getByRole('button', { name: /^Ver / }))
+    expect(screen.getByRole('button', { name: /Pesquisar e filtrar \(1\)/ })).toBeInTheDocument()
+  })
+
   it('«Como ordenamos» explica que o pagamento não influencia a ordem', async () => {
     await loginFamily(paths.marketplaceRanking)
     expect(await screen.findByRole('heading', { name: 'Como ordenamos' })).toBeInTheDocument()

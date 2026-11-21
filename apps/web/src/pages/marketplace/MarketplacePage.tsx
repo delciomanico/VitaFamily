@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { SearchX } from 'lucide-react'
+import { SearchX, SlidersHorizontal } from 'lucide-react'
+import { Sheet } from '@/components/app/Sheet'
 import { Page } from '@/components/layout/Page'
 import { ProfessionalCard } from '@/components/marketplace/ProfessionalCard'
-import { Button, ButtonLink } from '@/components/ui/Button'
+import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select, type SelectOption } from '@/components/ui/Select'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
@@ -74,6 +75,7 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
   /** `null` = omissão (depende da especialidade). */
   const [sortChoice, setSortChoice] = useState<MarketplaceSort | null>(null)
   const [selected, setSelected] = useState<string[]>([])
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const hasSpecialty = specialtyId !== ''
   const defaultSort: MarketplaceSort = hasSpecialty ? 'RANKING' : 'NEXT_AVAILABLE'
@@ -167,10 +169,42 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
     ...filters.cities.map((item) => ({ value: item.name, label: `${item.name} (${item.professionalCount})` })),
   ]
   const compareFull = selected.length >= MAX_COMPARE
+  const activeFilters = [term.length >= MIN_SEARCH_LENGTH, hasSpecialty, method !== '', city !== '', minPrice !== '', maxPrice !== '', withinDays !== '', sortChoice !== null].filter(Boolean).length
+
+  function clearFilters() {
+    setName('')
+    setSpecialtyId('')
+    setMethod('')
+    setCity('')
+    setMinPrice('')
+    setMaxPrice('')
+    setWithinDays('')
+    setSortChoice(null)
+    setSelected([])
+  }
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <Button variant="secondary" size="lg" fullWidth icon={<SlidersHorizontal className="size-5" aria-hidden />} onClick={() => setFiltersOpen(true)}>
+        Pesquisar e filtrar{activeFilters > 0 ? ` (${activeFilters})` : ''}
+      </Button>
+      <Sheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Pesquisar e filtrar"
+        stickyFooter
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" size="lg" onClick={clearFilters} disabled={activeFilters === 0}>
+              Limpar
+            </Button>
+            <Button size="lg" className="flex-1" onClick={() => setFiltersOpen(false)}>
+              {page ? `Ver ${formatCount(items.length, 'profissional', 'profissionais')}` : 'Ver resultados'}
+            </Button>
+          </div>
+        }
+      >
+      <div className="flex flex-col gap-3">
         <Input
           label="Pesquisar por nome"
           type="search"
@@ -187,6 +221,7 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
           onChange={(event) => setMethod(event.target.value as '' | OfferMethod)}
         />
         <Select label="Cidade" options={cityOptions} value={city} onChange={(event) => setCity(event.target.value)} />
+        <div className="grid grid-cols-2 gap-3">
         <Input
           label="Preço mínimo (Kz)"
           type="number"
@@ -195,7 +230,6 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
           step={1}
           value={minPrice}
           onChange={(event) => setMinPrice(event.target.value)}
-          hint="Valor inteiro, em Kz."
           error={minError}
         />
         <Input
@@ -206,9 +240,9 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
           step={1}
           value={maxPrice}
           onChange={(event) => setMaxPrice(event.target.value)}
-          hint="Valor inteiro, em Kz."
           error={maxError}
         />
+        </div>
         <Select
           label="Disponível nos próximos"
           options={WITHIN_DAYS_OPTIONS}
@@ -222,6 +256,7 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
           onChange={(event) => setSortChoice(event.target.value as MarketplaceSort)}
         />
       </div>
+      </Sheet>
 
       <p aria-live="polite" className="text-sm text-muted">
         {page ? formatCount(items.length, 'profissional encontrado', 'profissionais encontrados') : ''}
@@ -239,7 +274,7 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
       )}
 
       {page && items.length > 0 && (
-        <section aria-label="Resultados" className="flex flex-col gap-3">
+        <section aria-label="Resultados" className="flex flex-col gap-2.5">
           {items.map((item) => (
             <ProfessionalCard
               key={item.id}
@@ -255,31 +290,24 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
               Carregar mais
             </Button>
           )}
-          {sort === 'RANKING' && (
-            <p className="text-sm text-muted">
-              O pagamento e os destaques pagos nunca influenciam a ordem.{' '}
-              <Link to={paths.marketplaceRanking} className="font-medium text-primary underline">
-                Como ordenamos
-              </Link>
-            </p>
-          )}
+          <p className="text-sm text-muted">
+            O pagamento e os destaques pagos nunca influenciam a ordem.{' '}
+            <Link to={paths.marketplaceRanking} className="font-medium text-primary underline">
+              Como ordenamos
+            </Link>
+          </p>
         </section>
       )}
 
-      {hasSpecialty ? (
-        <div className="sticky bottom-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3 shadow-overlay">
+      {selected.length > 0 && (
+        <div className="sticky bottom-[calc(var(--bottom-nav-h,0px)+0.75rem)] flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-3 shadow-overlay">
           <p className="text-sm text-muted">
-            {selected.length < MIN_COMPARE ? 'Escolha de 2 a 3 profissionais para comparar.' : `${selected.length} de ${MAX_COMPARE} escolhidos.`}
+            {selected.length < MIN_COMPARE ? 'Escolha de 2 a 3 para comparar.' : `${selected.length} de ${MAX_COMPARE} escolhidos.`}
           </p>
-          <Button
-            disabled={selected.length < MIN_COMPARE}
-            onClick={() => navigate(paths.marketplaceCompare(selected, specialtyId))}
-          >
+          <Button disabled={selected.length < MIN_COMPARE} onClick={() => navigate(paths.marketplaceCompare(selected, specialtyId))}>
             Comparar ({selected.length})
           </Button>
         </div>
-      ) : (
-        <p className="text-sm text-muted">Escolha uma especialidade para comparar preços.</p>
       )}
     </>
   )
@@ -293,11 +321,6 @@ export function MarketplacePage() {
   return (
     <Page
       title="Profissionais"
-      action={
-        <ButtonLink to={paths.marketplaceRanking} variant="secondary" size="sm">
-          Como ordenamos
-        </ButtonLink>
-      }
     >
       {state.status === 'loading' && <LoadingState rows={3} />}
       {state.status === 'error' && <ErrorState message={errorMessage(state.error)} onRetry={reload} />}

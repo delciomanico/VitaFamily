@@ -9,13 +9,15 @@ interface SheetProps {
   description?: string
   children?: ReactNode
   footer?: ReactNode
+  /** O rodapé fica sempre visível em baixo (folhas longas com scroll). */
+  stickyFooter?: boolean
 }
 
 /**
  * Folha inferior (bottom sheet) baseada em <dialog>: foco preso, Esc fecha, toque fora fecha.
  * Fica sempre colada ao fundo, na coluna da app (nunca espalhada em ecrã largo).
  */
-export function Sheet({ open, onClose, title, description, children, footer }: SheetProps) {
+export function Sheet({ open, onClose, title, description, children, footer, stickyFooter = false }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   const descriptionId = useId()
@@ -54,7 +56,9 @@ export function Sheet({ open, onClose, title, description, children, footer }: S
           </button>
         </div>
         {children}
-        {footer && <div className="flex flex-col gap-3">{footer}</div>}
+        {footer && (
+          <div className={stickyFooter ? 'sticky bottom-0 -mx-5 flex flex-col gap-3 border-t border-border bg-surface px-5 pt-3 pb-1' : 'flex flex-col gap-3'}>{footer}</div>
+        )}
       </div>
     </dialog>
   )
