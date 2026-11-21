@@ -36,11 +36,12 @@ beforeEach(() => {
 })
 
 describe('novo serviço (passo a passo)', () => {
-  it('um assunto por ecrã, com progresso, sem barra inferior; cria o serviço no fim', async () => {
+  it('um assunto por ecrã, com progresso, numa folha em ecrã inteiro; cria o serviço no fim', async () => {
     const router = asProfessional('/profissional/servicos/novo')
     expect(await screen.findByRole('heading', { name: 'O que oferece?' })).toBeInTheDocument()
     expect(progress()).toHaveAttribute('aria-valuetext', 'Passo 1 de 5')
-    expect(screen.queryByRole('navigation', { name: 'Principal' })).not.toBeInTheDocument()
+    // O passo a passo é uma folha em ecrã inteiro por cima da lista de serviços.
+    expect(screen.getByRole('dialog', { name: 'Novo serviço' })).toBeInTheDocument()
     // Só um assunto: nada do preço ou da duração aparece ainda.
     expect(screen.queryByLabelText('Preço (Kz)')).not.toBeInTheDocument()
 
@@ -220,5 +221,33 @@ describe('enviar documento (passo a passo)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Não' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(screen.getByRole('heading', { name: 'Identificação' })).toBeInTheDocument()
+  })
+})
+
+describe('folhas por cima do ecrã (portal do profissional)', () => {
+  it('«Novo serviço»: a lista fica por baixo; com dados, «Voltar» pergunta e «Sim, descartar» apaga o rascunho e fecha', async () => {
+    const router = asProfessional('/profissional/servicos/novo')
+    await screen.findByRole('heading', { name: 'O que oferece?' })
+    const sheet = screen.getByRole('dialog', { name: 'Novo serviço' })
+    expect(await screen.findByRole('heading', { name: 'Os meus serviços' })).toBeInTheDocument()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+    await within(sheet).findByRole('heading', { name: 'Como atende?' })
+    // Escolhe um método e volta ao 1.º passo; «Voltar» fecha a folha com dados por guardar → confirmação.
+    fireEvent.click(within(sheet).getByRole('radio', { name: /Vídeo/ }))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Voltar' }))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Voltar' }))
+    const confirm = await screen.findByRole('dialog', { name: 'Descartar alterações?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Sim, descartar' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/profissional/servicos'))
+    expect(window.sessionStorage.getItem('vf.professional.draft.offer')).toBeNull()
+  })
+
+  it('«Nova pausa» e «Os meus dados» abrem como folha por cima do seu ecrã', async () => {
+    asProfessional('/profissional/horarios/pausa')
+    expect(await screen.findByRole('dialog', { name: 'Nova pausa' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Os meus horários' })).toBeInTheDocument()
+    cleanup()
+    asProfessional('/profissional/perfil/editar')
+    expect(await screen.findByRole('dialog', { name: 'Os meus dados' })).toBeInTheDocument()
   })
 })

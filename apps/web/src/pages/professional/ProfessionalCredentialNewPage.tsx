@@ -1,19 +1,16 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { FileUp } from 'lucide-react'
 import { ChoiceList } from '@/components/app/ChoiceList'
-import { Wizard } from '@/components/app/Wizard'
+import { SheetNotice, SheetWait, WizardSheet } from '@/components/app/FormSheet'
 import { LockedNotice } from '@/components/professional/LockedNotice'
-import { ButtonLink } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useProfessionalProfile } from '@/hooks/useProfessionalProfile'
 import { useWizardStep } from '@/hooks/useWizardStep'
 import { MAX_ENTITY, MAX_NUMBER, uploadErrorMessage } from '@/lib/credentials'
 import { useDraft } from '@/lib/draft'
-import { canNavigateBack } from '@/lib/navigation'
+import { useModalRoute } from '@/lib/modalRoute'
 import { CREDENTIAL_MAX_BYTES, CREDENTIAL_TYPES, credentialKindLabel, formatFileSize } from '@/lib/professional'
 import { paths } from '@/routes/paths'
 import { professionalPortalService } from '@/services/professionalPortal.service'
@@ -37,10 +34,9 @@ interface Draft {
 /** Enviar um documento (UC-MKT-04, BR-MKT-16/17): tipo, ficheiro e dados opcionais. O ficheiro não entra no rascunho. */
 function CredentialWizard() {
   const toast = useToast()
-  const navigate = useNavigate()
   const fileInput = useRef<HTMLInputElement>(null)
-  const exit = () => (canNavigateBack() ? navigate(-1) : navigate(paths.professionalCredentials, { replace: true }))
-  const { step, next, back, last } = useWizardStep(TITLES.length, exit)
+  const { close, saved } = useModalRoute(paths.professionalCredentials)
+  const { step, next, back, last } = useWizardStep(TITLES.length, close)
   const [draft, update, clearDraft] = useDraft<Draft>('credential', { kind: '', number: '', issuingBody: '', validUntil: '' })
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -77,7 +73,7 @@ function CredentialWizard() {
       })
       clearDraft()
       toast.show('Documento enviado. Está em verificação.')
-      navigate(paths.professionalCredentials, { replace: true })
+      saved()
     } catch (failure) {
       setError(uploadErrorMessage(failure))
     } finally {
@@ -94,7 +90,10 @@ function CredentialWizard() {
   }
 
   return (
-    <Wizard
+    <WizardSheet
+      onClose={close}
+      onDiscard={clearDraft}
+      dirty={Boolean(file || draft.kind || draft.number || draft.issuingBody || draft.validUntil)}
       title="Enviar documento"
       stepTitle={TITLES[step] ?? ''}
       description={step === 1 ? 'PDF, JPG ou PNG, até 10 MB. Pode tirar uma fotografia.' : step === 2 ? 'Tudo opcional.' : undefined}
@@ -141,23 +140,20 @@ function CredentialWizard() {
           <Input label="Validade (opcional)" type="date" value={draft.validUntil} onChange={(event) => change({ validUntil: event.target.value })} hint="Se a data já passou, o documento fica como caducado." />
         </div>
       )}
-    </Wizard>
+    </WizardSheet>
   )
 }
 
 export function ProfessionalCredentialNewPage() {
   usePageTitle('Enviar documento')
   const { state, reload, profile, rights } = useProfessionalProfile()
-  if (state.status === 'error') return <ErrorState onRetry={reload} />
-  if (!profile || !rights) return <LoadingState rows={2} />
+  const { close } = useModalRoute(paths.professionalCredentials)
+  if (state.status === 'error' || !profile || !rights) return <SheetWait title="Enviar documento" onClose={close} onRetry={reload} failed={state.status === 'error'} />
   if (!rights.identity)
     return (
-      <div className="flex flex-col gap-4 pt-6">
+      <SheetNotice title="Enviar documento" onClose={close} closeLabel="Voltar aos documentos">
         <LockedNotice>Os documentos só se alteram enquanto o perfil está a ser preenchido ou quando a equipa pede mais informação.</LockedNotice>
-        <ButtonLink to={paths.professionalCredentials} size="xl" fullWidth>
-          Voltar aos documentos
-        </ButtonLink>
-      </div>
+      </SheetNotice>
     )
   return <CredentialWizard />
 }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { Outlet, useParams } from 'react-router-dom'
 import { CircleSlash, Download, FileText, MessageCircle, Share2, Wallet } from 'lucide-react'
 import { AccordionSection } from '@/components/app/Accordion'
 import { ScreenHeader } from '@/components/app/ScreenHeader'
@@ -53,6 +53,7 @@ export function ProfessionalBookingPage() {
       {back}
       {profile.profile && !approved && <LockedNotice>A sua conta não está aprovada: só pode consultar esta marcação.</LockedNotice>}
       {shown && <Detail booking={shown} approved={approved} onChanged={reload} />}
+      <Outlet context={{ onSaved: reload }} />
     </div>
   )
 }

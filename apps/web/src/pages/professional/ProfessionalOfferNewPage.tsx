@@ -1,18 +1,16 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ChoiceList } from '@/components/app/ChoiceList'
-import { Wizard } from '@/components/app/Wizard'
+import { SheetNotice, SheetWait, WizardSheet } from '@/components/app/FormSheet'
 import { ButtonLink } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
-import { ErrorState, LoadingState } from '@/components/ui/states'
 import { LockedNotice } from '@/components/professional/LockedNotice'
 import { useToast } from '@/components/ui/Toast'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useProfessionalProfile } from '@/hooks/useProfessionalProfile'
 import { useWizardStep } from '@/hooks/useWizardStep'
 import { useDraft } from '@/lib/draft'
-import { canNavigateBack } from '@/lib/navigation'
+import { useModalRoute } from '@/lib/modalRoute'
 import { formatKz, offerMethodLabel } from '@/lib/professional'
 import { offerErrorMessage, parsePrice, MAX_NOTE_LENGTH } from '@/lib/offers'
 import { paths } from '@/routes/paths'
@@ -39,9 +37,8 @@ interface Draft {
 /** Criar um serviço (oferta) passo a passo (UC-MKT-08, BR-MKT-24/31): especialidade, método, duração, preço e nota. */
 function OfferWizard({ specialties }: { specialties: Specialty[] }) {
   const toast = useToast()
-  const navigate = useNavigate()
-  const exit = () => (canNavigateBack() ? navigate(-1) : navigate(paths.professionalOffers, { replace: true }))
-  const { step, next, back, last } = useWizardStep(STEPS.length, exit)
+  const { close, saved } = useModalRoute(paths.professionalOffers)
+  const { step, next, back, last } = useWizardStep(STEPS.length, close)
   const [draft, update, clearDraft] = useDraft<Draft>('offer', { specialtyId: specialties.length === 1 ? (specialties[0]?.id ?? '') : '', method: '', duration: '', price: '', note: '' })
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -60,7 +57,7 @@ function OfferWizard({ specialties }: { specialties: Specialty[] }) {
       await professionalPortalService.createOffer({ specialtyId: draft.specialtyId, method: draft.method, durationMinutes: durationValue, priceKz: price, note: draft.note.trim() || null })
       clearDraft()
       toast.show('Serviço criado.')
-      navigate(paths.professionalOffers, { replace: true })
+      saved()
     } catch (failure) {
       setError(offerErrorMessage(failure))
     } finally {
@@ -82,7 +79,10 @@ function OfferWizard({ specialties }: { specialties: Specialty[] }) {
   const specialtyName = specialties.find((s) => s.id === draft.specialtyId)?.name
 
   return (
-    <Wizard
+    <WizardSheet
+      onClose={close}
+      onDiscard={clearDraft}
+      dirty={Boolean(draft.method || draft.duration || draft.price || draft.note)}
       title="Novo serviço"
       stepTitle={STEPS[step] ?? ''}
       description={step === 3 ? 'Em Kwanza. Escreva 0 se for gratuito.' : step === 4 ? 'Opcional. Por exemplo, a morada do atendimento.' : undefined}
@@ -115,7 +115,7 @@ function OfferWizard({ specialties }: { specialties: Specialty[] }) {
           </section>
         </>
       )}
-    </Wizard>
+    </WizardSheet>
   )
 }
 
@@ -123,31 +123,29 @@ function OfferWizard({ specialties }: { specialties: Specialty[] }) {
 export function ProfessionalOfferNewPage() {
   usePageTitle('Novo serviço')
   const { state, reload, profile, rights } = useProfessionalProfile()
-  if (state.status === 'error') return <ErrorState onRetry={reload} />
-  if (!profile || !rights) return <LoadingState rows={2} />
+  const { close } = useModalRoute(paths.professionalOffers)
+  if (state.status === 'error' || !profile || !rights) return <SheetWait title="Novo serviço" onClose={close} onRetry={reload} failed={state.status === 'error'} />
   if (!rights.commercial)
     return (
-      <div className="flex flex-col gap-4">
+      <SheetNotice title="Novo serviço" onClose={close} closeLabel="Voltar aos serviços">
         <LockedNotice>Neste estado não é possível criar serviços.</LockedNotice>
-        <ButtonLink to={paths.professionalOffers} size="xl" fullWidth>
-          Voltar aos serviços
-        </ButtonLink>
-      </div>
+      </SheetNotice>
     )
   if (profile.specialties.length === 0)
     return (
-      <div className="flex flex-col gap-4 pt-6 text-center">
-        <h1 className="text-2xl font-semibold">Primeiro, a sua especialidade</h1>
+      <SheetNotice
+        title="Primeiro, a sua especialidade"
+        onClose={close}
+        actions={
+          <ButtonLink to={paths.professionalProfileEdit} replace size="xl" fullWidth>
+            Escolher a especialidade
+          </ButtonLink>
+        }
+      >
         <p role="note" className="text-base text-muted">
           Ainda não escolheu nenhuma especialidade. Precisamos dela para criar o serviço.
         </p>
-        <ButtonLink to={paths.professionalProfileEdit} size="xl" fullWidth>
-          Escolher a especialidade
-        </ButtonLink>
-        <ButtonLink to={paths.professionalOffers} variant="secondary" size="lg" fullWidth>
-          Voltar
-        </ButtonLink>
-      </div>
+      </SheetNotice>
     )
   return <OfferWizard specialties={profile.specialties} />
 }

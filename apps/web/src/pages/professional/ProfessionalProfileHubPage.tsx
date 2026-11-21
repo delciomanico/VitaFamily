@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
 import { Camera, CalendarClock, FileBadge, LogOut, Share2, Star, Tags, Trash2, UserPen } from 'lucide-react'
 import { ListEntry } from '@/components/app/ListEntry'
 import { ProfessionalAvatar } from '@/components/app/ProfessionalAvatar'
@@ -136,6 +136,7 @@ export function ProfessionalProfileHubPage() {
         onYes={() => void signOut()}
         onNo={() => setLeaving(false)}
       />
+      <Outlet context={{ onSaved: reload }} />
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import { Download, FileText, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { AccordionSection } from '@/components/app/Accordion'
@@ -166,6 +167,7 @@ export function ProfessionalCredentialsPage() {
         onYes={() => void confirmRemove()}
         onNo={() => setRemoving(null)}
       />
+      <Outlet context={{ onSaved: reload }} />
     </div>
   )
 }

@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { ChoiceChecks } from '@/components/app/ChoiceList'
-import { Wizard } from '@/components/app/Wizard'
+import { SheetWait, WizardSheet } from '@/components/app/FormSheet'
 import { LockedNotice } from '@/components/professional/LockedNotice'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
-import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -13,7 +11,7 @@ import { useProfessionalProfile } from '@/hooks/useProfessionalProfile'
 import { useWizardStep } from '@/hooks/useWizardStep'
 import { useDraft } from '@/lib/draft'
 import { errorMessage } from '@/lib/errors'
-import { canNavigateBack } from '@/lib/navigation'
+import { useModalRoute } from '@/lib/modalRoute'
 import { categoryLabel, editRights } from '@/lib/professional'
 import { paths } from '@/routes/paths'
 import { professionalPortalService } from '@/services/professionalPortal.service'
@@ -52,17 +50,17 @@ function stepError(step: number, draft: Draft, identityOpen: boolean, textOpen: 
 /** Dados do perfil passo a passo (UC-MKT-03): só os campos alterados são enviados em `PATCH /professional-portal/me`. */
 function ProfileWizard({ profile, catalog }: { profile: ProfessionalProfile; catalog: Specialty[] }) {
   const toast = useToast()
-  const navigate = useNavigate()
   const rights = editRights(profile.validationStatus)
-  const exit = () => (canNavigateBack() ? navigate(-1) : navigate(paths.professionalProfile, { replace: true }))
-  const { step, next, back, last } = useWizardStep(STEPS.length, exit)
-  const [draft, update, clearDraft] = useDraft<Draft>('profile', {
+  const { close, saved } = useModalRoute(paths.professionalProfile)
+  const { step, next, back, last } = useWizardStep(STEPS.length, close)
+  const initialDraft: Draft = {
     displayName: profile.displayName ?? '',
     city: profile.city ?? '',
     bio: profile.bio ?? '',
     paymentInstructions: profile.paymentInstructions ?? '',
     specialtyIds: profile.specialties.map((specialty) => specialty.id),
-  })
+  }
+  const [draft, update, clearDraft] = useDraft<Draft>('profile', initialDraft)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -88,7 +86,7 @@ function ProfileWizard({ profile, catalog }: { profile: ProfessionalProfile; cat
       if (rights.identity && [...draft.specialtyIds].sort().join(',') !== before) await professionalPortalService.setSpecialties(draft.specialtyIds)
       clearDraft()
       toast.show('Perfil guardado.')
-      exit()
+      saved()
     } catch (failure) {
       // Ex.: CONFLICT ao retirar uma especialidade que tem serviços ativos.
       setError(errorMessage(failure))
@@ -103,11 +101,14 @@ function ProfileWizard({ profile, catalog }: { profile: ProfessionalProfile; cat
     setError(null)
     if (!last) return next()
     if (rights.profileText || rights.identity) void save()
-    else exit()
+    else close()
   }
 
   return (
-    <Wizard
+    <WizardSheet
+      onClose={close}
+      onDiscard={clearDraft}
+      dirty={JSON.stringify(draft) !== JSON.stringify(initialDraft)}
       title="Os meus dados"
       stepTitle={STEPS[step] ?? ''}
       description={
@@ -164,7 +165,7 @@ function ProfileWizard({ profile, catalog }: { profile: ProfessionalProfile; cat
           hint="Por exemplo: o IBAN para transferência."
         />
       )}
-    </Wizard>
+    </WizardSheet>
   )
 }
 
@@ -174,7 +175,9 @@ export function ProfessionalProfilePage() {
   const { state, reload, profile } = useProfessionalProfile()
   const catalog = useAsync(() => professionalPortalService.listSpecialtyCatalog(), [])
 
-  if (state.status === 'error' || catalog.state.status === 'error') return <ErrorState onRetry={state.status === 'error' ? reload : catalog.reload} />
-  if (!profile || catalog.state.status !== 'success') return <LoadingState rows={2} />
+  const { close } = useModalRoute(paths.professionalProfile)
+  const failed = state.status === 'error' || catalog.state.status === 'error'
+  if (failed || !profile || catalog.state.status !== 'success')
+    return <SheetWait title="Os meus dados" onClose={close} failed={failed} onRetry={state.status === 'error' ? reload : catalog.reload} />
   return <ProfileWizard profile={profile} catalog={catalog.state.data} />
 }

@@ -85,8 +85,8 @@ describe('partilha com prazo (família)', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(paths.booking('mem_pedro', 'bkg_seed_conf')))
     fireEvent.click(await screen.findByRole('link', { name: /Ativa/ }))
     await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/app\/shares\/mem_pedro\/.+/))
+    expect(await screen.findByText('Só pode ser aberta uma vez.')).toBeInTheDocument()
     expect(await screen.findByText('Ativa')).toBeInTheDocument()
-    expect(screen.getByText('Só pode ser aberta uma vez.')).toBeInTheDocument()
     expect(await screen.findByText('Ainda ninguém abriu esta partilha.')).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(TECHNICAL)
 
@@ -225,7 +225,8 @@ describe('receita digital (atrás da flag)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     expect(await screen.findByRole('heading', { name: 'Alguma observação?' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Emitir receita' }))
-    const dialog = await screen.findByRole('dialog')
+    // A confirmação é uma folha por cima da folha do passo a passo.
+    const dialog = await screen.findByRole('dialog', { name: 'Emitir esta receita?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Sim, emitir' }))
     expect(await screen.findByText(/Receita emitida em/)).toBeInTheDocument()
     expect(screen.getByText('Ibuprofeno')).toBeInTheDocument()

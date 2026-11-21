@@ -1,3 +1,4 @@
+import { Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import { Plus, Tags } from 'lucide-react'
 import { ScreenHeader } from '@/components/app/ScreenHeader'
@@ -197,6 +198,7 @@ export function ProfessionalOffersPage() {
           if (offer) void setActive(offer, false)
         }}
       />
+      <Outlet context={{ onSaved: offers.reload }} />
     </div>
   )
 }

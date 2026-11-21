@@ -201,3 +201,33 @@ export function SheetWait({ title, onClose, onRetry, failed = false }: SheetWait
     </Sheet>
   )
 }
+
+interface SheetNoticeProps {
+  title: string
+  onClose: () => void
+  children: ReactNode
+  /** Botões extra acima do principal (ex.: «Escolher a especialidade»). */
+  actions?: ReactNode
+  closeLabel?: string
+}
+
+/** Folha com um aviso («neste estado não é possível…») e o botão para voltar, quando o formulário não se pode abrir. */
+export function SheetNotice({ title, onClose, children, actions, closeLabel = 'Voltar' }: SheetNoticeProps) {
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={title}
+      footer={
+        <>
+          {actions}
+          <Button size="xl" variant={actions ? 'secondary' : 'primary'} fullWidth onClick={onClose}>
+            {closeLabel}
+          </Button>
+        </>
+      }
+    >
+      {children}
+    </Sheet>
+  )
+}

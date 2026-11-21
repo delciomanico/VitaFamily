@@ -1,3 +1,4 @@
+import { Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import { CalendarOff, Clock, Plus } from 'lucide-react'
 import { AccordionSection } from '@/components/app/Accordion'
@@ -260,6 +261,12 @@ export function ProfessionalSchedulePage() {
   // Incrementa quando regras ou pausas mudam, para a lista de horários livres se atualizar.
   const [slotsVersion, setSlotsVersion] = useState(0)
   const refreshSlots = () => setSlotsVersion((v) => v + 1)
+  // Um formulário (horário, pausa) guardou: recarrega as listas.
+  const [formsVersion, setFormsVersion] = useState(0)
+  const onSaved = () => {
+    setFormsVersion((v) => v + 1)
+    refreshSlots()
+  }
 
   const canEdit = profile.rights?.commercial === true
   const approved = profile.profile?.validationStatus === 'APPROVED'
@@ -276,13 +283,14 @@ export function ProfessionalSchedulePage() {
 
       {profile.profile && (
         <>
-          <RulesSection canEdit={canEdit} approved={approved} specialties={specialties} onChanged={refreshSlots} />
+          <RulesSection key={`rules-${formsVersion}`} canEdit={canEdit} approved={approved} specialties={specialties} onChanged={refreshSlots} />
           <div className="flex flex-col gap-3">
-            <TimeOffSection canEdit={canEdit} onChanged={refreshSlots} />
+            <TimeOffSection key={`off-${formsVersion}`} canEdit={canEdit} onChanged={refreshSlots} />
             <SlotsSection version={slotsVersion} />
           </div>
         </>
       )}
+      <Outlet context={{ onSaved }} />
     </div>
   )
 }

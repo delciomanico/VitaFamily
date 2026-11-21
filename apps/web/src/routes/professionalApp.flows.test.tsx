@@ -244,7 +244,8 @@ describe('receita e partilhas recebidas', () => {
     cleanup()
     asProfessional('/profissional/marcacoes/bkg_seed_pa_done/receita')
     expect(await screen.findByLabelText('Medicamento')).toHaveValue('Paracetamol')
-    expect(screen.queryByRole('navigation', { name: 'Principal' })).not.toBeInTheDocument()
+    // O passo a passo é uma folha em ecrã inteiro por cima da marcação.
+    expect(screen.getByRole('dialog', { name: 'Emitir receita' })).toBeInTheDocument()
   })
 
   it('partilhas recebidas: lista em cartões; a ação de abrir pede «Sim»/«Não»', async () => {

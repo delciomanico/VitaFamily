@@ -1,18 +1,17 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { ChoiceChecks, ChoiceList } from '@/components/app/ChoiceList'
-import { Wizard } from '@/components/app/Wizard'
+import { SheetNotice, SheetWait, WizardSheet } from '@/components/app/FormSheet'
 import { LockedNotice } from '@/components/professional/LockedNotice'
 import { ButtonLink } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useProfessionalProfile } from '@/hooks/useProfessionalProfile'
 import { useWizardStep } from '@/hooks/useWizardStep'
 import { useDraft } from '@/lib/draft'
-import { canNavigateBack } from '@/lib/navigation'
+import { useModalRoute } from '@/lib/modalRoute'
 import { WEEKDAYS, offerMethodLabel, weekdayLabel } from '@/lib/professional'
 import { generationMessage, minutesOf, ruleErrorMessage, sortedDays } from '@/lib/schedule'
 import { paths } from '@/routes/paths'
@@ -38,21 +37,21 @@ interface WizardProps {
 /** Novo horário semanal (ou edição) passo a passo (UC-MKT-09, BR-MKT-25): serviço, dias, horas e validade. */
 function RuleWizard({ rule, offers, specialties, approved }: WizardProps) {
   const toast = useToast()
-  const navigate = useNavigate()
   const editing = rule !== undefined
   // Ao editar, o serviço fica fixo: o primeiro passo desaparece.
   const titles = editing ? ['Em que dias atende?', 'A que horas?', 'Até quando vale?'] : ['Para que serviço?', 'Em que dias atende?', 'A que horas?', 'Até quando vale?']
-  const exit = () => (canNavigateBack() ? navigate(-1) : navigate(paths.professionalSchedule, { replace: true }))
-  const { step: raw, next, back, last } = useWizardStep(titles.length, exit)
+  const { close, saved } = useModalRoute(paths.professionalSchedule)
+  const { step: raw, next, back, last } = useWizardStep(titles.length, close)
   const step = editing ? raw + 1 : raw // 0 serviço, 1 dias, 2 horas, 3 validade
-  const [draft, update, clearDraft] = useDraft<Draft>(rule ? `rule-${rule.id}` : 'rule', {
+  const initialDraft: Draft = {
     offerId: rule?.offerId ?? '',
     weekdays: (rule ? sortedDays(rule.weekdays) : []).map(String),
     startTime: rule?.startTime ?? '',
     endTime: rule?.endTime ?? '',
     validFrom: rule?.validFrom ?? '',
     validUntil: rule?.validUntil ?? '',
-  })
+  }
+  const [draft, update, clearDraft] = useDraft<Draft>(rule ? `rule-${rule.id}` : 'rule', initialDraft)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const change = (patch: Partial<Draft>) => {
@@ -90,7 +89,7 @@ function RuleWizard({ rule, offers, specialties, approved }: WizardProps) {
       const result = rule ? await professionalPortalService.updateScheduleRule(rule.id, common) : await professionalPortalService.createScheduleRule({ offerId: draft.offerId, ...common })
       clearDraft()
       toast.show(generationMessage(result.generation, approved))
-      navigate(paths.professionalSchedule, { replace: true })
+      saved()
     } catch (failure) {
       setError(ruleErrorMessage(failure))
     } finally {
@@ -107,7 +106,10 @@ function RuleWizard({ rule, offers, specialties, approved }: WizardProps) {
   }
 
   return (
-    <Wizard
+    <WizardSheet
+      onClose={close}
+      onDiscard={clearDraft}
+      dirty={JSON.stringify(draft) !== JSON.stringify(initialDraft)}
       title={editing ? 'Mudar horário' : 'Novo horário'}
       stepTitle={titles[raw] ?? ''}
       description={step === 2 ? 'Horas de Luanda.' : step === 3 ? 'Opcional. Se não escolher, o horário vale para sempre.' : undefined}
@@ -144,7 +146,7 @@ function RuleWizard({ rule, offers, specialties, approved }: WizardProps) {
           <Input label="Vale até" type="date" value={draft.validUntil} onChange={(event) => change({ validUntil: event.target.value })} hint="Opcional" />
         </div>
       )}
-    </Wizard>
+    </WizardSheet>
   )
 }
 
@@ -156,29 +158,47 @@ export function ProfessionalScheduleRulePage() {
   const offers = useAsync(() => professionalPortalService.listOffers(true), [])
   const rules = useAsync(() => (ruleId ? professionalPortalService.listScheduleRules() : Promise.resolve([])), [ruleId])
 
-  if (profile.state.status === 'error' || offers.state.status === 'error' || rules.state.status === 'error') return <ErrorState onRetry={() => { profile.reload(); offers.reload(); rules.reload() }} />
-  if (!profile.profile || !profile.rights || offers.state.status !== 'success' || rules.state.status !== 'success') return <LoadingState rows={2} />
+  const { close } = useModalRoute(paths.professionalSchedule)
+  const failed = profile.state.status === 'error' || offers.state.status === 'error' || rules.state.status === 'error'
+  if (failed || !profile.profile || !profile.rights || offers.state.status !== 'success' || rules.state.status !== 'success')
+    return (
+      <SheetWait
+        title={ruleId ? 'Mudar horário' : 'Novo horário'}
+        onClose={close}
+        failed={failed}
+        onRetry={() => {
+          profile.reload()
+          offers.reload()
+          rules.reload()
+        }}
+      />
+    )
 
   const rule = ruleId ? rules.state.data.find((r) => r.id === ruleId) : undefined
   const blocked = !profile.rights.commercial
   const noOffers = offers.state.data.length === 0
   if (blocked || noOffers || (ruleId && !rule))
     return (
-      <div className="flex flex-col gap-4 pt-6 text-center">
+      <SheetNotice
+        title={blocked ? 'Horários' : ruleId ? 'Horário não encontrado' : 'Primeiro, um serviço'}
+        onClose={close}
+        closeLabel="Voltar aos horários"
+        actions={
+          noOffers && !blocked && !ruleId ? (
+            <ButtonLink to={paths.professionalOfferNew} replace size="xl" fullWidth>
+              Criar um serviço
+            </ButtonLink>
+          ) : undefined
+        }
+      >
         {blocked ? (
           <LockedNotice>Neste estado não é possível criar nem mudar horários.</LockedNotice>
         ) : (
-          <>
-            <h1 className="text-2xl font-semibold">{ruleId ? 'Horário não encontrado' : 'Primeiro, um serviço'}</h1>
-            <p role="note" className="text-base text-muted">
-              {ruleId ? 'Volte à lista de horários.' : 'Para definir horários precisa de pelo menos um serviço ativo.'}
-            </p>
-          </>
+          <p role="note" className="text-base text-muted">
+            {ruleId ? 'Volte à lista de horários.' : 'Para definir horários precisa de pelo menos um serviço ativo.'}
+          </p>
         )}
-        <ButtonLink to={noOffers && !blocked && !ruleId ? paths.professionalOfferNew : paths.professionalSchedule} size="xl" fullWidth>
-          {noOffers && !blocked && !ruleId ? 'Criar um serviço' : 'Voltar aos horários'}
-        </ButtonLink>
-      </div>
+      </SheetNotice>
     )
   return <RuleWizard rule={rule} offers={offers.state.data} specialties={profile.profile.specialties} approved={profile.profile.validationStatus === 'APPROVED'} />
 }

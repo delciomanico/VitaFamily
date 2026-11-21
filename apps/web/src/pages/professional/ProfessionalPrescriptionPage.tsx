@@ -1,22 +1,21 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useOutletContext, useParams } from 'react-router-dom'
 import { CircleSlash, Pencil, Plus } from 'lucide-react'
-import { ScreenHeader } from '@/components/app/ScreenHeader'
+import { SheetNotice, SheetWait, WizardSheet } from '@/components/app/FormSheet'
 import { ConfirmSheet } from '@/components/app/Sheet'
-import { Wizard } from '@/components/app/Wizard'
 import { ScheduleFields, emptySchedule, scheduleError, toScheduleInput, type ScheduleValue } from '@/components/domain/ScheduleFields'
 import { Button } from '@/components/ui/Button'
 import { Checkbox } from '@/components/ui/Checkbox'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
-import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
+import { EmptyState, ErrorState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAsync } from '@/hooks/useAsync'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useDraft } from '@/lib/draft'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { formatLongDate, formatShortDateLuanda } from '@/lib/format'
-import { canNavigateBack } from '@/lib/navigation'
+import { useModalRoute, type ModalOutletContext } from '@/lib/modalRoute'
 import { MAX_PRESCRIPTION_MEDICATIONS, PRESCRIPTION_NOTES_MAX, PRESCRIPTION_NOTICE, frequencyText } from '@/lib/recordSharing'
 import { paths } from '@/routes/paths'
 import { professionalBookingService } from '@/services/professionalBooking.service'
@@ -87,34 +86,42 @@ export function ProfessionalPrescriptionPage() {
     [bookingId],
   )
   const [issued, setIssued] = useState<ProfessionalPrescription | null>(null)
-  const back = <ScreenHeader title="Receita" backTo={paths.professionalBooking(bookingId)} backLabel="Marcação" />
+  const { close } = useModalRoute(paths.professionalBooking(bookingId))
+  const context = useOutletContext<ModalOutletContext | null>()
 
   const loading = booking.state.status === 'loading' || existing.state.status === 'loading'
   const failed = booking.state.status === 'error' ? booking.state.error : existing.state.status === 'error' ? existing.state.error : null
-  if (loading) return <div className="flex flex-col gap-5">{back}<LoadingState rows={3} /></div>
+  if (loading) return <SheetWait title="Receita" onClose={close} />
   if (failed)
     return (
-      <div className="flex flex-col gap-5">
-        {back}
+      <SheetNotice title="Receita" onClose={close} closeLabel="Fechar">
         {isAppError(failed, 'NOT_FOUND') ? <EmptyState icon={CircleSlash} title="Marcação não encontrada." /> : <ErrorState message={errorMessage(failed)} onRetry={() => { booking.reload(); existing.reload() }} />}
-      </div>
+      </SheetNotice>
     )
 
   const current = issued ?? (existing.state.status === 'success' ? existing.state.data.value : null)
   const canPrescribe = booking.state.status === 'success' && booking.state.data.canPrescribe === true
   if (current)
     return (
-      <div className="flex flex-col gap-5">
-        {back}
+      <SheetNotice title="Receita" onClose={close} closeLabel="Fechar">
         <PrescriptionView prescription={current} />
-      </div>
+      </SheetNotice>
     )
-  if (canPrescribe) return <PrescriptionWizard bookingId={bookingId} onIssued={setIssued} />
+  if (canPrescribe)
+    return (
+      <PrescriptionWizard
+        bookingId={bookingId}
+        onIssued={(value) => {
+          context?.onSaved?.()
+          setIssued(value)
+        }}
+        onClose={close}
+      />
+    )
   return (
-    <div className="flex flex-col gap-5">
-      {back}
+    <SheetNotice title="Receita" onClose={close} closeLabel="Fechar">
       <EmptyState icon={CircleSlash} title="Não é possível emitir receita nesta marcação." description="A receita digital não está disponível para esta marcação." />
-    </div>
+    </SheetNotice>
   )
 }
 
@@ -152,9 +159,8 @@ type Phase = 'name' | 'schedule' | 'duration' | 'review' | 'notes'
 const PHASES: Phase[] = ['name', 'schedule', 'duration', 'review', 'notes']
 
 /** Emitir a receita passo a passo: por medicamento (nome, horário, duração), rever e observações. */
-function PrescriptionWizard({ bookingId, onIssued }: { bookingId: string; onIssued: (value: ProfessionalPrescription) => void }) {
+function PrescriptionWizard({ bookingId, onIssued, onClose }: { bookingId: string; onIssued: (value: ProfessionalPrescription) => void; onClose: () => void }) {
   const toast = useToast()
-  const navigate = useNavigate()
   const [draft, update, clearDraft] = useDraft<{ rows: Row[]; notes: string }>(`prescription-${bookingId}`, { rows: [newRow()], notes: '' })
   const [index, setIndex] = useState(0)
   const [phase, setPhase] = useState<Phase>('name')
@@ -167,11 +173,10 @@ function PrescriptionWizard({ bookingId, onIssued }: { bookingId: string; onIssu
     setError(null)
     update({ rows: rows.map((r, i) => (i === index ? { ...r, ...change } : r)) })
   }
-  const exit = () => (canNavigateBack() ? navigate(-1) : navigate(paths.professionalBooking(bookingId), { replace: true }))
 
   function onBack() {
     setError(null)
-    if (phase === 'name') return index > 0 ? setPhase('review') : exit()
+    if (phase === 'name') return index > 0 ? setPhase('review') : onClose()
     setPhase(PHASES[PHASES.indexOf(phase) - 1] ?? 'name')
   }
 
@@ -222,7 +227,10 @@ function PrescriptionWizard({ bookingId, onIssued }: { bookingId: string; onIssu
 
   return (
     <>
-      <Wizard
+      <WizardSheet
+        onClose={onClose}
+        onDiscard={clearDraft}
+        dirty={JSON.stringify(draft) !== JSON.stringify({ rows: [newRow()], notes: '' })}
         title="Emitir receita"
         stepTitle={titles[phase]}
         description={phase === 'name' ? 'Escreva o nome e a dose, como na receita em papel.' : phase === 'notes' ? 'Opcional. A família vê isto junto à receita.' : undefined}
@@ -296,7 +304,7 @@ function PrescriptionWizard({ bookingId, onIssued }: { bookingId: string; onIssu
           </>
         )}
         {phase === 'notes' && <Textarea label="Observações da receita (opcional)" rows={5} value={draft.notes} maxLength={PRESCRIPTION_NOTES_MAX} onChange={(event) => { setError(null); update({ notes: event.target.value }) }} hint={`${draft.notes.length}/${PRESCRIPTION_NOTES_MAX} letras`} />}
-      </Wizard>
+      </WizardSheet>
       <ConfirmSheet
         open={confirming}
         title="Emitir esta receita?"
