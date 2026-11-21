@@ -393,3 +393,53 @@
     min-height: 3rem;
   }
 }
+
+/*
+ * Fundo da app (família e portal do profissional): azul principal da marca, sólido (#167698, o azul do logótipo).
+ * Em vez de editar ecrã a ecrã, `html.on-brand` (posta pelas duas shells) redefine os tokens semânticos para «sobre
+ * azul»: texto e ícones brancos, «muted» quase branco (≥ 4.5:1), contornos translúcidos e o primário passa a branco; campos e pílulas usam azuis mais escuros SÓLIDOS (nunca deixam ver os detalhes do fundo).
+ * Cartões, folhas e diálogos repõem os tokens claros (bloco seguinte), por isso o texto dentro deles continua escuro.
+ */
+html.on-brand {
+  --color-background: #167698;
+  --color-foreground: #ffffff;
+  --color-muted: rgb(255 255 255 / 0.93);
+  --color-border: rgb(255 255 255 / 0.28);
+  --color-border-strong: rgb(255 255 255 / 0.45);
+  --color-surface-muted: #126883;
+  --color-primary: #ffffff;
+  --color-primary-hover: #eaf6fa;
+  --color-primary-foreground: #0d4f68;
+  --color-primary-soft: #115f79;
+  --color-primary-soft-hover: #0f566e;
+}
+
+/* Superfícies claras dentro do fundo azul: repõem os tokens claros (iguais ao @theme). */
+html.on-brand :is(.bg-surface, .bg-white, .on-light, dialog, .bg-success-soft, .bg-warning-soft, .bg-danger-soft, .bg-health-soft, .bg-meds-soft, .bg-chat-soft, .bg-family-soft, .bg-sun-soft) {
+  --color-background: #d3e8f2;
+  --color-foreground: #17242c;
+  --color-muted: #56656f;
+  --color-border: #cfe0e9;
+  --color-border-strong: #c5d3d9;
+  --color-surface-muted: #e9f3f8;
+  --color-primary: #167698;
+  --color-primary-hover: #126883;
+  --color-primary-foreground: #ffffff;
+  --color-primary-soft: #eaf6fa;
+  --color-primary-soft-hover: #d9eef5;
+}
+
+/* O `color` herda-se já calculado: as superfícies claras têm de o repor (em `base`, para as utilitárias `text-*` ganharem). */
+@layer base {
+  html.on-brand :where(.bg-surface, .bg-white, .on-light, dialog, .bg-success-soft, .bg-warning-soft, .bg-danger-soft, .bg-health-soft, .bg-meds-soft, .bg-chat-soft, .bg-family-soft, .bg-sun-soft) {
+    color: var(--color-foreground);
+  }
+}
+
+/* Fundos escuros fixos (sobreposições de imagem) não se invertem com o texto. */
+html.on-brand .bg-foreground:not(.on-light) {
+  background-color: #17242c;
+}
+html.on-brand .on-light.bg-foreground {
+  background-color: #17242c;
+}

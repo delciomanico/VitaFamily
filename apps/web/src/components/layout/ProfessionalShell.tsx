@@ -3,6 +3,8 @@ import { Outlet, useLocation, useMatches } from 'react-router-dom'
 import { BottomNav } from '@/components/app/BottomNav'
 import { ProfessionalAuthProvider } from '@/contexts/ProfessionalAuthContext'
 import { cn } from '@/lib/cn'
+import { AppBackdrop } from './AppBackdrop'
+import { useBrandBackground } from './useBrandBackground'
 import { professionalConversationService } from '@/services/professionalConversation.service'
 
 /** Opções de uma rota do portal (`handle` no router): ecrãs de passo a passo e conversa escondem a barra inferior. */
@@ -48,11 +50,13 @@ function useUnreadMessages(): number {
  */
 export function ProfessionalShell() {
   const unread = useUnreadMessages()
+  useBrandBackground()
   const handle = (useMatches().at(-1)?.handle ?? {}) as ProfessionalRouteHandle
 
   return (
-    <div className="app-mobile min-h-dvh bg-surface-muted">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[34rem] flex-col bg-background sm:shadow-overlay">
+    <div className="app-mobile min-h-dvh bg-brand-deep">
+      <AppBackdrop column />
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[34rem] flex-col sm:shadow-overlay">
         <main
           id="conteudo"
           className={cn(

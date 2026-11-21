@@ -21,7 +21,7 @@ const variants: Record<Variant, string> = {
   ghost: 'text-foreground hover:bg-surface-muted',
   danger: 'bg-danger text-white hover:opacity-90',
   /** Ação destrutiva secundária (ex.: “Cancelar receita”), que abre uma confirmação. */
-  'danger-ghost': 'text-danger hover:bg-danger-soft',
+  'danger-ghost': 'bg-danger-soft text-danger hover:bg-danger-soft/80',
 }
 
 const sizes: Record<Size, string> = {

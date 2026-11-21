@@ -160,3 +160,13 @@ describe('definições, relógio e medicamento (família)', () => {
     await waitFor(() => expect(router.state.location.search).toBe(''))
   })
 })
+
+describe('fundo azul sólido', () => {
+  it('a shell da família liga `html.on-brand` e desliga ao sair da área autenticada', async () => {
+    renderAt('/app/health')
+    await screen.findByRole('heading', { name: 'Minha saúde', level: 1 })
+    expect(document.documentElement).toHaveClass('on-brand')
+    cleanup()
+    expect(document.documentElement).not.toHaveClass('on-brand')
+  })
+})

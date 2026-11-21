@@ -53,7 +53,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={toast.id}
               role="status"
-              className="pointer-events-auto flex w-full max-w-sm animate-toast-in items-center gap-2.5 rounded-full bg-foreground px-4 py-3 text-sm text-white shadow-overlay"
+              className="on-light pointer-events-auto flex w-full max-w-sm animate-toast-in items-center gap-2.5 rounded-full bg-foreground px-4 py-3 text-sm text-white shadow-overlay"
             >
               <Icon
                 className={cn('size-5 shrink-0', toast.tone === 'success' ? 'text-success-soft' : 'text-danger-soft')}

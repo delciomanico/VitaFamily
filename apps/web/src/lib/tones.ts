@@ -15,7 +15,7 @@ export const toneTile: Record<Tone, string> = {
 
 /** Bloco de cor inteiro (atalhos do Início): fundo suave e texto `-ink`. */
 export const toneBlock: Record<Tone, string> = {
-  brand: 'bg-primary-soft text-primary active:bg-primary-soft-hover',
+  brand: 'bg-surface text-primary shadow-card active:bg-primary-soft',
   health: 'bg-health-soft text-health-ink',
   meds: 'bg-meds-soft text-meds-ink',
   chat: 'bg-chat-soft text-chat-ink',

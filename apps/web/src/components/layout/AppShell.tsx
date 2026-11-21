@@ -3,8 +3,10 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { alertService } from '@/services/alert.service'
 import { RefreshUnreadAlertsContext, UnreadAlertsContext } from './UnreadAlertsContext'
+import { AppBackdrop } from './AppBackdrop'
 import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
+import { useBrandBackground } from './useBrandBackground'
 
 /** Alertas por ler para o menu e a sidebar; atualiza a cada navegação. */
 function useUnreadAlerts() {
@@ -27,6 +29,7 @@ function useUnreadAlerts() {
 export function AppShell() {
   const unread = useUnreadAlerts()
   const { pathname } = useLocation()
+  useBrandBackground()
 
   return (
     <UnreadAlertsContext.Provider value={unread.count}>
@@ -38,8 +41,9 @@ export function AppShell() {
           >
             Saltar para o conteúdo
           </a>
+          <AppBackdrop />
           <Sidebar />
-          <main id="conteudo" className="lg:pl-(--spacing-sidebar)">
+          <main id="conteudo" className="relative z-10 lg:pl-(--spacing-sidebar)">
             <div key={pathname} className="animate-page-in">
               <Outlet />
             </div>
