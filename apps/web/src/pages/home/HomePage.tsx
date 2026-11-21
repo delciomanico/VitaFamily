@@ -8,6 +8,7 @@ import { useAsync } from '@/hooks/useAsync'
 import { firstName } from '@/lib/date'
 import { formatLongDate, luandaDayISO } from '@/lib/format'
 import { reportService } from '@/services/report.service'
+import { HOME_BANNER_SRC } from './homeBanner'
 import { HomePrimaryCard } from './HomePrimaryCard'
 import { HomeOptions } from './HomeOptions'
 import { RecentAlerts } from './RecentAlerts'
@@ -41,7 +42,7 @@ export function HomePage() {
   )
 
   return (
-    <Page title="Início" hero={hero} sun={<Sunrise done={taken} total={doses.length} />}>
+    <Page title="Início" hero={hero} heroImage={HOME_BANNER_SRC} sun={<Sunrise done={taken} total={doses.length} />}>
       {state.status === 'loading' && <LoadingState rows={3} label="A preparar o seu dia…" />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (

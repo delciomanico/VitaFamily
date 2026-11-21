@@ -18,8 +18,8 @@ export function AppBackdrop({ column = false }: { column?: boolean }) {
       <span className="absolute right-24 bottom-44 size-2.5 rounded-full bg-white" />
       {/* Anel branco no canto inferior esquerdo e dois pontos. */}
       <span className="absolute -bottom-12 -left-14 size-44 rounded-full border-2 border-white/35" />
-      <span className="absolute bottom-36 left-5 size-2.5 rounded-full bg-sun" />
-      <span className="absolute bottom-24 left-12 size-2 rounded-full bg-white" />
+      <span className="absolute bottom-36 left-1.5 size-2.5 rounded-full bg-sun" />
+      <span className="absolute bottom-24 left-1 size-2 rounded-full bg-white" />
     </div>
   )
 }

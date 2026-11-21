@@ -21,6 +21,8 @@ interface PageProps {
   /** Início: faixa alta com saudação (`hero`) e o sol a nascer (`sun`), em vez da faixa compacta. */
   hero?: ReactNode
   sun?: ReactNode
+  /** Foto de fundo da faixa alta (`hero`). */
+  heroImage?: string
   /** Ecrã fixo à altura da janela, sem scroll vertical (Home). */
   fullScreen?: boolean
   children: ReactNode
@@ -45,6 +47,7 @@ export function Page({
   header,
   hero,
   sun,
+  heroImage,
   fullScreen = false,
   children,
 }: PageProps) {
@@ -59,7 +62,7 @@ export function Page({
               <AlertsButton />
             </div>
           </header>
-          <HeroBand sun={sun}>
+          <HeroBand sun={sun} image={heroImage}>
             <div className="mx-auto max-w-3xl px-4 pt-1 lg:px-8"><div className={sun ? 'pr-24' : undefined}>{hero}</div></div>
           </HeroBand>
         </>

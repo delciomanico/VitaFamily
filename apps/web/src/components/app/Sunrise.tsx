@@ -58,9 +58,21 @@ export function Sunrise({ done = 0, total = 0, className }: SunriseProps) {
 }
 
 /** Faixa de topo de um ecrã inicial: azul profundo, cantos de baixo grandes, o sol a nascer no canto. */
-export function HeroBand({ children, sun, className }: { children: ReactNode; sun?: ReactNode; className?: string }) {
+export function HeroBand({ children, sun, className, image }: { children: ReactNode; sun?: ReactNode; className?: string; image?: string }) {
   return (
-    <div className={cn('relative isolate overflow-hidden rounded-b-[2rem] bg-brand-deep pb-14 text-white', className)}>
+    <div
+      className={cn('relative isolate overflow-hidden rounded-b-[2rem] bg-brand-deep pb-14 text-white', className)}
+      style={
+        image
+          ? {
+              // Foto com véu azul por cima: o texto branco e o sol ficam legíveis (AA).
+              backgroundImage: `linear-gradient(180deg, rgb(13 79 104 / 0.62) 0%, rgb(13 79 104 / 0.84) 60%, rgb(10 60 80 / 0.94) 100%), url(${image})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center 30%',
+            }
+          : undefined
+      }
+    >
       <div className="relative">{children}</div>
       {sun && <div className="absolute right-2 bottom-8 w-48">{sun}</div>}
     </div>
