@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Bell,
@@ -10,6 +10,7 @@ import {
   FlaskConical,
   History,
   Pill,
+  Ellipsis,
   Settings,
   ShieldCheck,
   TestTubeDiagonal,
@@ -17,7 +18,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import { cn } from '@/lib/cn'
+import { Sheet } from '@/components/app/Sheet'
 import { formatCount } from '@/lib/format'
 import { paths } from '@/routes/paths'
 import type { HomeSummary } from '@/types/report'
@@ -59,26 +60,27 @@ function buildPages({ today, family }: HomeSummary, unreadAlerts: number): Optio
 /** Contador máximo mostrado no ícone; acima disso aparece “9+”. */
 const MAX_BADGE = 9
 
-function OptionTile({ to, label, icon: Icon, count = 0, countLabel }: Option) {
+function OptionTile({ to, label, icon: Icon, count = 0, countLabel, onNavigate }: Option & { onNavigate: () => void }) {
   const hasCount = count > 0
   return (
     <Link
       to={to}
+      onClick={onNavigate}
       aria-label={hasCount && countLabel ? `${label}, ${formatCount(count, ...countLabel)}` : label}
-      className="group flex flex-col items-center gap-1.5 rounded-xl p-1 text-center"
+      className="group flex flex-col items-center gap-2 rounded-2xl p-1 text-center"
     >
-      <span className="relative flex size-12 items-center justify-center rounded-xl bg-primary-soft text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-        <Icon className="size-6" strokeWidth={1.7} aria-hidden />
+      <span className="relative flex size-14 items-center justify-center rounded-2xl bg-primary-soft text-primary transition-colors group-active:bg-primary-soft-hover">
+        <Icon className="size-7" strokeWidth={1.7} aria-hidden />
         {hasCount && (
           <span
-            className="absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[0.6875rem] font-semibold text-primary-foreground ring-2 ring-background"
+            className="absolute -top-1.5 -right-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#fff] px-1 text-xs font-semibold text-[#0d4f68]"
             aria-hidden
           >
             {count > MAX_BADGE ? `${MAX_BADGE}+` : count}
           </span>
         )}
       </span>
-      <span className="text-xs leading-tight font-medium text-foreground" aria-hidden>
+      <span className="text-sm leading-tight font-medium text-foreground" aria-hidden>
         {label}
       </span>
     </Link>
@@ -90,59 +92,31 @@ interface HomeOptionsProps {
   unreadAlerts: number
 }
 
-/** Menu de opções da Home: páginas que deslizam na horizontal, com pontos de página. */
+/** Um só botão «Mais opções»: abre uma folha com todas as outras ações (o Início fica só com o foco principal). */
 export function HomeOptions({ summary, unreadAlerts }: HomeOptionsProps) {
-  const pages = buildPages(summary, unreadAlerts)
-  const track = useRef<HTMLDivElement>(null)
-  const [current, setCurrent] = useState(0)
-
-  function onScroll() {
-    const el = track.current
-    if (el) setCurrent(Math.round(el.scrollLeft / el.clientWidth))
-  }
-
-  function goTo(index: number) {
-    const el = track.current
-    el?.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' })
-  }
-
+  const options = buildPages(summary, unreadAlerts).flat()
+  const [open, setOpen] = useState(false)
+  const alerts = unreadAlerts
   return (
-    <nav aria-label="Opções" aria-roledescription="carrossel" className="flex shrink-0 flex-col gap-1 pt-3">
-      <div
-        ref={track}
-        onScroll={onScroll}
-        className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain pt-2"
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="relative flex min-h-14 shrink-0 items-center justify-center gap-2 rounded-full bg-[#fff] px-6 text-lg font-semibold text-[#0d4f68] active:bg-[#eaf6fa]"
       >
-        {pages.map((options, index) => (
-          <ul
-            key={index}
-            aria-label={`Página ${index + 1} de ${pages.length}`}
-            className="grid w-full shrink-0 snap-start grid-cols-4 content-start gap-x-1 gap-y-1"
-          >
-            {options.map((option) => (
-              <li key={option.to}>
-                <OptionTile {...option} />
-              </li>
-            ))}
-          </ul>
-        ))}
-      </div>
-      <div className="flex justify-center gap-1">
-        {pages.map((_, index) => (
-          <button
-            key={index}
-            type="button"
-            onClick={() => goTo(index)}
-            aria-label={`Ver página ${index + 1} de opções`}
-            aria-current={index === current ? 'true' : undefined}
-            className="flex size-6 items-center justify-center"
-          >
-            <span
-              className={cn('h-2 rounded-full transition-all', index === current ? 'w-6 bg-primary' : 'w-2 bg-border-strong')}
-            />
-          </button>
-        ))}
-      </div>
-    </nav>
+        <Ellipsis className="size-6" aria-hidden />
+        Mais opções
+        {alerts > 0 && <span className="absolute top-2 right-5 size-3 rounded-full bg-danger" aria-hidden />}
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="Mais opções">
+        <ul className="grid grid-cols-3 gap-x-2 gap-y-4 pb-2">
+          {options.map((option) => (
+            <li key={option.to}>
+              <OptionTile {...option} onNavigate={() => setOpen(false)} />
+            </li>
+          ))}
+        </ul>
+      </Sheet>
+    </>
   )
 }

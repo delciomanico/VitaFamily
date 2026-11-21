@@ -17,28 +17,45 @@ function NextAppointmentOverlay({ next }: { next: NonNullable<HomeSummary['nextA
   return (
     <Link
       to={paths.appointment(appointment.id)}
-      className="absolute inset-x-0 bottom-0 flex items-end gap-3 rounded-b-xl bg-gradient-to-t from-black/75 via-black/45 to-transparent px-4 pt-8 pb-3 text-white"
+      className="absolute inset-x-0 bottom-0 flex items-end gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-5 pt-16 pb-5 text-white"
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-xs font-medium">Próximo compromisso</span>
-        <span className="block truncate text-base font-semibold">{what}</span>
-        <span className="block text-sm">{formatWhen(appointment.scheduledAt)}</span>
+        <span className="block text-base font-medium">Próximo compromisso</span>
+        <span className="block truncate font-display text-[1.75rem] leading-tight font-semibold">{what}</span>
+        <span className="block text-lg">{formatWhen(appointment.scheduledAt)}</span>
       </span>
-      <ChevronRight className="size-5 shrink-0" aria-hidden />
+      <ChevronRight className="size-7 shrink-0" aria-hidden />
+    </Link>
+  )
+}
+
+function FindProfessionalOverlay() {
+  return (
+    <Link
+      to={paths.marketplace}
+      className="absolute inset-x-0 bottom-0 flex items-end gap-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-5 pt-16 pb-5 text-white"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-[1.75rem] leading-tight font-semibold">Precisa de uma consulta?</span>
+        <span className="block text-lg">Encontrar um profissional</span>
+      </span>
+      <ChevronRight className="size-7 shrink-0" aria-hidden />
     </Link>
   )
 }
 
 interface HomeBannerProps {
   next: HomeSummary['nextAppointment']
+  /** A carregar: sem texto por cima, para não piscar o convite antes de saber se há compromisso. */
+  loading?: boolean
 }
 
-/** Banner compacto da Home (até ~1/4 do ecrã), com o próximo compromisso por cima. */
-export function HomeBanner({ next }: HomeBannerProps) {
+/** Cartão principal da Home: ocupa o ecrã, com o próximo compromisso (ou o convite a marcar) por cima da foto. */
+export function HomeBanner({ next, loading = false }: HomeBannerProps) {
   const [failed, setFailed] = useState(false)
 
   return (
-    <div className="relative aspect-[2/1] max-h-[24dvh] w-full shrink-0 overflow-hidden rounded-xl bg-primary-soft md:aspect-[3/1]">
+    <div className="relative min-h-60 w-full flex-1 overflow-hidden rounded-3xl bg-primary-soft shadow-hero">
       {failed ? (
         <div className="flex h-full items-center justify-center text-accent" aria-hidden>
           <ImageIcon className="size-10" strokeWidth={1.5} />
@@ -46,7 +63,7 @@ export function HomeBanner({ next }: HomeBannerProps) {
       ) : (
         <img src={HOME_BANNER_SRC} alt="" onError={() => setFailed(true)} className="absolute inset-0 size-full object-cover" />
       )}
-      {next && <NextAppointmentOverlay next={next} />}
+      {loading ? null : next ? <NextAppointmentOverlay next={next} /> : <FindProfessionalOverlay />}
     </div>
   )
 }
