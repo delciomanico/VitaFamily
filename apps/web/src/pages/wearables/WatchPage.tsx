@@ -1,3 +1,4 @@
+import { Outlet } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Heart, RefreshCw, TriangleAlert, Unplug, Watch } from 'lucide-react'
@@ -276,6 +277,7 @@ export function WatchPage() {
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' &&
         (state.data ? <Connected status={state.data} onChange={reload} /> : <ConnectHero />)}
+      <Outlet context={{ onSaved: reload }} />
     </Page>
   )
 }

@@ -1,3 +1,4 @@
+import { Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CircleSlash } from 'lucide-react'
@@ -61,6 +62,7 @@ export function BookingPage() {
   return (
     <Page title="Marcação" backTo={paths.bookings} backLabel="Marcações">
       {booking && <BookingDetail booking={booking} onChanged={reload} />}
+      <Outlet context={{ onSaved: reload }} />
     </Page>
   )
 }

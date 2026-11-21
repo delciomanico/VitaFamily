@@ -118,8 +118,11 @@ export const routes: RouteObject[] = [
                 ...page(() => import('@/pages/marketplace/MarketplaceProfessionalPage'), 'MarketplaceProfessionalPage'),
               },
               { path: 'bookings', ...page(() => import('@/pages/bookings/BookingsPage'), 'BookingsPage') },
-              { path: 'bookings/:memberId/:bookingId', ...page(() => import('@/pages/bookings/BookingPage'), 'BookingPage') },
-              { path: 'bookings/:memberId/:bookingId/partilhar', ...page(() => import('@/pages/shares/ShareCreatePage'), 'ShareCreatePage') },
+              {
+                path: 'bookings/:memberId/:bookingId',
+                ...page(() => import('@/pages/bookings/BookingPage'), 'BookingPage'),
+                children: [{ path: 'partilhar', ...page(() => import('@/pages/shares/ShareCreatePage'), 'ShareCreatePage') }],
+              },
               { path: 'shares', ...page(() => import('@/pages/shares/SharesPage'), 'SharesPage') },
               { path: 'shares/:memberId/:shareId', ...page(() => import('@/pages/shares/ShareDetailPage'), 'ShareDetailPage') },
               { path: 'messages', ...page(() => import('@/pages/messages/ConversationsPage'), 'ConversationsPage') },
@@ -185,10 +188,10 @@ export const routes: RouteObject[] = [
                 path: 'family/:id/history',
                 ...page(() => import('@/pages/family/MemberHistoryPage'), 'MemberHistoryPage'),
               },
-              { path: 'watch', ...page(() => import('@/pages/wearables/WatchPage'), 'WatchPage') },
               {
-                path: 'watch/connect',
-                ...page(() => import('@/pages/wearables/ConnectWatchPage'), 'ConnectWatchPage'),
+                path: 'watch',
+                ...page(() => import('@/pages/wearables/WatchPage'), 'WatchPage'),
+                children: [{ path: 'connect', ...page(() => import('@/pages/wearables/ConnectWatchPage'), 'ConnectWatchPage') }],
               },
               {
                 path: 'watch/:metric',
@@ -204,14 +207,14 @@ export const routes: RouteObject[] = [
                 path: 'reports/preventive',
                 ...page(() => import('@/pages/reports/PreventiveReportPage'), 'PreventiveReportPage'),
               },
-              { path: 'settings', ...page(() => import('@/pages/settings/SettingsPage'), 'SettingsPage') },
+              {
+                path: 'settings',
+                ...page(() => import('@/pages/settings/SettingsPage'), 'SettingsPage'),
+                children: [{ path: 'security', ...page(() => import('@/pages/settings/SecuritySettingsPage'), 'SecuritySettingsPage') }],
+              },
               {
                 path: 'settings/account',
                 ...page(() => import('@/pages/settings/AccountSettingsPage'), 'AccountSettingsPage'),
-              },
-              {
-                path: 'settings/security',
-                ...page(() => import('@/pages/settings/SecuritySettingsPage'), 'SecuritySettingsPage'),
               },
               {
                 path: 'settings/family',

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { FormSheet } from '@/components/app/FormSheet'
+import { useSheetParam } from '@/lib/modalRoute'
 import { useNavigate } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { LogOut, Users } from 'lucide-react'
@@ -84,30 +86,39 @@ export function FamilySettingsPage() {
   const {
     register,
     handleSubmit,
-    reset,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<FormValues>({ resolver: zodResolver(schema), values: { name: family?.name ?? '' } })
+  const { open, show, close } = useSheetParam('editar')
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   async function save(values: FormValues) {
+    setSubmitError(null)
     try {
       await familyService.updateFamily(family?.id ?? '', user?.id ?? '', values.name)
       await refreshMembership()
-      reset(values)
       toast.show('Nome da família alterado.')
+      close()
     } catch (error) {
-      toast.show(errorMessage(error), 'error')
+      setSubmitError(errorMessage(error))
     }
   }
 
   return (
     <SettingsSubPage title="Família">
       {isAdmin ? (
-        <form onSubmit={handleSubmit(save)} noValidate className="flex flex-col gap-4">
-          <Input label="Nome da família" error={errors.name?.message} {...register('name')} />
-          <Button type="submit" size="lg" fullWidth loading={isSubmitting} disabled={!isDirty}>
-            Guardar nome
+        <>
+          <InfoList>
+            <InfoRow label="Família" value={family?.name} />
+          </InfoList>
+          <Button size="xl" fullWidth onClick={show}>
+            Mudar o nome da família
           </Button>
-        </form>
+          {open && (
+            <FormSheet title="Nome da família" onClose={close} dirty={isDirty} onSubmit={handleSubmit(save)} submitLabel="Guardar nome" busy={isSubmitting} error={submitError}>
+              <Input label="Nome da família" error={errors.name?.message} {...register('name')} />
+            </FormSheet>
+          )}
+        </>
       ) : (
         <InfoList>
           <InfoRow label="Família" value={family?.name} />

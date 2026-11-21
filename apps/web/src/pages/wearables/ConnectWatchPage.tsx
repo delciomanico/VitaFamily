@@ -1,25 +1,23 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Bluetooth, CircleCheck, LoaderCircle, ShieldCheck, Watch } from 'lucide-react'
 import { DemoBanner, OriginBadge } from '@/components/domain/WatchParts'
-import { Page } from '@/components/layout/Page'
-import { Button } from '@/components/ui/Button'
+import { WizardSheet } from '@/components/app/FormSheet'
 import { Card } from '@/components/ui/Card'
 import { Checkbox } from '@/components/ui/Checkbox'
-import { StepProgress } from '@/components/ui/StepProgress'
 import { ErrorState } from '@/components/ui/states'
-import { useToast } from '@/components/ui/Toast'
 import { metricLabels } from '@/lib/wearableSimulator'
+import { useModalRoute } from '@/lib/modalRoute'
 import { paths } from '@/routes/paths'
 import { wearableService } from '@/services/wearable.service'
 import type { MetricType, WatchModel } from '@/types/wearable'
 
 const TOTAL_STEPS = 4
+const STEP_TITLES = ['A sua privacidade primeiro', 'Escolha o relógio', 'Permissões', 'Relógio ligado'] as const
 
-/** Fluxo de ligação: consentimento → escolher fonte → permissões → pronto (docs/wearables/03 §4.1). */
+/** Fluxo de ligação (folha em ecrã inteiro por cima do Relógio): consentimento → escolher fonte → permissões → pronto (docs/wearables/03 §4.1). */
 export function ConnectWatchPage() {
-  const navigate = useNavigate()
-  const toast = useToast()
+  const { close, saved } = useModalRoute(paths.watch)
+  const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
   const [consent, setConsent] = useState(false)
   const [models, setModels] = useState<WatchModel[] | null>(null)
@@ -43,7 +41,6 @@ export function ConnectWatchPage() {
   function choose(next: WatchModel) {
     setModel(next)
     setGranted(next.capabilities)
-    setStep(3)
   }
 
   async function connect() {
@@ -53,55 +50,68 @@ export function ConnectWatchPage() {
       await wearableService.connect(model.id, granted)
       setStep(4)
     } catch {
-      toast.show('Não foi possível ligar o relógio.', 'error')
+      setError('Não foi possível ligar o relógio.')
     } finally {
       setConnecting(false)
     }
   }
 
   function toggle(type: MetricType, checked: boolean) {
+    setError(null)
     setGranted((current) => (checked ? [...current, type] : current.filter((t) => t !== type)))
   }
 
+  function onNext() {
+    setError(null)
+    if (step === 1) return setStep(2)
+    if (step === 2) return model ? setStep(3) : setError('Escolha o relógio.')
+    if (step === 3) return void connect()
+    saved()
+  }
+
   return (
-    <Page title="Conectar relógio" backTo={paths.watch} backLabel="Relógio">
+    <WizardSheet
+      title="Conectar relógio"
+      stepTitle={STEP_TITLES[step - 1] ?? ''}
+      step={step - 1}
+      total={TOTAL_STEPS}
+      onBack={() => {
+        setError(null)
+        setStep((current) => Math.max(1, current - 1))
+      }}
+      onNext={onNext}
+      nextLabel={step === 3 ? 'Permitir e ligar' : step === 4 ? 'Ver os meus dados' : 'Continuar'}
+      nextDisabled={(step === 1 && !consent) || (step === 3 && granted.length === 0)}
+      busy={connecting}
+      error={error}
+      dirty={step > 1 && step < 4}
+      onClose={close}
+    >
       <DemoBanner />
-      <div className="flex items-center gap-3">
-        <StepProgress step={step} total={TOTAL_STEPS} label="Progresso da ligação do relógio" />
-      </div>
 
       {step === 1 && (
-        <Card className="flex flex-col gap-4">
+        <>
           <span className="flex size-12 items-center justify-center rounded-full bg-primary-soft text-primary">
             <ShieldCheck className="size-6" aria-hidden />
           </span>
-          <h2 className="text-lg font-semibold">A sua privacidade primeiro</h2>
-          <ul className="list-disc space-y-1.5 pl-5 text-sm">
+          <ul className="list-disc space-y-2 pl-5 text-base">
             <li>Lemos do Health Connect só os tipos de dados que escolher no passo seguinte.</li>
             <li>Os dados do relógio ficam separados do seu histórico de saúde e não entram nos relatórios.</li>
             <li>Não partilhamos estes dados com outros familiares nem com terceiros.</li>
             <li>Pode desligar o relógio e apagar os dados quando quiser.</li>
             <li>É informação de bem-estar, não um diagnóstico.</li>
           </ul>
-          <Checkbox
-            label="Autorizo a Vita Family a ler os dados do meu relógio."
-            checked={consent}
-            onChange={(event) => setConsent(event.target.checked)}
-          />
-          <Button size="lg" disabled={!consent} onClick={() => setStep(2)}>
-            Continuar
-          </Button>
-        </Card>
+          <Checkbox label="Autorizo a Vita Family a ler os dados do meu relógio." checked={consent} onChange={(event) => setConsent(event.target.checked)} />
+        </>
       )}
 
       {step === 2 && (
-        <div className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">Fontes de dados encontradas</h2>
+        <>
           {scanError && <ErrorState message="Não foi possível procurar relógios." onRetry={() => setScanError(false)} />}
           {!models && !scanError && (
             <Card role="status" className="flex items-center gap-3">
               <LoaderCircle className="size-6 animate-spin text-primary" aria-hidden />
-              <span className="text-sm">A procurar relógios no Health Connect…</span>
+              <span className="text-base">A procurar relógios no Health Connect…</span>
             </Card>
           )}
           {models && (
@@ -110,8 +120,9 @@ export function ConnectWatchPage() {
                 <li key={candidate.id}>
                   <button
                     type="button"
+                    aria-pressed={model?.id === candidate.id}
                     onClick={() => choose(candidate)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-border bg-surface p-4 text-left shadow-card transition-colors hover:border-border-strong"
+                    className={`flex w-full items-center gap-3 rounded-xl border bg-surface p-4 text-left shadow-card transition-colors ${model?.id === candidate.id ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-border-strong'}`}
                   >
                     <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
                       <Bluetooth className="size-5" aria-hidden />
@@ -129,58 +140,38 @@ export function ConnectWatchPage() {
               ))}
             </ul>
           )}
-          <p className="text-xs text-muted">
-            Demonstração: estes três relógios são simulados e fornecem tipos de dados diferentes.
-          </p>
-        </div>
+          <p className="text-sm text-muted">Demonstração: estes três relógios são simulados e fornecem tipos de dados diferentes.</p>
+        </>
       )}
 
       {step === 3 && model && (
-        <Card className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">Permissões</h2>
-          <p className="text-sm text-muted">
+        <>
+          <p className="text-base text-muted">
             O {model.manufacturer} {model.model} fornece estes dados. Escolha o que a Vita Family pode ler.
           </p>
           <ul className="flex flex-col gap-3">
             {model.capabilities.map((type) => (
               <li key={type} className="flex items-center justify-between gap-3">
-                <Checkbox
-                  label={metricLabels[type]}
-                  checked={granted.includes(type)}
-                  onChange={(event) => toggle(type, event.target.checked)}
-                />
+                <Checkbox label={metricLabels[type]} checked={granted.includes(type)} onChange={(event) => toggle(type, event.target.checked)} />
                 <OriginBadge origin={model.origins[type] ?? 'THIRD_PARTY_APP'} />
               </li>
             ))}
           </ul>
-          <p className="text-xs text-muted">Não mostramos dados que o relógio não fornece.</p>
-          <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => setStep(2)}>
-              Voltar
-            </Button>
-            <Button className="flex-1" loading={connecting} disabled={granted.length === 0} onClick={() => void connect()}>
-              Permitir e ligar
-            </Button>
-          </div>
-        </Card>
+          <p className="text-sm text-muted">Não mostramos dados que o relógio não fornece.</p>
+        </>
       )}
 
       {step === 4 && model && (
-        <Card className="flex flex-col items-center gap-4 text-center">
+        <div className="flex flex-col items-center gap-4 text-center">
           <span className="flex size-14 items-center justify-center rounded-full bg-success-soft text-success">
             <CircleCheck className="size-8" aria-hidden />
           </span>
-          <h2 className="text-lg font-semibold">Relógio ligado</h2>
-          <p className="text-sm text-muted">
+          <p className="text-base text-muted">
             <Watch className="mr-1 inline size-4" aria-hidden />
-            {model.manufacturer} {model.model} · {granted.length}{' '}
-            {granted.length === 1 ? 'tipo de dados' : 'tipos de dados'} autorizados. A primeira sincronização já foi feita.
+            {model.manufacturer} {model.model} · {granted.length} {granted.length === 1 ? 'tipo de dados' : 'tipos de dados'} autorizados. A primeira sincronização já foi feita.
           </p>
-          <Button size="lg" onClick={() => navigate(paths.watch)}>
-            Ver os meus dados
-          </Button>
-        </Card>
+        </div>
       )}
-    </Page>
+    </WizardSheet>
   )
 }

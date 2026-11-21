@@ -127,3 +127,36 @@ describe('perfil de saúde e família (família)', () => {
     expect(await screen.findByText('Rita Lopes')).toBeInTheDocument()
   })
 })
+
+describe('definições, relógio e medicamento (família)', () => {
+  it('alterar palavra-passe: a ligação direta abre por cima das Configurações; Esc com dados pede confirmação', async () => {
+    const router = renderAt('/app/settings/security')
+    const sheet = await readySheet('Alterar palavra-passe', 'Alterar palavra-passe')
+    expect(await screen.findByRole('heading', { name: 'Perfil', level: 1 })).toBeInTheDocument()
+    fireEvent.input(within(sheet).getByLabelText('Palavra-passe atual'), { target: { value: 'qualquer' } })
+    fireEvent(sheet, new Event('cancel', { cancelable: true }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sim, descartar' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app/settings'))
+  })
+
+  it('conectar relógio: passo a passo em ecrã inteiro por cima do Relógio', async () => {
+    const router = renderAt('/app/watch/connect')
+    const sheet = await readySheet('Conectar relógio', 'Continuar')
+    expect(within(sheet).getByRole('button', { name: 'Continuar' })).toBeDisabled()
+    fireEvent.click(within(sheet).getByLabelText(/Autorizo a Vita Family/))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+    expect(await within(sheet).findByRole('heading', { name: 'Escolha o relógio' })).toBeInTheDocument()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Voltar' }))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Voltar' }))
+    // De volta ao 1.º passo, «Voltar» fecha a folha.
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app/watch'))
+  })
+
+  it('editar medicamento: abre por cima do detalhe com ?editar e fecha sem alterações', async () => {
+    const router = renderAt('/app/health/medications/med_amox?editar')
+    const sheet = await readySheet('Editar medicamento', 'Guardar')
+    expect(await screen.findByRole('heading', { name: 'Medicamento', level: 1 })).toBeInTheDocument()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Fechar' }))
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+  })
+})

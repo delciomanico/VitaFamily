@@ -1,3 +1,4 @@
+import { Outlet } from 'react-router-dom'
 import { useState, type ReactNode } from 'react'
 import {
   Bell,
@@ -183,6 +184,8 @@ export function SettingsPage() {
       <Button variant="danger-ghost" size="xl" fullWidth onClick={() => setLeaving(true)} icon={<LogOut className="size-6" aria-hidden />}>
         Sair
       </Button>
+      {/* Formulários das Configurações (ex.: «Segurança») abrem como folha por cima desta lista. */}
+      <Outlet />
       <ConfirmSheet
         open={leaving}
         title="Quer mesmo sair?"

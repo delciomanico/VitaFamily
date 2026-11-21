@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronRight, Clock, FileText, Pencil, StickyNote } from 'lucide-react'
 import { z } from 'zod'
@@ -13,6 +13,7 @@ import {
   type ScheduleValue,
 } from '@/components/domain/ScheduleFields'
 import { AccordionSection } from '@/components/app/Accordion'
+import { FormSheet } from '@/components/app/FormSheet'
 import { ConfirmSheet } from '@/components/app/Sheet'
 import { Page } from '@/components/layout/Page'
 import { Badge } from '@/components/ui/Badge'
@@ -26,6 +27,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { isValidISODate, todayISO } from '@/lib/date'
 import { errorMessage, isAppError } from '@/lib/errors'
+import { useSheetParam } from '@/lib/modalRoute'
 import { formatLongDate, formatWhen } from '@/lib/format'
 import { medicationStatus } from '@/lib/labels'
 import { PRESCRIPTION_READ_ONLY_NOTICE } from '@/lib/recordSharing'
@@ -57,6 +59,8 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>
 
+const saveErrorMessage = (error: unknown) => (isAppError(error, 'CONFLICT') ? 'O conteúdo desta receita só pode ser lido.' : errorMessage(error))
+
 interface EditFormProps {
   detail: MedicationDetail
   onSubmit: (input: UpdateMedicationInput) => Promise<void>
@@ -65,12 +69,13 @@ interface EditFormProps {
 
 /** Editar medicamento (UC-MED-04): as alterações só valem para as tomas futuras. */
 function MedicationEditForm({ detail: { plan }, onSubmit, onCancel }: EditFormProps) {
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const {
     register,
     control,
     handleSubmit,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -84,16 +89,19 @@ function MedicationEditForm({ detail: { plan }, onSubmit, onCancel }: EditFormPr
   })
   const continuous = watch('continuous')
 
-  function submit({ schedule, endDate, ...values }: FormValues) {
-    return onSubmit({ ...values, ...toScheduleInput(schedule), endDate: values.continuous ? undefined : endDate })
+  async function submit({ schedule, endDate, ...values }: FormValues) {
+    setSubmitError(null)
+    try {
+      await onSubmit({ ...values, ...toScheduleInput(schedule), endDate: values.continuous ? undefined : endDate })
+    } catch (error) {
+      setSubmitError(saveErrorMessage(error))
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit(submit)} noValidate className="flex flex-col gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Input label="Nome" error={errors.name?.message} {...register('name')} />
-        <Input label="Dosagem" error={errors.dosage?.message} {...register('dosage')} />
-      </div>
+    <FormSheet title="Editar medicamento" tall onClose={onCancel} dirty={isDirty} onSubmit={handleSubmit(submit)} busy={isSubmitting} error={submitError}>
+      <Input label="Nome" error={errors.name?.message} {...register('name')} />
+      <Input label="Dosagem" error={errors.dosage?.message} {...register('dosage')} />
       <Controller
         control={control}
         name="schedule"
@@ -112,16 +120,8 @@ function MedicationEditForm({ detail: { plan }, onSubmit, onCancel }: EditFormPr
       />
       <Checkbox label="Uso contínuo (sem data de fim)" {...register('continuous')} />
       <Input label="Observações (opcional)" {...register('notes')} />
-      <p className="text-sm text-muted">As alterações aplicam-se às próximas tomas; as já registadas mantêm-se.</p>
-      <div className="flex flex-col gap-2 pt-2 sm:flex-row-reverse">
-        <Button type="submit" size="xl" loading={isSubmitting} className="sm:flex-1">
-          Guardar
-        </Button>
-        <Button variant="ghost" size="xl" onClick={onCancel} className="sm:flex-1">
-          Cancelar
-        </Button>
-      </div>
-    </form>
+      <p className="text-base text-muted">As alterações aplicam-se às próximas tomas; as já registadas mantêm-se.</p>
+    </FormSheet>
   )
 }
 
@@ -131,12 +131,13 @@ function ScheduleOnlyForm({ detail: { plan }, onSubmit, onCancel }: EditFormProp
   const [saving, setSaving] = useState(false)
   const error = scheduleError(schedule)
   const [shown, setShown] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
-  async function submit(event: FormEvent) {
-    event.preventDefault()
+  async function submit() {
     setShown(true)
     if (error) return
     setSaving(true)
+    setSubmitError(null)
     try {
       await onSubmit({
         name: plan.name,
@@ -146,30 +147,33 @@ function ScheduleOnlyForm({ detail: { plan }, onSubmit, onCancel }: EditFormProp
         ...toScheduleInput(schedule),
         scheduleOnly: true,
       })
+    } catch (failure) {
+      setSubmitError(saveErrorMessage(failure))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <form onSubmit={(event) => void submit(event)} noValidate className="flex flex-col gap-4">
-      <p role="note" className="rounded-md bg-surface-muted px-3.5 py-3 text-sm">
+    <FormSheet
+      title="Horários dos lembretes"
+      tall
+      onClose={onCancel}
+      dirty={JSON.stringify(schedule) !== JSON.stringify(scheduleFromPlan(plan))}
+      onSubmit={submit}
+      submitLabel="Guardar horários"
+      busy={saving}
+      error={submitError}
+    >
+      <p role="note" className="rounded-md bg-surface-muted px-3.5 py-3 text-base">
         {PRESCRIPTION_READ_ONLY_NOTICE}
       </p>
       <p className="font-medium">
         {plan.name} <span className="font-normal text-muted">{plan.dosage}</span>
       </p>
       <ScheduleFields value={schedule} onChange={setSchedule} error={shown ? (error ?? undefined) : undefined} />
-      <p className="text-sm text-muted">As alterações aplicam-se às próximas tomas; as já registadas mantêm-se.</p>
-      <div className="flex flex-col gap-2 pt-2 sm:flex-row-reverse">
-        <Button type="submit" size="xl" loading={saving} className="sm:flex-1">
-          Guardar horários
-        </Button>
-        <Button variant="ghost" size="xl" onClick={onCancel} className="sm:flex-1">
-          Cancelar
-        </Button>
-      </div>
-    </form>
+      <p className="text-base text-muted">As alterações aplicam-se às próximas tomas; as já registadas mantêm-se.</p>
+    </FormSheet>
   )
 }
 
@@ -279,7 +283,7 @@ export function MedicationDetailPage() {
   const { id = '' } = useParams()
   const { user, family, member } = useAuth()
   const toast = useToast()
-  const [params, setParams] = useSearchParams()
+  const { open: editOpen, show: startEditing, close: closeEditing } = useSheetParam('editar')
   const [confirming, setConfirming] = useState(false)
   const [ending, setEnding] = useState(false)
   const familyId = family?.id ?? ''
@@ -290,18 +294,13 @@ export function MedicationDetailPage() {
   )
 
   const canEdit = state.status === 'success' && state.data.plan.status === 'ACTIVE'
-  const editing = params.has('editar') && canEdit
-  const setEditing = (on: boolean) => setParams(on ? { editar: '' } : {}, { replace: !on })
+  const editing = editOpen && canEdit
 
   async function save(input: UpdateMedicationInput) {
-    try {
-      await medicationService.updateMedication(familyId, userId, id, input)
-      toast.show('Medicamento atualizado.')
-      setEditing(false)
-      reload()
-    } catch (error) {
-      toast.show(isAppError(error, 'CONFLICT') ? 'O conteúdo desta receita só pode ser lido.' : errorMessage(error), 'error')
-    }
+    await medicationService.updateMedication(familyId, userId, id, input)
+    toast.show('Medicamento atualizado.')
+    closeEditing()
+    reload()
   }
 
   async function end() {
@@ -318,11 +317,11 @@ export function MedicationDetailPage() {
     }
   }
 
-  const editButton = canEdit && !editing && (
+  const editButton = canEdit && (
     <Button
       variant="secondary"
       size="lg"
-      onClick={() => setEditing(true)}
+      onClick={startEditing}
       icon={<Pencil className="size-4" aria-hidden />}
     >
       Editar
@@ -331,7 +330,7 @@ export function MedicationDetailPage() {
 
   return (
     <Page
-      title={editing ? 'Editar medicamento' : 'Medicamento'}
+      title="Medicamento"
       backTo={paths.medications}
       backLabel="Medicamentos"
       action={editButton}
@@ -343,15 +342,15 @@ export function MedicationDetailPage() {
         ) : (
           <ErrorState onRetry={reload} />
         ))}
+      {state.status === 'success' && (
+        <MedicationView detail={state.data} selfMemberId={member?.id} onEnd={() => setConfirming(true)} />
+      )}
       {state.status === 'success' &&
-        (editing ? (
-          state.data.prescription?.issuedBy === 'PROFESSIONAL' ? (
-            <ScheduleOnlyForm detail={state.data} onSubmit={save} onCancel={() => setEditing(false)} />
-          ) : (
-            <MedicationEditForm detail={state.data} onSubmit={save} onCancel={() => setEditing(false)} />
-          )
+        editing &&
+        (state.data.prescription?.issuedBy === 'PROFESSIONAL' ? (
+          <ScheduleOnlyForm detail={state.data} onSubmit={save} onCancel={closeEditing} />
         ) : (
-          <MedicationView detail={state.data} selfMemberId={member?.id} onEnd={() => setConfirming(true)} />
+          <MedicationEditForm detail={state.data} onSubmit={save} onCancel={closeEditing} />
         ))}
 
       <ConfirmSheet

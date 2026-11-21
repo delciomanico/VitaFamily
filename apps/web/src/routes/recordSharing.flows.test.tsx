@@ -58,26 +58,32 @@ describe('partilha com prazo (família)', () => {
   it('numa marcação confirmada: escolhe categorias e prazo, lê o aviso de capturas e partilha; depois pára a partilha', async () => {
     const router = await loginFamily(paths.booking('mem_pedro', 'bkg_seed_conf'))
     fireEvent.click(await screen.findByRole('link', { name: 'Partilhar o registo' }))
+    // A partilha é um passo a passo numa folha por cima da marcação.
     expect(await screen.findByText('Partilhar com')).toBeInTheDocument()
-    expect(screen.getByText(/Não conseguimos impedir capturas de ecrã/)).toBeInTheDocument()
-    // Textos legais provisórios (OP-128).
-    expect(screen.getAllByText(/\[PROVISÓRIO\]/).length).toBeGreaterThanOrEqual(3)
-    expect(screen.getAllByRole('checkbox').length).toBeGreaterThanOrEqual(5)
     expect(document.body.textContent).not.toMatch(TECHNICAL)
+    expect(screen.getAllByRole('checkbox').length).toBeGreaterThanOrEqual(2)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Partilhar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     expect(await screen.findByText('Escolha pelo menos uma categoria.')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Medicação ativa'))
     fireEvent.click(screen.getByLabelText('Alergias e tipo de sangue'))
-    fireEvent.click(screen.getByRole('button', { name: 'Partilhar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
     expect(await screen.findByText('Escolha durante quanto tempo.')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText(/^7 dias/))
     fireEvent.click(screen.getByLabelText('Só pode ser aberta uma vez'))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(await screen.findByText(/Não conseguimos impedir capturas de ecrã/)).toBeInTheDocument()
+    // Textos legais provisórios (OP-128).
+    expect(screen.getAllByText(/\[PROVISÓRIO\]/).length).toBeGreaterThanOrEqual(1)
     fireEvent.click(screen.getByRole('button', { name: 'Partilhar' }))
     expect(await screen.findByText('Confirme que leu o aviso para partilhar.')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Li o aviso e quero partilhar'))
     fireEvent.click(screen.getByRole('button', { name: 'Partilhar' }))
 
+    // Fecha a folha e a marcação passa a listar a partilha; abre-a para ver «Quem viu» e parar.
+    await waitFor(() => expect(router.state.location.pathname).toBe(paths.booking('mem_pedro', 'bkg_seed_conf')))
+    fireEvent.click(await screen.findByRole('link', { name: /Ativa/ }))
     await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/app\/shares\/mem_pedro\/.+/))
     expect(await screen.findByText('Ativa')).toBeInTheDocument()
     expect(screen.getByText('Só pode ser aberta uma vez.')).toBeInTheDocument()

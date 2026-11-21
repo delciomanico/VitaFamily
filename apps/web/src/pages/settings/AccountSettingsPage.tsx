@@ -1,6 +1,9 @@
+import { Pencil } from 'lucide-react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { FormSheet } from '@/components/app/FormSheet'
 import { Button } from '@/components/ui/Button'
 import { DetailSection, InfoList, InfoRow } from '@/components/ui/InfoList'
 import { Input } from '@/components/ui/Input'
@@ -9,6 +12,7 @@ import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { errorMessage } from '@/lib/errors'
 import { formatLongDate } from '@/lib/format'
+import { useSheetParam } from '@/lib/modalRoute'
 import { accountService } from '@/services/account.service'
 import { SettingsSubPage } from './SettingsPage'
 
@@ -25,14 +29,15 @@ function timezoneOptions(current: string) {
   return [...new Set([current, ...zones])].sort().map((value) => ({ value, label: value.replaceAll('_', ' ') }))
 }
 
-/** Minha conta (UC-ACC-04): nome e fuso horário; e-mail e data de nascimento só leitura. */
+/** Minha conta (UC-ACC-04): e-mail e data de nascimento só leitura; nome e fuso horário editam-se numa folha. */
 export function AccountSettingsPage() {
   const { user, setUser } = useAuth()
   const toast = useToast()
+  const { open, show, close } = useSheetParam('editar')
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const {
     register,
     handleSubmit,
-    reset,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -42,13 +47,14 @@ export function AccountSettingsPage() {
   if (!user) return null
 
   async function save(values: FormValues) {
+    setSubmitError(null)
     try {
       const updated = await accountService.updateMe(user!.id, values)
       setUser(updated)
-      reset(values)
       toast.show('Conta atualizada.')
+      close()
     } catch (error) {
-      toast.show(errorMessage(error), 'error')
+      setSubmitError(errorMessage(error))
     }
   }
 
@@ -56,24 +62,22 @@ export function AccountSettingsPage() {
     <SettingsSubPage title="Minha conta">
       <DetailSection title="Dados da conta">
         <InfoList>
+          <InfoRow label="Nome" value={user.name} />
           <InfoRow label="E-mail" value={user.email} />
           <InfoRow label="Data de nascimento" value={formatLongDate(user.birthDate)} />
+          <InfoRow label="Fuso horário" value={user.timezone.replaceAll('_', ' ')} />
         </InfoList>
       </DetailSection>
+      <Button size="xl" fullWidth onClick={show} icon={<Pencil className="size-5" aria-hidden />}>
+        Editar nome e fuso horário
+      </Button>
 
-      <form onSubmit={handleSubmit(save)} noValidate className="flex flex-col gap-4">
-        <Input label="Nome" autoComplete="name" error={errors.name?.message} {...register('name')} />
-        <Select
-          label="Fuso horário"
-          hint="Referência dos seus lembretes."
-          options={timezoneOptions(user.timezone)}
-          error={errors.timezone?.message}
-          {...register('timezone')}
-        />
-        <Button type="submit" size="lg" fullWidth loading={isSubmitting} disabled={!isDirty}>
-          Guardar alterações
-        </Button>
-      </form>
+      {open && (
+        <FormSheet title="Editar a minha conta" onClose={close} dirty={isDirty} onSubmit={handleSubmit(save)} submitLabel="Guardar alterações" busy={isSubmitting} error={submitError}>
+          <Input label="Nome" autoComplete="name" error={errors.name?.message} {...register('name')} />
+          <Select label="Fuso horário" hint="Referência dos seus lembretes." options={timezoneOptions(user.timezone)} error={errors.timezone?.message} {...register('timezone')} />
+        </FormSheet>
+      )}
     </SettingsSubPage>
   )
 }
