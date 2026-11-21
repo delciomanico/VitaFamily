@@ -5,7 +5,7 @@
 export type Tone = 'brand' | 'health' | 'meds' | 'chat' | 'family' | 'attention'
 
 export const toneTile: Record<Tone, string> = {
-  brand: 'on-light bg-[#e3f3f9] text-[#126883]',
+  brand: 'bg-primary-soft text-primary',
   health: 'bg-health-soft text-health-ink',
   meds: 'bg-meds-soft text-meds-ink',
   chat: 'bg-chat-soft text-chat-ink',
@@ -15,7 +15,7 @@ export const toneTile: Record<Tone, string> = {
 
 /** Bloco de cor inteiro (atalhos do Início): fundo suave e texto `-ink`. */
 export const toneBlock: Record<Tone, string> = {
-  brand: 'on-light bg-[#e3f3f9] text-[#126883] active:bg-[#d3ebf4]',
+  brand: 'bg-surface text-primary shadow-card active:bg-primary-soft',
   health: 'bg-health-soft text-health-ink',
   meds: 'bg-meds-soft text-meds-ink',
   chat: 'bg-chat-soft text-chat-ink',
@@ -23,12 +23,12 @@ export const toneBlock: Record<Tone, string> = {
   attention: 'bg-warning-soft text-warning',
 }
 
-/** Cor sólida do contador (texto branco por cima, ≥ 4.5:1). */
+/** Contador: pastilha branca com o número na cor da área (≥ 4.5:1), legível sobre qualquer fundo da app. */
 export const toneBadge: Record<Tone, string> = {
-  brand: 'bg-[#126883]',
-  health: 'bg-health-ink',
-  meds: 'bg-meds-ink',
-  chat: 'bg-chat-ink',
-  family: 'bg-family-ink',
-  attention: 'bg-warning',
+  brand: 'bg-[#fff] text-[#126883]',
+  health: 'bg-[#fff] text-[#b3361f]',
+  meds: 'bg-[#fff] text-[#5240b8]',
+  chat: 'bg-[#fff] text-[#8f5400]',
+  family: 'bg-[#fff] text-[#1b7444]',
+  attention: 'bg-[#fff] text-[#9a5b00]',
 }

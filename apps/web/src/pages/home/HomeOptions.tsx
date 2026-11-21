@@ -71,11 +71,11 @@ function Tile({ to, label, icon: Icon, tone, count = 0, countLabel, onNavigate }
       className={cn('flex h-full min-h-32 flex-col justify-between gap-4 rounded-[1.25rem] p-4 transition-transform active:scale-[0.97]', toneBlock[tone])}
     >
       <span className="flex items-start justify-between">
-        <span className="flex size-12 items-center justify-center rounded-2xl bg-white/80">
+        <span className="flex size-12 items-center justify-center rounded-2xl bg-white/15">
           <Icon className="size-7" strokeWidth={1.9} aria-hidden />
         </span>
         {hasCount && (
-          <span className={cn('flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-base font-bold text-white', toneBadge[tone])} aria-hidden>
+          <span className={cn('flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-base font-bold', toneBadge[tone])} aria-hidden>
             {count > MAX_BADGE ? `${MAX_BADGE}+` : count}
           </span>
         )}
