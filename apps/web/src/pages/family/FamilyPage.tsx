@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Lock, UserPlus, Users } from 'lucide-react'
 import { AddMemberForm } from '@/components/domain/AddMemberForm'
@@ -7,7 +6,6 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { Modal } from '@/components/ui/Modal'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/contexts/AuthContext'
@@ -16,6 +14,7 @@ import { ageOn } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { formatAge, formatCount } from '@/lib/format'
 import { relationshipLabels, roleLabels } from '@/lib/labels'
+import { useSheetParam } from '@/lib/modalRoute'
 import { paths } from '@/routes/paths'
 import { familyService, type NewMemberInput } from '@/services/family.service'
 import type { FamilyMemberCard, MemberTracking } from '@/types/family'
@@ -83,13 +82,13 @@ export function FamilyPage() {
   const familyId = family?.id ?? ''
   const userId = user?.id ?? ''
   const { state, reload } = useAsync(() => familyService.getFamilyOverview(familyId, userId), [familyId, userId])
-  const [adding, setAdding] = useState(false)
+  const { open: adding, show: startAdding, close: closeAdding } = useSheetParam('adicionar')
 
   async function onAdd(input: NewMemberInput) {
     try {
       await familyService.addMember(familyId, userId, input)
       toast.show('Membro adicionado.')
-      setAdding(false)
+      closeAdding()
       reload()
       return true
     } catch (error) {
@@ -99,7 +98,7 @@ export function FamilyPage() {
   }
 
   const addButton = state.status === 'success' && state.data.isAdmin && (
-    <Button size="sm" onClick={() => setAdding(true)} icon={<UserPlus className="size-4" aria-hidden />}>
+    <Button size="sm" onClick={startAdding} icon={<UserPlus className="size-4" aria-hidden />}>
       Adicionar membro
     </Button>
   )
@@ -129,14 +128,9 @@ export function FamilyPage() {
         </>
       )}
 
-      <Modal
-        open={adding}
-        onClose={() => setAdding(false)}
-        title="Adicionar membro"
-        description="Perfil sem conta (ex.: filhos), de quem fica tutor."
-      >
-        <AddMemberForm onAdd={onAdd} />
-      </Modal>
+      {adding && (
+        <AddMemberForm onAdd={onAdd} sheet={{ title: 'Adicionar membro', description: 'Perfil sem conta (ex.: filhos), de quem fica tutor.', onClose: closeAdding }} />
+      )}
     </Page>
   )
 }

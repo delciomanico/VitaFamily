@@ -108,9 +108,9 @@ describe('fluxos de autenticação', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
 
     expect(await screen.findByText('Perfil atualizado.')).toBeInTheDocument()
-    // Espera pela vista (o formulário também contém a opção “AB-”).
-    await screen.findByRole('button', { name: 'Editar perfil' })
-    expect(screen.getByText('AB-')).toBeInTheDocument()
+    // Espera que a folha de edição feche (ela também contém a opção “AB-”).
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Editar perfil' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('AB-')).toHaveLength(1))
     expect(screen.getByText('Nenhuma condição registada.')).toBeInTheDocument()
   })
 

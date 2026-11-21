@@ -103,3 +103,27 @@ describe('novo exame e marcar consulta (família)', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/app/appointments'))
   })
 })
+
+describe('perfil de saúde e família (família)', () => {
+  it('editar perfil: abre por cima do perfil com ?editar e «Fechar» sem alterações fecha', async () => {
+    const router = renderAt('/app/health/profile?editar')
+    const sheet = await readySheet('Editar perfil', 'Guardar')
+    expect(await screen.findByRole('heading', { name: 'Perfil de saúde', level: 1 })).toBeInTheDocument()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Fechar' }))
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+  })
+
+  it('adicionar membro: folha por cima da lista, guardar atualiza e mostra o aviso', async () => {
+    const router = renderAt('/app/family')
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar membro' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Adicionar membro' })
+    expect(router.state.location.search).toBe('?adicionar=1')
+    fireEvent.input(within(sheet).getByLabelText('Nome'), { target: { value: 'Rita Lopes' } })
+    fireEvent.input(within(sheet).getByLabelText('Data de nascimento'), { target: { value: '2018-05-05' } })
+    fireEvent.change(within(sheet).getByLabelText('Relação'), { target: { value: 'DAUGHTER' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Adicionar' }))
+    expect(await screen.findByText('Membro adicionado.')).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+    expect(await screen.findByText('Rita Lopes')).toBeInTheDocument()
+  })
+})

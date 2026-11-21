@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useNavigate, useOutletContext } from 'react-router-dom'
+import { useLocation, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom'
 import { canNavigateBack } from '@/lib/navigation'
 
 /**
@@ -26,4 +26,30 @@ export function useModalRoute(parent: string) {
     close()
   }, [context, close])
   return { close, saved }
+}
+
+/**
+ * Folha aberta por um parâmetro do endereço (`?adicionar`), para formulários que partem de uma página sem rota própria
+ * (ex.: «Adicionar membro» em «Minha família»). `show` acrescenta uma entrada ao histórico (o botão voltar do telemóvel
+ * fecha a folha); `close` volta atrás se foi a app a abri-la, senão só tira o parâmetro.
+ */
+export function useSheetParam(key: string) {
+  const [params, setParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const open = params.has(key)
+  const show = useCallback(() => {
+    const next = new URLSearchParams(params)
+    next.set(key, '1')
+    navigate({ search: `?${next}` }, { state: { sheet: key } })
+  }, [key, navigate, params])
+  const close = useCallback(() => {
+    if ((location.state as { sheet?: string } | null)?.sheet === key && canNavigateBack()) navigate(-1)
+    else {
+      const next = new URLSearchParams(params)
+      next.delete(key)
+      setParams(next, { replace: true })
+    }
+  }, [key, location.state, navigate, params, setParams])
+  return { open, show, close }
 }

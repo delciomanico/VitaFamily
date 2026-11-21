@@ -1,12 +1,14 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { FormSheet } from '@/components/app/FormSheet'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { TagInput } from '@/components/ui/TagInput'
 import { isValidISODate, todayISO } from '@/lib/date'
+import { errorMessage } from '@/lib/errors'
 import { bloodTypeOptions, sexOptions } from '@/lib/labels'
 import type { HealthProfileInput } from '@/services/health.service'
 import { BLOOD_TYPES, SEXES, type HealthProfile } from '@/types/health'
@@ -42,23 +44,32 @@ interface HealthProfileFormProps {
   submitLabel: string
   /** Ação secundária (ex.: “Pular por agora”). */
   secondaryAction?: ReactNode
+  /** Em folha por cima do ecrã (em vez de página): título e fecho; erros ao guardar aparecem na folha. */
+  sheet?: { title: string; onClose: () => void }
 }
 
 /** Perfil de saúde: usado na configuração inicial e em “Editar perfil”. */
-export function HealthProfileForm({ defaultValues, onSubmit, submitLabel, secondaryAction }: HealthProfileFormProps) {
+export function HealthProfileForm({ defaultValues, onSubmit, submitLabel, secondaryAction, sheet }: HealthProfileFormProps) {
   const {
     register,
     control,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues })
+  const [sheetError, setSheetError] = useState<string | null>(null)
 
-  function submit({ sex, bloodType, ...values }: FormValues) {
-    return onSubmit({ ...values, sex: sex || undefined, bloodType: bloodType || undefined })
+  async function submit({ sex, bloodType, ...values }: FormValues) {
+    setSheetError(null)
+    try {
+      await onSubmit({ ...values, sex: sex || undefined, bloodType: bloodType || undefined })
+    } catch (error) {
+      if (!sheet) throw error
+      setSheetError(errorMessage(error))
+    }
   }
 
-  return (
-    <form onSubmit={handleSubmit(submit)} noValidate className="flex flex-col gap-4">
+  const fields = (
+    <>
       <Input label="Nome" autoComplete="name" error={errors.name?.message} {...register('name')} />
       <Input
         label="Data de nascimento"
@@ -90,6 +101,20 @@ export function HealthProfileForm({ defaultValues, onSubmit, submitLabel, second
           />
         )}
       />
+    </>
+  )
+
+  if (sheet) {
+    return (
+      <FormSheet title={sheet.title} onClose={sheet.onClose} dirty={isDirty} onSubmit={handleSubmit(submit)} submitLabel={submitLabel} busy={isSubmitting} error={sheetError}>
+        {fields}
+      </FormSheet>
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit(submit)} noValidate className="flex flex-col gap-4">
+      {fields}
       <div className="flex flex-col gap-2 pt-2">
         <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
           {submitLabel}
