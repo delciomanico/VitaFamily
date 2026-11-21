@@ -1,22 +1,20 @@
 import { useContext } from 'react'
-import { Sunrise } from '@/components/app/Sunrise'
-import { Page } from '@/components/layout/Page'
+import { Page, bandTitleClass } from '@/components/layout/Page'
 import { UnreadAlertsContext } from '@/components/layout/UnreadAlertsContext'
-import { ErrorState, LoadingState } from '@/components/ui/states'
+import { ErrorState } from '@/components/ui/states'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAsync } from '@/hooks/useAsync'
 import { firstName } from '@/lib/date'
-import { formatLongDate, luandaDayISO } from '@/lib/format'
 import { reportService } from '@/services/report.service'
-import { HOME_BANNER_SRC } from './homeBanner'
-import { HomePrimaryCard } from './HomePrimaryCard'
+import { HomeBanner } from './HomeBanner'
 import { HomeOptions } from './HomeOptions'
 import { RecentAlerts } from './RecentAlerts'
 import { TodayDoses } from './TodayDoses'
 
 /**
- * Início: saudação, uma só ação principal (próximo compromisso ou encontrar um profissional),
- * 4 atalhos (o resto na folha «Mais opções»), tomas de hoje e os últimos alertas.
+ * Home num só ecrã, sem scroll vertical: faixa, banner (com o próximo compromisso),
+ * menu de opções deslizante (resumo de hoje nas legendas) e, no espaço que sobra,
+ * as tomas de hoje e os alertas recentes (só o que couber).
  */
 export function HomePage() {
   const { user, family, member } = useAuth()
@@ -26,38 +24,36 @@ export function HomePage() {
   const { state, reload } = useAsync(() => reportService.getHomeSummary(familyId, userId), [familyId, userId])
   const name = member?.name ?? user?.name ?? ''
 
-  const doses = state.status === 'success' ? state.data.todayDoses : []
-  const taken = doses.filter((d) => d.status === 'TAKEN').length
-
-  const hero = (
-    <>
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <h1 className="font-display text-[1.5rem] leading-tight font-semibold text-balance">Olá, {firstName(name)}</h1>
-          <p className="mt-1 text-base text-white/90">{formatLongDate(luandaDayISO(new Date()))}</p>
-          {doses.length > 0 && (
-            <p className="mt-0.5 text-base font-semibold text-sun">
-              {taken} de {doses.length} {doses.length === 1 ? 'toma feita' : 'tomas feitas'}
-            </p>
-          )}
-        </div>
-        <div className="w-36 shrink-0">
-          <Sunrise done={taken} total={doses.length} />
-        </div>
-      </div>
-      {state.status === 'success' && <HomePrimaryCard next={state.data.nextAppointment} />}
-    </>
+  const greeting = (
+    <h1 className={bandTitleClass}>
+      Olá, {firstName(name)}
+    </h1>
   )
 
   return (
-    <Page title="Início" hero={hero} heroImage={HOME_BANNER_SRC}>
-      {state.status === 'loading' && <LoadingState rows={3} label="A preparar o seu dia…" />}
+    <Page title="Início" header={greeting} fullScreen>
+      <HomeBanner next={state.status === 'success' ? state.data.nextAppointment : null} />
+      {state.status === 'loading' && (
+        <div role="status" className="grid shrink-0 grid-cols-4 gap-x-1 gap-y-9" aria-label="A carregar…">
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={i} className="mx-auto size-12 animate-pulse rounded-xl bg-surface-muted" aria-hidden />
+          ))}
+        </div>
+      )}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
         <>
-          <TodayDoses doses={state.data.todayDoses} />
           <HomeOptions summary={state.data} unreadAlerts={unreadAlerts} />
-          <RecentAlerts alerts={state.data.recentAlerts} />
+          {/*
+            Espaço livre restante: tomas de hoje (altura natural) e alertas recentes (o resto).
+            Cada cartão só aparece se couber, para a Home nunca ter scroll.
+          */}
+          <div className="fit-area flex min-h-0 flex-1 flex-col gap-3">
+            <TodayDoses doses={state.data.todayDoses} />
+            <div className="fit-area min-h-0 flex-1">
+              <RecentAlerts alerts={state.data.recentAlerts} />
+            </div>
+          </div>
         </>
       )}
     </Page>

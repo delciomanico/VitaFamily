@@ -49,11 +49,9 @@ describe('área da família em app móvel', () => {
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
   })
 
-  it('Início: uma ação principal e os atalhos extra numa folha', async () => {
+  it('Início: cartão principal com o próximo compromisso e o menu de opções', async () => {
     renderAt('/app')
-    expect(await screen.findByRole('link', { name: 'Ver compromisso' })).toBeInTheDocument()
-    expect(within(screen.getByRole('region', { name: 'Os seus atalhos' })).getByRole('link', { name: /Medicamentos/ })).toHaveAttribute('href', '/app/health/medications')
-    fireEvent.click(screen.getByRole('button', { name: 'Mais opções' }))
-    expect(within(await screen.findByRole('dialog')).getByRole('link', { name: 'Histórico' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /Próximo compromisso/ })).toHaveAttribute('href', '/app/appointments/apt_cardio')
+    expect(screen.getByRole('link', { name: /Medicamentos, / })).toHaveAttribute('href', '/app/health/medications')
   })
 })

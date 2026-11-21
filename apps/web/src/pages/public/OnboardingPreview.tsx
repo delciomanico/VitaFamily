@@ -9,7 +9,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import { HOME_BANNER_SRC } from '@/pages/home/homeBanner'
+import { HOME_BANNER_SRC } from '@/pages/home/HomeBanner'
 
 /*
  * Prévias decorativas do onboarding: um telemóvel com uma versão simplificada da app.

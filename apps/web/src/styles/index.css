@@ -341,6 +341,30 @@
 }
 
 /*
+ * Área que ocupa o espaço livre de um ecrã fixo (Home). O conteúdo marcado com
+ * `fit-hide` esconde-se quando não cabe, para nunca criar scroll vertical.
+ */
+@layer components {
+  .fit-area {
+    container-type: size;
+  }
+
+  /* `!important` porque as utilidades (ex.: `flex`) vêm depois na cascata. */
+  @container (max-height: 8.5rem) {
+    .fit-hide {
+      display: none !important;
+    }
+  }
+
+  /* Alertas recentes: precisam do título e de pelo menos uma linha completa. */
+  @container (max-height: 7rem) {
+    .fit-hide-alerts {
+      display: none !important;
+    }
+  }
+}
+
+/*
  * Impressão de recibos (M14 R, BR-CLN-37): só o documento `.print-area` é impresso; o botão
  * "Imprimir / Guardar PDF" usa a impressão do navegador (sem PDF no servidor, OP-41).
  */
