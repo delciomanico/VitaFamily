@@ -1,5 +1,4 @@
 import { Badge } from '@/components/ui/Badge'
-import { Card } from '@/components/ui/Card'
 import { RowLink } from '@/components/ui/RowLink'
 import { appointmentStatusLabel } from '@/lib/appointment'
 import { cn } from '@/lib/cn'
@@ -21,7 +20,7 @@ interface AppointmentListProps {
 export function AppointmentList({ items, selfMemberId, linked = true }: AppointmentListProps) {
   return (
     <ErrorBoundary>
-<Card className="divide-y divide-border py-1">
+<div className="divide-y divide-border">
       {items.map(({ appointment, memberName }) => {
         const { day, month } = dateBlock(appointment.scheduledAt)
         const status = appointmentStatusLabel(appointment)
@@ -53,7 +52,7 @@ export function AppointmentList({ items, selfMemberId, linked = true }: Appointm
           </RowLink>
         )
       })}
-    </Card>
+    </div>
 </ErrorBoundary>
   )
 }

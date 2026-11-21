@@ -77,24 +77,25 @@ export function BookingsPage() {
               }
             />
           ) : (
-            <ul className="flex flex-col gap-3">
+            <ul className="flex flex-col">
               {rows.map((b) => (
                 <li key={b.id}>
-                  <Link to={paths.booking(b.memberId, b.id)} className="flex flex-col gap-1.5 rounded-[1.25rem] bg-surface p-4 shadow-card transition-transform active:scale-[0.98]">
-                    <p className="flex items-center gap-3 font-display text-xl font-bold">
-                      <Avatar name={b.professional.displayName} size="md" />
-                      {b.professional.displayName}
-                    </p>
-                    <p className="text-base text-muted">
-                      {b.offer.specialtyName} · {offerMethodLabel[b.offer.method]}
-                      {severalMembers ? ` · ${b.memberName}` : ''}
-                    </p>
-                    <time className="text-base font-medium" dateTime={b.startsAt}>
-                      {formatWhenLuanda(b.startsAt)}
-                    </time>
-                    <StatusBadges status={b.status} paymentStatus={b.paymentStatus} priceKz={b.priceKz} />
-                    {b.canSendProof && <p className="text-base font-medium text-warning">Falta enviar o comprovativo de pagamento.</p>}
-                    {b.canReview && <p className="text-base font-medium text-primary">Pode avaliar esta consulta.</p>}
+                  <Link to={paths.booking(b.memberId, b.id)} className="-mx-4 flex items-center gap-3 px-4 transition-colors active:bg-surface-muted lg:-mx-8 lg:px-8">
+                    <Avatar name={b.professional.displayName} size="lg" className="shrink-0" />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 border-b border-border py-3">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-base font-semibold">{b.professional.displayName}</span>
+                        <time className="shrink-0 text-sm text-muted" dateTime={b.startsAt}>
+                          {formatWhenLuanda(b.startsAt)}
+                        </time>
+                      </span>
+                      <span className="truncate text-sm text-muted">
+                        {b.offer.specialtyName} · {offerMethodLabel[b.offer.method]}
+                        {severalMembers ? ` · ${b.memberName}` : ''}
+                      </span>
+                      <StatusBadges status={b.status} paymentStatus={b.paymentStatus} priceKz={b.priceKz} />
+                      {b.canReview && <span className="text-sm font-medium text-primary">Pode avaliar esta consulta.</span>}
+                    </span>
                   </Link>
                 </li>
               ))}

@@ -24,7 +24,7 @@ const items: HubItem[] = [
 export function HealthHubPage() {
   return (
     <Page title="Minha saúde" backTo={paths.home} backLabel="Início">
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col">
         {items.map(({ to, title, description, icon, tone }) => (
           <li key={to}>
             <ListEntry to={to} icon={icon} title={title} subtitle={description} tone={tone} />

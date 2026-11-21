@@ -20,29 +20,29 @@ export function AccordionSection({ title, summary, icon: Icon, defaultOpen = fal
   const [open, setOpen] = useState(defaultOpen)
   const panelId = useId()
   return (
-    <section className={cn('overflow-hidden rounded-[1.25rem] bg-surface shadow-card', attention && 'ring-2 ring-warning/40')}>
+    <section className={cn('border-b border-border', attention && 'rounded-2xl bg-warning-soft/60 px-3')}>
       <h2>
         <button
           type="button"
           aria-expanded={open}
           aria-controls={panelId}
           onClick={() => setOpen((value) => !value)}
-          className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-start focus-visible:outline-offset-[-2px]"
+          className="flex min-h-16 w-full items-center gap-4 py-3 text-start focus-visible:outline-offset-[-2px]"
         >
           {Icon && (
-            <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-xl', toneTile[attention ? 'attention' : tone])}>
+            <span className={cn('flex size-12 shrink-0 items-center justify-center rounded-2xl', toneTile[attention ? 'attention' : tone])}>
               <Icon className="size-5" aria-hidden />
             </span>
           )}
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="font-display text-xl leading-6 font-bold">{title}</span>
-            {summary && !open && <span className="truncate text-base font-normal text-muted">{summary}</span>}
+            <span className="font-display text-lg leading-6 font-semibold">{title}</span>
+            {summary && !open && <span className="truncate text-sm font-normal text-muted">{summary}</span>}
           </span>
           <ChevronDown className={cn('size-6 shrink-0 text-muted transition-transform duration-300', open && 'rotate-180')} aria-hidden />
         </button>
       </h2>
       {open && (
-        <div id={panelId} className="flex animate-page-in flex-col gap-3 border-t border-border/60 px-4 py-4">
+        <div id={panelId} className="flex animate-page-in flex-col gap-3 pb-4">
           {children}
         </div>
       )}

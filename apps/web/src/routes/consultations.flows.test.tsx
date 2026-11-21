@@ -109,7 +109,7 @@ describe('marcar e avaliar (família)', () => {
     await loginFamily(paths.bookings)
     expect(await screen.findByText('Dra. Teresa Neto')).toBeInTheDocument()
     expect(screen.getByText('Dr. Paulo Quissanga')).toBeInTheDocument()
-    expect(screen.getByText('Falta enviar o comprovativo de pagamento.')).toBeInTheDocument()
+    expect(screen.getAllByText('Falta o comprovativo').length).toBeGreaterThan(0)
     expect(document.body.textContent).not.toMatch(TECHNICAL)
     fireEvent.click(screen.getByRole('button', { name: 'Anteriores' }))
     expect((await screen.findAllByText('Pode avaliar esta consulta.')).length).toBeGreaterThan(0)

@@ -97,7 +97,7 @@ export function ProfessionalProfileHubPage() {
         <p className="text-sm text-muted">A foto fica só neste aparelho.</p>
       </section>
 
-      <nav aria-label="Áreas do perfil" className="flex flex-col gap-3">
+      <nav aria-label="Áreas do perfil" className="flex flex-col">
         <ListEntry
           to={paths.professionalProfileEdit}
           icon={UserPen}

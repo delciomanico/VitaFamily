@@ -26,7 +26,6 @@ import { ConfirmSheet } from '@/components/app/Sheet'
 import { Page } from '@/components/layout/Page'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
 import { DetailSection } from '@/components/ui/InfoList'
 import { Modal } from '@/components/ui/Modal'
 import { useAuth } from '@/contexts/AuthContext'
@@ -43,10 +42,10 @@ interface SettingsItem {
 
 function SettingsGroup({ items }: { items: SettingsItem[] }) {
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="flex flex-col">
       {items.map(({ to, label, description, icon, tone }) => (
         <li key={to}>
-          <ListEntry to={to} icon={icon} title={label} subtitle={description} tone={tone} className="min-h-16 shadow-none" />
+          <ListEntry to={to} icon={icon} title={label} subtitle={description} tone={tone} />
         </li>
       ))}
     </ul>
@@ -72,7 +71,7 @@ function InstallAppSection() {
 
   return (
     <DetailSection title="Aplicação">
-      <Card className="py-1">
+      <div className="py-1">
         <button
           type="button"
           onClick={() => (mode === 'prompt' ? void promptInstall() : setIosHelp(true))}
@@ -85,7 +84,7 @@ function InstallAppSection() {
           </span>
           <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />
         </button>
-      </Card>
+      </div>
       <Modal
         open={iosHelp}
         onClose={() => setIosHelp(false)}
@@ -156,7 +155,7 @@ export function SettingsPage() {
 
   return (
     <Page title="Perfil">
-      <div className="flex items-center gap-4 rounded-3xl bg-surface p-5 shadow-card">
+      <div className="flex items-center gap-4 pb-2">
         <Avatar name={name} size="xl" />
         <div className="min-w-0">
           <p className="truncate font-display text-[1.25rem] leading-tight font-semibold">{name}</p>
@@ -164,7 +163,7 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col">
         {shortcuts.map(({ to, label, description, icon, tone }) => (
           <li key={to}>
             <ListEntry to={to} icon={icon} title={label} subtitle={description} tone={tone} />
@@ -172,7 +171,7 @@ export function SettingsPage() {
         ))}
       </ul>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col">
         {groups.map(({ title, summary, icon, items }) => (
           <AccordionSection key={title} title={title} summary={summary} icon={icon}>
             <SettingsGroup items={items} />
