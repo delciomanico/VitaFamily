@@ -23,13 +23,13 @@ export function LogoMark({ className, tone = 'default' }: LogoMarkProps) {
     <>
       <path
         d="M246 432C150 384 90 304 100 228C108 160 160 112 214 80C252 150 274 222 268 292C264 350 256 396 246 432Z"
-        fill="var(--color-accent)"
+        fill="#4aafd0"
       />
       <path
         d="M268 430C280 384 286 334 286 290C288 236 284 198 276 170C304 140 346 126 382 134C430 146 448 196 438 246C424 318 354 382 268 430Z"
-        fill="var(--color-primary)"
+        fill="#167698"
       />
-      <path d="M60 290H452" stroke="var(--color-brand)" strokeWidth="22" strokeLinecap="round" />
+      <path d="M60 290H452" stroke="#2a9cc0" strokeWidth="22" strokeLinecap="round" />
       {/* Troço branco por dentro do coração. */}
       <path
         d="M124 290H178L208 234L242 350L282 202L316 290H424"
