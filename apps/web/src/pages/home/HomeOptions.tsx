@@ -74,7 +74,7 @@ function OptionTile({ to, label, icon: Icon, count = 0, countLabel, onNavigate, 
         <Icon className={compact ? 'size-6' : 'size-7'} strokeWidth={1.7} aria-hidden />
         {hasCount && (
           <span
-            className="absolute -top-1.5 -right-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#fff] px-1 text-xs font-semibold text-[#0d4f68]"
+            className="absolute -top-1.5 -right-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1 text-xs font-semibold text-primary-foreground ring-2 ring-background"
             aria-hidden
           >
             {count > MAX_BADGE ? `${MAX_BADGE}+` : count}
@@ -111,7 +111,7 @@ export function HomeOptions({ summary, unreadAlerts }: HomeOptionsProps) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="relative flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#fff] px-6 text-base font-semibold text-[#0d4f68] active:bg-[#eaf6fa]"
+        className="relative flex min-h-12 items-center justify-center gap-2 rounded-full bg-primary px-6 text-base font-semibold text-primary-foreground shadow-button active:bg-primary-hover"
       >
         <Ellipsis className="size-5" aria-hidden />
         Mais opções

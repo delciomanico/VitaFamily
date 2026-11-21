@@ -1,3 +1,4 @@
+import { BRAND_BACKGROUND } from '@/components/layout/useBrandBackground'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -161,11 +162,12 @@ describe('definições, relógio e medicamento (família)', () => {
   })
 })
 
-describe('fundo azul sólido', () => {
-  it('a shell da família liga `html.on-brand` e desliga ao sair da área autenticada', async () => {
+describe('fundo azul sólido (interruptor BRAND_BACKGROUND)', () => {
+  it('a shell da família só liga `html.on-brand` se o interruptor estiver ligado, e desliga ao sair', async () => {
     renderAt('/app/health')
     await screen.findByRole('heading', { name: 'Minha saúde', level: 1 })
-    expect(document.documentElement).toHaveClass('on-brand')
+    if (BRAND_BACKGROUND) expect(document.documentElement).toHaveClass('on-brand')
+    else expect(document.documentElement).not.toHaveClass('on-brand')
     cleanup()
     expect(document.documentElement).not.toHaveClass('on-brand')
   })

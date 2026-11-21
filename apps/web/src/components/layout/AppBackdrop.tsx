@@ -1,5 +1,5 @@
 /**
- * Detalhes gráficos do fundo azul sólido: um sol laranja e anéis/pontos brancos nas bordas, atrás do conteúdo.
+ * Detalhes gráficos do fundo: um sol laranja e anéis/pontos azuis nas bordas, atrás do conteúdo.
  * Só decoração (aria-hidden, sem eventos), formas nítidas e estáticas: sem gradientes, sem animação, sem custo.
  */
 export function AppBackdrop({ column = false }: { column?: boolean }) {
@@ -14,12 +14,12 @@ export function AppBackdrop({ column = false }: { column?: boolean }) {
     >
       {/* Sol a espreitar pelo canto inferior direito (acima da barra inferior), com um anel fino. */}
       <span className="absolute -right-8 bottom-32 size-24 rounded-full bg-sun" />
-      <span className="absolute -right-16 bottom-24 size-40 rounded-full border-2 border-white/40" />
-      <span className="absolute right-24 bottom-44 size-2.5 rounded-full bg-white" />
+      <span className="absolute -right-16 bottom-24 size-40 rounded-full border-2 border-primary/25" />
+      <span className="absolute right-24 bottom-44 size-2.5 rounded-full bg-primary/35" />
       {/* Anel branco no canto inferior esquerdo e dois pontos. */}
-      <span className="absolute -bottom-12 -left-14 size-44 rounded-full border-2 border-white/35" />
+      <span className="absolute -bottom-12 -left-14 size-44 rounded-full border-2 border-primary/20" />
       <span className="absolute bottom-36 left-1.5 size-2.5 rounded-full bg-sun" />
-      <span className="absolute bottom-24 left-1 size-2 rounded-full bg-white" />
+      <span className="absolute bottom-24 left-1 size-2 rounded-full bg-primary/35" />
     </div>
   )
 }
