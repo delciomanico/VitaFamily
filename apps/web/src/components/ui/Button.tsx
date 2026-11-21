@@ -15,7 +15,7 @@ interface StyleProps {
 const variants: Record<Variant, string> = {
   primary: 'bg-primary text-primary-foreground shadow-button hover:bg-primary-hover active:shadow-none',
   /** Sobre fundo azul profundo. */
-  light: 'bg-white text-brand-deep hover:bg-primary-soft',
+  light: 'bg-[#fff] text-brand-deep hover:bg-[#eaf6fa]',
   soft: 'bg-primary-soft text-primary hover:bg-primary-soft-hover',
   secondary: 'bg-surface text-foreground border border-border hover:bg-surface-muted',
   ghost: 'text-foreground hover:bg-surface-muted',

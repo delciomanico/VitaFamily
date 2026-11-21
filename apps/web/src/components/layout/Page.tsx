@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
 import { cn } from '@/lib/cn'
@@ -52,18 +52,32 @@ export function Page({
   children,
 }: PageProps) {
   const handleBack = useBackTo(backTo ?? '/')
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    if (!hero) return
+    const onScroll = () => setScrolled(window.scrollY > 24)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [hero])
   return (
     <div className={cn(fullScreen && 'flex h-[calc(100dvh-var(--bottom-nav-h,0px))] flex-col overflow-hidden')}>
       {hero ? (
         <>
-          <header className="sticky top-0 z-20 shrink-0 bg-brand-deep pt-safe text-white">
+          {/* Barra transparente sobre a foto; fica sólida ao fazer scroll para o conteúdo não passar por baixo. */}
+          <header
+            className={cn(
+              'sticky top-0 z-20 -mb-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 pt-safe text-white transition-colors duration-200',
+              scrolled ? 'bg-brand-deep shadow-overlay' : 'bg-transparent',
+            )}
+          >
             <div className="mx-auto flex h-14 max-w-3xl items-center justify-between gap-2 px-4 lg:px-8">
               <LogoMark tone="inverse" className="size-9" />
               <AlertsButton />
             </div>
           </header>
-          <HeroBand sun={sun} image={heroImage}>
-            <div className="mx-auto max-w-3xl px-4 pt-1 lg:px-8"><div className={sun ? 'pr-24' : undefined}>{hero}</div></div>
+          <HeroBand sun={sun} image={heroImage} compact className="pt-[calc(3.5rem+env(safe-area-inset-top))]">
+            <div className="mx-auto max-w-3xl px-4 pt-3 lg:px-8"><div className={sun ? 'pr-24' : undefined}>{hero}</div></div>
           </HeroBand>
         </>
       ) : (

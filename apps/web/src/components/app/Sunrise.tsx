@@ -58,10 +58,10 @@ export function Sunrise({ done = 0, total = 0, className }: SunriseProps) {
 }
 
 /** Faixa de topo de um ecrã inicial: azul profundo, cantos de baixo grandes, o sol a nascer no canto. */
-export function HeroBand({ children, sun, className, image }: { children: ReactNode; sun?: ReactNode; className?: string; image?: string }) {
+export function HeroBand({ children, sun, className, image, compact = false }: { children: ReactNode; sun?: ReactNode; className?: string; image?: string; compact?: boolean }) {
   return (
     <div
-      className={cn('relative isolate overflow-hidden rounded-b-[2rem] bg-brand-deep pb-14 text-white', className)}
+      className={cn('relative isolate overflow-hidden rounded-b-[2rem] bg-brand-deep text-white', compact ? 'pb-7' : 'pb-14', className)}
       style={
         image
           ? {

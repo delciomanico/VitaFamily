@@ -1,13 +1,11 @@
 import { CalendarHeart, Search } from 'lucide-react'
-import { cn } from '@/lib/cn'
-import { toneTile } from '@/lib/tones'
 import { ButtonLink } from '@/components/ui/Button'
 import { formatWhen } from '@/lib/format'
 import { paths } from '@/routes/paths'
 import type { HomeSummary } from '@/types/report'
 
-/** Cartão que sobe sobre a faixa do topo: a única superfície com sombra forte do Início. */
-const cardClass = 'relative z-10 -mt-14 flex flex-col gap-4 rounded-3xl bg-surface p-5 shadow-hero'
+/** Bloco dentro da faixa do topo (sem cartão): uma linha fina separa-o da saudação. */
+const blockClass = 'mt-5 flex flex-col gap-3 border-t border-white/25 pt-4'
 
 /**
  * A única ação principal do Início: o próximo compromisso, ou, se não houver, encontrar um profissional.
@@ -17,37 +15,32 @@ export function HomePrimaryCard({ next }: { next: HomeSummary['nextAppointment']
     const { appointment, memberName, isSelf } = next
     const what = [appointment.specialty ?? 'Consulta', !isSelf && memberName].filter(Boolean).join(' · ')
     return (
-      <section aria-labelledby="home-primary" className={cardClass}>
-        <div className="flex items-center gap-3">
-          <span className={cn('flex size-12 shrink-0 items-center justify-center rounded-2xl', toneTile.chat)}>
-            <CalendarHeart className="size-7" aria-hidden />
-          </span>
-          <h2 id="home-primary" className="text-lg font-semibold">
+      <section aria-labelledby="home-primary" className={blockClass}>
+        <div className="flex items-center gap-2 text-white/90">
+          <CalendarHeart className="size-5" aria-hidden />
+          <h2 id="home-primary" className="text-base font-medium">
             Próximo compromisso
           </h2>
         </div>
         <div>
           <p className="font-display text-[1.5rem] leading-tight font-semibold">{what}</p>
-          <p className="mt-1 text-xl text-muted">{formatWhen(appointment.scheduledAt)}</p>
+          <p className="mt-0.5 text-lg text-white/90">{formatWhen(appointment.scheduledAt)}</p>
         </div>
-        <ButtonLink to={paths.appointment(appointment.id)} size="xl" fullWidth>
+        <ButtonLink to={paths.appointment(appointment.id)} variant="light" size="xl" fullWidth>
           Ver compromisso
         </ButtonLink>
       </section>
     )
   }
   return (
-    <section aria-labelledby="home-primary" className={cardClass}>
-      <div className="flex items-center gap-3">
-        <span className={cn('flex size-12 shrink-0 items-center justify-center rounded-2xl', toneTile.chat)}>
-          <Search className="size-7" aria-hidden />
-        </span>
-        <h2 id="home-primary" className="font-display text-xl font-bold">
+    <section aria-labelledby="home-primary" className={blockClass}>
+      <div>
+        <h2 id="home-primary" className="font-display text-[1.5rem] leading-tight font-semibold">
           Precisa de uma consulta?
         </h2>
+        <p className="mt-0.5 text-lg text-white/90">Encontre um médico ou especialista e marque em poucos passos.</p>
       </div>
-      <p className="text-lg">Encontre um médico ou especialista e marque em poucos passos.</p>
-      <ButtonLink to={paths.marketplace} size="xl" fullWidth>
+      <ButtonLink to={paths.marketplace} variant="light" size="xl" fullWidth icon={<Search className="size-5" aria-hidden />}>
         Encontrar um profissional
       </ButtonLink>
     </section>

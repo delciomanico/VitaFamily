@@ -31,23 +31,30 @@ export function HomePage() {
 
   const hero = (
     <>
-      <h1 className="font-display text-[1.5rem] leading-tight font-semibold text-balance">Olá, {firstName(name)}</h1>
-      <p className="mt-1 text-base text-white/85">{formatLongDate(luandaDayISO(new Date()))}</p>
-      {doses.length > 0 && (
-        <p className="mt-0.5 text-base font-semibold text-sun">
-          {taken} de {doses.length} {doses.length === 1 ? 'toma feita' : 'tomas feitas'}
-        </p>
-      )}
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="font-display text-[1.5rem] leading-tight font-semibold text-balance">Olá, {firstName(name)}</h1>
+          <p className="mt-1 text-base text-white/90">{formatLongDate(luandaDayISO(new Date()))}</p>
+          {doses.length > 0 && (
+            <p className="mt-0.5 text-base font-semibold text-sun">
+              {taken} de {doses.length} {doses.length === 1 ? 'toma feita' : 'tomas feitas'}
+            </p>
+          )}
+        </div>
+        <div className="w-36 shrink-0">
+          <Sunrise done={taken} total={doses.length} />
+        </div>
+      </div>
+      {state.status === 'success' && <HomePrimaryCard next={state.data.nextAppointment} />}
     </>
   )
 
   return (
-    <Page title="Início" hero={hero} heroImage={HOME_BANNER_SRC} sun={<Sunrise done={taken} total={doses.length} />}>
+    <Page title="Início" hero={hero} heroImage={HOME_BANNER_SRC}>
       {state.status === 'loading' && <LoadingState rows={3} label="A preparar o seu dia…" />}
       {state.status === 'error' && <ErrorState onRetry={reload} />}
       {state.status === 'success' && (
         <>
-          <HomePrimaryCard next={state.data.nextAppointment} />
           <TodayDoses doses={state.data.todayDoses} />
           <HomeOptions summary={state.data} unreadAlerts={unreadAlerts} />
           <RecentAlerts alerts={state.data.recentAlerts} />
