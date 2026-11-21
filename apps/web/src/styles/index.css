@@ -418,6 +418,21 @@
 .app-mobile :is(h1, h2, h3, h4, p).font-bold {
   font-weight: 600;
 }
+/*
+ * Cartões planos na app móvel (família e especialista): sem superfície, borda, raio nem sombra; ficam alinhados à
+ * margem da página e separados por uma linha fina. Fora de `.app-mobile` (clínica, admin, site) nada muda.
+ */
+.app-mobile :is(.ui-card, .shadow-card):not(.keep-card) {
+  background: transparent;
+  border-width: 0 0 1px 0;
+  border-color: var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
+  padding-inline: 0;
+}
+.app-mobile :is(a.ui-card, a.shadow-card):not(.keep-card):active {
+  background: var(--color-surface-muted);
+}
 /* Em camada de componentes: um `min-h-*` maior na própria utilitária continua a prevalecer. */
 @layer components {
   .app-mobile :is(button, a).rounded-full {

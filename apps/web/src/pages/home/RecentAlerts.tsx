@@ -18,7 +18,7 @@ export function RecentAlerts({ alerts }: { alerts: AlertItem[] }) {
   return (
     <section
       aria-labelledby="recent-alerts"
-      className="fit-hide-alerts flex h-full min-h-0 flex-col rounded-xl border border-border bg-surface px-3.5 pt-3 pb-1 shadow-card"
+      className="fit-hide-alerts flex h-full min-h-0 flex-col"
     >
       <div className="flex items-center justify-between gap-2">
         <h2 id="recent-alerts" className="text-sm font-semibold">

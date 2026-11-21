@@ -13,10 +13,10 @@ interface RowLinkProps {
 
 /** Linha de uma lista em cartão: ligação com seta, ou só leitura. */
 export function RowLink({ to, linked = true, className, children }: RowLinkProps) {
-  const classes = cn('-mx-2 flex items-center gap-3 rounded-md px-2 py-3', className)
+  const classes = cn('-mx-2 flex items-center gap-3 px-2 py-3', className)
   if (!linked) return <div className={classes}>{children}</div>
   return (
-    <Link to={to} className={cn(classes, 'transition-colors hover:bg-surface-muted')}>
+    <Link to={to} className={cn(classes, 'transition-colors active:bg-surface-muted')}>
       {children}
       <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />
     </Link>

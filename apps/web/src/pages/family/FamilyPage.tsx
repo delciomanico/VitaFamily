@@ -5,7 +5,6 @@ import { Page } from '@/components/layout/Page'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Card } from '@/components/ui/Card'
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/contexts/AuthContext'
@@ -57,10 +56,11 @@ function MemberRow({ card }: { card: FamilyMemberCard }) {
   return (
     <Link
       to={paths.familyMember(member.id)}
-      className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-surface-muted"
+      className="flex items-center gap-3 transition-colors active:bg-surface-muted"
     >
       <Avatar name={member.name} size="lg" />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <span className="flex min-w-0 flex-1 items-center gap-3 border-b border-border py-3">
+       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate font-medium">
           {member.name}
           {isSelf && <span className="font-normal text-muted"> (eu)</span>}
@@ -69,8 +69,9 @@ function MemberRow({ card }: { card: FamilyMemberCard }) {
         <span className="mt-0.5">
           <TrackingBadge tracking={tracking} />
         </span>
+       </span>
+       <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />
       </span>
-      <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />
     </Link>
   )
 }
@@ -114,11 +115,11 @@ export function FamilyPage() {
             <p className="text-muted">{formatCount(state.data.members.length, 'membro', 'membros')}</p>
           </div>
           {state.data.members.length > 0 ? (
-            <Card className="divide-y divide-border py-1">
+            <div className="flex flex-col">
               {state.data.members.map((card) => (
                 <MemberRow key={card.member.id} card={card} />
               ))}
-            </Card>
+            </div>
           ) : (
             <EmptyState icon={Users} title="Ainda não há membros." />
           )}

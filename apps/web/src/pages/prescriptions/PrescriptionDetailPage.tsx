@@ -44,7 +44,7 @@ function MedicationRow({ plan }: { plan: MedicationPlan }) {
   return (
     <Link
       to={paths.medication(plan.id)}
-      className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-surface-muted"
+      className="-mx-2 flex items-center gap-3 px-2 py-3 transition-colors hover:bg-surface-muted"
     >
       <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary-soft text-primary">
         <Pill className="size-5" aria-hidden />

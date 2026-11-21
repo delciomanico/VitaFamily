@@ -333,7 +333,7 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
       )}
 
       {selected.length > 0 && (
-        <div className="sticky bottom-[calc(var(--bottom-nav-h,0px)+0.75rem)] flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-3 shadow-overlay">
+        <div className="keep-card sticky bottom-[calc(var(--bottom-nav-h,0px)+0.75rem)] flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-3 shadow-overlay">
           <p className="text-sm text-muted">
             {selected.length < MIN_COMPARE ? 'Escolha de 2 a 3 para comparar.' : `${selected.length} de ${MAX_COMPARE} escolhidos.`}
           </p>

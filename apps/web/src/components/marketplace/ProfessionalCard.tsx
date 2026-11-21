@@ -37,10 +37,10 @@ export function ProfessionalCard({ item, specialtyId, selected = false, onToggle
   const specialties = item.specialties.map((specialty) => specialty.name).join(', ')
 
   return (
-    <div className="flex items-center gap-2 rounded-2xl border border-border bg-surface pr-3 shadow-card">
+    <div className="flex items-center gap-2 border-b border-border pr-1 active:bg-surface-muted">
       <Link
         to={paths.marketplaceProfessional(item.id, specialtyId)}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-3"
+        className="flex min-w-0 flex-1 items-center gap-3 py-3"
       >
         <Avatar name={item.displayName} size="lg" />
         <span className="flex min-w-0 flex-1 flex-col">

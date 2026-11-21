@@ -53,7 +53,7 @@ function Row({ entry, linked }: { entry: HistoryEntry; linked: boolean }) {
       {to && <ChevronRight className="size-5 shrink-0 text-muted" aria-hidden />}
     </>
   )
-  const classes = '-mx-2 flex items-center gap-3 rounded-md px-2 py-3'
+  const classes = '-mx-2 flex items-center gap-3 px-2 py-3'
   return to ? (
     <Link to={to} className={`${classes} transition-colors hover:bg-surface-muted`}>
       {body}

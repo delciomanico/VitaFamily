@@ -75,7 +75,7 @@ function InstallAppSection() {
         <button
           type="button"
           onClick={() => (mode === 'prompt' ? void promptInstall() : setIosHelp(true))}
-          className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-3 text-left transition-colors hover:bg-surface-muted"
+          className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 px-2 py-3 text-left transition-colors hover:bg-surface-muted"
         >
           <RowIcon icon={Download} />
           <span className="flex min-w-0 flex-1 flex-col">
