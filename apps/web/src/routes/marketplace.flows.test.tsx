@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { marketplaceService } from '@/services/marketplace.service'
 import { ToastProvider } from '@/components/ui/Toast'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { DEMO_EMAIL, DEMO_PASSWORD } from '@/mocks/data/users'
@@ -61,6 +62,11 @@ beforeEach(() => {
 })
 
 describe('mercado de profissionais (família)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
   it('pesquisa: cartões, especialidade com «Novo» e comparação de dois profissionais', async () => {
     const router = await loginFamily(paths.marketplace)
     expect(await screen.findByText('Dra. Teresa Neto')).toBeInTheDocument()
@@ -98,6 +104,26 @@ describe('mercado de profissionais (família)', () => {
     await waitFor(() => expect(within(sheet).getByRole('button', { name: /^Ver / })).toBeInTheDocument())
     fireEvent.click(within(sheet).getByRole('button', { name: /^Ver / }))
     expect(screen.getByRole('button', { name: /Pesquisar e filtrar \(1\)/ })).toBeInTheDocument()
+  })
+
+  it('scroll infinito: as páginas seguintes surgem sozinhas quando o fim da lista se aproxima', async () => {
+    // Páginas de 2 (a demonstração só tem 6) e um observador que dispara assim que o fim da lista existe.
+    const real = marketplaceService.search.bind(marketplaceService)
+    vi.spyOn(marketplaceService, 'search').mockImplementation((params) => real({ ...params, limit: 2 }))
+    class FakeObserver {
+      constructor(private callback: IntersectionObserverCallback) {}
+      observe(target: Element) {
+        setTimeout(() => this.callback([{ isIntersecting: true, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver), 0)
+      }
+      disconnect() {}
+      unobserve() {}
+      takeRecords() { return [] }
+    }
+    vi.stubGlobal('IntersectionObserver', FakeObserver)
+
+    await loginFamily(paths.marketplace)
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Resultados' }).querySelectorAll('a[href*="/app/marketplace/"]:not([href*="como-ordenamos"])').length).toBe(6))
+    expect(screen.queryByRole('button', { name: 'Carregar mais' })).not.toBeInTheDocument()
   })
 
   it('«Como ordenamos» explica que o pagamento não influencia a ordem', async () => {

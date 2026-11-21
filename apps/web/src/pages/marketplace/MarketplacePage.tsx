@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { SearchX, SlidersHorizontal } from 'lucide-react'
+import { LoaderCircle, SearchX, SlidersHorizontal } from 'lucide-react'
 import { Sheet } from '@/components/app/Sheet'
 import { Page } from '@/components/layout/Page'
 import { ProfessionalCard } from '@/components/marketplace/ProfessionalCard'
@@ -30,6 +30,8 @@ import type { OfferMethod } from '@/types/professional'
 const MIN_SEARCH_LENGTH = 2
 const MIN_COMPARE = 2
 const MAX_COMPARE = 3
+/** Profissionais por página: as seguintes vão surgindo ao fazer scroll. */
+const PAGE_LIMIT = 10
 
 const WITHIN_DAYS_OPTIONS: SelectOption[] = [
   { value: '', label: 'Qualquer data' },
@@ -111,6 +113,7 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
           maxPriceKz: maxKz ?? undefined,
           availableWithinDays: withinDays ? Number(withinDays) : undefined,
           sort,
+          limit: PAGE_LIMIT,
         }
   const queryKey = query ? JSON.stringify(query) : ''
 
@@ -122,6 +125,9 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
   // Páginas seguintes guardam a primeira página a que pertencem: ao mudar a pesquisa, deixam de valer.
   const [extra, setExtra] = useState<MoreState | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  /** Falhou a carregar mais: pára o carregamento automático até o utilizador tentar de novo. */
+  const [loadFailed, setLoadFailed] = useState(false)
+  const sentinel = useRef<HTMLDivElement>(null)
 
   const page = state.status === 'success' ? state.data : null
   const more = page && extra?.base === page ? extra : null
@@ -131,15 +137,34 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
   async function loadMore() {
     if (!page || !query || !nextCursor) return
     setLoadingMore(true)
+    setLoadFailed(false)
     try {
       const next = await marketplaceService.search({ ...query, cursor: nextCursor })
       setExtra({ base: page, items: [...(more?.items ?? []), ...next.items], nextCursor: next.nextCursor })
     } catch (error) {
+      setLoadFailed(true)
       toast.show(errorMessage(error), 'error')
     } finally {
       setLoadingMore(false)
     }
   }
+
+  // Scroll infinito: quando o fim da lista se aproxima do ecrã, carrega a página seguinte.
+  const loadMoreRef = useRef(loadMore)
+  loadMoreRef.current = loadMore
+  const canAutoLoad = nextCursor !== null && !loadFailed && typeof IntersectionObserver !== 'undefined'
+  useEffect(() => {
+    const target = sentinel.current
+    if (!target || !canAutoLoad || loadingMore) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void loadMoreRef.current()
+      },
+      { rootMargin: '0px 0px 320px 0px' },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [canAutoLoad, loadingMore, nextCursor])
 
   function changeSpecialty(value: string) {
     setSpecialtyId(value)
@@ -286,9 +311,17 @@ function MarketplaceSearch({ filters }: { filters: MarketplaceFilters }) {
             />
           ))}
           {nextCursor && (
-            <Button variant="secondary" onClick={() => void loadMore()} loading={loadingMore}>
-              Carregar mais
-            </Button>
+            <div ref={sentinel} className="flex min-h-12 items-center justify-center">
+              {loadingMore ? (
+                <LoaderCircle className="size-6 animate-spin text-muted" aria-label="A carregar mais profissionais" />
+              ) : (
+                (loadFailed || !canAutoLoad) && (
+                  <Button variant="secondary" onClick={() => void loadMore()}>
+                    {loadFailed ? 'Tentar de novo' : 'Carregar mais'}
+                  </Button>
+                )
+              )}
+            </div>
           )}
           <p className="text-sm text-muted">
             O pagamento e os destaques pagos nunca influenciam a ordem.{' '}
