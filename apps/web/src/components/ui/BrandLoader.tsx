@@ -15,7 +15,7 @@ interface BrandLoaderProps {
  */
 export function BrandLoader({ label = 'A carregar…', className }: BrandLoaderProps) {
   return (
-    <div role="status" className={cn('flex min-h-dvh flex-col items-center justify-center gap-7 bg-surface', className)}>
+    <div role="status" className={cn('flex min-h-dvh flex-col items-center justify-center gap-7 bg-surface pt-safe pb-safe', className)}>
       <svg viewBox="0 0 512 512" aria-hidden className="size-28 animate-vf-beat overflow-visible md:size-32 [transform-box:fill-box] [transform-origin:center]">
         <path
           className="animate-vf-leaf [transform-box:fill-box] [transform-origin:bottom_right]"

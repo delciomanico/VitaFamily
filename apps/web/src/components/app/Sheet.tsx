@@ -40,7 +40,7 @@ export function Sheet({ open, onClose, title, description, children, footer }: S
         <span className="mx-auto h-1.5 w-12 rounded-full bg-border-strong/80" aria-hidden />
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-1.5">
-            <h2 id={titleId} className="text-[1.375rem] leading-tight font-bold text-balance">
+            <h2 id={titleId} className="text-[1.25rem] leading-tight font-bold text-balance">
               {title}
             </h2>
             {description && (

@@ -127,12 +127,12 @@ export function LoginPage() {
 
       <div className="relative flex min-h-32 flex-1 flex-col items-center justify-center gap-3 px-6 pt-safe text-white md:flex-none md:pb-8">
         <LogoMark tone="inverse" className="size-14 drop-shadow-lg" />
-        <p className="text-[1.375rem] font-bold tracking-tight drop-shadow">Vita Family</p>
+        <p className="text-[1.25rem] font-bold tracking-tight drop-shadow">Vita Family</p>
       </div>
 
       <div className="relative rounded-t-3xl bg-surface px-5 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-overlay md:w-full md:max-w-md md:rounded-3xl md:px-8 md:py-8">
         <div className="flex flex-col gap-1 pb-4">
-          <h1 className="text-[1.375rem] leading-tight font-bold tracking-tight">Entrar</h1>
+          <h1 className="text-[1.25rem] leading-tight font-bold tracking-tight">Entrar</h1>
           <p className="text-muted">{active.subtitle}</p>
         </div>
 

@@ -68,7 +68,7 @@ export function Wizard({ title, stepTitle, description, step, total, onBack, onN
       </header>
 
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-[1.5rem] leading-tight font-semibold text-balance">{stepTitle}</h1>
+        <h1 className="text-[1.25rem] leading-tight font-semibold text-balance">{stepTitle}</h1>
         {description && <p className="text-base text-muted">{description}</p>}
       </div>
 

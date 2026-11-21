@@ -7,7 +7,7 @@ import { Outlet } from 'react-router-dom'
  */
 export function PublicLayout() {
   return (
-    <div className="flex min-h-dvh flex-col bg-surface md:justify-center md:bg-background">
+    <div className="flex min-h-dvh flex-col bg-surface pt-safe pb-safe md:justify-center md:bg-background">
       <main className="flex flex-1 flex-col md:flex-none">
         <Outlet />
       </main>

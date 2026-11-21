@@ -96,7 +96,7 @@ export function PortalLoginScreen({
       </div>
       <div className="relative flex min-h-32 flex-1 flex-col items-center justify-center gap-3 px-6 pt-safe text-white lg:hidden">
         <LogoMark tone="inverse" className="size-14 drop-shadow-lg" />
-        <p className="text-[1.375rem] font-bold tracking-tight drop-shadow">Vita Family</p>
+        <p className="text-[1.25rem] font-bold tracking-tight drop-shadow">Vita Family</p>
         <span className="flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-sm font-semibold backdrop-blur">
           <BadgeIcon className="size-4" aria-hidden />
           {badge}
@@ -124,7 +124,7 @@ export function PortalLoginScreen({
               <BadgeIcon className="size-7" aria-hidden />
             </span>
             <p className="mt-5 hidden text-sm font-semibold tracking-wide text-primary uppercase lg:block">{badge}</p>
-            <h1 className="text-[1.375rem] leading-tight font-bold tracking-tight text-balance lg:mt-2 lg:text-4xl lg:leading-[1.15]">
+            <h1 className="text-[1.25rem] leading-tight font-bold tracking-tight text-balance lg:mt-2 lg:text-4xl lg:leading-[1.15]">
               {title}
             </h1>
 

@@ -28,7 +28,7 @@ function Eyebrow({ children }: { children: ReactNode }) {
 
 function Heading({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <h2 className={`text-[1.5rem] leading-[1.1] font-bold tracking-tight text-balance md:text-5xl lg:text-6xl ${className}`}>
+    <h2 className={`text-[1.25rem] leading-[1.1] font-bold tracking-tight text-balance md:text-5xl lg:text-6xl ${className}`}>
       {children}
     </h2>
   )

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#167698" />
+    <meta name="theme-color" content="#0d4f68" />
     <meta name="description" content="Vita Family: a saúde de toda a família num só lugar seguro, ligada às clínicas e aos profissionais de saúde que a acompanham, sempre com o seu consentimento." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Vita Family" />
@@ -13,7 +13,7 @@
     <meta property="og:locale" content="pt_PT" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Vita Family" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
@@ -23,7 +23,7 @@
     <div id="root">
       <!-- Carregamento da marca enquanto o JavaScript chega; a app substitui isto ao arrancar. -->
       <style>
-        .boot{display:flex;min-height:100dvh;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;background:#fff;font-family:Inter,system-ui,sans-serif}
+        .boot{display:flex;min-height:100dvh;box-sizing:border-box;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;background:#fff;font-family:Inter,system-ui,sans-serif}
         .boot svg{width:7rem;height:7rem;animation:bootbeat 1.8s ease-in-out infinite}
         .boot b{font-size:1.875rem;letter-spacing:-.02em;color:#17242c}
         @keyframes bootbeat{0%,100%{transform:scale(1)}14%{transform:scale(1.09)}28%{transform:scale(.98)}42%{transform:scale(1.05)}60%{transform:scale(1)}}

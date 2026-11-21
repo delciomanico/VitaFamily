@@ -15,7 +15,7 @@ interface FilterChipsProps<T extends string> {
 /** Filtros em «pílulas» que deslizam na horizontal (padrão das apps móveis); o ativo tem cor cheia e `aria-pressed`. */
 export function FilterChips<T extends string>({ items, value, onChange, label }: FilterChipsProps<T>) {
   return (
-    <div role="group" aria-label={label} className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 py-1">
+    <div role="group" aria-label={label} className="no-scrollbar flex gap-2 overflow-x-auto py-1">
       {items.map((item) => {
         const active = item.value === value
         return (

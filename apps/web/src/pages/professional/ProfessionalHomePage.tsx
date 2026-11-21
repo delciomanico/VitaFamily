@@ -116,7 +116,7 @@ export function ProfessionalHomePage() {
         className="-mx-5 -mt-[max(1.25rem,env(safe-area-inset-top))] pt-[calc(max(1.25rem,env(safe-area-inset-top))+2rem)]"
       >
         <header className="flex flex-col gap-1 px-5 pr-24">
-          <h1 className="font-display text-[1.5rem] leading-tight font-semibold text-balance">
+          <h1 className="font-display text-[1.25rem] leading-tight font-semibold text-balance">
             {greeting(now)}
             {greetingName(profile.displayName) && `, ${greetingName(profile.displayName)}`}
           </h1>
@@ -155,7 +155,7 @@ export function ProfessionalHomePage() {
             </h2>
           </div>
           <div className="flex flex-col gap-1">
-            <p className="font-display text-[1.375rem] leading-tight font-semibold text-foreground">{step.title}</p>
+            <p className="font-display text-[1.25rem] leading-tight font-semibold text-foreground">{step.title}</p>
             <p className="text-base text-foreground">{step.text}</p>
           </div>
           {step.to ? (

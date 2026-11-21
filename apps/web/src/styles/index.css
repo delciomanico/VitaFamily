@@ -65,14 +65,14 @@
   --text-xs--line-height: 1rem;
   --text-sm: 0.875rem;
   --text-sm--line-height: 1.25rem;
-  --text-base: 1rem;
-  --text-base--line-height: 1.5rem;
-  --text-lg: 1.125rem;
-  --text-lg--line-height: 1.625rem;
-  --text-xl: 1.25rem;
-  --text-xl--line-height: 1.75rem;
-  --text-2xl: 1.5rem;
-  --text-2xl--line-height: 2rem;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.4rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.0625rem;
+  --text-xl--line-height: 1.5rem;
+  --text-2xl: 1.25rem;
+  --text-2xl--line-height: 1.75rem;
 
   /* Raios */
   --radius-sm: 0.5rem;
@@ -289,6 +289,13 @@
 
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    /* Área segura lateral (entalhe/cantos arredondados): o topo e o fundo são tratados por componente (pt-safe/pb-safe). */
+    padding-inline: max(env(safe-area-inset-left), 0px) max(env(safe-area-inset-right), 0px);
+  }
+  /* Nunca scroll horizontal: nenhum elemento pode alargar a página. */
+  html,
+  body {
+    overflow-x: clip;
   }
 
   /* Títulos com carácter em toda a app (corpo continua em Inter). */
@@ -396,8 +403,8 @@
  * Fora de camadas para vencer as utilitárias; os componentes partilhados com a família ficam intactos.
  */
 .app-mobile {
-  font-size: 1rem;
-  line-height: 1.6;
+  font-size: 0.9375rem;
+  line-height: 1.55;
 }
 .app-mobile .text-sm {
   font-size: 0.9375rem;

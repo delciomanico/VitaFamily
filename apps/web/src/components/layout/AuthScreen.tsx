@@ -53,7 +53,7 @@ export function AuthScreen({ title, description, backTo, progress, leading, chil
 
       <div className="flex flex-col gap-2 pt-2 pb-7">
         {leading}
-        <h1 className="text-[1.375rem] leading-tight font-bold tracking-tight">{title}</h1>
+        <h1 className="text-[1.25rem] leading-tight font-bold tracking-tight">{title}</h1>
         {description && <p className="text-muted">{description}</p>}
       </div>
 
