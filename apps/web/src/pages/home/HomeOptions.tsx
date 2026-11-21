@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { Sheet } from '@/components/app/Sheet'
+import { cn } from '@/lib/cn'
 import { formatCount } from '@/lib/format'
 import { paths } from '@/routes/paths'
 import type { HomeSummary } from '@/types/report'
@@ -60,7 +61,7 @@ function buildPages({ today, family }: HomeSummary, unreadAlerts: number): Optio
 /** Contador máximo mostrado no ícone; acima disso aparece “9+”. */
 const MAX_BADGE = 9
 
-function OptionTile({ to, label, icon: Icon, count = 0, countLabel, onNavigate }: Option & { onNavigate: () => void }) {
+function OptionTile({ to, label, icon: Icon, count = 0, countLabel, onNavigate, compact = false }: Option & { onNavigate?: () => void; compact?: boolean }) {
   const hasCount = count > 0
   return (
     <Link
@@ -69,8 +70,8 @@ function OptionTile({ to, label, icon: Icon, count = 0, countLabel, onNavigate }
       aria-label={hasCount && countLabel ? `${label}, ${formatCount(count, ...countLabel)}` : label}
       className="group flex flex-col items-center gap-2 rounded-2xl p-1 text-center"
     >
-      <span className="relative flex size-14 items-center justify-center rounded-2xl bg-primary-soft text-primary transition-colors group-active:bg-primary-soft-hover">
-        <Icon className="size-7" strokeWidth={1.7} aria-hidden />
+      <span className={cn('relative flex items-center justify-center rounded-2xl bg-primary-soft text-primary transition-colors group-active:bg-primary-soft-hover', compact ? 'size-12' : 'size-14')}>
+        <Icon className={compact ? 'size-6' : 'size-7'} strokeWidth={1.7} aria-hidden />
         {hasCount && (
           <span
             className="absolute -top-1.5 -right-1.5 flex h-6 min-w-6 items-center justify-center rounded-full bg-[#fff] px-1 text-xs font-semibold text-[#0d4f68]"
@@ -80,7 +81,7 @@ function OptionTile({ to, label, icon: Icon, count = 0, countLabel, onNavigate }
           </span>
         )}
       </span>
-      <span className="text-sm leading-tight font-medium text-foreground" aria-hidden>
+      <span className={cn('leading-tight font-medium text-foreground', compact ? 'text-xs' : 'text-sm')} aria-hidden>
         {label}
       </span>
     </Link>
@@ -92,31 +93,39 @@ interface HomeOptionsProps {
   unreadAlerts: number
 }
 
-/** Um só botão «Mais opções»: abre uma folha com todas as outras ações (o Início fica só com o foco principal). */
+/** Quatro opções principais e, por baixo, «Mais opções»: abre uma folha com todas as outras. */
 export function HomeOptions({ summary, unreadAlerts }: HomeOptionsProps) {
-  const options = buildPages(summary, unreadAlerts).flat()
+  const all = buildPages(summary, unreadAlerts).flat()
+  const main = all.slice(0, 4)
+  const more = all.slice(4)
   const [open, setOpen] = useState(false)
-  const alerts = unreadAlerts
   return (
-    <>
+    <div className="flex shrink-0 flex-col gap-3 pt-1">
+      <ul className="grid grid-cols-4 gap-x-1">
+        {main.map((option) => (
+          <li key={option.to}>
+            <OptionTile {...option} compact />
+          </li>
+        ))}
+      </ul>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="relative flex min-h-14 shrink-0 items-center justify-center gap-2 rounded-full bg-[#fff] px-6 text-lg font-semibold text-[#0d4f68] active:bg-[#eaf6fa]"
+        className="relative flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#fff] px-6 text-base font-semibold text-[#0d4f68] active:bg-[#eaf6fa]"
       >
-        <Ellipsis className="size-6" aria-hidden />
+        <Ellipsis className="size-5" aria-hidden />
         Mais opções
-        {alerts > 0 && <span className="absolute top-2 right-5 size-3 rounded-full bg-danger" aria-hidden />}
+        {unreadAlerts > 0 && <span className="absolute top-1.5 right-5 size-3 rounded-full bg-danger" aria-hidden />}
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Mais opções">
         <ul className="grid grid-cols-3 gap-x-2 gap-y-4 pb-2">
-          {options.map((option) => (
+          {more.map((option) => (
             <li key={option.to}>
               <OptionTile {...option} onNavigate={() => setOpen(false)} />
             </li>
           ))}
         </ul>
       </Sheet>
-    </>
+    </div>
   )
 }

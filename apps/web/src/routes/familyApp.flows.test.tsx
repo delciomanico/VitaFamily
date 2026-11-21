@@ -49,13 +49,15 @@ describe('área da família em app móvel', () => {
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
   })
 
-  it('Início: só o foco principal e um botão que abre todas as outras opções', async () => {
+  it('Início: quatro opções principais e «Mais opções» por baixo, que abre todas as outras numa folha', async () => {
     renderAt('/app')
     expect(await screen.findByRole('link', { name: /Próximo compromisso/ })).toHaveAttribute('href', '/app/appointments/apt_cardio')
-    expect(screen.queryByRole('link', { name: /Medicamentos, / })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Medicamentos, / })).toHaveAttribute('href', '/app/health/medications')
+    expect(screen.getAllByRole('link', { name: 'Agenda' }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('link', { name: 'Marcar consulta' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Mais opções/ }))
     const sheet = await screen.findByRole('dialog')
-    expect(within(sheet).getByRole('link', { name: /Medicamentos, / })).toHaveAttribute('href', '/app/health/medications')
     expect(within(sheet).getByRole('link', { name: 'Marcar consulta' })).toBeInTheDocument()
+    expect(within(sheet).getByRole('link', { name: /Alertas/ })).toBeInTheDocument()
   })
 })
