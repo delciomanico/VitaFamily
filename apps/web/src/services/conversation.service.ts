@@ -50,8 +50,8 @@ const mockImpl = {
   list: (familyId: string, userId: string, memberId: string, status?: 'OPEN' | 'CLOSED') => mock.listFamilyConversations(familyId, userId, memberId, { status }),
   get: (familyId: string, userId: string, memberId: string, conversationId: string) => mock.getFamilyConversation(familyId, userId, memberId, conversationId),
   start: (familyId: string, userId: string, memberId: string, input: StartConversationInput): Promise<ConversationStarted> => mock.startFamilyConversation(familyId, userId, memberId, input),
-  messages: (familyId: string, userId: string, memberId: string, conversationId: string, cursor?: string): Promise<Page<ChatMessage>> =>
-    mock.listFamilyMessages(familyId, userId, memberId, conversationId, { cursor }),
+  messages: (familyId: string, userId: string, memberId: string, conversationId: string, cursor?: string, limit?: number): Promise<Page<ChatMessage>> =>
+    mock.listFamilyMessages(familyId, userId, memberId, conversationId, { cursor, limit }),
   send: (familyId: string, userId: string, memberId: string, conversationId: string, input: { text: string; clientMessageId?: string }): Promise<ChatMessage> =>
     mock.sendFamilyMessage(familyId, userId, memberId, conversationId, input),
   markRead: (familyId: string, userId: string, memberId: string, conversationId: string, upToSeq?: number) =>
@@ -77,8 +77,13 @@ const apiImpl: typeof mockImpl = {
     const started = await call<Omit<ConversationStarted, 'created'>>(base(familyId, memberId), { method: 'POST', body: input })
     return { ...started, created: true }
   },
-  messages: (familyId, _userId, memberId, id, cursor) =>
-    call<Page<ChatMessage>>(`${base(familyId, memberId)}/${encodeURIComponent(id)}/messages${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`).then(pageOf),
+  messages: (familyId, _userId, memberId, id, cursor, limit) => {
+    const query = new URLSearchParams()
+    if (cursor) query.set('cursor', cursor)
+    if (limit) query.set('limit', String(limit))
+    const text = query.toString()
+    return call<Page<ChatMessage>>(`${base(familyId, memberId)}/${encodeURIComponent(id)}/messages${text ? `?${text}` : ''}`).then(pageOf)
+  },
   send: (familyId, _userId, memberId, id, input) => call<ChatMessage>(`${base(familyId, memberId)}/${encodeURIComponent(id)}/messages`, { method: 'POST', body: input }),
   markRead: (familyId, _userId, memberId, id, upToSeq) =>
     call<FamilyConversation>(`${base(familyId, memberId)}/${encodeURIComponent(id)}/read`, { method: 'PUT', body: upToSeq === undefined ? {} : { upToSeq } }),
@@ -92,6 +97,11 @@ const impl = hasApiBackend() ? apiImpl : mockImpl
 
 export const conversationService = {
   ...impl,
+  /** Última mensagem da conversa (a listagem vem das mais recentes para as mais antigas; pede só uma). */
+  async lastMessage(familyId: string, userId: string, memberId: string, conversationId: string): Promise<ChatMessage | null> {
+    const page = await impl.messages(familyId, userId, memberId, conversationId, undefined, 1)
+    return page.items[0] ?? null
+  },
   /** Todas as conversas dos membros em que o utilizador pode conversar, a mais recente primeiro. */
   async listAll(familyId: string, userId: string, status?: 'OPEN' | 'CLOSED'): Promise<FamilyConversationRow[]> {
     const members = await impl.eligibleMembers(familyId, userId)
