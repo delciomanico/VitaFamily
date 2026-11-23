@@ -64,6 +64,8 @@ export const paths = {
   /** Cartão do processo (fatia 5, ADR-036): estado simples e o que falta; aberto a partir de um alerta. */
   process: (memberId: string, processId: string) => `/app/processes/${memberId}/${processId}`,
   familyReport: '/app/reports/family',
+  /** Resumo de saúde (M17): `?membro=<id|familia>&periodo=30|90|12m|custom&de&ate`. */
+  healthSummary: '/app/reports/summary',
   preventiveReport: '/app/reports/preventive',
   preventiveReportOf: (memberId: string) => `/app/reports/preventive?membro=${memberId}`,
   /** Mercado de profissionais (MK2): descoberta e comparação. A pesquisa exige sessão de família. */

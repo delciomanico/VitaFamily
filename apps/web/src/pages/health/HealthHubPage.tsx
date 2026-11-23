@@ -1,4 +1,4 @@
-import { ClipboardList, FileText, FlaskConical, History, Pill, UserRound, type LucideIcon } from 'lucide-react'
+import { ChartNoAxesColumn, ClipboardList, FileText, FlaskConical, History, Pill, UserRound, type LucideIcon } from 'lucide-react'
 import { Page } from '@/components/layout/Page'
 import type { Tone } from '@/lib/tones'
 import { ListEntry } from '@/components/app/ListEntry'
@@ -18,6 +18,7 @@ const items: HubItem[] = [
   { to: paths.medications, title: 'Medicamentos', description: 'Medicamentos ativos e lembretes', icon: Pill, tone: 'meds' },
   { to: paths.examinations, title: 'Exames', description: 'Exames e resultados', icon: FlaskConical, tone: 'brand' },
   { to: paths.medicalHistory, title: 'Histórico médico', description: 'Consultas, exames e receitas anteriores', icon: History, tone: 'brand' },
+  { to: paths.healthSummary, title: 'Resumo de saúde', description: 'Adesão, exames e o que falta registar', icon: ChartNoAxesColumn, tone: 'meds' },
   { to: paths.preventiveReport, title: 'Relatório', description: 'Resumo preventivo', icon: ClipboardList, tone: 'family' },
 ]
 

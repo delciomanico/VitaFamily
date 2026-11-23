@@ -202,6 +202,7 @@ export const routes: RouteObject[] = [
                 path: 'processes/:memberId/:processId',
                 ...page(() => import('@/pages/processes/ProcessPage'), 'ProcessPage'),
               },
+              { path: 'reports/summary', ...page(() => import('@/pages/reports/HealthSummaryPage'), 'HealthSummaryPage') },
               { path: 'reports/family', ...page(() => import('@/pages/reports/FamilyReportPage'), 'FamilyReportPage') },
               {
                 path: 'reports/preventive',
