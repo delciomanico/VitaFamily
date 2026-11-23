@@ -56,7 +56,7 @@ export function BookingModal(props: BookingModalProps) {
     >
       {/* Montado só com o ecrã aberto: cada abertura começa com campos e pedido idempotente novos. */}
       {open && (
-        <div className="mx-auto flex min-h-dvh max-w-[34rem] flex-col px-5 pt-[max(1rem,env(safe-area-inset-top))]">
+        <div className="mx-auto flex min-h-dvh max-w-[34rem] flex-col px-5 pt-[max(1rem,var(--safe-top))]">
           <BookingForm {...props} />
         </div>
       )}

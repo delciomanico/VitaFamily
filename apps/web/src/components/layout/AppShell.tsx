@@ -34,7 +34,7 @@ export function AppShell() {
   return (
     <UnreadAlertsContext.Provider value={unread.count}>
       <RefreshUnreadAlertsContext.Provider value={unread.reload}>
-        <div className="app-mobile min-h-dvh pb-(--bottom-nav-h) [--bottom-nav-h:calc(5rem+env(safe-area-inset-bottom))] lg:[--bottom-nav-h:0px]">
+        <div className="app-mobile min-h-dvh pb-(--bottom-nav-h) [--bottom-nav-h:calc(5rem+var(--safe-bottom))] lg:[--bottom-nav-h:0px]">
           <a
             href="#conteudo"
             className="sr-only z-50 rounded-md bg-surface px-4 py-2 focus:not-sr-only focus:fixed focus:top-2 focus:left-2"

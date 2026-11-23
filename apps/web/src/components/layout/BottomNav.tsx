@@ -21,7 +21,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Barra inferior"
-      className="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-surface pb-[env(safe-area-inset-bottom)] shadow-overlay lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-surface pb-[var(--safe-bottom)] shadow-overlay lg:hidden"
     >
       <ul className="mx-auto flex max-w-3xl items-stretch gap-1 px-2 pt-1">
         {bottomNav.map(({ to, label, icon: Icon, end }) => (

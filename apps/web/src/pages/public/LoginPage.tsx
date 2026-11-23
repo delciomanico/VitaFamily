@@ -120,7 +120,7 @@ export function LoginPage() {
       <Link
         to={paths.splash}
         aria-label="Voltar"
-        className="absolute top-[max(0.5rem,env(safe-area-inset-top))] left-2.5 z-10 flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15"
+        className="absolute top-[max(0.5rem,var(--safe-top))] left-2.5 z-10 flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15"
       >
         <ArrowLeft className="size-5" aria-hidden />
       </Link>
@@ -130,7 +130,7 @@ export function LoginPage() {
         <p className="text-[1.25rem] font-bold tracking-tight drop-shadow">Vita Family</p>
       </div>
 
-      <div className="relative rounded-t-3xl bg-surface px-5 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-overlay md:w-full md:max-w-md md:rounded-3xl md:px-8 md:py-8">
+      <div className="relative rounded-t-3xl bg-surface px-5 pt-6 pb-[max(1.25rem,var(--safe-bottom))] shadow-overlay md:w-full md:max-w-md md:rounded-3xl md:px-8 md:py-8">
         <div className="flex flex-col gap-1 pb-4">
           <h1 className="text-[1.25rem] leading-tight font-bold tracking-tight">Entrar</h1>
           <p className="text-muted">{active.subtitle}</p>

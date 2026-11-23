@@ -64,7 +64,7 @@ export function OnboardingPage() {
       onTouchEnd={onTouchEnd}
     >
       <div className="relative min-h-0 flex-1 pt-safe">
-        <div className="absolute inset-x-0 top-[max(2.5rem,env(safe-area-inset-top))] bottom-0 flex justify-center">
+        <div className="absolute inset-x-0 top-[max(2.5rem,var(--safe-top))] bottom-0 flex justify-center">
           <div className="aspect-[9/16] h-[calc(100%+3rem)] max-w-[72%]">
             <OnboardingPreview kind={slide.preview} />
           </div>
@@ -75,7 +75,7 @@ export function OnboardingPage() {
         aria-roledescription="diapositivo"
         aria-label={`${index + 1} de ${slides.length}`}
         aria-live="polite"
-        className="relative flex shrink-0 flex-col gap-5 bg-surface px-6 pt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center"
+        className="relative flex shrink-0 flex-col gap-5 bg-surface px-6 pt-10 pb-[max(1.5rem,var(--safe-bottom))] text-center"
         style={{ borderRadius: '50% 50% 0 0 / 2.5rem 2.5rem 0 0' }}
       >
         <div className="flex flex-col gap-2.5">

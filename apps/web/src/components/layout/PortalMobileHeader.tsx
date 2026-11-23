@@ -59,7 +59,7 @@ export function PortalMobileHeader({ ariaLabel, title, subtitle, email, groups, 
         aria-label="Menu"
         className="fixed inset-y-0 right-0 left-auto m-0 h-dvh max-h-none w-[min(20rem,85vw)] max-w-none bg-surface p-0 text-foreground shadow-overlay"
       >
-        <div className="flex h-full flex-col gap-4 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="flex h-full flex-col gap-4 px-4 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,var(--safe-bottom))]">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate font-semibold">{title}</p>

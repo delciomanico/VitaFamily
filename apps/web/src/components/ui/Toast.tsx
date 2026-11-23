@@ -45,7 +45,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         ref={layerRef}
         popover="manual"
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 m-0 flex h-auto max-h-none w-full flex-col items-center gap-2 overflow-visible border-0 bg-transparent px-4 py-0"
+        className="pointer-events-none fixed inset-x-0 top-[max(0.75rem,var(--safe-top))] z-50 m-0 flex h-auto max-h-none w-full flex-col items-center gap-2 overflow-visible border-0 bg-transparent px-4 py-0"
       >
         {toasts.map((toast) => {
           const Icon = toast.tone === 'success' ? CircleCheck : CircleAlert

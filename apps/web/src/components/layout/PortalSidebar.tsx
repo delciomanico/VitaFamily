@@ -111,4 +111,4 @@ export function PortalSidebar({ ariaLabel, title, subtitle, email, groups, onSig
 
 /** Classes da área de trabalho ao lado da barra lateral, comuns aos três portais. */
 export const portalMainClass =
-  'mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 pt-5 pb-[max(2rem,env(safe-area-inset-bottom))] lg:mx-0 lg:max-w-[calc(16rem+84rem)] lg:gap-6 lg:py-8 lg:pr-10 lg:pl-[calc(16rem+2.5rem)]'
+  'mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 pt-5 pb-[max(2rem,var(--safe-bottom))] lg:mx-0 lg:max-w-[calc(16rem+84rem)] lg:gap-6 lg:py-8 lg:pr-10 lg:pl-[calc(16rem+2.5rem)]'

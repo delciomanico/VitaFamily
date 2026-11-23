@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import { App } from '@/app/App'
 import { listenForInstallPrompt } from '@/lib/install'
+import { applySafeAreaFallback } from '@/lib/safeArea'
 import '@/styles/index.css'
 
 registerSW({ immediate: true })
 listenForInstallPrompt()
+applySafeAreaFallback()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('Elemento #root não encontrado')

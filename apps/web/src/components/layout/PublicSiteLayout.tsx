@@ -96,7 +96,7 @@ export function SiteFrame({ children }: { children: ReactNode }) {
       </main>
 
       <footer className="border-t border-border bg-surface">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 pb-[max(4rem,env(safe-area-inset-bottom))] sm:grid-cols-3 lg:px-10">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 pb-[max(4rem,var(--safe-bottom))] sm:grid-cols-3 lg:px-10">
           <div className="flex flex-col gap-3">
             <Logo />
             <p className="max-w-xs text-base text-muted">

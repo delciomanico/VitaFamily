@@ -257,7 +257,7 @@ export function ChatThread({ side, conversation, load, send, markRead, report, o
         </ul>
       </div>
 
-      <div className={cn('flex shrink-0 flex-col gap-2', app && 'border-t border-border bg-surface px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]')}>
+      <div className={cn('flex shrink-0 flex-col gap-2', app && 'border-t border-border bg-surface px-3 pt-3 pb-[max(0.75rem,var(--safe-bottom))]')}>
         {readOnly ? (
           <p role="status" className="rounded-md bg-surface-muted px-3.5 py-3 text-sm text-muted">
             {readOnly}

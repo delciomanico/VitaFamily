@@ -74,7 +74,7 @@ export function Wizard({ title, stepTitle, description, step, total, onBack, onN
 
       <div className="flex flex-col gap-5">{children}</div>
 
-      <div className="sticky bottom-0 -mx-5 mt-auto flex flex-col gap-3 border-t border-border bg-background px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="sticky bottom-0 -mx-5 mt-auto flex flex-col gap-3 border-t border-border bg-background px-5 pt-3 pb-[max(1rem,var(--safe-bottom))]">
         <FormError message={error} />
         <Button type="submit" size="xl" fullWidth loading={busy} disabled={nextDisabled}>
           {nextLabel}

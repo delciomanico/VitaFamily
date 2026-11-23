@@ -37,7 +37,7 @@ export function Modal({ open, onClose, title, description, children, footer }: M
       aria-describedby={description ? descriptionId : undefined}
       className="m-0 mt-auto w-full max-w-none rounded-t-xl bg-surface p-0 text-foreground shadow-overlay md:m-auto md:max-w-md md:rounded-xl"
     >
-      <div className="flex flex-col gap-4 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <div className="flex flex-col gap-4 p-5 pb-[max(1.25rem,var(--safe-bottom))]">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <h2 id={titleId} className="text-lg font-semibold">

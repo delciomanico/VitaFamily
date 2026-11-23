@@ -70,7 +70,7 @@ export function ProfessionalConversationPage() {
 
   return (
     <div className="flex h-dvh flex-col bg-background">
-      <header className="flex min-h-16 shrink-0 items-center gap-1 border-b border-border bg-surface px-2 pt-[env(safe-area-inset-top)]">
+      <header className="flex min-h-16 shrink-0 items-center gap-1 border-b border-border bg-surface px-2 pt-[var(--safe-top)]">
         <Link to={paths.professionalConversations} className="inline-flex min-h-14 items-center gap-0.5 rounded-full pe-3 ps-1 text-base font-medium text-primary hover:bg-primary-soft">
           <ChevronLeft className="size-6" aria-hidden />
           Voltar

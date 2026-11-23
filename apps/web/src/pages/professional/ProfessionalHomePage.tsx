@@ -113,7 +113,7 @@ export function ProfessionalHomePage() {
     <div className="flex flex-col">
       <HeroBand
         sun={<Sunrise />}
-        className="-mx-5 -mt-[max(1.25rem,env(safe-area-inset-top))] pt-[calc(max(1.25rem,env(safe-area-inset-top))+2rem)]"
+        className="-mx-5 -mt-[max(1.25rem,var(--safe-top))] pt-[calc(max(1.25rem,var(--safe-top))+2rem)]"
       >
         <header className="flex flex-col gap-1 px-5 pr-24">
           <h1 className="font-display text-[1.25rem] leading-tight font-semibold text-balance">

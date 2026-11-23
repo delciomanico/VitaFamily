@@ -29,7 +29,7 @@ export function AuthScreen({ title, description, backTo, progress, leading, chil
   return (
     <div
       className={cn(
-        'mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pt-safe pb-[max(1.25rem,env(safe-area-inset-bottom))]',
+        'mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pt-safe pb-[max(1.25rem,var(--safe-bottom))]',
         'md:my-10 md:min-h-[min(46rem,calc(100dvh-5rem))] md:rounded-3xl md:bg-surface md:px-8 md:py-6 md:shadow-overlay',
       )}
     >

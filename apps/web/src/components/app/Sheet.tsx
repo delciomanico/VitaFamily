@@ -38,7 +38,7 @@ export function Sheet({ open, onClose, title, description, children, footer, sti
       aria-describedby={description ? descriptionId : undefined}
       className="mx-auto mt-auto mb-0 max-h-[90dvh] w-full max-w-[34rem] animate-sheet-in overflow-y-auto rounded-t-[2rem] bg-surface p-0 text-foreground shadow-overlay"
     >
-      <div className="app-mobile flex flex-col gap-4 px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <div className="app-mobile flex flex-col gap-4 px-5 pt-3 pb-[max(1.25rem,var(--safe-bottom))]">
         <span className="mx-auto h-1.5 w-12 rounded-full bg-border-strong/80" aria-hidden />
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col gap-1.5">

@@ -61,8 +61,8 @@ export function ProfessionalShell() {
           id="conteudo"
           className={cn(
             'flex flex-1 flex-col',
-            !handle.bare && 'gap-5 px-5 pt-[max(1.25rem,env(safe-area-inset-top))]',
-            !handle.bare && (handle.hideNav ? 'pb-0' : 'pb-[calc(6.5rem+env(safe-area-inset-bottom))]'),
+            !handle.bare && 'gap-5 px-5 pt-[max(1.25rem,var(--safe-top))]',
+            !handle.bare && (handle.hideNav ? 'pb-0' : 'pb-[calc(6.5rem+var(--safe-bottom))]'),
           )}
         >
           <Outlet />

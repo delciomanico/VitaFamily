@@ -89,7 +89,7 @@ export function PortalLoginScreen({
         <Link
           to={paths.enter}
           aria-label="Escolher portal"
-          className="absolute top-[max(0.5rem,env(safe-area-inset-top))] left-2.5 z-10 flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15"
+          className="absolute top-[max(0.5rem,var(--safe-top))] left-2.5 z-10 flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15"
         >
           <ArrowLeft className="size-5" aria-hidden />
         </Link>
@@ -105,7 +105,7 @@ export function PortalLoginScreen({
 
       {/* Telemóvel: folha branca encostada ao fundo. Desktop: um único contentor retangular centrado. */}
       <div className="relative rounded-t-3xl bg-surface shadow-overlay lg:grid lg:w-full lg:max-w-5xl lg:animate-rise lg:grid-cols-2 lg:overflow-hidden lg:rounded-md lg:border lg:border-border lg:shadow-overlay lg:min-h-[38rem]">
-        <div className="flex flex-col px-5 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] lg:px-12 lg:pt-8 lg:pb-12">
+        <div className="flex flex-col px-5 pt-6 pb-[max(1.25rem,var(--safe-bottom))] lg:px-12 lg:pt-8 lg:pb-12">
           <header className="hidden items-center justify-between lg:flex">
             <Link to={paths.splash} aria-label="Vita Family, página inicial">
               <Logo />

@@ -281,6 +281,20 @@
   }
 }
 
+/*
+ * Áreas seguras de cima/baixo. O Chrome do Android, em ecrã inteiro numa PWA instalada, pode devolver
+ * env(safe-area-inset-*) = 0 e o conteúdo fica sob a barra de estado e a de navegação: `lib/safeArea.ts`
+ * marca `html.safe-fallback` nesse caso e estas variáveis passam a ter um mínimo.
+ */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+html.safe-fallback {
+  --safe-top: max(env(safe-area-inset-top, 0px), 1.75rem);
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), 2.25rem);
+}
+
 @layer base {
   html {
     /* Pinta também por baixo das barras do sistema (modo ecrã inteiro do Android/iOS). */
@@ -338,11 +352,11 @@
 }
 
 @utility pb-safe {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--safe-bottom);
 }
 
 @utility pt-safe {
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--safe-top);
 }
 
 @media (prefers-reduced-motion: reduce) {

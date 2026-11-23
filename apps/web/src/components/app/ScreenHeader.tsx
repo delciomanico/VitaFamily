@@ -20,7 +20,7 @@ interface ScreenHeaderProps {
 export function ScreenHeader({ title, backTo, backLabel = 'Voltar', subtitle, action }: ScreenHeaderProps) {
   const navigate = useNavigate()
   return (
-    <header className="sticky top-0 z-20 -mx-5 -mt-5 flex flex-col gap-2 bg-background px-5 pt-[max(1.25rem,env(safe-area-inset-top))] pb-2">
+    <header className="sticky top-0 z-20 -mx-5 -mt-5 flex flex-col gap-2 bg-background px-5 pt-[max(1.25rem,var(--safe-top))] pb-2">
       <Link
         to={backTo}
         onClick={(event) => {

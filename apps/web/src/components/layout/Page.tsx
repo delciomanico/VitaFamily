@@ -67,7 +67,7 @@ export function Page({
           {/* Barra transparente sobre a foto; fica sólida ao fazer scroll para o conteúdo não passar por baixo. */}
           <header
             className={cn(
-              'sticky top-0 z-20 -mb-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 pt-safe text-white transition-colors duration-200',
+              'sticky top-0 z-20 -mb-[calc(3.5rem+var(--safe-top))] shrink-0 pt-safe text-white transition-colors duration-200',
               scrolled ? 'bg-brand-deep shadow-overlay' : 'bg-transparent',
             )}
           >
@@ -76,7 +76,7 @@ export function Page({
               <AlertsButton />
             </div>
           </header>
-          <HeroBand sun={sun} image={heroImage} compact className="pt-[calc(3.5rem+env(safe-area-inset-top))]">
+          <HeroBand sun={sun} image={heroImage} compact className="pt-[calc(3.5rem+var(--safe-top))]">
             <div className="mx-auto max-w-3xl px-4 pt-3 lg:px-8"><div className={sun ? 'pr-24' : undefined}>{hero}</div></div>
           </HeroBand>
         </>
@@ -102,8 +102,8 @@ export function Page({
         className={cn(
           'mx-auto flex w-full max-w-3xl flex-col px-4 lg:px-8',
           fullScreen
-            ? 'min-h-0 flex-1 gap-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]'
-            : 'gap-6 pt-6 pb-[max(2rem,env(safe-area-inset-bottom))] lg:pb-12',
+            ? 'min-h-0 flex-1 gap-3 pt-3 pb-[max(1rem,var(--safe-bottom))]'
+            : 'gap-6 pt-6 pb-[max(2rem,var(--safe-bottom))] lg:pb-12',
         )}
       >
         {(description || action) && (
