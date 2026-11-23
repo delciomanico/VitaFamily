@@ -9,8 +9,8 @@ import { contractErrors } from './openapiSchema'
 
 /*
  * Contrato do Resumo de saúde (M17): o mock e a API real têm de devolver a forma do openapi.
- * - Fixtures `*.api.json`: respostas REAIS da API (dados sintéticos) — regenerar com o procedimento em
- *   docs/11-implementation/ (smoke contra a API) quando o contrato mudar.
+ * - Fixtures `*.api.json`: respostas REAIS da API local (dados sintéticos, GET dos dois endpoints com um
+ *   utilizador semeado); recapturar quando o contrato mudar.
  * - Mock: respostas dos handlers, com e sem dados.
  * - Tipos: os tipos escritos à mão em `types/healthSummary.ts` têm de ser atribuíveis ao tipo gerado do openapi
  *   (e vice-versa), por isso o `tsc` falha se divergirem.
