@@ -1,0 +1,39 @@
+{
+  "period": {
+    "from": "2025-11-23",
+    "to": "2026-11-23"
+  },
+  "generatedAt": "2026-11-23T11:23:01.318Z",
+  "members": [
+    {
+      "memberId": "2555b5e6-7cba-4f11-a61d-df1624b7d083",
+      "displayName": "Ana Silva",
+      "adherencePct": 78,
+      "activeMedications": 2,
+      "upcoming30d": 2,
+      "missingCount": 7,
+      "activity": {
+        "prescriptions": 1,
+        "appointments": 2,
+        "exams": 3,
+        "dosesConfirmed": 31,
+        "lastActivityOn": "2026-11-22"
+      }
+    },
+    {
+      "memberId": "18188dd3-b713-4731-8a0a-428dd8ba7c66",
+      "displayName": "Pedro Silva",
+      "adherencePct": null,
+      "activeMedications": 0,
+      "upcoming30d": 1,
+      "missingCount": 0,
+      "activity": {
+        "prescriptions": 0,
+        "appointments": 0,
+        "exams": 0,
+        "dosesConfirmed": 0,
+        "lastActivityOn": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,287 @@
+{
+  "memberId": "2555b5e6-7cba-4f11-a61d-df1624b7d083",
+  "period": {
+    "from": "2025-11-23",
+    "to": "2026-11-23"
+  },
+  "generatedAt": "2026-11-23T11:23:01.148Z",
+  "medication": {
+    "overall": {
+      "periodStart": "2025-11-23",
+      "taken": 31,
+      "notTaken": 4,
+      "unconfirmed": 5,
+      "adherencePct": 78
+    },
+    "byMedication": [
+      {
+        "planId": "e7e95cdf-5906-4371-bf30-15f8d503ee4a",
+        "medicationName": "Losartan",
+        "taken": 31,
+        "notTaken": 4,
+        "unconfirmed": 5,
+        "pending": 0,
+        "adherencePct": 78
+      },
+      {
+        "planId": "59eb6baf-423c-41fd-aeb5-f32cfd258f33",
+        "medicationName": "Metformina",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "pending": 1,
+        "adherencePct": null
+      }
+    ],
+    "granularity": "MONTH",
+    "series": [
+      {
+        "periodStart": "2025-11-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2025-12-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-01-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-02-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-03-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-04-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-05-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-06-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-07-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-08-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-09-01",
+        "taken": 0,
+        "notTaken": 0,
+        "unconfirmed": 0,
+        "adherencePct": null
+      },
+      {
+        "periodStart": "2026-10-01",
+        "taken": 14,
+        "notTaken": 2,
+        "unconfirmed": 2,
+        "adherencePct": 78
+      },
+      {
+        "periodStart": "2026-11-01",
+        "taken": 17,
+        "notTaken": 2,
+        "unconfirmed": 3,
+        "adherencePct": 77
+      }
+    ]
+  },
+  "prescriptions": {
+    "active": 1,
+    "endingSoon": 1,
+    "closedInPeriod": 0
+  },
+  "exams": {
+    "byStatus": {
+      "COMPLETED": 3
+    },
+    "byMonth": [
+      {
+        "month": "2026-08",
+        "count": 1
+      },
+      {
+        "month": "2026-10",
+        "count": 1
+      },
+      {
+        "month": "2026-11",
+        "count": 1
+      }
+    ],
+    "upcoming30d": 1,
+    "series": [
+      {
+        "parameter": "Colesterol total",
+        "unit": "mg/dL",
+        "count": 3,
+        "min": 190,
+        "max": 205,
+        "first": 190,
+        "last": 198,
+        "variationAbs": 8,
+        "variationPct": 4.210526,
+        "referenceMin": null,
+        "referenceMax": 200,
+        "points": [
+          {
+            "date": "2026-08-25",
+            "value": 190
+          },
+          {
+            "date": "2026-10-09",
+            "value": 205
+          },
+          {
+            "date": "2026-11-18",
+            "value": 198
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "parameter": "Glicemia",
+        "unit": "mg/dL",
+        "count": 3,
+        "min": 98,
+        "max": 110,
+        "first": 98,
+        "last": 104,
+        "variationAbs": 6,
+        "variationPct": 6.122449,
+        "referenceMin": 70,
+        "referenceMax": 100,
+        "points": [
+          {
+            "date": "2026-08-25",
+            "value": 98
+          },
+          {
+            "date": "2026-10-09",
+            "value": 110
+          },
+          {
+            "date": "2026-11-18",
+            "value": 104
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "parameter": "Hemoglobina",
+        "unit": "g/dL",
+        "count": 1,
+        "min": 13.5,
+        "max": 13.5,
+        "first": 13.5,
+        "last": 13.5,
+        "variationAbs": null,
+        "variationPct": null,
+        "referenceMin": 12,
+        "referenceMax": 16,
+        "points": [
+          {
+            "date": "2026-11-18",
+            "value": 13.5
+          }
+        ],
+        "truncated": false
+      }
+    ],
+    "truncated": false
+  },
+  "appointments": {
+    "byStatus": {
+      "COMPLETED": 1,
+      "SCHEDULED": 1
+    },
+    "byMonth": [
+      {
+        "month": "2026-10",
+        "count": 1
+      },
+      {
+        "month": "2026-11",
+        "count": 1
+      }
+    ],
+    "upcoming30d": 1
+  },
+  "alerts": {
+    "total": 11,
+    "unread": 11,
+    "byType": {
+      "APPOINTMENT_OUTCOME_REQUEST": 1,
+      "MEDICATION_DUE": 10
+    }
+  },
+  "missing": [
+    {
+      "code": "APPOINTMENT_PAST_OPEN",
+      "count": 1,
+      "sourceIds": [
+        "20cf9471-1e29-457a-8538-7052ee2b6737"
+      ]
+    },
+    {
+      "code": "PRESCRIPTION_WITHOUT_DOCUMENT",
+      "count": 1,
+      "sourceIds": [
+        "b4d2f9f7-3f77-4f0e-9d52-9ae1d9eeef9b"
+      ]
+    },
+    {
+      "code": "DOSES_UNCONFIRMED",
+      "count": 5,
+      "sourceIds": [
+        "5ace055e-e960-4b50-a9f3-61516685c1ba",
+        "5df33048-c22f-48cf-a8ce-55d6cbfe8eb1",
+        "8a28dd55-aa49-4a09-aa4e-f55c8ab6008c",
+        "c5f67513-562e-4742-8d6c-5ee1fe4f212b",
+        "c96c5657-c184-41f9-afc9-37e86b9382ca"
+      ]
+    }
+  ]
+}
