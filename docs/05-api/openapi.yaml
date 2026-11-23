@@ -29,6 +29,7 @@ tags:
   - name: Documents
   - name: Alerts
   - name: Reports
+  - name: AiAssistant
   - name: Marketplace
   - name: Messaging
   - name: Bookings
@@ -7584,6 +7585,366 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/health-summary:
+    get:
+      tags: [Reports]
+      operationId: getMemberHealthSummary
+      summary: "Resumo de saúde de um membro (estatísticas sem IA)."
+      description: "Autorização: READ por secção (como memberReport). UC-RPT-05, FR-RPT-05, BR-RPT-11..18 (M17, change control 2026-11-21; contrato PROPOSTA). Calculado pelo servidor, determinístico, sem IA e sem interpretação clínica: nenhum valor é assinalado fora da referência (BR-EXM-02). Período omissão 12 meses, máx. 5 anos (BR-RPT-12). Secções sem permissão OMITIDAS (não vazias). Calculado a pedido, nada é guardado. Auditoria REPORT_VIEW (metadata.kind=HEALTH_SUMMARY) só ao ver outro titular. Rate limit 30/min por utilizador."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthSummary"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/health-summary:
+    get:
+      tags: [Reports]
+      operationId: getFamilyHealthSummary
+      summary: "Resumo de saúde da família (um bloco por membro visível)."
+      description: "Autorização: FAM_MEMBER. UC-RPT-05b, FR-RPT-06, BR-RPT-11/12/16 (M17; PROPOSTA). Só os membros e as categorias que o pedinte pode ver (D13); o Family Admin não vê mais por ser Admin. Inclui a atividade por membro (BR-RPT-16). Rate limit 30/min por utilizador."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyHealthSummary"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/ai/consents:
+    get:
+      tags: [AiAssistant]
+      operationId: listAiConsents
+      summary: "Consentimentos do assistente de IA do pedinte para este membro."
+      description: "Autorização: USE_AI_ASSISTANT (SELF adulto ou TUTOR_OF; DEPENDENT_SELF/OTHER ⇒ FORBIDDEN; authorization.md §4). UC-AI-01, BR-AI-03/04. Devolve só os consentimentos do próprio pedinte (utilizador+membro), um por fornecedor, ativos e revogados; só metadados (nunca chaves). Com AI_ASSISTANT_ENABLED=false ⇒ 404 (BR-AI-14). Sem auditoria (leitura do próprio)."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AiConsent" }
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/ai/consents/{provider}:
+    put:
+      tags: [AiAssistant]
+      operationId: grantAiConsent
+      summary: "Registar o consentimento para um fornecedor de IA (idempotente)."
+      description: "Autorização: USE_AI_ASSISTANT. UC-AI-01, BR-AI-03/04/16. O cliente só chama depois de a chave/conta ter sido testada. Idempotente: se já existe consentimento ativo da mesma versão devolve-o (200); com versão nova substitui. Nunca recebe chaves nem tokens. Auditoria AI_CONSENT_GRANT (metadata: provider, consentVersion). Rate limit 20/hora por utilizador."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: provider
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/AiProvider" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiConsentInput"
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiConsent"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    delete:
+      tags: [AiAssistant]
+      operationId: revokeAiConsent
+      summary: "Revogar o consentimento (desligar o assistente neste fornecedor)."
+      description: "Autorização: USE_AI_ASSISTANT (quem consentiu). UC-AI-04, BR-AI-16. Idempotente (sem consentimento ativo ⇒ 204). A chave/token apagam-se no dispositivo (não passam pela API). Auditoria AI_CONSENT_REVOKE. Mesmo com a tutela perdida o utilizador pode revogar o seu consentimento (204), nunca criar."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: provider
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/AiProvider" }
+      responses:
+        '204':
+          description: Sem corpo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/ai/sessions:
+    post:
+      tags: [AiAssistant]
+      operationId: createAiSession
+      summary: "Autorizar uma análise de IA e obter o contexto minimizado."
+      description: "Autorização: USE_AI_ASSISTANT + consentimento ativo do mesmo utilizador para este membro e fornecedor (senão 403 AI_CONSENT_REQUIRED). UC-AI-02/03, BR-AI-04/05/10/13. Devolve sessionToken (assinado, 15 min, ligado a utilizador+membro+fornecedor+tipo, NÃO guardado) e o contexto minimizado e pseudonimizado (sem nomes, datas de nascimento, notas, nomes de medicamentos): para SUMMARY, séries e adesão do período (reutiliza BR-RPT-13/14, datas relativas e etiquetas «Medicamento A/B»); para SYMPTOMS, faixa etária e, só com includeContext=true e membro adulto, sexo declarado e condições ativas. O texto dos sintomas NUNCA vem nem vai para o servidor. guardrailsVersion tem de coincidir com a versão vigente (senão 409 CONFLICT: recarregar GET /ai/guardrails). Verifica o papel em cada pedido. Limite 20/hora e 100/dia por utilizador (BR-AI-13). Auditoria AI_SESSION_CREATE (sem conteúdo). AI_ASSISTANT_ENABLED=false ⇒ 404."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiSessionInput"
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiSession"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '409':
+          description: "CONFLICT"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /families/{familyId}/members/{memberId}/ai/session-outcomes:
+    post:
+      tags: [AiAssistant]
+      operationId: reportAiSessionOutcome
+      summary: "Registar o desfecho de uma análise (melhor esforço, autodeclarado)."
+      description: "Autorização: USE_AI_ASSISTANT. BR-AI-12. O sessionToken tem de ser válido, não expirado e do mesmo utilizador/membro (senão 404). Caminho de alarme local: a mensagem de urgência nunca espera pela rede; depois, em melhor esforço, o cliente cria a sessão (kind=SYMPTOMS) e reporta ALARM. Idempotente por sessionToken (o primeiro desfecho prevalece). Auditoria AI_SESSION_OUTCOME (apenas o enum). Nunca recebe texto de resposta, sintomas nem especialidade."
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: memberId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiSessionOutcomeInput"
+      responses:
+        '204':
+          description: Sem corpo
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '403':
+          description: "FORBIDDEN"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '422':
+          description: "VALIDATION_ERROR"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '429':
+          description: "RATE_LIMITED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+  /ai/guardrails:
+    get:
+      tags: [AiAssistant]
+      operationId: getAiGuardrails
+      summary: "Guardrails do assistente (prompt de sistema, listas, mensagem de urgência)."
+      description: "Autorização: AUTH (User autenticado, ativo, termos aceites; conteúdo sem dados de saúde nem de utilizadores). UC-AI-05, BR-AI-07/09. Versionado com ETag/If-None-Match (304); Cache-Control: private, max-age=3600. Sem guardrails carregados nenhuma análise se executa (falha fechada). Os mesmos fixtures correm nos testes do servidor e do cliente. AI_ASSISTANT_ENABLED=false ⇒ 404. Sem auditoria."
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiGuardrails"
+        '304':
+          description: "Não modificado"
+        '401':
+          description: "UNAUTHENTICATED"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        '404':
+          description: "NOT_FOUND"
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
   /admin/users:
     get:
       tags: [Admin]
@@ -14937,6 +15298,278 @@ components:
           type: integer
         pending:
           type: integer
+    HealthSummaryPeriod:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+    AdherenceBucket:
+      type: object
+      required: [periodStart, taken, notTaken, unconfirmed, adherencePct]
+      properties:
+        periodStart: { type: string, format: date, description: "Início da semana (período <= 90 dias) ou do mês, no fuso do utilizador." }
+        taken: { type: integer }
+        notTaken: { type: integer }
+        unconfirmed: { type: integer }
+        adherencePct: { type: integer, nullable: true, minimum: 0, maximum: 100, description: "round(100*taken/(taken+notTaken+unconfirmed)); null se o denominador for 0 (BR-RPT-13)." }
+    MedicationAdherenceStat:
+      allOf:
+        - $ref: "#/components/schemas/AdherenceItem"
+        - type: object
+          required: [adherencePct]
+          properties:
+            adherencePct: { type: integer, nullable: true, minimum: 0, maximum: 100 }
+    ExamParameterSeries:
+      type: object
+      required: [parameter, unit, count, min, max, first, last, points]
+      properties:
+        parameter: { type: string }
+        unit: { type: string, description: "Séries com unidades diferentes são separadas; nunca se convertem (BR-RPT-14)." }
+        count: { type: integer }
+        min: { type: number }
+        max: { type: number }
+        first: { type: number }
+        last: { type: number }
+        variationAbs: { type: number, nullable: true, description: "last - first; null se count < 2." }
+        variationPct: { type: number, nullable: true, description: "(last-first)/abs(first)*100; null se count < 2 ou first = 0. Só aritmética: sem juízo nem marca de fora da referência (BR-EXM-02)." }
+        referenceMin: { type: number, nullable: true, description: "Referência indicada pelo utilizador na última medição." }
+        referenceMax: { type: number, nullable: true }
+        referenceText: { type: string, nullable: true }
+        points:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [date, value]
+            properties:
+              date: { type: string, format: date }
+              value: { type: number }
+        truncated: { type: boolean }
+    CountByMonth:
+      type: object
+      required: [month, count]
+      properties:
+        month: { type: string, example: "2026-10" }
+        count: { type: integer }
+    MissingRecordItem:
+      type: object
+      required: [code, count]
+      properties:
+        code:
+          type: string
+          enum: [BLOOD_TYPE_UNSET, APPOINTMENT_PAST_OPEN, EXAM_PAST_OPEN, EXAM_WITHOUT_RESULTS, PRESCRIPTION_WITHOUT_DOCUMENT, PLAN_WITHOUT_SCHEDULE, DOSES_UNCONFIRMED]
+        count: { type: integer }
+        sourceIds:
+          type: array
+          maxItems: 20
+          items: { type: string, format: uuid }
+          description: "Só para quem pode escrever na categoria (BR-RPT-17); omitido caso contrário."
+    HealthSummary:
+      type: object
+      required: [memberId, period, generatedAt]
+      description: "Resumo de saúde (BR-RPT-11..18). Cada secção é omitida quando o pedinte não pode ver a categoria correspondente."
+      properties:
+        memberId: { type: string, format: uuid }
+        period: { $ref: "#/components/schemas/HealthSummaryPeriod" }
+        generatedAt: { type: string, format: date-time }
+        medication:
+          type: object
+          required: [overall, byMedication, granularity, series]
+          properties:
+            overall: { $ref: "#/components/schemas/AdherenceBucket" }
+            byMedication:
+              type: array
+              items: { $ref: "#/components/schemas/MedicationAdherenceStat" }
+            granularity: { type: string, enum: [WEEK, MONTH] }
+            series:
+              type: array
+              items: { $ref: "#/components/schemas/AdherenceBucket" }
+        prescriptions:
+          type: object
+          required: [active, endingSoon, closedInPeriod]
+          properties:
+            active: { type: integer }
+            endingSoon: { type: integer, description: "Com endAt nos próximos 14 dias (BR-RPT-15)." }
+            closedInPeriod: { type: integer }
+        exams:
+          type: object
+          required: [byStatus, byMonth, upcoming30d, series, truncated]
+          properties:
+            byStatus: { type: object, additionalProperties: { type: integer } }
+            byMonth:
+              type: array
+              items: { $ref: "#/components/schemas/CountByMonth" }
+            upcoming30d: { type: integer }
+            series:
+              type: array
+              maxItems: 20
+              items: { $ref: "#/components/schemas/ExamParameterSeries" }
+            truncated: { type: boolean }
+        appointments:
+          type: object
+          required: [byStatus, byMonth, upcoming30d]
+          properties:
+            byStatus: { type: object, additionalProperties: { type: integer } }
+            byMonth:
+              type: array
+              items: { $ref: "#/components/schemas/CountByMonth" }
+            upcoming30d: { type: integer }
+        alerts:
+          type: object
+          required: [total, unread, byType]
+          properties:
+            total: { type: integer }
+            unread: { type: integer }
+            byType: { type: object, additionalProperties: { type: integer } }
+        missing:
+          type: array
+          items: { $ref: "#/components/schemas/MissingRecordItem" }
+    FamilyHealthSummaryMember:
+      type: object
+      required: [memberId, displayName]
+      properties:
+        memberId: { type: string, format: uuid }
+        displayName: { type: string }
+        adherencePct: { type: integer, nullable: true }
+        activeMedications: { type: integer }
+        upcoming30d: { type: integer }
+        missingCount: { type: integer }
+        activity:
+          type: object
+          description: "BR-RPT-16: só categorias visíveis; omitidas as sem permissão."
+          properties:
+            prescriptions: { type: integer }
+            appointments: { type: integer }
+            exams: { type: integer }
+            dosesConfirmed: { type: integer }
+            lastActivityOn: { type: string, format: date, nullable: true }
+    FamilyHealthSummary:
+      type: object
+      required: [period, generatedAt, members]
+      properties:
+        period: { $ref: "#/components/schemas/HealthSummaryPeriod" }
+        generatedAt: { type: string, format: date-time }
+        members:
+          type: array
+          items: { $ref: "#/components/schemas/FamilyHealthSummaryMember" }
+    AiProvider:
+      type: string
+      enum: [GEMINI, CLAUDE, OPENAI]
+    AiConsentInput:
+      type: object
+      required: [consentVersion]
+      properties:
+        consentVersion: { type: string, maxLength: 20, description: "Versão do texto de consentimento mostrado (texto na UI, OP-137)." }
+    AiConsent:
+      type: object
+      required: [provider, consentVersion, grantedAt, revokedAt]
+      properties:
+        provider: { $ref: "#/components/schemas/AiProvider" }
+        consentVersion: { type: string }
+        grantedAt: { type: string, format: date-time }
+        revokedAt: { type: string, format: date-time, nullable: true }
+    AiSessionInput:
+      type: object
+      required: [provider, kind, guardrailsVersion]
+      properties:
+        provider: { $ref: "#/components/schemas/AiProvider" }
+        kind: { type: string, enum: [SUMMARY, SYMPTOMS] }
+        guardrailsVersion: { type: string }
+        from: { type: string, format: date, description: "Só SUMMARY (omissão 12 meses, máx. 5 anos)." }
+        to: { type: string, format: date }
+        includeContext: { type: boolean, default: false, description: "Só SYMPTOMS e membro adulto; menor com true ⇒ VALIDATION_ERROR." }
+    AiContext:
+      type: object
+      required: [ageBand]
+      description: "Contexto minimizado e pseudonimizado (BR-AI-10). Sem nomes, datas de nascimento, notas, nomes de medicamentos."
+      properties:
+        ageBand: { type: string, enum: ["0-2", "3-12", "13-17", "18-39", "40-64", "65+"] }
+        sex: { type: string, enum: [F, M, OTHER], description: "Só com includeContext=true e se o membro o declarou." }
+        conditions:
+          type: array
+          maxItems: 20
+          items: { type: string, maxLength: 80 }
+          description: "Só com includeContext=true e membro adulto."
+        adherence:
+          type: array
+          items:
+            type: object
+            required: [label, taken, notTaken, unconfirmed]
+            properties:
+              label: { type: string, example: "Medicamento A" }
+              taken: { type: integer }
+              notTaken: { type: integer }
+              unconfirmed: { type: integer }
+              adherencePct: { type: integer, nullable: true }
+        series:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [parameter, unit, points]
+            properties:
+              parameter: { type: string }
+              unit: { type: string }
+              referenceMin: { type: number, nullable: true }
+              referenceMax: { type: number, nullable: true }
+              points:
+                type: array
+                maxItems: 100
+                items:
+                  type: object
+                  required: [dayOffset, value]
+                  properties:
+                    dayOffset: { type: integer, description: "Dias desde o início do período (datas relativas)." }
+                    value: { type: number }
+        counts:
+          type: object
+          additionalProperties: { type: integer }
+    AiSession:
+      type: object
+      required: [sessionToken, expiresAt, guardrailsVersion, context]
+      properties:
+        sessionToken: { type: string, description: "Assinado (HMAC), 15 min, não guardado no servidor." }
+        expiresAt: { type: string, format: date-time }
+        guardrailsVersion: { type: string }
+        context: { $ref: "#/components/schemas/AiContext" }
+    AiSessionOutcomeInput:
+      type: object
+      required: [sessionToken, outcome]
+      properties:
+        sessionToken: { type: string }
+        outcome: { type: string, enum: [COMPLETED, BLOCKED, ALARM, FAILED] }
+    AiGuardrailPattern:
+      type: object
+      required: [id, pattern, flags]
+      properties:
+        id: { type: string }
+        pattern: { type: string, description: "Expressão regular (sintaxe comum a JavaScript e ao servidor)." }
+        flags: { type: string, example: "iu" }
+    AiGuardrails:
+      type: object
+      required: [version, systemInstruction, blockPatterns, alarmPatterns, allowedSpecialties, urgencyMessage, disclaimer, responseSchema]
+      properties:
+        version: { type: string }
+        systemInstruction: { type: string }
+        blockPatterns:
+          type: array
+          items: { $ref: "#/components/schemas/AiGuardrailPattern" }
+        alarmPatterns:
+          type: array
+          items: { $ref: "#/components/schemas/AiGuardrailPattern" }
+        allowedSpecialties:
+          type: array
+          description: "Especialidades HEALTH do catálogo (BR-AI-05); a sugestão do modelo só é aceite se estiver aqui."
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+        urgencyMessage: { type: string }
+        disclaimer: { type: string }
+        responseSchema: { type: object, additionalProperties: true, description: "JSON Schema da resposta fechada pedida ao modelo (summary, observations[], generalGuidance[], suggestedSpecialty?, urgency)." }
     PendingItem:
       type: object
       required: [type, sourceId, date]

@@ -1,6 +1,6 @@
 # Vita Family — Endpoints (Fase 13)
 
-> Estado: **v0.16 (MK2, 2026-11-17: +25 operações de descoberta, comparação, ranking e conversas — `/marketplace/*`, `/families/{f}/members/{m}/conversations*`, `/professional-portal/conversations*`, `/admin/message-reports*`; 271 no total; secção «Mercado de profissionais — MK2»; contratual, sem código)**; v0.15 (MK1, 2026-11-16: +34 operações do mercado de profissionais — `/professional-portal/*` e `/admin/professionals*`, `/admin/specialties*`; secção «Mercado de profissionais — MK1»; contratual, sem código)**; v0.14 (R6 do arquivo do marco B, ADR-037, 2026-11-16: removidas as 100 operações de seguradora/autorização/reembolso/cartão e os respetivos schemas, as tags `Insurance`/`Insurance Portal`, o esquema `insuranceBearerAuth`, `Process.coverage` e os códigos `COVERAGE_*`/`AWAIT_INSURER_DECISION`/`AWAIT_CLINIC_INFORMATION`/actor `INSURER`; `AUTHORIZATION_*` em `AlertType` mantêm-se como legado inerte).** O histórico das fatias do marco B está em `docs/_arquivo/marco-b/` e na tag `archive-marco-b-2026-11-16`.
+> Estado: **v0.17 (ADR-039, 2026-11-21: +8 operações PROPOSTAS — Resumo de saúde `getMemberHealthSummary`/`getFamilyHealthSummary` e assistente de IA (tag `AiAssistant`: consentimentos, sessões, desfechos, `guardrails`); 321 no total; contratual, sem código)**; v0.16 (MK2, 2026-11-17: +25 operações de descoberta, comparação, ranking e conversas — `/marketplace/*`, `/families/{f}/members/{m}/conversations*`, `/professional-portal/conversations*`, `/admin/message-reports*`; 271 no total; secção «Mercado de profissionais — MK2»; contratual, sem código)**; v0.15 (MK1, 2026-11-16: +34 operações do mercado de profissionais — `/professional-portal/*` e `/admin/professionals*`, `/admin/specialties*`; secção «Mercado de profissionais — MK1»; contratual, sem código)**; v0.14 (R6 do arquivo do marco B, ADR-037, 2026-11-16: removidas as 100 operações de seguradora/autorização/reembolso/cartão e os respetivos schemas, as tags `Insurance`/`Insurance Portal`, o esquema `insuranceBearerAuth`, `Process.coverage` e os códigos `COVERAGE_*`/`AWAIT_INSURER_DECISION`/`AWAIT_CLINIC_INFORMATION`/actor `INSURER`; `AUTHORIZATION_*` em `AlertType` mantêm-se como legado inerte).** O histórico das fatias do marco B está em `docs/_arquivo/marco-b/` e na tag `archive-marco-b-2026-11-16`.
 
 ## Autenticação do portal da clínica (D17/D18, ADR-020)
 
@@ -1647,6 +1647,73 @@ As rotas `/clinic-portal/*` usam um **token distinto** do de User: `Authorizatio
 - **RESPONSE:** `200` `[AdherenceItem]`
 - **ERRORS:** `FORBIDDEN`, `NOT_FOUND`, `UNAUTHENTICATED`, `VALIDATION_ERROR`
 - **BUSINESS RULES:** UC-RPT-03: só contagens por estado, sem interpretação.
+
+### `GET /families/{familyId}/members/{memberId}/health-summary`  — getMemberHealthSummary
+- **AUTHORIZATION:** READ (por secção), como `memberReport` (`authorization.md` §4)
+- **DESCRIPTION:** **Resumo de saúde** de um membro: estatísticas calculadas **sem IA** (M17; **PROPOSTA**, change control 2026-11-21).
+- **QUERY:** `from` (date), `to` (date)
+- **RESPONSE:** `200` `HealthSummary` (`medication` {`overall`, `byMedication[]`, `granularity`, `series[]`}, `prescriptions`, `exams` {`byStatus`, `byMonth`, `upcoming30d`, `series[]` (`ExamParameterSeries`)}, `appointments`, `alerts`, `missing[]`; cada secção **omitida** se o pedinte não pode ver a categoria)
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** UC-RPT-05, BR-RPT-11..18: período omissão 12 meses, máx. 5 anos; adesão `round(100·taken/(taken+notTaken+unconfirmed))`, `null` se denominador 0; séries por parâmetro **e unidade**, `min/max/first/last/variationAbs/variationPct`, sem fora da referência (BR-EXM-02); calculado a pedido, nada guardado; auditoria `REPORT_VIEW` (`kind=HEALTH_SUMMARY`) só ao ver outro titular; 30/min por utilizador. **Reutiliza** `medicationAdherence` e as portas de leitura existentes (não há endpoint de séries à parte).
+
+### `GET /families/{familyId}/health-summary`  — getFamilyHealthSummary
+- **AUTHORIZATION:** FAM_MEMBER
+- **DESCRIPTION:** Resumo de saúde da família: um bloco por membro **visível**, com a atividade por membro.
+- **QUERY:** `from` (date), `to` (date)
+- **RESPONSE:** `200` `FamilyHealthSummary`
+- **ERRORS:** `UNAUTHENTICATED`, `NOT_FOUND`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** UC-RPT-05b, BR-RPT-16: só categorias visíveis; o Family Admin não vê mais por ser Admin.
+
+**Exportação/partilha do Resumo (BR-RPT-18):** não há endpoint de PDF nem de ligação; a UI imprime/guarda como PDF **no dispositivo** a partir da resposta JSON (proposta, OP-134).
+
+## AI Assistant (M18, ADR-039; **PROPOSTA**, nada implementado; atrás de `AI_ASSISTANT_ENABLED`, omissão `false` ⇒ `404` em todas estas rotas)
+
+> A chamada ao fornecedor de IA é feita **do dispositivo**; estas rotas só autorizam, registam o consentimento, montam o contexto minimizado e auditam (sem dados de saúde, sem chaves, sem sintomas).
+
+### `GET /families/{familyId}/members/{memberId}/ai/consents`  — listAiConsents
+- **AUTHORIZATION:** `USE_AI_ASSISTANT` (`SELF` adulto; `TUTOR_OF`; `DEPENDENT_SELF`/`OTHER` ⇒ `FORBIDDEN`)
+- **DESCRIPTION:** Consentimentos do **próprio pedinte** para este membro, por fornecedor (ativos e revogados). Só metadados.
+- **RESPONSE:** `200` `[AiConsent]`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`
+- **BUSINESS RULES:** BR-AI-03/04. Sem auditoria.
+
+### `PUT /families/{familyId}/members/{memberId}/ai/consents/{provider}`  — grantAiConsent
+- **AUTHORIZATION:** `USE_AI_ASSISTANT`
+- **DESCRIPTION:** Registar o consentimento (`provider` ∈ `GEMINI`, `CLAUDE`, `OPENAI`); idempotente.
+- **REQUEST:** `AiConsentInput` (`consentVersion`)
+- **RESPONSE:** `200` `AiConsent`
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`, `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-AI-03/04. **Nunca** recebe chaves nem tokens; o cliente só chama depois de testar a chave/conta. Auditoria `AI_CONSENT_GRANT`. 20/hora por utilizador.
+
+### `DELETE /families/{familyId}/members/{memberId}/ai/consents/{provider}`  — revokeAiConsent
+- **AUTHORIZATION:** `USE_AI_ASSISTANT` (quem consentiu; pode revogar mesmo sem a tutela atual)
+- **DESCRIPTION:** Revogar o consentimento; a chave/token apagam-se no dispositivo.
+- **RESPONSE:** `204` sem corpo (idempotente)
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND`
+- **BUSINESS RULES:** BR-AI-16. Auditoria `AI_CONSENT_REVOKE`.
+
+### `POST /families/{familyId}/members/{memberId}/ai/sessions`  — createAiSession
+- **AUTHORIZATION:** `USE_AI_ASSISTANT` + consentimento ativo (senão `AI_CONSENT_REQUIRED`)
+- **DESCRIPTION:** Autoriza uma análise e devolve o **contexto minimizado** e um `sessionToken` assinado (15 min, não guardado).
+- **REQUEST:** `AiSessionInput` (`provider`, `kind` ∈ `SUMMARY`, `SYMPTOMS`, `guardrailsVersion`, `from?`/`to?`, `includeContext?`)
+- **RESPONSE:** `201` `AiSession` (`sessionToken`, `expiresAt`, `guardrailsVersion`, `context`: `AiContext`)
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN` (`AI_CONSENT_REQUIRED` incluído), `NOT_FOUND`, `CONFLICT` (versão de *guardrails* desatualizada), `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-AI-04/05/10/13. O texto dos sintomas **nunca** passa pelo servidor. Papel reavaliado em cada pedido. 20/hora e 100/dia. Auditoria `AI_SESSION_CREATE` sem conteúdo.
+
+### `POST /families/{familyId}/members/{memberId}/ai/session-outcomes`  — reportAiSessionOutcome
+- **AUTHORIZATION:** `USE_AI_ASSISTANT`
+- **DESCRIPTION:** Desfecho autodeclarado de uma análise (`COMPLETED`, `BLOCKED`, `ALARM`, `FAILED`), em melhor esforço.
+- **REQUEST:** `AiSessionOutcomeInput` (`sessionToken`, `outcome`)
+- **RESPONSE:** `204` sem corpo
+- **ERRORS:** `UNAUTHENTICATED`, `FORBIDDEN`, `NOT_FOUND` (token inválido/expirado/alheio), `VALIDATION_ERROR`, `RATE_LIMITED`
+- **BUSINESS RULES:** BR-AI-12. Idempotente por `sessionToken`; auditoria `AI_SESSION_OUTCOME` (só o enum).
+
+### `GET /ai/guardrails`  — getAiGuardrails
+- **AUTHORIZATION:** AUTH (User autenticado)
+- **DESCRIPTION:** *Guardrails* versionados: `systemInstruction`, `blockPatterns`, `alarmPatterns`, `allowedSpecialties` (HEALTH do catálogo), `urgencyMessage`, `disclaimer`, `responseSchema`.
+- **RESPONSE:** `200` `AiGuardrails` · `304` com `If-None-Match`
+- **ERRORS:** `UNAUTHENTICATED`, `NOT_FOUND` (flag desligada)
+- **BUSINESS RULES:** BR-AI-07/09. `ETag`; `Cache-Control: private, max-age=3600`; sem auditoria; sem dados de utilizadores.
 
 ## Admin
 
