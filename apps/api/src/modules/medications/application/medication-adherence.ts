@@ -36,10 +36,10 @@ export function createMedicationAdherenceUseCase<Trx>(deps: MedicationsDeps<Trx>
       });
 
       const now = deps.clock.now();
-      const { timeZone } = query;
-      const localDates = timeZone !== undefined && isIsoDate(query.from) && isIsoDate(query.to);
-      const to = localDates ? new Date(localMidnightUtc(addDaysIso(query.to as string, 1), timeZone).getTime() - 1) : query.to ? new Date(`${query.to}T23:59:59.999Z`) : now;
-      const from = localDates ? localMidnightUtc(query.from as string, timeZone) : query.from ? new Date(`${query.from}T00:00:00.000Z`) : new Date(to.getTime() - DEFAULT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+      const { timeZone, from: fromDate, to: toDate } = query;
+      const local = timeZone !== undefined && isIsoDate(fromDate) && isIsoDate(toDate) ? { timeZone, fromDate, toDate } : null;
+      const to = local ? new Date(localMidnightUtc(addDaysIso(local.toDate, 1), local.timeZone).getTime() - 1) : query.to ? new Date(`${query.to}T23:59:59.999Z`) : now;
+      const from = local ? localMidnightUtc(local.fromDate, local.timeZone) : query.from ? new Date(`${query.from}T00:00:00.000Z`) : new Date(to.getTime() - DEFAULT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
       if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from.getTime() > to.getTime()) {
         throw new ValidationError([{ field: "from", message: "período inválido" }], { detail: "Período inválido." });
       }

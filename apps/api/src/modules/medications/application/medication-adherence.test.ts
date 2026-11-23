@@ -52,8 +52,7 @@ describe("medicationAdherence (BR-MED-07: só contagens, sem interpretação)", 
   });
 
   it("M17: com `timeZone`, `from`/`to` são datas LOCAIS do membro (não dias UTC)", async () => {
-    const seed = (fixtures: ReturnType<typeof createMedicationsFixtures>, id: string, at: string) =>
-      fixtures.dosesRepo.seed({ id, familyId: FAMILY_ID, memberId: MEMBER_ID, planId: "p1", medicationName: "Ibuprofeno", dosage: "400mg", scheduledAt: new Date(at), status: "TAKEN", generationVersion: 1, createdAt: new Date(at) });
+    const seed = (fixtures: ReturnType<typeof createMedicationsFixtures>, id: string, at: string) => { fixtures.dosesRepo.seed({ id, familyId: FAMILY_ID, memberId: MEMBER_ID, planId: "p1", medicationName: "Ibuprofeno", dosage: "400mg", scheduledAt: new Date(at), status: "TAKEN", generationVersion: 1, createdAt: new Date(at) }); };
     const fixtures = createMedicationsFixtures(new FixedClock(NOW));
     seed(fixtures, "antes", "2026-01-31T22:59:00.000Z"); // 31/01 23:59 em Luanda (UTC+1): fora do período local
     seed(fixtures, "inicio", "2026-01-31T23:30:00.000Z"); // 01/02 00:30 local: dentro
