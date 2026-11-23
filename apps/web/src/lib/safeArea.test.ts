@@ -3,7 +3,7 @@ import { needsSafeAreaFallback } from './safeArea'
 
 function setup(ua: string, standalone: boolean, screenH: number, innerH: number) {
   vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(ua)
-  window.matchMedia = ((q: string) => ({ matches: standalone && q.includes('standalone'), media: q, addEventListener() {}, removeEventListener() {} })) as typeof window.matchMedia
+  window.matchMedia = ((q: string) => ({ matches: standalone && q.includes('standalone'), media: q, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia
   Object.defineProperty(window.screen, 'height', { value: screenH, configurable: true })
   Object.defineProperty(window, 'innerHeight', { value: innerH, configurable: true })
 }
