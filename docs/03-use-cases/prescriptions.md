@@ -9,6 +9,8 @@
 - **Alternativos:** sem medicamentos → recusado; data de emissão futura → recusado `[PROPOSTO]`; frequência/duração não interpretáveis para gerar horários → o plano é criado sem horários e o utilizador é avisado para os definir (ver Q1).
 - **Pós-condição:** receita ATIVA, planos de toma ativos e editáveis.
 
+> **M16 (change control 2026-11-21):** o registo também pode começar por **fotografar a receita** (UC-OCR-01, `ocr.md`): os campos vêm pré-preenchidos para **revisão obrigatória** e o original é anexado; o fluxo e as regras de UC-RX-01 (data obrigatória, ≥ 1 medicamento, planos) não mudam.
+
 ### UC-RX-02 Editar receita
 - **Ator:** titular ou tutor
 - **Fluxo:** altera campos da receita ou de um medicamento.

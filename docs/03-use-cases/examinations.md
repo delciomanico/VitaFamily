@@ -10,6 +10,8 @@
 - **Estados simples:** `[proposta Fase 10]` AGENDADO, REALIZADO, CANCELADO.
 > D19/ADR-023 (revisto 2026-11-04): numa clínica **parceira**, usar UC-EXM-08 (marcação direta num horário com vagas; nasce AGENDADO).
 
+> **M16 (change control 2026-11-21):** o registo de um exame também pode começar por **fotografar o resultado** (UC-OCR-02, `ocr.md`): tipo, data, laboratório e parâmetros (valor/unidade/referência) vêm pré-preenchidos para **revisão obrigatória** e o original é anexado (UC-EXM-03); o OCR não interpreta valores (BR-EXM-02).
+
 ### UC-EXM-02 Adicionar resultados estruturados
 - **Ator:** titular ou tutor · **FR:** EXM-03
 - **Fluxo:** adiciona linhas: parâmetro, valor, unidade, intervalo de referência (**opcional, informado pelo utilizador**).
