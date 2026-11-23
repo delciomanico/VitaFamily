@@ -102,6 +102,8 @@ interface MedicationFieldsProps {
   onRemove?: () => void
   /** Marcas «Confirmar» desta linha (só se veio da leitura de uma foto). */
   marks?: PartMarks
+  /** Há observações lidas da foto: abre a secção. */
+  hasNotes?: boolean
 }
 
 type MedPart = 'name' | 'dosage' | 'frequency' | 'duration' | 'notes'
@@ -111,7 +113,7 @@ interface PartMarks {
 }
 
 /** Um medicamento da receita: nome, dosagem, frequência, duração e observações. */
-function MedicationFields({ index, control, register, errors, continuous, onRemove, marks }: MedicationFieldsProps) {
+function MedicationFields({ index, control, register, errors, continuous, onRemove, marks, hasNotes }: MedicationFieldsProps) {
   const mark = (part: MedPart, children: ReactNode) => (
     <MarkedField pending={marks?.pending(part) ?? false} onConfirm={() => marks?.confirm(part)}>
       {children}
@@ -164,7 +166,7 @@ function MedicationFields({ index, control, register, errors, continuous, onRemo
           <Checkbox label="Uso contínuo (sem data de fim)" {...register(`medications.${index}.continuous`)} />
         </div>,
       )}
-      <Disclosure label="Observações" defaultOpen={marks !== undefined}>
+      <Disclosure label="Observações" defaultOpen={hasNotes}>
         {mark(
           'notes',
           <Input label="Observações" placeholder="Ex.: tomar depois das refeições" {...register(`medications.${index}.notes`)} />,
@@ -285,7 +287,7 @@ function NewPrescriptionForm({ members, selfMemberId, intake }: { members: Famil
       dirty={isDirty && !done}
       onClose={close}
     >
-      {draft && <ReviewBanner pending={unresolved.size} notice={notice} />}
+      {draft && <ReviewBanner pending={unresolved.size} total={Object.keys(marked).length} notice={notice} />}
       {!draft && notice && <p className="rounded-xl bg-primary-soft px-3.5 py-3 text-base text-primary">{notice}</p>}
       {step === 0 && (
         <>
@@ -315,6 +317,7 @@ function NewPrescriptionForm({ members, selfMemberId, intake }: { members: Famil
               register={register}
               errors={errors.medications?.[index]}
               continuous={medications[index]?.continuous ?? false}
+              hasNotes={!!defaults.medications[index]?.notes}
               onRemove={fields.length > 1 ? () => remove(index) : undefined}
               marks={
                 medications[index]?.ocrId

@@ -270,7 +270,7 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill, intake }:
       dirty={isDirty && !done}
       onClose={close}
     >
-      {draft && <ReviewBanner pending={unresolved.size} notice={notice} />}
+      {draft && <ReviewBanner pending={unresolved.size} total={Object.keys(marked).length} notice={notice} />}
       {!draft && notice && <p className="rounded-xl bg-primary-soft px-3.5 py-3 text-base text-primary">{notice}</p>}
       {stepName === 'Que exame?' && (
         <>

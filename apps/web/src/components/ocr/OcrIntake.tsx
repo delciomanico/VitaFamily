@@ -3,6 +3,7 @@ import { Camera, Check, FileText, ImageIcon, LoaderCircle, ScanSearch } from 'lu
 import { Sheet } from '@/components/app/Sheet'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/cn'
+import { formatLongDate } from '@/lib/format'
 import { OCR_ATTACH_MAX_BYTES, OCR_MAX_PDF_PAGES } from '@/lib/ocrConfig'
 import type { ExamDraft, PrescriptionDraft } from '@/lib/ocrParse'
 import { planExaminationReview, planPrescriptionReview, type ReviewRow } from '@/lib/ocrReview'
@@ -320,6 +321,7 @@ function ResultSheet({ labels, kind, file, draft, notice, confirmed, onConfirm, 
       onClose={onClose}
       title={labels.found}
       description="Confirme o que está assinalado. No passo seguinte pode corrigir tudo."
+      stickyFooter
       footer={
         <>
           <Button size="xl" fullWidth onClick={onNext}>
@@ -340,7 +342,7 @@ function ResultSheet({ labels, kind, file, draft, notice, confirmed, onConfirm, 
             <li key={r.key} className="flex items-center gap-3 py-3">
               <span className="min-w-0 flex-1">
                 <span className="block text-base text-muted">{r.label}</span>
-                <span className="block text-lg font-medium break-words">{r.value}</span>
+                <span className="block text-lg font-medium break-words">{r.key === 'issuedOn' || r.key === 'examDate' ? formatLongDate(r.value) : r.value}</span>
               </span>
               {needs ? (
                 <Button variant="secondary" size="lg" onClick={() => onConfirm(r.key)} aria-label={`Confirmar: ${r.label}`} className="shrink-0 border-2 border-dashed border-warning" icon={<ScanSearch className="size-5" aria-hidden />}>

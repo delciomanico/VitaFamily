@@ -26,10 +26,12 @@ export function MarkedField({ pending, onConfirm, children }: { pending: boolean
 }
 
 /** Resumo no topo do formulário: quantos campos faltam confirmar, ou «tudo revisto». */
-export function ReviewBanner({ pending, notice }: { pending: number; notice?: string | null }) {
+export function ReviewBanner({ pending, total, notice }: { pending: number; /** campos que vieram assinalados */ total: number; notice?: string | null }) {
+  if (total === 0 && !notice) return null // tudo de confiança alta: sem alarido
   return (
     <div className="flex flex-col gap-2" data-testid="ocr-banner">
       {notice && <p className="rounded-xl bg-primary-soft px-3.5 py-3 text-base text-primary">{notice}</p>}
+      {total > 0 && (
       <p
         role="status"
         className={cn(
@@ -42,6 +44,7 @@ export function ReviewBanner({ pending, notice }: { pending: number; notice?: st
           ? `Falta confirmar ${pending} ${pending === 1 ? 'campo assinalado' : 'campos assinalados'} para poder guardar.`
           : 'Tudo revisto. Pode guardar.'}
       </p>
+      )}
     </div>
   )
 }

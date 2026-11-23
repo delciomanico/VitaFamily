@@ -158,6 +158,12 @@ describe('campos ausentes e ilegíveis', () => {
     const draft = ex('Ferritina 1.200 ng/mL 20 - 250')
     expect(needsConfirmation(draft.results[0]!.value.confidence)).toBe(true)
     expect(draft.results[0]!.value.value).toBe('1.200')
+    expect(needsConfirmation(ex('Ferritina 1,200 ng/mL').results[0]!.value.confidence)).toBe(true)
+  })
+
+  it('separador de milhares com unidade «/…» (ponto ou vírgula) fica sem separador', () => {
+    expect(ex('Leucócitos 6,800 /mm3 4.000 - 11.000').results[0]!.value.value).toBe('6800')
+    expect(ex('Plaquetas 250,000 /uL 150.000 - 400.000').results[0]!.value.value).toBe('250000')
   })
 })
 

@@ -159,7 +159,8 @@ describe('receita: fotografar primeiro (UC-OCR-01, AC-OCR-01, TC-OCR-04)', () =>
     fireEvent.click(within(result).getByRole('button', { name: 'Rever e guardar' }))
     const form = await readyForm('Adicionar receita')
     expect(document.querySelector('[data-ocr-pending]')).toBeNull()
-    expect(within(form).getByText('Tudo revisto. Pode guardar.')).toBeInTheDocument()
+    expect(within(form).queryByTestId('ocr-banner')).not.toBeInTheDocument()
+    expect(within(form).getByLabelText('Data da receita')).toHaveValue('2026-03-12')
   })
 
   it('«Cancelar» durante a leitura volta à escolha e nada fica guardado', async () => {

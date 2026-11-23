@@ -374,9 +374,9 @@ function parseResultLine(doc: Doc, line: { text: string; start: number }): Draft
     rest = ` ${unit}${rest}`
     unit = undefined
   }
-  // «6.800 /mm3»: ponto de milhares; sem uma unidade «/…» é ambíguo (1.200 pode ser 1,2) ⇒ pede confirmação.
-  if (/^\d{1,3}(?:\.\d{3})+$/.test(value)) {
-    if (unit?.startsWith('/')) value = value.replace(/\./g, '')
+  // «6.800 /mm3» ou «6,800 /mm3»: separador de milhares; sem uma unidade «/…» é ambíguo (1.200 pode ser 1,2) ⇒ pede confirmação.
+  if (/^\d{1,3}(?:[.,]\d{3})+$/.test(value)) {
+    if (unit?.startsWith('/')) value = value.replace(/[.,]/g, '')
     else valueConfidence = Math.min(valueConfidence, CONFIDENCE_THRESHOLD - 0.01)
   }
   if (/\.\d+\.|,\d+,/.test(value)) return undefined
