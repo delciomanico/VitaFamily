@@ -283,7 +283,10 @@
 
 @layer base {
   html {
+    /* Pinta também por baixo das barras do sistema (modo ecrã inteiro do Android/iOS). */
+    background-color: var(--color-background);
     -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -319,6 +322,18 @@
   dialog::backdrop {
     background: rgb(13 40 54 / 0.45);
     backdrop-filter: blur(2px);
+  }
+}
+
+/*
+ * Campos com menos de 16 px fazem o Chrome/Samsung Internet ampliar a página ao focar (zoom).
+ * Fora de camadas para vencer `text-base`/`text-sm`; só em ecrãs de toque, sem bloquear o zoom do utilizador.
+ */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']),
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
 
