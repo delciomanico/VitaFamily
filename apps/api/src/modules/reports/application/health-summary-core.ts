@@ -56,7 +56,7 @@ export async function readMemberFacts(
     readable(() => readAll(sources.prescriptions, actor, familyId, memberId, {}, context)),
     readable(() => readAll(sources.plans, actor, familyId, memberId, { status: "ACTIVE" }, context)),
     // Reutiliza `medicationAdherence` (BR-RPT-13): contagens por plano, `pending` fica fora da percentagem.
-    readable(() => sources.adherence(actor, familyId, memberId, { from: period.from, to: period.to }, context)),
+    readable(() => sources.adherence(actor, familyId, memberId, { from: period.from, to: period.to, timeZone: time.timeZone }, context)),
     readable(() => readAll(sources.doses, actor, familyId, memberId, { from: periodStart.toISOString(), to: doseTo }, context, DOSE_MAX_PAGES)),
     readable(() => readAll(sources.appointments, actor, familyId, memberId, { from: periodStart.toISOString() }, context)),
     readable(() => readAll(sources.appointments, actor, familyId, memberId, { status: "SCHEDULED", to: nowIso }, context)),
@@ -172,7 +172,8 @@ export async function missingSection(
   const ids = (items: ApiObject[]) => items.map((i) => str(i, "id")).filter((id) => id !== "");
   const items: (MissingRecordItem | null)[] = [];
 
-  if (facts.bloodType !== undefined && !facts.bloodType) items.push(missingItem("BLOOD_TYPE_UNSET", [], false, 1));
+  // `health-records` devolve `UNKNOWN` (e não `null`) quando o tipo sanguíneo não foi indicado.
+  if (facts.bloodType !== undefined && (!facts.bloodType || facts.bloodType === "UNKNOWN")) items.push(missingItem("BLOOD_TYPE_UNSET", [], false, 1));
   if (facts.openAppointments !== undefined) items.push(missingItem("APPOINTMENT_PAST_OPEN", ids(facts.openAppointments), await write("APPOINTMENTS")));
   if (facts.examinations !== undefined) {
     const open = facts.examinations.filter((e) => e.status === "SCHEDULED" && str(e, "examDate") < time.today);
