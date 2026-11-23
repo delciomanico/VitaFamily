@@ -42,7 +42,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,jpg,webp,woff2}'],
         // Só os subconjuntos latinos da fonte são necessários em pt-PT.
         // O motor de leitura de fotos (M16) pesa vários MB: não entra na pré-carga, vai para cache na 1.ª utilização.
-        globIgnores: ['**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2', 'ocr/**'],
+        // Handlers push/notificationclick (UC-ALR-06): importados pelo service worker gerado e nunca pré-guardados,
+        // para que uma alteração chegue com a atualização do sw.js (o browser também compara os scripts importados).
+        importScripts: ['push-sw.js'],
+        globIgnores: ['push-sw.js', '**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2', 'ocr/**'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/ocr/'),

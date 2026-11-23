@@ -9,6 +9,10 @@ services:
   web:
     build:
       context: ../apps/web
+      # Chave pública VAPID embutida no build da PWA (UC-ALR-06); definir VITE_VAPID_PUBLIC_KEY no ambiente do
+      # serviço no Dokploy com o MESMO valor de VAPID_PUBLIC_KEY da API. Vazia: sem push no dispositivo.
+      args:
+        VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
     expose: ["8080"]
     # O Traefik do Dokploy só alcança contentores nesta rede; sem ela, o domínio dá 502 Bad Gateway.
     # É também por aqui (dokploy-network) que este contentor alcança "api" para o proxy de /api/.

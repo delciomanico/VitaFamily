@@ -14,6 +14,10 @@ RUN npm test
 # backend, por isso o caminho é relativo e fixo — não é segredo, não precisa de vir de fora da
 # imagem. Só agora, para o build real: sem isto o build cairia nos mocks (hasApiBackend() falso).
 ENV VITE_API_URL=/api/v1
+# Chave PÚBLICA VAPID (não é segredo) para a subscrição push (UC-ALR-06); tem de ser igual a VAPID_PUBLIC_KEY da API.
+# Vazia = a app mostra que as notificações no dispositivo não estão configuradas. Só no build real (não nos testes).
+ARG VITE_VAPID_PUBLIC_KEY=""
+ENV VITE_VAPID_PUBLIC_KEY=$VITE_VAPID_PUBLIC_KEY
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine
