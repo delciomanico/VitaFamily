@@ -56,7 +56,7 @@ function AdherenceHero({ medication, firstName, canAdd }: { medication: NonNulla
           {counts.length > 0 && <p className="text-sm text-muted">{counts.join(' · ')}</p>}
           {diff !== null && (
             <p className="text-sm text-muted">
-              {diff === 0 ? `Igual ao ${unit} anterior` : `${formatVariation(diff)} pontos face ao ${unit} anterior`}
+              {diff === 0 ? `Igual ao ${unit} anterior` : `${formatVariation(diff)} ${Math.abs(diff) === 1 ? 'ponto' : 'pontos'} face ao ${unit} anterior`}
             </p>
           )}
           <AdherenceBars series={series} granularity={granularity} />

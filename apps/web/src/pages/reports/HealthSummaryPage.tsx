@@ -94,6 +94,8 @@ export function HealthSummaryPage() {
       {state.status === 'error' &&
         (isAppError(state.error, 'NOT_FOUND') ? (
           <ErrorState message="Não há resumo disponível para esta pessoa." />
+        ) : isAppError(state.error, 'FORBIDDEN') ? (
+          <ErrorState message="Não tem acesso ao resumo desta pessoa." />
         ) : isAppError(state.error, 'RATE_LIMITED') ? (
           <ErrorState message="Pediu muitas vezes seguidas. Espere um momento e tente de novo." onRetry={reload} />
         ) : isAppError(state.error, 'VALIDATION_ERROR') ? (
