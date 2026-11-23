@@ -4,6 +4,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { ocrAssets } from './vite.ocr-assets.ts'
 
 const THEME_COLOR = '#0d4f68'
 const BACKGROUND_COLOR = '#ffffff'
@@ -12,6 +13,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    ocrAssets(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
@@ -39,7 +41,15 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,svg,png,jpg,webp,woff2}'],
         // Só os subconjuntos latinos da fonte são necessários em pt-PT.
-        globIgnores: ['**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2'],
+        // O motor de leitura de fotos (M16) pesa vários MB: não entra na pré-carga, vai para cache na 1.ª utilização.
+        globIgnores: ['**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2', 'ocr/**'],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/ocr/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'vita-ocr', expiration: { maxEntries: 8 }, cacheableResponse: { statuses: [200] } },
+          },
+        ],
       },
     }),
   ],

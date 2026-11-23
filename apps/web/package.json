@@ -29,6 +29,7 @@
     "@capacitor/cli": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "@tailwindcss/vite": "^4.3.3",
+    "@tesseract.js-data/por": "^1.0.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26.6.4",
