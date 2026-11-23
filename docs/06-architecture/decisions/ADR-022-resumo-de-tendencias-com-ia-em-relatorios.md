@@ -1,6 +1,6 @@
 # ADR-022 — Resumo de tendências com IA em relatórios (exceção estrita a BR-RPT-03)
 
-**Estado:** Aceite — decisão **do proprietário** (2026-10-17, change control), depois de ser avisado
+**Estado:** **Parcialmente substituído pelo [ADR-039](ADR-039-assistente-de-ia-ligado-pelo-utilizador.md) (2026-11-21, decisão do proprietário):** o motor (agora ligado pelo utilizador e chamado do dispositivo, sem DPA), o plano pago (BR-RPT-10) e o «nunca sugerir procurar um médico» (agora recomendação de especialidade e sinais de alarme) **deixam de valer**; mantêm-se a exceção nomeada a `BR-RPT-03`, a minimização, o consentimento separado de `SharingGrant`, a auditoria sem dados de saúde e o gate da AIPD. Texto original abaixo, conservado como histórico. — Aceite — decisão **do proprietário** (2026-10-17, change control), depois de ser avisado
 explicitamente de que reverte uma regra fundacional (`BR-RPT-03`, prompt §19) e a frase do objetivo do
 MVP (`scope.md` §1: "...sem qualquer diagnóstico") e a lista `[OUT]` de IA (`scope.md` §3). Confirmou que
 quer avançar, com os limites abaixo — o nível **mais conservador** das opções discutidas (rejeitou a opção
