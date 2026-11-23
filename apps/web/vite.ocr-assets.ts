@@ -19,12 +19,15 @@ function assetFiles(): Record<string, string> {
   const tesseractDir = packageDir('tesseract.js')
   const core = packageDir('tesseract.js-core', createRequire(join(tesseractDir, 'package.json')))
   const data = packageDir('@tesseract.js-data/por')
+  const pdfjs = packageDir('pdfjs-dist')
   return {
     'worker.min.js': join(tesseractDir, 'dist/worker.min.js'),
     'tesseract-core-lstm.wasm.js': join(core, 'tesseract-core-lstm.wasm.js'),
     'tesseract-core-simd-lstm.wasm.js': join(core, 'tesseract-core-simd-lstm.wasm.js'),
     'tesseract-core-relaxedsimd-lstm.wasm.js': join(core, 'tesseract-core-relaxedsimd-lstm.wasm.js'),
     'por.traineddata.gz': join(data, '4.0.0_best_int/por.traineddata.gz'),
+    // PDF (texto embutido ou rasterização até 3 páginas): worker do pdf.js, também da própria origem.
+    'pdf.worker.min.mjs': join(pdfjs, 'legacy/build/pdf.worker.min.mjs'),
   }
 }
 
@@ -37,7 +40,7 @@ export function ocrAssets(): Plugin {
         const name = decodeURIComponent((req.url ?? '').split('?')[0]!.replace(/^\//, ''))
         const file = Object.hasOwn(files, name) ? files[name] : undefined
         if (!file) return next()
-        res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : 'application/octet-stream')
+        res.setHeader('Content-Type', /\.m?js$/.test(name) ? 'text/javascript' : 'application/octet-stream')
         res.setHeader('Cache-Control', 'no-cache')
         res.end(readFileSync(file))
       })

@@ -15,7 +15,8 @@ export interface OcrEngine {
 
 /** Opções do motor: todos os caminhos relativos à própria origem. */
 export function engineOptions() {
-  return { ...OCR_ASSETS, gzip: true, workerBlobURL: false } as const
+  const { workerPath, corePath, langPath } = OCR_ASSETS
+  return { workerPath, corePath, langPath, gzip: true, workerBlobURL: false } as const
 }
 
 export async function createEngine(onPrepared?: (fraction: number) => void): Promise<OcrEngine> {

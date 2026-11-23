@@ -25,4 +25,6 @@ export const OCR_ASSETS = {
   corePath: `${OCR_ASSET_BASE}/`,
   /** Pasta do modelo português (`por.traineddata.gz`, LSTM «best» inteiro). */
   langPath: OCR_ASSET_BASE,
+  /** Worker do pdf.js (PDF: texto embutido ou rasterização). */
+  pdfWorkerPath: `${OCR_ASSET_BASE}/pdf.worker.min.mjs`,
 } as const
