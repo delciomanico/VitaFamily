@@ -287,6 +287,7 @@
  * marca `html.safe-fallback` nesse caso e estas variáveis passam a ter um mínimo.
  */
 :root {
+  color-scheme: only light;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
