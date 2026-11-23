@@ -135,3 +135,6 @@ Todos com justificação de consulta. O ranking `v2` **não** cria tabelas: agre
 
 ## Índices das tabelas inertes (arquivo do marco B, ADR-037)
 Os índices das tabelas `insurer_*`, `insurance_*`, `reimbursement_*` e do alerta de expiração (`0024`–`0041`) mantêm-se na base de dados, sem uso; ver `schema.md` §10 e o arquivo `_arquivo/marco-b/extratos/migrations-indexes-seguradora.md`.
+
+## Assistente de IA — ADR-039 (`schema.md` §15, migração proposta `0047`)
+- `ai_consents`: **UNIQUE parcial** `(user_id, member_id, provider) WHERE revoked_at IS NULL` (consentimento ativo; serve a consulta por utilizador+membro+fornecedor em cada sessão); índice `(family_id, member_id)` (cascata e listagem); índice parcial `(revoked_at) WHERE revoked_at IS NOT NULL` (job `ai-assistant.purge-consents`).

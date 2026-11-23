@@ -1,6 +1,6 @@
 # Vita Family — Esquema da base de dados (Fase 12)
 
-> Estado: **v2.0 (MK3, 2026-11-19: §13 marcações, comprovativos e avaliações, migração proposta `0045`; notas em §4b/§8/§11)**; v1.9 (MK1, 2026-11-16: §11 mercado de profissionais, migração proposta `0043`; sem alterações às restantes secções além das notas de §6/§7/§8)**; v1.8 (R7 do arquivo do marco B, 2026-11-16, ADR-037: retiradas as secções §3b/§3c e as tabelas de seguro/reembolso de §4; ficam descritas só em «Tabelas inertes» (fim do documento). Histórico das versões ≤ v1.7 em `_arquivo/marco-b/extratos/schema-seguradora.md` e no git)**.
+> Estado: **v2.1 (ADR-039, 2026-11-21: §15 `ai_consents`, migração proposta `0047`; M16/M17 sem dados novos)**; v2.0 (MK3, 2026-11-19: §13 marcações, comprovativos e avaliações, migração proposta `0045`; notas em §4b/§8/§11)**; v1.9 (MK1, 2026-11-16: §11 mercado de profissionais, migração proposta `0043`; sem alterações às restantes secções além das notas de §6/§7/§8)**; v1.8 (R7 do arquivo do marco B, 2026-11-16, ADR-037: retiradas as secções §3b/§3c e as tabelas de seguro/reembolso de §4; ficam descritas só em «Tabelas inertes» (fim do documento). Histórico das versões ≤ v1.7 em `_arquivo/marco-b/extratos/schema-seguradora.md` e no git)**.
 > Convenções: `id uuid PK default gen_random_uuid()`; `created_at`/`updated_at timestamptz not null default now()` em todas (omitidas abaixo); enums como tipos `ENUM` do Postgres; `NN` = NOT NULL; `FK→t(c)`; `CASCADE` = ON DELETE CASCADE.
 > Isolamento: toda a tabela de dados de família tem `family_id`. Os filhos usam **FK composta** `(family_id, member_id) → family_members(family_id, id)` para impedir, na própria BD, que um registo aponte para um membro de outra família (ADR-008).
 
@@ -355,3 +355,16 @@ CHECK `expires_at > created_at AND expires_at <= created_at + interval '30 days'
 **Eliminação em cascata (MK4):** `family_members`/`families` → cascata para `record_shares` (e por elas `record_share_views`); `professionals` → cascata para `record_shares` e `SET NULL` em `prescriptions.issued_by_professional_id` (a receita fica no registo do membro, `issued_by` mantém-se); `bookings` → cascata para `record_shares` e `SET NULL` em `prescriptions.booking_id`; `users` → `SET NULL` em `record_shares.created_by_user_id`/`revoked_by_user_id` (as partilhas pertencem ao membro, não à conta). `audit_logs` nunca em cascata. **Retenção:** partilhas terminadas e vistas **24 meses** após `GREATEST(expires_at, revoked_at, consumed_at)` (job `record-sharing.purge-expired`, BR-MKT-76). Sem ficheiros (nada para o outbox).
 
 **Alterações a objetos existentes pela `0046`:** só as três colunas/valores acima em `prescriptions`/`prescription_issuer` e os índices de `indexes.md` (MK4). Nenhuma coluna removida nem mudança de significado: as receitas existentes ficam `issued_by ∈ (FAMILY, CLINIC)`, `issued_by_professional_id` e `booking_id` nulos.
+
+## 15. Assistente de IA ligado pelo utilizador — consentimentos (ADR-039; migração **proposta** `0047_ai_consents.sql`; **nada implementado**)
+
+> Módulo `ai-assistant` (`modules.md` nota 40). **Uma tabela**; **M16 (OCR) e M17 (Resumo de saúde) não criam dados** (OCR só no dispositivo; Resumo calculado a pedido). **Nunca se guardam** chaves de API, tokens Google, sintomas, contexto enviado, respostas da IA nem especialidades sugeridas.
+
+**ai_consents** — `user_id uuid NN FK→users(id) CASCADE` (quem consentiu) · `family_id NN` · `member_id NN` (membro-sujeito; **FK composta** `(family_id, member_id) → family_members(family_id, id)` **CASCADE**) · `provider ai_provider NN` · `consent_version text NN` (≤ 20) · `granted_at timestamptz NN default now()` · `revoked_at timestamptz NULL`.
+**UNIQUE parcial** `(user_id, member_id, provider) WHERE revoked_at IS NULL` (um consentimento ativo por utilizador, membro e fornecedor; **separado de `sharing_grants`**, que não é tocado) · CHECK `revoked_at IS NULL OR revoked_at >= granted_at`. Um novo consentimento depois de revogado cria **nova linha**; o histórico serve de prova.
+
+**Enum novo** (criado na `0047`, **sem `ADD VALUE`**): `ai_provider`(GEMINI, CLAUDE, OPENAI). **Reutilizados:** nenhum.
+
+**Eliminação em cascata (ADR-039, BR-AI-16):** `users`/`family_members`/`families` → cascata para `ai_consents`. **Retenção:** job `ai-assistant.purge-consents` (diário) apaga as linhas com `revoked_at` há mais de **24 meses** (as ativas nunca); a exportação do titular inclui-as (sem chaves).
+
+**Sem tabela de sessões:** o `sessionToken` é um token assinado (HMAC, 15 min) com `userId`, `memberId`, `provider`, `kind`, `guardrailsVersion` e `jti`; o desfecho vai só para a auditoria (`audit.md`). Os *guardrails* são configuração versionada no código/ficheiro do servidor, não da BD.

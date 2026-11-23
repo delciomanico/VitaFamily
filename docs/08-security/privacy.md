@@ -64,7 +64,7 @@
 | Convites | Expirados limpos após 30 dias. |
 | Exportações | Ficheiro apagado ao fim de 7 dias. |
 | Auditoria | **24 meses**, depois eliminada; anonimizada se o titular pedir apagamento. |
-| Consentimentos do assistente de IA (`ai_consents`, ADR-039) | Enquanto o membro/conta existir (cascata); revogado mantém-se a linha com `revoked_at` até ao apagamento do membro/conta (prova do consentimento) **e no máximo 24 meses após a revogação**; a exportação inclui-os (sem chaves). |
+| Consentimentos do assistente de IA (`ai_consents`, ADR-039) | Enquanto o membro/conta existir (cascata); revogado mantém-se a linha com `revoked_at` (prova do consentimento) **durante 24 meses após a revogação** (job `ai-assistant.purge-consents`) ou até ao apagamento do membro/conta, o que ocorrer primeiro; a exportação inclui-os (sem chaves). |
 | Backups | Rotação de 30 dias. |
 | Dados de conta eliminada | Nenhuns, exceto auditoria anonimizada. |
 | Relatório da consulta da clínica (ADR-027) | Retenção **da clínica** (não apaga com o membro, BR-CLN-50); prazo a fixar com OP-32/OP-46 antes do lançamento. O laudo e os rascunhos de resultados seguem o exame (D15). |

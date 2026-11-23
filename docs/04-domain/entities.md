@@ -257,6 +257,16 @@ Documento **gerado, sem entidade nem tabela**: derivado de uma marcação `COMPL
 ### Prescription — extensão MK4 (receita digital do profissional; BR-MKT-79..81)
 `issuedBy` ganha o valor **`PROFESSIONAL`** (com `FAMILY`, `CLINIC`) · `issuedByProfessionalId?` (**só servidor**, nunca devolvido; nulo se o profissional for apagado, `issuedBy` mantém-se) · `bookingId?` (marcação `COMPLETED` de origem, de qualquer método — OP-126; UNIQUE parcial: **uma receita por marcação**; nulo se a marcação desaparecer). `doctorName` = nome público do profissional e `issuedOn` = dia da emissão em `Africa/Luanda`, ambos **fixados pelo servidor**. Os medicamentos usam a mesma estrutura (`MedicationPlan`) e geram plano de toma como qualquer receita (UC-RX-01, M2). A família vê-a e gere-a (cancelar/concluir/reabrir, apagar, ajustar horários dos planos), mas o **conteúdo** (medicamentos, dosagem, observações, datas) é **só leitura** (OP-127; `409 CONFLICT` ao editar). Nada se cria enquanto `DIGITAL_PRESCRIPTION_ENABLED=false` (BR-MKT-79).
 
+## Assistente de IA — consentimento (ADR-039; contrato 2026-11-21, **nada implementado**)
+
+> Dados em `schema.md` §15. **Distinto de `SharingGrant`** (partilha dentro da família): aqui é o envio, **do dispositivo do utilizador**, a um fornecedor que ele ligou. A Vita **não guarda** chaves, sintomas, contexto, respostas nem sugestões.
+
+### AiConsent — consentimento do utilizador para um fornecedor e um membro (tabela `ai_consents`; módulo `ai-assistant`)
+`userId` (quem consentiu: `SELF` ou `TUTOR_OF`) · `familyId` · `memberId` (membro-sujeito) · `provider` (`GEMINI` \| `CLAUDE` \| `OPENAI`) · `consentVersion` · `grantedAt` · `revokedAt?`. **Invariantes:** um ativo por `(userId, memberId, provider)`; só `SELF` adulto ou `TUTOR_OF` o criam (BR-AI-04); a sessão exige consentimento ativo **e** a relação vigente.
+
+### Estruturas só de contrato (sem tabela)
+`AiSession` (`sessionToken` assinado, 15 min, + `AiContext` minimizado) · `AiGuardrails` (configuração versionada: *prompt* de sistema, listas de bloqueio e de alarme, especialidades `HEALTH` permitidas, mensagem de urgência, aviso, esquema de resposta) · `HealthSummary`/`FamilyHealthSummary` (M17: calculados a pedido, não persistem) · `ExamParameterSeries`, `MissingRecordItem`.
+
 ## Alertas
 
 ### Alert
