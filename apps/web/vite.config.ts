@@ -1,6 +1,8 @@
 /// <reference types="vitest/config" />
+import { existsSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -70,5 +72,7 @@ export default defineConfig({
     css: false,
     // Os testes de fluxo montam o router inteiro; com a máquina carregada passavam dos 5 s por omissão.
     testTimeout: 30000,
+    // Os testes de contrato precisam de docs/ e apps/api; no build do Docker (contexto só apps/web) não existem.
+    exclude: [...configDefaults.exclude, ...(existsSync('../../docs/05-api/openapi.yaml') ? [] : ['src/contract/**'])],
   },
 })

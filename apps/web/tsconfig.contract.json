@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": { "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.contract.tsbuildinfo" },
+  "include": ["src"],
+  "exclude": ["src/**/*.e2e.test.ts"]
+}
