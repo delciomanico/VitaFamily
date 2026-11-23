@@ -39,9 +39,8 @@ describe("período (BR-RPT-12, AC-RPT-04, TC-RPT-05)", () => {
   });
 
   it("30 pedidos/min: o 31.º => RATE_LIMITED", async () => {
-    const { member } = setup({ m1: {} }, { rateLimit: 2 });
-    await member(ACTOR, FAMILY, "m1", {}, CTX);
-    await member(ACTOR, FAMILY, "m1", {}, CTX);
+    const { member } = setup({ m1: {} });
+    for (let i = 0; i < 30; i++) await member(ACTOR, FAMILY, "m1", {}, CTX);
     await expect(member(ACTOR, FAMILY, "m1", {}, CTX)).rejects.toThrow(RateLimitedError);
   });
 });

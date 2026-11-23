@@ -161,7 +161,7 @@ describe("GET /families/{f}/members/{m}/health-summary (UC-RPT-05)", () => {
   });
 
   it("TC-RPT-12: o 31.º pedido no minuto => 429 RATE_LIMITED", async () => {
-    const limited = await buildHarness({ rateLimit: 30 });
+    const limited = await buildHarness();
     for (let i = 0; i < 30; i++) {
       expect((await request(limited.app).get(url(SELF)).set("Authorization", bearer(limited.token))).status).toBe(200);
     }
@@ -211,8 +211,10 @@ describe("GET /families/{f}/health-summary (UC-RPT-05b)", () => {
     expect((await request(h.app).get(url())).status).toBe(401);
     expect((await request(h.app).get(url("", OTHER_FAMILY)).set("Authorization", bearer(h.token))).status).toBe(404);
     expect((await request(h.app).get(url("?from=2026-02-01&to=2026-01-01")).set("Authorization", bearer(h.token))).status).toBe(422);
-    const limited = await buildHarness({ rateLimit: 1 });
-    await request(limited.app).get(url()).set("Authorization", bearer(limited.token));
+    const limited = await buildHarness();
+    for (let i = 0; i < 30; i++) {
+      await request(limited.app).get(url()).set("Authorization", bearer(limited.token));
+    }
     expect((await request(limited.app).get(url()).set("Authorization", bearer(limited.token))).status).toBe(429);
   });
 

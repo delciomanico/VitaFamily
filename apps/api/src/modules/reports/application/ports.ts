@@ -2,6 +2,7 @@
 // ligada no composition root (`main/api.ts`). Já passam pela `AccessPolicy` e pela auditoria do
 // módulo dono; sem permissão lançam `ForbiddenError`/`NotFoundError` (secção omitida, BR-RPT-01).
 import type { Clock } from "../../../platform/clock/index.js";
+import type { RateLimiter } from "../../../platform/rate-limit/async.js";
 import type { MemberPageRead, MemberRead, ReadActor, ReadContext } from "../../../platform/reads/index.js";
 
 export type { ReadActor as ActorIdentity, ReadContext as RequestContext };
@@ -45,12 +46,8 @@ export interface HealthSummarySources {
   auditView: (actor: ReadActor, familyId: string, memberId: string, kind: "HEALTH_SUMMARY", context: ReadContext) => Promise<void>;
 }
 
-/** Limitador de pedidos (ADR-038): subconjunto da porta `RateLimiter` de `platform/rate-limit`. */
-export interface SummaryRateLimiter {
-  consume: (key: { rule: string; subject: string }, rule: { max: number; windowMs: number }) => Promise<{ allowed: boolean; retryAfterMs: number }>;
-}
-
 export interface HealthSummaryDeps extends ReportsDeps {
   summary: HealthSummarySources;
-  rateLimiter: SummaryRateLimiter;
+  /** Porta `RateLimiter` (ADR-038), namespace `reports`. */
+  rateLimiter: RateLimiter;
 }

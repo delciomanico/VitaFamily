@@ -1,4 +1,6 @@
 // Fakes em memória das portas do Resumo de saúde (M17), para testes de unidade e de rotas. Não é ficheiro de teste.
+import { FixedClock } from "../../../platform/clock/index.js";
+import { InMemoryRateLimiter } from "../../../platform/rate-limit/in-memory.js";
 import { ForbiddenError } from "../../../platform/errors/index.js";
 import type { ReadPage } from "../../../platform/reads/index.js";
 import type { ApiObject, HealthSummaryDeps } from "./ports.js";
@@ -25,8 +27,6 @@ export interface SummaryFixtureOptions {
   /** `memberId` -> categorias em que o pedinte pode escrever. */
   writable?: Record<string, Category[]>;
   timezone?: string;
-  /** Pedidos permitidos antes de `RATE_LIMITED`. */
-  rateLimit?: number;
 }
 
 const page = (items: ApiObject[]): ReadPage => ({ items, nextCursor: null });
@@ -34,7 +34,6 @@ const page = (items: ApiObject[]): ReadPage => ({ items, nextCursor: null });
 export function createSummaryFixtures(options: SummaryFixtureOptions) {
   const audit: { memberId: string; kind: string; familyId: string }[] = [];
   const reads: { source: string; memberId: string; query?: Record<string, string> }[] = [];
-  let consumed = 0;
 
   const guard = <T>(source: string, category: Category, memberId: string, value: T, query?: Record<string, string>): T => {
     reads.push({ source, memberId, ...(query ? { query } : {}) });
@@ -45,13 +44,7 @@ export function createSummaryFixtures(options: SummaryFixtureOptions) {
 
   const deps: HealthSummaryDeps = {
     clock: { now: () => options.now },
-    rateLimiter: {
-      consume: () => {
-        consumed++;
-        const allowed = consumed <= (options.rateLimit ?? 1000);
-        return Promise.resolve({ allowed, retryAfterMs: allowed ? 0 : 30_000 });
-      },
-    },
+    rateLimiter: new InMemoryRateLimiter(new FixedClock(options.now), { namespace: "reports" }),
     sources: {
       listMembers: () => Promise.resolve(options.members),
       bloodType: (_a, _f, m) => Promise.resolve(guard("bloodType", "ALLERGIES", m, data(m).bloodType ?? (null as unknown as string))),
