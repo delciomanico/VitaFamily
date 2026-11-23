@@ -6,11 +6,21 @@ import { UnauthenticatedError } from "../../../platform/errors/index.js";
 import { asyncHandler, buildRequestContext, requireParam } from "../../../platform/http/index.js";
 import type { ActorIdentity, RequestContext } from "../application/ports.js";
 import type { MemberReportQuery } from "../application/member-report.js";
+import type { HealthSummaryQuery } from "../application/health-summary.js";
 
 export interface ReportsController {
   memberReport: (actor: ActorIdentity, familyId: string, memberId: string, query: MemberReportQuery, context: RequestContext) => Promise<unknown>;
   familyReport: (actor: ActorIdentity, familyId: string, context: RequestContext) => Promise<unknown>;
+  /** M17 (UC-RPT-05/05b): `getMemberHealthSummary` e `getFamilyHealthSummary`. */
+  memberHealthSummary: (actor: ActorIdentity, familyId: string, memberId: string, query: HealthSummaryQuery, context: RequestContext) => Promise<unknown>;
+  familyHealthSummary: (actor: ActorIdentity, familyId: string, query: HealthSummaryQuery, context: RequestContext) => Promise<unknown>;
 }
+
+const periodQuery = (req: { query: Record<string, unknown> }): HealthSummaryQuery => {
+  const from = queryString(req, "from");
+  const to = queryString(req, "to");
+  return { ...(from ? { from } : {}), ...(to ? { to } : {}) };
+};
 
 function requireActor(): ActorIdentity {
   const actor = getActor();
@@ -43,6 +53,25 @@ export function createReportsRouter(controller: ReportsController): Router {
     "/families/:familyId/report",
     asyncHandler(async (req, res) => {
       const result = await controller.familyReport(requireActor(), requireParam(req, "familyId"), buildRequestContext(req));
+      res.json(result);
+    }),
+  );
+
+  // M17: o Resumo nunca é guardado nem partilhado por ligação (BR-RPT-18); resposta sempre privada.
+  router.get(
+    "/families/:familyId/members/:memberId/health-summary",
+    asyncHandler(async (req, res) => {
+      const result = await controller.memberHealthSummary(requireActor(), requireParam(req, "familyId"), requireParam(req, "memberId"), periodQuery(req), buildRequestContext(req));
+      res.setHeader("Cache-Control", "private, no-store");
+      res.json(result);
+    }),
+  );
+
+  router.get(
+    "/families/:familyId/health-summary",
+    asyncHandler(async (req, res) => {
+      const result = await controller.familyHealthSummary(requireActor(), requireParam(req, "familyId"), periodQuery(req), buildRequestContext(req));
+      res.setHeader("Cache-Control", "private, no-store");
       res.json(result);
     }),
   );

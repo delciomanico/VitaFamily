@@ -691,6 +691,39 @@ export function main(): void {
   // leitura aplica a sua `AccessPolicy` e auditoria, por isso reports não decide permissões.
   const reports = createReportsModule({
     clock,
+    rateLimiter: rateLimiting.createRateLimiter("reports"),
+    // M17 (modules.md nota 40): portas extra do Resumo de saúde — alertas (contagens), `AccessPolicy` (só `sourceIds`),
+    // fuso efetivo do membro e auditoria `REPORT_VIEW` (sem dados de saúde, audit.md §3).
+    summary: {
+      alerts: (actor, familyId, memberId, query) => alerts.reads.memberAlertsSummary(actor.userId, familyId, memberId, query),
+      canWrite: async (actor, familyId, memberId, category, action) => {
+        try {
+          await withTransaction(db, (trx) => access.policy.can(trx, { userId: actor.userId, platformAdmin: actor.platformAdmin, familyId, action, subjectMemberId: memberId, category }));
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      timezone: (familyId, memberId) => withTransaction(db, (trx) => access.getEffectiveTimezone(trx, familyId, memberId)),
+      auditView: (actor, familyId, memberId, kind, context) =>
+        withTransaction(db, (trx) =>
+          audit.record(trx, {
+            occurredAt: clock.now(),
+            actorType: "USER",
+            actorUserId: actor.userId,
+            action: "REPORT_VIEW",
+            resourceType: "HealthSummary",
+            resourceId: memberId,
+            familyId,
+            subjectMemberId: memberId,
+            result: "SUCCESS",
+            requestId: context.requestId,
+            ...(context.ip !== undefined ? { ip: context.ip } : {}),
+            ...(context.userAgent !== undefined ? { userAgent: context.userAgent } : {}),
+            metadata: { kind },
+          }),
+        ),
+    },
     sources: {
       listMembers: families.reads.listMembers,
       bloodType: healthRecords.reads.bloodType,

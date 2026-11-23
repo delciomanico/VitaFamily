@@ -4,6 +4,8 @@ import type { ApiObject } from "./ports.js";
 
 /** Páginas lidas por secção (100 itens cada): relatórios são JSON agregados, não exportações. */
 const MAX_PAGES = 5;
+/** Tomas do Resumo (M17): um período de 5 anos tem muito mais ocorrências do que as outras listas. */
+export const DOSE_MAX_PAGES = 200;
 
 /**
  * BR-RPT-01: secção sem permissão é OMITIDA (nem se indica que está vazia). `Forbidden`/`NotFound`
@@ -26,10 +28,11 @@ export async function readAll(
   memberId: string,
   query: Record<string, string>,
   context: ReadContext,
+  maxPages: number = MAX_PAGES,
 ): Promise<ApiObject[]> {
   const items: ApiObject[] = [];
   let cursor: string | null = null;
-  for (let page = 0; page < MAX_PAGES; page++) {
+  for (let page = 0; page < maxPages; page++) {
     const result: Awaited<ReturnType<MemberPageRead>> = await read(actor, familyId, memberId, { ...query, limit: "100", ...(cursor ? { cursor } : {}) }, context);
     items.push(...result.items);
     cursor = result.nextCursor;
@@ -41,4 +44,14 @@ export async function readAll(
 export const str = (object: ApiObject, key: string): string => {
   const value = object[key];
   return typeof value === "string" ? value : "";
+};
+
+export const num = (object: ApiObject, key: string): number | null => {
+  const value = object[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+};
+
+export const list = (object: ApiObject, key: string): ApiObject[] => {
+  const value = object[key];
+  return Array.isArray(value) ? (value as ApiObject[]) : [];
 };
