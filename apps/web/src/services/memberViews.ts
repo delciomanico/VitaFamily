@@ -311,7 +311,7 @@ export async function apiListReportSubjects(familyId: string): Promise<ReportSub
   const { subjects } = await loadSubjects(familyId)
   return subjects
     .filter((s) => s.manage || s.categories.length > 0)
-    .map((s) => ({ member: toPublic(s.member), isSelf: s.isSelf }))
+    .map((s) => ({ member: toPublic(s.member), isSelf: s.isSelf, manage: s.manage }))
 }
 
 /** Visão familiar (UC-RPT-02). */

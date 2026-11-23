@@ -126,4 +126,6 @@ export interface MemberReport extends ReportPeriod {
 export interface ReportSubject {
   member: PublicMember
   isSelf: boolean
+  /** Próprio ou dependente seu: pode também adicionar registos. */
+  manage?: boolean
 }

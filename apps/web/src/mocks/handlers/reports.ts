@@ -86,7 +86,7 @@ const ofMember = (familyId: string, memberId: string) => (item: { familyId: stri
 const REPORTED_APPOINTMENTS: Appointment['status'][] = ['REQUESTED', 'SCHEDULED', 'COMPLETED', 'NO_SHOW']
 
 /** Membros ativos com alguma informação visível ao utilizador: o próprio, os dependentes e quem partilha. */
-function reportSubjects(familyId: string, userId: string) {
+export function reportSubjects(familyId: string, userId: string) {
   const self = requireSelf(familyId, userId)
   const managed = new Set(visibleMemberIds(familyId, userId))
   return db.members
@@ -102,7 +102,7 @@ function reportSubjects(familyId: string, userId: string) {
 /** Quem se pode escolher no relatório individual. */
 export function listReportSubjects(familyId: string, userId: string) {
   return respond((): ReportSubject[] =>
-    reportSubjects(familyId, userId).map(({ member, isSelf }) => ({ member: toPublic(member), isSelf })),
+    reportSubjects(familyId, userId).map(({ member, isSelf, manage }) => ({ member: toPublic(member), isSelf, manage })),
   )
 }
 
@@ -165,7 +165,7 @@ export const REPORT_DEFAULT_MONTHS = 12
 export const REPORT_MAX_YEARS = 5
 
 /** Período pedido, com o de defeito; fora dos limites → VALIDATION_ERROR. */
-function resolvePeriod(period: Partial<ReportPeriod>, now: Date): ReportPeriod {
+export function resolvePeriod(period: Partial<ReportPeriod>, now: Date): ReportPeriod {
   const to = period.to ?? todayISO(now)
   const from = period.from ?? monthsBefore(to, REPORT_DEFAULT_MONTHS)
   if (!isValidISODate(from) || !isValidISODate(to) || from > to || from < monthsBefore(to, REPORT_MAX_YEARS * 12)) {
