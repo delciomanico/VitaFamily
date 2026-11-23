@@ -144,7 +144,12 @@ Detalhes de sessão, tokens e política de palavras-passe: Fase 14.
 | FR-RPT-01 | O sistema deve fornecer via API o relatório individual de um membro: perfil, condições, alergias, receitas, medicamentos, tomas, consultas, exames e resultados. | D10 |
 | FR-RPT-02 | O sistema deve fornecer via API a visão familiar: membros, condições, alergias, medicamentos ativos, consultas futuras, exames, itens pendentes. | D10, prompt §19 |
 | FR-RPT-03 | Os relatórios só incluem dados existentes e que o utilizador tem permissão de ver (respeitando D13). | prompt §19 |
-| FR-RPT-04 | Sem exportação PDF nem partilha por link. | D10 |
+| FR-RPT-04 | Sem exportação PDF **no servidor** nem partilha por link. **Emenda 2026-11-21 (proposta, OP-134):** a vista «Resumo de saúde» pode ser impressa/guardada como PDF **no dispositivo**. | D10; change control 2026-11-21 |
+| FR-RPT-05 | O sistema deve fornecer via API o **Resumo de saúde** de um membro (estatísticas calculadas sem IA, período selecionável; secções sem permissão omitidas). | change control 2026-11-21 (M17) |
+| FR-RPT-06 | O sistema deve fornecer via API o **Resumo de saúde da família** (um bloco por membro visível, com atividade por membro). | change control 2026-11-21 (M17) |
+| FR-OCR-01 | A app deve permitir registar uma receita ou um exame a partir de uma foto/imagem/PDF, com leitura no dispositivo e campos pré-preenchidos para revisão obrigatória (nada sai do dispositivo). | change control 2026-11-21 (M16) |
+| FR-AI-01 | O utilizador (SELF, ou tutor pelo dependente) pode ligar um fornecedor de IA (Gemini por conta Google; Claude/GPT por chave própria guardada só no dispositivo) com consentimento explícito por fornecedor e membro, e desligá-lo. | ADR-039 (M18) |
+| FR-AI-02 | O assistente produz um resumo/insights dos dados e uma análise de sintomas leve, com aviso permanente, filtro de saída, recomendação de especialidade ligada ao mercado e mensagem fixa de urgência para sinais de alarme; nunca diagnóstico nem medicação. | ADR-039 (M18) |
 
 ## 13. Auditoria e administração
 
