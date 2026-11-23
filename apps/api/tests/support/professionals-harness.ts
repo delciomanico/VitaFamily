@@ -58,6 +58,8 @@ export interface ProfessionalsHarnessOptions {
   logStream?: LogSink;
   /** Tamanho máximo do pool de ligações (por omissão o do `pg`, 10): testes de concorrência usam um pool pequeno para expor consultas por outra ligação com a transação aberta. */
   poolMax?: number;
+  /** Valida também as RESPOSTAS contra o openapi.yaml (por omissão `true`); `false` só quando se quer ver o estado real de uma resposta que o contrato ainda não descreve. */
+  validateResponses?: boolean;
 }
 
 function logSinkToWritable(sink: LogSink): Writable {
@@ -176,7 +178,7 @@ export async function startProfessionalsHarness(overrides: Partial<Parameters<ty
   const app = createApp({
     openApiSpecPath: openApiSpecPath(REPO_ROOT),
     logger,
-    validateResponses: true,
+    validateResponses: options.validateResponses ?? true,
     maxUploadBytes: 10 * 1024 * 1024,
     securityHandlers: {
       bearerAuth: createBearerAuthSecurityHandler({ signingKeys: SIGNING_KEYS, clock }),

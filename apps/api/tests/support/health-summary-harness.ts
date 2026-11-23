@@ -51,7 +51,8 @@ export interface SummaryHarness {
   user(name: string, options?: { timezone?: string }): Promise<SummaryUser>;
   family(name?: string): Promise<string>;
   member(familyId: string, options?: SummaryMemberOptions): Promise<string>;
-  grant(familyId: string, owner: string, grantee: string, category: string): Promise<void>;
+  /** `grantee = null` => toda a família (DM3). */
+  grant(familyId: string, owner: string, grantee: string | null, category: string): Promise<void>;
   prescription(input: { familyId: string; memberId: string; issuedOn: string; status?: "ACTIVE" | "COMPLETED" | "CANCELLED"; issuedBy?: string }): Promise<string>;
   plan(input: { familyId: string; memberId: string; name?: string; prescriptionId?: string; times?: string[] | null; intervalHours?: number; startAt: Date; endAt?: Date; status?: "ACTIVE" | "ENDED" }): Promise<string>;
   /** Tomas do plano; `at` em ISO; um único INSERT (mesmo `created_at` para todas, como a geração diária real). */
@@ -72,7 +73,7 @@ export interface SummaryHarness {
   stop(): Promise<void>;
 }
 
-export async function startSummaryHarness(options: { logStream?: LogSink; poolMax?: number } = {}): Promise<SummaryHarness> {
+export async function startSummaryHarness(options: { logStream?: LogSink; poolMax?: number; validateResponses?: boolean } = {}): Promise<SummaryHarness> {
   const failLimiter = { value: false };
   let alertsModule: AlertsModule | undefined;
 
@@ -219,7 +220,7 @@ export async function startSummaryHarness(options: { logStream?: LogSink; poolMa
       });
       return [reports.router];
     },
-    { ...(options.logStream ? { logStream: options.logStream } : {}), ...(options.poolMax ? { poolMax: options.poolMax } : {}) },
+    { ...(options.logStream ? { logStream: options.logStream } : {}), ...(options.poolMax ? { poolMax: options.poolMax } : {}), ...(options.validateResponses === false ? { validateResponses: false } : {}) },
   );
   if (!alertsModule) throw new Error("alerts não ligado");
   const { pool, clock } = h;
