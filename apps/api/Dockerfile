@@ -15,6 +15,8 @@ FROM base AS build-deps
 RUN pnpm install --filter @vitafamily/api... --frozen-lockfile
 
 FROM build-deps AS build
+# push-sender.test.ts gera um certificado de teste com o binário `openssl` (não existe no Alpine). Só nesta fase: a imagem final não o leva.
+RUN apk add --no-cache openssl
 COPY apps/api apps/api
 # Os testes (http.test.ts) carregam o contrato para validar a app: precisa de existir no build context.
 COPY docs/05-api/openapi.yaml docs/05-api/openapi.yaml
