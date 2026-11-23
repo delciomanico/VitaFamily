@@ -23,7 +23,9 @@ COPY docs/05-api/openapi.yaml docs/05-api/openapi.yaml
 # Typecheck + testes antes do build: uma imagem só é criada se o código passar (mesmo critério do
 # apps/web/Dockerfile). `tests/integration/**` usa testcontainers (precisa do socket Docker do
 # anfitrião) — não corre aqui; corre em CI, fora da sandbox de build.
-RUN pnpm --filter @vitafamily/api exec eslint . \
+# src/generated (tipos do contrato) está no .gitignore: gerar a partir do openapi antes do lint/testes/build (como o CI).
+RUN pnpm --filter @vitafamily/api run gen \
+  && pnpm --filter @vitafamily/api exec eslint . \
   && pnpm --filter @vitafamily/api exec vitest run --exclude "tests/integration/**" \
   && pnpm --filter @vitafamily/api run build
 
