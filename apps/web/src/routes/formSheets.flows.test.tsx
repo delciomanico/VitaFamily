@@ -28,6 +28,12 @@ async function readySheet(name: string, marker: string | RegExp) {
   return dialog(name)
 }
 
+/** Receita/exame: a folha abre primeiro com «fotografar» (M16); «Preencher à mão» abre o formulário vazio. */
+async function openManual(name: string, marker: string | RegExp) {
+  fireEvent.click(await screen.findByRole('button', { name: 'Preencher à mão' }))
+  return readySheet(name, marker)
+}
+
 beforeEach(() => {
   cleanup()
   resetDb()
@@ -38,7 +44,7 @@ beforeEach(() => {
 describe('nova receita (família)', () => {
   it('a ligação direta abre a lista por baixo e a folha por cima; «Voltar» sem alterações fecha', async () => {
     const router = renderAt('/app/health/prescriptions/new')
-    const sheet = await readySheet('Adicionar receita', 'Continuar')
+    const sheet = await openManual('Adicionar receita', 'Continuar')
     expect(await screen.findByRole('heading', { name: 'Receitas', level: 1 })).toBeInTheDocument()
 
     fireEvent.click(within(sheet).getByRole('button', { name: 'Voltar' }))
@@ -48,7 +54,7 @@ describe('nova receita (família)', () => {
 
   it('com alterações, fechar pergunta «Descartar alterações?»; «Não» continua e «Sim» descarta', async () => {
     const router = renderAt('/app/health/prescriptions/new')
-    const sheet = await readySheet('Adicionar receita', 'Continuar')
+    const sheet = await openManual('Adicionar receita', 'Continuar')
     fireEvent.change(await within(sheet).findByLabelText('Data da receita'), { target: { value: '2025-01-02' } })
 
     fireEvent.click(within(sheet).getByRole('button', { name: 'Voltar' }))
@@ -66,7 +72,7 @@ describe('nova receita (família)', () => {
   it('guardar fecha a folha, mostra o aviso e a lista passa a ter a receita', async () => {
     const before = db.prescriptions.length
     const router = renderAt('/app/health/prescriptions/new')
-    const sheet = await readySheet('Adicionar receita', 'Continuar')
+    const sheet = await openManual('Adicionar receita', 'Continuar')
     fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
     fireEvent.input(await within(sheet).findByLabelText('Nome'), { target: { value: 'Amoxicilina' } })
     fireEvent.input(within(sheet).getByLabelText('Dosagem'), { target: { value: '500 mg' } })
@@ -85,7 +91,7 @@ describe('novo exame e marcar consulta (família)', () => {
   it('novo exame: a ligação direta abre por cima da lista e guardar atualiza a lista', async () => {
     const before = db.examinations.length
     const router = renderAt('/app/health/examinations/new')
-    const sheet = await readySheet('Adicionar exame', 'Continuar')
+    const sheet = await openManual('Adicionar exame', 'Continuar')
     expect(await screen.findByRole('heading', { name: 'Exames', level: 1 })).toBeInTheDocument()
     fireEvent.input(within(sheet).getByLabelText('Tipo de exame'), { target: { value: 'Análises' } })
     fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))

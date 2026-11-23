@@ -1,10 +1,12 @@
-import { useId, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Controller, useFieldArray, useForm, type FieldErrors, type UseFormRegister } from 'react-hook-form'
 import { useSearchParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { z } from 'zod'
 import { DocumentPicker } from '@/components/domain/Documents'
+import { MarkedField, ReviewBanner } from '@/components/ocr/OcrMark'
+import { OcrIntake, type IntakeOutcome } from '@/components/ocr/OcrIntake'
 import { SheetWait, WizardSheet } from '@/components/app/FormSheet'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -17,7 +19,9 @@ import { useAsync } from '@/hooks/useAsync'
 import { isValidISODate, todayISO } from '@/lib/date'
 import { errorMessage } from '@/lib/errors'
 import { parseNumber } from '@/lib/examination'
-import { extractClinicName, extractDateISO, extractExamResults } from '@/lib/ocrParse'
+import { examinationDefaults } from '@/lib/ocrPrefill'
+import type { ExamDraft } from '@/lib/ocrParse'
+import { planExaminationReview, resultKey, unresolvedKeys } from '@/lib/ocrReview'
 import { useModalRoute } from '@/lib/modalRoute'
 import { useWizardStep } from '@/hooks/useWizardStep'
 import { paths } from '@/routes/paths'
@@ -31,6 +35,8 @@ const optionalNumber = z.string().refine((v) => !v.trim() || parseNumber(v) !== 
 
 const resultSchema = z
   .object({
+    /** Identificador da linha lida da foto (vazio se escrita à mão): liga a marca «Confirmar» à linha certa. */
+    ocrId: z.string(),
     parameter: z.string().trim().min(1, 'Indique o parâmetro.'),
     value: z.string().trim().min(1, 'Indique o valor.'),
     unit: z.string(),
@@ -58,6 +64,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 const emptyResult = (): FormValues['results'][number] => ({
+  ocrId: '',
   parameter: '',
   value: '',
   unit: '',
@@ -82,12 +89,16 @@ interface ResultFieldsProps {
   register: UseFormRegister<FormValues>
   errors?: FieldErrors<FormValues['results'][number]>
   onRemove: () => void
+  /** Marca «Confirmar» da linha (só se veio da leitura de uma foto): a linha confirma-se de uma vez. */
+  mark?: { pending: boolean; confirm: () => void }
 }
 
 /** Um resultado: parâmetro, valor, unidade e referência (opcional, do boletim). */
-function ResultFields({ index, register, errors, onRemove }: ResultFieldsProps) {
+function ResultFields({ index, register, errors, onRemove, mark }: ResultFieldsProps) {
   return (
     <Card className="flex flex-col gap-4">
+      <MarkedField pending={mark?.pending ?? false} onConfirm={() => mark?.confirm()}>
+      <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-semibold">Resultado {index + 1}</h3>
         <Button variant="ghost" size="sm" onClick={onRemove} icon={<Trash2 className="size-4" aria-hidden />}>
@@ -123,6 +134,8 @@ function ResultFields({ index, register, errors, onRemove }: ResultFieldsProps) 
           {...register(`results.${index}.referenceMax`)}
         />
       </div>
+      </div>
+      </MarkedField>
     </Card>
   )
 }
@@ -155,9 +168,20 @@ interface NewExaminationFormProps {
   clinics: string[]
   selfMemberId: string
   prefill?: OrderPrefill
+  intake: IntakeOutcome<ExamDraft>
 }
 
-function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExaminationFormProps) {
+type Values = FormValues
+
+/** Valor atual de um campo marcado, no mesmo formato em que foi lido (para saber se o utilizador o editou). */
+function currentValue(key: string, values: Values): string | undefined {
+  if (key === 'name' || key === 'examDate') return values[key]
+  if (key === 'labName') return values.clinicName
+  const r = values.results.find((item) => resultKey(item.ocrId) === key)
+  return r ? JSON.stringify([r.parameter, r.value, r.unit, r.referenceMin, r.referenceMax]) : undefined
+}
+
+function NewExaminationForm({ members, clinics, selfMemberId, prefill, intake }: NewExaminationFormProps) {
   const { user, family } = useAuth()
   const toast = useToast()
   const [params] = useSearchParams()
@@ -165,62 +189,40 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExam
   const clinicListId = useId()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const { draft, original, notice, confirmed, confirm } = intake
+  // Valores iniciais: o que a leitura encontrou (BR-OCR-06) e, se existir, o original já anexado (BR-OCR-09).
+  const [defaults] = useState<FormValues>(() => {
+    const read = examinationDefaults(draft)
+    return {
+      memberId: prefill?.memberId && members.some((m) => m.id === prefill.memberId) ? prefill.memberId : selfMemberId,
+      name: prefill?.name ?? read.name,
+      examDate: read.examDate,
+      clinicName: prefill?.clinicName ?? read.clinicName,
+      results: read.results,
+      documents: original ? [original] : [],
+      notes: '',
+    }
+  })
+  // Campos a confirmar: os de confiança < 0,70, com o valor lido para detetar se foram editados (BR-OCR-07/08).
+  const marked = useMemo(() => (draft ? planExaminationReview(draft, (key) => currentValue(key, defaults) ?? '').marked : {}), [draft, defaults])
   const {
     register,
     control,
     handleSubmit,
     watch,
-    setValue,
-    getValues,
     trigger,
-    formState: { errors, isSubmitting, isDirty, dirtyFields },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      memberId: prefill?.memberId && members.some((m) => m.id === prefill.memberId) ? prefill.memberId : selfMemberId,
-      name: prefill?.name ?? '',
-      examDate: todayISO(),
-      clinicName: prefill?.clinicName ?? '',
-      results: [],
-      documents: [],
-      notes: '',
-    },
-  })
+    formState: { errors, isSubmitting, isDirty },
+  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: defaults })
   const { fields, append, remove } = useFieldArray({ control, name: 'results' })
+  const values = watch()
+  // Exame agendado (data futura) não leva resultados: as marcas das linhas deixam de contar.
+  const unresolved = new Set(unresolvedKeys(marked, confirmed, (key) => (values.examDate > todayISO() && key.startsWith('res:') ? undefined : currentValue(key, values))))
+  const isPending = (key: string) => unresolved.has(key)
   // Exame futuro fica agendado e ainda não tem resultados (ST5): sem o passo dos resultados.
   const scheduled = watch('examDate') > todayISO()
   const steps = scheduled ? (['Que exame?', 'Foto e notas'] as const) : (['Que exame?', 'Resultados', 'Foto e notas'] as const)
   const { step, next, back, last } = useWizardStep(steps.length, close)
   const stepName = steps[step] ?? ''
-
-  /** Pré-preenche a partir da leitura da foto (melhor esforço); nunca substitui o que já foi escrito. */
-  function handleOcrExtract(text: string) {
-    const values = getValues()
-    let filled = 0
-
-    const date = extractDateISO(text)
-    if (date && !dirtyFields.examDate) {
-      setValue('examDate', date, { shouldDirty: true })
-      filled++
-    }
-    const clinic = extractClinicName(text)
-    if (clinic && !values.clinicName) {
-      setValue('clinicName', clinic, { shouldDirty: true })
-      filled++
-    }
-    if (values.results.length === 0) {
-      const results = extractExamResults(text)
-      results.forEach((result) => append({ ...emptyResult(), ...result }))
-      filled += results.length
-    }
-
-    toast.show(
-      filled > 0
-        ? 'Alguns campos foram preenchidos a partir da foto — reveja antes de guardar.'
-        : 'Não reconheci dados nesta foto. Preencha os campos manualmente.',
-      filled > 0 ? 'success' : 'error',
-    )
-  }
 
   async function onSubmit({ results, ...values }: FormValues) {
     setSubmitError(null)
@@ -253,7 +255,7 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExam
     <WizardSheet
       title="Adicionar exame"
       stepTitle={stepName}
-      description={stepName === 'Resultados' ? 'Copie os valores e as referências do boletim. A Vita Family guarda-os sem os interpretar.' : stepName === 'Foto e notas' ? 'Opcional. Tirar uma foto ajuda a preencher.' : undefined}
+      description={stepName === 'Resultados' ? 'Confira os valores e as referências com o boletim. A Vita Family guarda-os sem os interpretar.' : stepName === 'Foto e notas' ? 'A foto original fica guardada com o exame.' : undefined}
       step={step}
       total={steps.length}
       onBack={() => {
@@ -263,10 +265,13 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExam
       onNext={onNext}
       nextLabel={last ? 'Guardar exame' : 'Continuar'}
       busy={isSubmitting}
+      nextDisabled={last && unresolved.size > 0}
       error={submitError}
       dirty={isDirty && !done}
       onClose={close}
     >
+      {draft && <ReviewBanner pending={unresolved.size} notice={notice} />}
+      {!draft && notice && <p className="rounded-xl bg-primary-soft px-3.5 py-3 text-base text-primary">{notice}</p>}
       {stepName === 'Que exame?' && (
         <>
           {prefill && (
@@ -275,9 +280,15 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExam
             </p>
           )}
           {members.length > 1 && <Select label="Para quem" options={memberOptions} error={errors.memberId?.message} {...register('memberId')} />}
-          <Input label="Tipo de exame" placeholder="Ex.: Análises clínicas" error={errors.name?.message} {...register('name')} />
-          <Input label="Data" type="date" error={errors.examDate?.message} hint={scheduled ? 'Data futura: o exame fica agendado.' : undefined} {...register('examDate')} />
-          <Input label="Clínica/Laboratório (opcional)" placeholder="Ex.: Laboratório Vida Plena" list={clinicListId} {...register('clinicName')} />
+          <MarkedField pending={isPending('name')} onConfirm={() => confirm('name')}>
+            <Input label="Tipo de exame" placeholder="Ex.: Análises clínicas" error={errors.name?.message} {...register('name')} />
+          </MarkedField>
+          <MarkedField pending={isPending('examDate')} onConfirm={() => confirm('examDate')}>
+            <Input label="Data" type="date" error={errors.examDate?.message} hint={scheduled ? 'Data futura: o exame fica agendado.' : undefined} {...register('examDate')} />
+          </MarkedField>
+          <MarkedField pending={isPending('labName')} onConfirm={() => confirm('labName')}>
+            <Input label="Clínica/Laboratório (opcional)" placeholder="Ex.: Laboratório Vida Plena" list={clinicListId} {...register('clinicName')} />
+          </MarkedField>
           <datalist id={clinicListId}>
             {clinics.map((name) => (
               <option key={name} value={name} />
@@ -291,7 +302,18 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExam
       {stepName === 'Resultados' && (
         <>
           {fields.map((field, index) => (
-            <ResultFields key={field.id} index={index} register={register} errors={errors.results?.[index]} onRemove={() => remove(index)} />
+            <ResultFields
+              key={field.id}
+              index={index}
+              register={register}
+              errors={errors.results?.[index]}
+              onRemove={() => remove(index)}
+              mark={
+                values.results[index]?.ocrId
+                  ? { pending: isPending(resultKey(values.results[index]!.ocrId)), confirm: () => confirm(resultKey(values.results[index]!.ocrId)) }
+                  : undefined
+              }
+            />
           ))}
           <Button variant="soft" size="lg" onClick={() => append(emptyResult())} icon={<Plus className="size-4" aria-hidden />}>
             Adicionar resultado
@@ -303,7 +325,7 @@ function NewExaminationForm({ members, clinics, selfMemberId, prefill }: NewExam
           <Controller
             control={control}
             name="documents"
-            render={({ field }) => <DocumentPicker label="Documento (opcional)" value={field.value} onChange={field.onChange} ocr={{ onExtract: handleOcrExtract }} />}
+            render={({ field }) => <DocumentPicker label="Documento (opcional)" value={field.value} onChange={field.onChange} />}
           />
           <Textarea label="Observações (opcional)" {...register('notes')} />
         </>
@@ -336,5 +358,15 @@ export function NewExaminationPage() {
       : undefined
 
   if (state.status !== 'success') return <SheetWait title="Adicionar exame" onClose={close} onRetry={reload} failed={state.status === 'error'} />
-  return <NewExaminationForm members={state.data[0]} clinics={state.data[1].map((c) => c.name)} selfMemberId={member?.id ?? ''} prefill={prefill(state.data[1])} />
+  const form = (intake: IntakeOutcome<ExamDraft>) => (
+    <NewExaminationForm members={state.data[0]} clinics={state.data[1].map((c) => c.name)} selfMemberId={member?.id ?? ''} prefill={prefill(state.data[1])} intake={intake} />
+  )
+  // Pedido de uma clínica a marcar: sem leitura de foto, vai direto ao formulário (a marcar, não a registar um resultado).
+  if (examOrderId) return form({ draft: null, original: null, notice: null, confirmed: new Set(), confirm: () => {} })
+  // «Fotografar primeiro» (M16): a escolha da foto vem antes do formulário; «Preencher à mão» abre-o vazio.
+  return (
+    <OcrIntake kind="EXAMINATION" onClose={close}>
+      {form}
+    </OcrIntake>
+  )
 }

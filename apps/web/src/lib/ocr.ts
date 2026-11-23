@@ -52,14 +52,3 @@ export async function createEngine(onPrepared?: (fraction: number) => void): Pro
     },
   }
 }
-
-/** Texto reconhecido (versão antiga, usada pelo botão «Preencher a partir da foto» até ser substituído). */
-export async function recognizeText(file: File): Promise<string> {
-  const engine = await createEngine()
-  try {
-    const lines = await engine.recognize(file)
-    return lines.map((line) => line.words.map((w) => w.text).join(' ')).join('\n')
-  } finally {
-    await engine.terminate()
-  }
-}

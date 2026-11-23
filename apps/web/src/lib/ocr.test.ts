@@ -39,3 +39,15 @@ describe('motor de leitura: só a própria origem (BR-OCR-02, TC-OCR-02)', () =>
     ])
   })
 })
+
+describe('sem CDN no código de leitura (BR-OCR-02)', () => {
+  it('nenhum ficheiro de leitura nem componente do M16 referencia um endereço externo', () => {
+    const files = import.meta.glob(['./ocr*.ts', '../components/ocr/*.tsx', '../../vite.ocr-assets.ts'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+    expect(Object.keys(files).length).toBeGreaterThan(6)
+    for (const [name, source] of Object.entries(files)) {
+      if (name.endsWith('.test.ts')) continue
+      const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+      expect(code, name).not.toMatch(/https?:\/\/|jsdelivr|unpkg|cdnjs/i)
+    }
+  })
+})

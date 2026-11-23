@@ -98,7 +98,7 @@ function buildDoc(input: OcrLine[]): Doc {
   }
 }
 
-const clean = (value: string) => value.replace(/\s{2,}/g, ' ').replace(/^[\s:;,.\-–—]+|[\s:;,\-–—]+$/g, '').trim()
+const clean = (value: string) => value.replace(/\s{2,}/g, ' ').replace(/^[\s:;,.\-–—|_~*!?]+|[\s:;,\-–—|_~*!?]+$/g, '').trim()
 
 /** Campo cujo valor é `value`, originado pelo intervalo [start, end) do texto corrido. */
 const at = (doc: Doc, value: string, start: number, end: number): Field => ({ value, confidence: doc.confidence(start, end) })
@@ -144,11 +144,6 @@ function datesIn(text: string, offset: number): DateHit[] {
   return hits.sort((a, b) => a.start - b.start)
 }
 
-/** Primeira data reconhecida no texto (dd/mm/aaaa, 12 de março de 2026, …), em ISO; null se nada plausível. */
-export function extractDateISO(text: string): string | null {
-  return datesIn(text, 0)[0]?.iso ?? null
-}
-
 const NOT_ISSUE_DATE = /nascimento|nasc\b|v[áa]lid|validade|impress/i
 const ISSUE_DATE_HINT = /data|emitid|emiss[ãa]o|colheita|realiza|exame|resultado|receita|luanda|lisboa|benguela|huambo|lubango|cabinda|malanje/i
 
@@ -179,15 +174,6 @@ function doctorFrom(line: string): { value: string; index: number; length: numbe
   return { value: title ? `${title.replace(/\.?$/, '.')} ${name}` : name, index: m.index, length: m[0].length }
 }
 
-/** Nome do médico (com o tratamento, como está no documento); null se não encontrar. */
-export function extractDoctorName(text: string): string | null {
-  for (const line of text.split(/\r?\n/)) {
-    const found = doctorFrom(line)
-    if (found) return found.value
-  }
-  return null
-}
-
 function findDoctor(doc: Doc): Field | undefined {
   for (const line of doc.lines) {
     const found = doctorFrom(line.text)
@@ -207,12 +193,6 @@ function findPlace(doc: Doc): Field | undefined {
     if (value.length >= 4 && value.length <= 80) return at(doc, value, line.start + from, line.start + line.text.length)
   }
   return undefined
-}
-
-/** Linha que parece nomear uma clínica, centro de saúde, hospital ou laboratório. */
-export function extractClinicName(text: string): string | null {
-  const line = text.split(/\r?\n/).find((l) => PLACE_WORDS.test(l))
-  return line ? clean(line) || null : null
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -466,16 +446,4 @@ export function parseExamination(lines: OcrLine[]): ExamDraft {
   if (examDate) draft.examDate = examDate
   if (labName) draft.labName = labName
   return draft
-}
-
-// Compatibilidade temporária com o botão antigo «Preencher a partir da foto» (sai no fluxo «fotografar primeiro»).
-const plain = (text: string): OcrLine[] => text.split(/\r?\n/).map((l) => ({ words: l.split(/\s+/).filter(Boolean).map((t) => ({ text: t, confidence: 1 })) }))
-
-export function extractMedication(text: string): { name: string; dosage: string } | null {
-  const med = parsePrescription(plain(text)).medications[0]
-  return med?.dosage ? { name: med.name.value, dosage: med.dosage.value } : null
-}
-
-export function extractExamResults(text: string, max = 5): { parameter: string; value: string; unit: string }[] {
-  return parseExamination(plain(text)).results.slice(0, max).map((r) => ({ parameter: r.parameter.value, value: r.value.value.replace(',', '.'), unit: r.unit?.value ?? '' }))
 }
