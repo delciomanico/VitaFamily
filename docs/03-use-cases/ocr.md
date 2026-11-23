@@ -11,7 +11,7 @@
 
 ### UC-OCR-02 Registar um exame fotografando o resultado
 - **Ator:** titular ou tutor · **FR:** OCR-01, EXM-01..03 · **BR:** BR-OCR-01..12, BR-EXM-01/02, BR-DOC-01..05
-- **Fluxo:** como UC-OCR-01, a partir de «Novo exame»: o formulário abre com **tipo/nome**, **data**, **laboratório** e a lista de **parâmetros** (nome, valor, unidade, referência mín–máx ou texto) pré-preenchidos; baixa confiança assinalada; revisão obrigatória; guardar cria o exame (`COMPLETED` se a data é passada, UC-EXM-01) e os `ExamResult` (UC-EXM-02) e **anexa o original** (UC-EXM-03).
+- **Fluxo:** como UC-OCR-01, a partir de «Novo exame»: o formulário abre com **tipo/nome**, **data**, **laboratório** e a lista de **parâmetros** (nome, valor, unidade, referência mín–máx ou texto) pré-preenchidos; baixa confiança assinalada; revisão obrigatória; guardar cria o exame (realizado se a data é passada, agendado se futura, UC-EXM-01) e os `ExamResult` (UC-EXM-02) e **anexa o original** (UC-EXM-03).
 - **Regras:** o OCR **não interpreta**: nenhum valor é assinalado fora da referência nem gera alerta (BR-EXM-02); a referência é a que o documento indica, copiada tal como está e revista pelo utilizador.
 - **Alternativos:** como UC-OCR-01. Linha de tabela mal lida ⇒ o utilizador apaga/edita a linha antes de guardar.
 
