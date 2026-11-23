@@ -8,7 +8,7 @@ import { sql, type Kysely } from "kysely";
 import type { Database } from "../../../platform/db/index.js";
 import { ValidationError } from "../../../platform/errors/index.js";
 import type { Alert, AlertSourceType, AlertType, RuleKey } from "../domain/alert.js";
-import type { AlertListFilter, AlertsRepository, CursorPage, NewAlertRecord } from "../application/ports.js";
+import type { AlertListFilter, AlertsRepository, CursorPage, MemberAlertsSummary, NewAlertRecord } from "../application/ports.js";
 import "./schema.js";
 
 interface AlertRow {
@@ -131,6 +131,21 @@ export class KyselyAlertsRepository implements AlertsRepository<Kysely<Database>
     const last = page.at(-1);
     const nextCursor = hasMore && last ? encodeAlertCursor({ rank: last.read_at === null ? 0 : 1, triggerAt: last.trigger_at.toISOString(), id: last.id }) : null;
     return { items: page.map(toAlert), nextCursor };
+  }
+
+  async summarizeForMember(trx: Kysely<Database>, recipientUserId: string, familyId: string, memberId: string, from: Date, to: Date): Promise<MemberAlertsSummary> {
+    const rows = await trx
+      .selectFrom("alerts")
+      .select(["type", "read_at"])
+      .where("recipient_user_id", "=", recipientUserId)
+      .where("family_id", "=", familyId)
+      .where("member_id", "=", memberId)
+      .where("trigger_at", ">=", from)
+      .where("trigger_at", "<", to)
+      .execute();
+    const byType: Record<string, number> = {};
+    for (const row of rows) byType[row.type] = (byType[row.type] ?? 0) + 1;
+    return { total: rows.length, unread: rows.filter((row) => row.read_at === null).length, byType };
   }
 
   async markRead(trx: Kysely<Database>, id: string, readAt: Date): Promise<Alert> {

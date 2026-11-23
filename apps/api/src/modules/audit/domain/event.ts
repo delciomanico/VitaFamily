@@ -39,6 +39,8 @@ export type AuditAction =
   // `health-records` (M4 — FR-HP, audit.md §3 "Dados de saúde"; `HEALTH_VIEW` cobre leitura por
   // quem não é o titular — tutor ou partilha, audit.md regra "não se audita a leitura do titular"):
   | "HEALTH_VIEW"
+  // `reports` (M17, audit.md §3 "Relatórios"): `metadata.kind=HEALTH_SUMMARY`, só ao ver outro titular.
+  | "REPORT_VIEW"
   | "ALLERGY_CREATE"
   | "ALLERGY_UPDATE"
   | "ALLERGY_DELETE"

@@ -69,6 +69,12 @@ export interface CursorPage<T> {
   nextCursor: string | null;
 }
 
+export interface MemberAlertsSummary {
+  total: number;
+  unread: number;
+  byType: Record<string, number>;
+}
+
 export interface AlertListFilter {
   unread?: boolean;
 }
@@ -81,6 +87,8 @@ export interface AlertsRepository<Trx> {
   findById(trx: Trx, recipientUserId: string, id: string): Promise<Alert | null>;
   /** UC-ALR-03: "não lidos primeiro" (`(read_at IS NULL) DESC, trigger_at DESC`, indexes.md). */
   listByRecipient(trx: Trx, recipientUserId: string, filter: AlertListFilter, limit: number, cursor?: string): Promise<CursorPage<Alert>>;
+  /** M17 (BR-RPT-15): só contagens dos alertas do destinatário para um membro em `[from, to)` — nunca texto. */
+  summarizeForMember(trx: Trx, recipientUserId: string, familyId: string, memberId: string, from: Date, to: Date): Promise<MemberAlertsSummary>;
   markRead(trx: Trx, id: string, readAt: Date): Promise<Alert>;
   /** UC-ALR-04 "marcar todos": devolve os `id` efetivamente marcados agora (para
    * `notifications.skipPendingForAlert` por cada um). */

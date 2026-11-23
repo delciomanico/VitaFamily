@@ -22,6 +22,7 @@ import type { FamiliesModule } from "../families/index.js";
 import type { MedicationsWorkerModule } from "../medications/index.js";
 import type { NotificationsModule, NotificationsWorkerModule } from "../notifications/index.js";
 import { createListAlertsUseCase } from "./application/list-alerts.js";
+import { createMemberAlertsSummaryUseCase } from "./application/member-alerts-summary.js";
 import { createMarkAlertReadUseCase } from "./application/mark-alert-read.js";
 import { createMarkAllAlertsReadUseCase } from "./application/mark-all-alerts-read.js";
 import type { AlertsApiDeps, AlertsWorkerDeps } from "./application/ports.js";
@@ -46,6 +47,8 @@ export interface AlertsModuleDeps {
 
 export interface AlertsModule {
   router: Router;
+  /** M17 (BR-RPT-15): contagens dos alertas do próprio utilizador para um membro, no período (ligado a `reports`). */
+  reads: { memberAlertsSummary: (recipientUserId: string, familyId: string, memberId: string, period: { from: string; to: string }) => Promise<{ total: number; unread: number; byType: Record<string, number> }> };
   /** D19/ADR-023: alerta de evento de exame na transação do chamador (ligado no composition root a `examinations`). */
   raiseExamEvent: (trx: Kysely<Database>, input: RaiseExamEventInput) => Promise<number>;
   /** D19/ADR-023 (BR-CLN-09): alerta `recommendation.added` na transação do chamador (ligado no composition root a `recommendations`). */
@@ -94,6 +97,7 @@ export function createAlertsModule(deps: AlertsModuleDeps): AlertsModule {
 
   return {
     router: createAlertsRouter(controller),
+    reads: { memberAlertsSummary: createMemberAlertsSummaryUseCase(alertsDeps) },
     raiseExamEvent: createRaiseExamEventUseCase(alertsDeps),
     raiseRecommendationEvent: createRaiseRecommendationEventUseCase(alertsDeps),
     raiseExamOrderEvent: createRaiseExamOrderEventUseCase(alertsDeps),

@@ -16,6 +16,7 @@ import type {
   ExaminationsPort,
   FamiliesPort,
   MedicationsPort,
+  MemberAlertsSummary,
   NewAlertRecord,
   NotificationsPort,
 } from "./ports.js";
@@ -65,6 +66,13 @@ export class FakeAlertsRepository implements AlertsRepository<FakeTrx> {
       return b.triggerAt.getTime() - a.triggerAt.getTime();
     });
     return Promise.resolve({ items: items.slice(0, limit), nextCursor: null });
+  }
+
+  summarizeForMember(_trx: FakeTrx, recipientUserId: string, familyId: string, memberId: string, from: Date, to: Date): Promise<MemberAlertsSummary> {
+    const items = [...this.byId.values()].filter((a) => a.recipientUserId === recipientUserId && a.familyId === familyId && a.memberId === memberId && a.triggerAt >= from && a.triggerAt < to);
+    const byType: Record<string, number> = {};
+    for (const a of items) byType[a.type] = (byType[a.type] ?? 0) + 1;
+    return Promise.resolve({ total: items.length, unread: items.filter((a) => !a.readAt).length, byType });
   }
 
   async markRead(_trx: FakeTrx, id: string, readAt: Date): Promise<Alert> {
