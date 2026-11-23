@@ -125,8 +125,9 @@ export function createFamilyHealthSummaryUseCase(deps: HealthSummaryDeps) {
     const ownZone = own ? await summary.timezone(familyId, str(own, "id")) : CLINIC_TIMEZONE;
     const period = resolvePeriod(query.from, query.to, localDateIso(now, ownZone));
 
+    // Um perfil bloqueado (BR-MEM-11, `MEMBER_BLOCKED`) é negado a todos: não entra na vista (e não a pode derrubar para os restantes membros).
     const blocks = await Promise.all(
-      members.map(async (member) => {
+      members.filter((member) => member.status !== "BLOCKED").map(async (member) => {
         const memberId = str(member, "id");
         const time = clockFor(now, await summary.timezone(familyId, memberId));
         const facts = await readMemberFacts(sources, actor, familyId, memberId, period, time, context);
