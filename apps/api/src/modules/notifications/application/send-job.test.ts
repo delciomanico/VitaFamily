@@ -40,6 +40,30 @@ describe("notifications.send", () => {
     expect(fx.mailer.sent[0]?.body).not.toMatch(/toma|consulta|exame|medica/i);
   });
 
+  it("N8/BR-ALR-08: o payload push é só título/corpo genéricos, sem o nome nem o e-mail do destinatário", async () => {
+    fx.users.seed({ id: "user-1", status: "ACTIVE", email: "maria.silva@example.com", name: "Maria Silva" });
+    await enqueueBothChannels(fx, "alert-1", "user-1");
+    fx.pushSubscriptionsRepo.seed({ id: "sub-1", userId: "user-1", endpoint: "https://push/1", p256dh: "k", auth: "a", createdAt: NOW });
+    await createSendJobUseCase(fx.deps)();
+    const payload = JSON.parse(fx.pushSender.sent[0]?.payload ?? "{}") as Record<string, string>;
+    expect(Object.keys(payload).sort()).toEqual(["body", "title"]);
+    expect(fx.pushSender.sent[0]?.payload).not.toMatch(/maria|silva|example\.com|\d{1,2}:\d{2}|toma|consulta|exame|medica/i);
+  });
+
+  it("BR-ALR-05: push que falha não impede o e-mail; um dispositivo inválido não impede o outro", async () => {
+    await enqueueBothChannels(fx, "alert-1", "user-1");
+    fx.pushSubscriptionsRepo.seed({ id: "sub-1", userId: "user-1", endpoint: "https://push/expired", p256dh: "k", auth: "a", createdAt: NOW });
+    fx.pushSubscriptionsRepo.seed({ id: "sub-2", userId: "user-1", endpoint: "https://push/ok", p256dh: "k", auth: "a", createdAt: NOW });
+    fx.pushSender.send = (subscription) => {
+      fx.pushSender.sent.push({ endpoint: subscription.endpoint, payload: "" });
+      return Promise.resolve(subscription.endpoint.endsWith("expired") ? { delivered: false, invalidSubscription: true, errorCode: "HTTP_410" } : { delivered: true });
+    };
+    const result = await createSendJobUseCase(fx.deps)();
+    expect(result.sent).toBe(2);
+    expect(fx.mailer.sent).toHaveLength(1);
+    expect([...fx.pushSubscriptionsRepo.byId.keys()]).toEqual(["sub-2"]);
+  });
+
   it("SKIPPED: conta suspensa", async () => {
     fx.users.seed({ id: "user-1", status: "SUSPENDED", email: "a@b.com", name: "A" });
     await enqueueBothChannels(fx, "alert-1", "user-1");
