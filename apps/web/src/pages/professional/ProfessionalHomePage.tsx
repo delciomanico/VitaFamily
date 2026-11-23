@@ -145,7 +145,7 @@ export function ProfessionalHomePage() {
       <FormError message={formError} />
 
       {step ? (
-        <section aria-labelledby="proximo-passo" className="flex flex-col gap-4 rounded-3xl bg-surface p-5 shadow-hero">
+        <section aria-labelledby="proximo-passo" className="flex flex-col gap-4 rounded-3xl bg-primary-soft p-5">
           <div className="flex items-center gap-3">
             <span className={cn('flex size-12 shrink-0 items-center justify-center rounded-2xl', toneTile.chat)}>
               <step.icon className="size-7" aria-hidden />
@@ -170,7 +170,7 @@ export function ProfessionalHomePage() {
         </section>
       ) : (
         approved && (
-          <section className="flex items-center gap-4 rounded-3xl bg-surface p-5 shadow-hero">
+          <section className="flex items-center gap-4 rounded-3xl bg-primary-soft p-5">
             <span className={cn('flex size-12 shrink-0 items-center justify-center rounded-2xl', toneTile.family)}>
               <CircleCheck className="size-7" aria-hidden />
             </span>
