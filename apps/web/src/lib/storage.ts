@@ -43,9 +43,17 @@ export const clinicSessionStore = {
   setAccountId: (clinicAccountId: string | null) => write(session, CLINIC_SESSION_KEY, clinicAccountId),
 }
 
+const LAST_LOGIN_KIND_KEY = 'vf.login.lastKind'
+
 export const preferences = {
   hasSeenOnboarding: () => read(local, ONBOARDING_KEY) === '1',
   markOnboardingSeen: () => write(local, ONBOARDING_KEY, '1'),
+  /** Último tipo de conta usado a entrar (só um atalho do separador inicial; nunca é sessão). */
+  lastLoginKind: (): 'familia' | 'profissional' | null => {
+    const value = read(local, LAST_LOGIN_KIND_KEY)
+    return value === 'familia' || value === 'profissional' ? value : null
+  },
+  setLastLoginKind: (kind: 'familia' | 'profissional') => write(local, LAST_LOGIN_KIND_KEY, kind),
 }
 
 /**

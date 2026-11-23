@@ -30,6 +30,7 @@ beforeEach(() => {
   resetDb()
   resetProfessionalDb()
   window.sessionStorage.clear()
+  window.localStorage.clear()
 })
 afterEach(cleanup)
 
@@ -64,6 +65,47 @@ describe('ecrã único de entrada', () => {
     submit()
     expect(await screen.findByRole('heading', { name: /^(Bom dia|Boa tarde|Boa noite), Dra\. Helena$/ })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/profissional')
+  })
+
+  it('especialista já com sessão: /entrar (sem tipo) leva ao portal, não ao login da família', async () => {
+    const router = renderAt('/entrar?tipo=profissional')
+    await professionalTab()
+    type('E-mail', DEMO_PROFESSIONAL_EMAIL)
+    type('Palavra-passe', DEMO_PASSWORD)
+    submit()
+    await screen.findByRole('heading', { name: /Dra\. Helena$/ })
+    await router.navigate('/entrar')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/profissional'))
+  })
+
+  it('com ?tipo= explícito mantém o separador pedido, mesmo havendo sessão do outro tipo', async () => {
+    const router = renderAt('/entrar?tipo=profissional')
+    await professionalTab()
+    type('E-mail', DEMO_PROFESSIONAL_EMAIL)
+    type('Palavra-passe', DEMO_PASSWORD)
+    submit()
+    await screen.findByRole('heading', { name: /Dra\. Helena$/ })
+    await router.navigate('/entrar?tipo=familia')
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect((await familyTab()).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('família já com sessão: /entrar (sem tipo) leva à Home da família, mesmo com o separador do especialista lembrado', async () => {
+    const router = renderAt('/entrar')
+    await familyTab()
+    type('E-mail', DEMO_EMAIL)
+    type('Palavra-passe', DEMO_PASSWORD)
+    submit()
+    await screen.findByRole('heading', { name: /Olá, Monarca/ })
+    window.localStorage.setItem('vf.login.lastKind', 'profissional')
+    await router.navigate('/entrar')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app'))
+  })
+
+  it('o separador inicial é o do último tipo de conta usado', async () => {
+    window.localStorage.setItem('vf.login.lastKind', 'profissional')
+    renderAt('/entrar')
+    expect(await professionalTab()).toHaveAttribute('aria-selected', 'true')
   })
 
   it('?tipo desconhecido cai na Família e o separador reflete-se no URL', async () => {

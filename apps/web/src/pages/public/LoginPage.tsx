@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useProfessionalAuth } from '@/contexts/ProfessionalAuthContext'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { cn } from '@/lib/cn'
+import { preferences } from '@/lib/storage'
 import { errorMessage, isAppError } from '@/lib/errors'
 import { useSignedInTarget } from '@/routes/guards'
 import { paths } from '@/routes/paths'
@@ -54,9 +55,10 @@ const TABS: TabDefinition[] = [
 
 const FAMILY_TAB = TABS[0] as TabDefinition
 
-/** `?tipo=` → separador (omissão: família). */
+/** `?tipo=` → separador; sem `?tipo=`, o último tipo usado neste aparelho (omissão: família). */
 function kindFrom(value: string | null): LoginKind {
-  return value === 'profissional' ? 'profissional' : 'familia'
+  if (value === 'profissional' || value === 'familia') return value
+  return preferences.lastLoginKind() ?? 'familia'
 }
 
 /** Destino pedido por ligação (`next`/`returnTo`): só caminhos internos, nunca outro sítio nem o próprio login. */
@@ -84,17 +86,23 @@ export function LoginPage() {
   const familyTarget = useSignedInTarget(requested)
   const tabRefs = useRef<Record<LoginKind, HTMLButtonElement | null>>({ familia: null, profissional: null })
 
-  if (familyStatus === 'loading' || (kind === 'profissional' && professionalStatus === 'loading')) return <FullScreenLoader />
-  if (kind === 'familia' && user) return <Navigate to={familyTarget} replace />
-  if (kind === 'profissional' && session) {
-    return <Navigate to={from?.startsWith(paths.professional) ? from : paths.professional} replace />
-  }
+  // Já com sessão: vai para a Home certa, seja qual for o separador aberto. Só se houver as duas sessões é que
+  // o separador escolhe (são independentes, ADR-037).
+  if (familyStatus === 'loading' || professionalStatus === 'loading') return <FullScreenLoader />
+  // Só salta para o outro tipo de conta quando se abre o ecrã «cru»: com `?tipo=` ou vindo de uma página protegida
+  // (state.from/next) quem manda é o separador pedido, para não impedir de entrar numa conta enquanto a outra está aberta.
+  const crossOk = !from && !params.has('tipo')
+  const toFamily = user && (kind === 'familia' || (!session && crossOk))
+  const toProfessional = session && (kind === 'profissional' || (!user && crossOk))
+  if (toFamily) return <Navigate to={familyTarget} replace />
+  if (toProfessional) return <Navigate to={from?.startsWith(paths.professional) ? from : paths.professional} replace />
 
   function select(next: LoginKind, focus = false) {
     if (focus) tabRefs.current[next]?.focus()
     if (next === kind) return
     const search = new URLSearchParams(params)
     search.set('tipo', next)
+    preferences.setLastLoginKind(next)
     setParams(search, { replace: true, state: location.state })
   }
 
@@ -215,6 +223,7 @@ function LoginForm({ tab, login, onError }: LoginFormProps) {
     setFormError(null)
     try {
       await login(email, password)
+      preferences.setLastLoginKind(tab.kind)
     } catch (error) {
       setFormError(onError(error))
     }

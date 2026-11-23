@@ -24,7 +24,8 @@ export function SplashPage() {
 
   if (delayDone && status === 'ready') {
     if (user) return <Navigate to={family ? paths.home : paths.setupFamily} replace />
-    return <Navigate to={preferences.hasSeenOnboarding() ? paths.login : paths.onboarding} replace />
+    // `/entrar` sem `?tipo=`: o ecrã escolhe o separador do último uso e redireciona se houver sessão (família ou especialista).
+    return <Navigate to={preferences.hasSeenOnboarding() ? paths.enter : paths.onboarding} replace />
   }
 
   return (
