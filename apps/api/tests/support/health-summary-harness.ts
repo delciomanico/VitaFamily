@@ -126,7 +126,7 @@ export async function startSummaryHarness(options: { logStream?: LogSink; poolMa
         access,
         clock,
         rateLimiter: createTestRateLimiter(clock, "clinics"),
-        clinicMailer: { send: () => Promise.resolve() } as never,
+        clinicMailer: { send: () => Promise.resolve() },
         logger: createLogger({ level: "silent" }),
         clinicSigningKeys: [],
         clinicAccessTtlSeconds: 900,

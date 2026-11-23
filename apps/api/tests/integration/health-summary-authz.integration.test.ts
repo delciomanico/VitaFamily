@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any -- corpos JSON de respostas HTTP lidos de forma dinâmica nos testes */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- corpos JSON de respostas HTTP e protótipo do cliente `pg` lidos de forma dinâmica nos testes */
 // Matriz de autorização e IDOR do Resumo de saúde (M17) com dados reais em PostgreSQL: TC-RPT-09, TC-RPT-12 (limite 30/min), AC-RPT-07, AC-RPT-08
 // (`sourceIds` só a quem escreve), AC-RPT-09; authorization.md §3/§4 (BR-RPT-01/16/17/18). Relações: SELF, TUTOR_OF, DEPENDENT_SELF, OTHER com e sem
 // partilha por categoria (e o Family Admin como OTHER); família alheia, membro inexistente, membro bloqueado e removido, Platform Admin e tokens cruzados.

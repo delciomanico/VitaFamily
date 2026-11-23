@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any -- corpos JSON de respostas HTTP lidos de forma dinâmica nos testes */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/restrict-plus-operands, @typescript-eslint/restrict-template-expressions -- corpos JSON de respostas HTTP e protótipo do cliente `pg` lidos de forma dinâmica nos testes */
 // Resumo de saúde (M17) ponta a ponta contra PostgreSQL real: HTTP -> casos de uso -> repositórios reais, com dados semeados e verificação numérica
 // exata do contrato (BR-RPT-11..17). TC-RPT-05 (período), TC-RPT-06 (adesão, fusos), TC-RPT-07 (séries de exames), TC-RPT-08 (sem juízo),
 // TC-RPT-10 e TC-RPT-11 (contagens e completude, «I»); AC-RPT-04, AC-RPT-05, AC-RPT-06, AC-RPT-08. Mais `alerts.summarizeForMember` (BR-RPT-15).
@@ -98,7 +98,7 @@ describe("alerts.summarizeForMember contra a base real (BR-RPT-15, TC-RPT-10)", 
     await s.h.pool.query("ANALYZE alerts");
     recorder.reset();
     await summarize(u1.id, fam, m1, "2026-10-01T00:00:00Z", "2026-11-01T00:00:00Z");
-    const select = recorder.statements().find((q) => /from "alerts"/i.test(q.text) && /"trigger_at"/.test(q.text));
+    const select = recorder.statements().find((q) => /from "alerts"/i.test(q.text) && q.text.includes('"trigger_at"'));
     expect(select).toBeDefined();
     const plan = await s.h.pool.query<{ "QUERY PLAN": unknown }>(`EXPLAIN (FORMAT JSON) ${select?.text ?? ""}`, select?.values ?? []);
     const text = JSON.stringify(plan.rows[0]?.["QUERY PLAN"]);

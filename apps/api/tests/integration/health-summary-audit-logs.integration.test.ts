@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return -- corpos JSON e protótipo do cliente `pg` lidos de forma dinâmica nos testes */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call -- corpos JSON de respostas HTTP e protótipo do cliente `pg` lidos de forma dinâmica nos testes */
 // Auditoria e canário de logs do Resumo de saúde (M17) com PostgreSQL real: TC-RPT-12 (REPORT_VIEW `kind=HEALTH_SUMMARY` só ao ver outro titular;
 // conteúdo ausente de logs), AC-RPT-09; audit.md §2 (metadata sem dados de saúde, nunca o período), §3 (HEALTH_VIEW por leituras de outro titular),
 // privacy.md/conventions.md §3.7 (nenhum dado de saúde em logs, erros ou auditoria).
@@ -224,7 +224,7 @@ describe("Canário de logs e respostas (conventions.md §3.7, BR-RPT-18): nenhum
         error.parameters = [C.apptNotes, C.examNotes];
         error.hint = C.param;
         error.internalQuery = `SELECT '${C.unit}'`;
-        return Promise.reject(error);
+        return Promise.reject(error as Error);
       }
       return original.apply(this, args);
     };
