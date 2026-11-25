@@ -11,7 +11,7 @@ export type ProviderCredential = { kind: 'apiKey'; key: string } | { kind: 'toke
 export type ProviderFailure = 'AUTH' | 'QUOTA' | 'NETWORK' | 'FAILED'
 
 export class ProviderError extends Error {
-  constructor(readonly failure: ProviderFailure) {
+  constructor(readonly failure: ProviderFailure, readonly status?: number) {
     super(failure)
     this.name = 'ProviderError'
   }
@@ -41,7 +41,7 @@ export const PROVIDERS: ProviderInfo[] = [
 export const providerLabel = (id: AiProviderId): string => PROVIDERS.find((p) => p.id === id)?.label ?? id
 
 /** Modelos por omissão (configuráveis aqui; confirmar disponibilidade na conta do utilizador, OP-133). */
-const MODELS = { CLAUDE: 'claude-haiku-5-5', OPENAI: 'gpt-4o-mini', GEMINI: 'gemini-2.0-flash' } as const
+const MODELS = { CLAUDE: 'claude-haiku-5-5', OPENAI: 'gpt-4o-mini', GEMINI: 'gemini-flash-latest' } as const
 const MAX_TOKENS = 1400
 
 function failureFor(status: number): ProviderFailure {
@@ -57,7 +57,7 @@ async function post(url: string, headers: Record<string, string>, body: unknown,
   } catch {
     throw new ProviderError('NETWORK')
   }
-  if (!response.ok) throw new ProviderError(failureFor(response.status))
+  if (!response.ok) throw new ProviderError(failureFor(response.status), response.status)
   try {
     return (await response.json()) as unknown
   } catch {
