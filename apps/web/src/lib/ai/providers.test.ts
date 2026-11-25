@@ -61,13 +61,24 @@ describe('adaptadores dos fornecedores (chamada direta do dispositivo, BR-AI-01)
     [401, 'AUTH'],
     [403, 'AUTH'],
     [429, 'QUOTA'],
-    [500, 'FAILED'],
+    [400, 'FAILED'],
   ])('HTTP %i ⇒ %s, sem propagar o corpo do erro', async (status, failure) => {
     reply({ error: { message: 'dados sensíveis do pedido' } }, status)
     const error = await callProvider('CLAUDE', { kind: 'apiKey', key: 'k' }, REQUEST).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(ProviderError)
     expect((error as InstanceType<typeof ProviderError>).failure).toBe(failure)
     expect(String((error as Error).message)).not.toContain('sensíveis')
+  })
+
+  it('HTTP 503 ⇒ uma nova tentativa e, se persistir, QUOTA («ocupado»)', async () => {
+    vi.useFakeTimers()
+    reply({ error: {} }, 503)
+    reply({ error: {} }, 503)
+    const pending = callProvider('GEMINI', { kind: 'token', token: 't' }, REQUEST).catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(await pending).toMatchObject({ failure: 'QUOTA', status: 503 })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
   })
 
   it('falha de rede ⇒ NETWORK; resposta que não é JSON ⇒ FAILED', async () => {

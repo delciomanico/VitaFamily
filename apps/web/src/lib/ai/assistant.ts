@@ -18,7 +18,7 @@ const MESSAGES = {
   noCredential: 'Ligue primeiro o assistente a um fornecedor.',
   consent: 'Ative o assistente e aceite o consentimento para continuar.',
   auth: 'O fornecedor recusou a ligação. Confirme a chave ou volte a entrar com a Google.',
-  quota: 'O fornecedor atingiu o limite de pedidos. Tente mais tarde.',
+  quota: 'O fornecedor está ocupado ou atingiu o limite de pedidos. Tente daqui a pouco.',
   network: 'Não foi possível contactar o fornecedor. Verifique a ligação.',
   rate: 'Fez muitos pedidos seguidos. Espere um pouco e tente de novo.',
   guardrails: 'Não foi possível preparar o assistente. Tente mais tarde.',

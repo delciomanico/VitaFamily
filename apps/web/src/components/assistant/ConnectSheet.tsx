@@ -26,7 +26,7 @@ function testMessage(error: unknown): string {
   if (error instanceof ProviderError) {
     if (error.failure === 'AUTH') return `O fornecedor não aceitou a chave. Confirme-a e tente de novo.${error.status ? ` (código ${error.status})` : ''}`
     if (error.failure === 'FAILED' && error.status) return `O fornecedor recusou o pedido (código ${error.status}). Confirme a chave e o acesso ao modelo.`
-    if (error.failure === 'QUOTA') return 'O fornecedor atingiu o limite de pedidos. Tente mais tarde.'
+    if (error.failure === 'QUOTA') return 'O fornecedor está ocupado ou atingiu o limite de pedidos. Tente daqui a pouco.'
     if (error.failure === 'NETWORK') return 'Não foi possível contactar o fornecedor. Verifique a ligação.'
   }
   const message = error instanceof Error ? error.message : ''

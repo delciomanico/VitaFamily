@@ -46,16 +46,21 @@ const MAX_TOKENS = 1400
 
 function failureFor(status: number): ProviderFailure {
   if (status === 401 || status === 403) return 'AUTH'
-  if (status === 429) return 'QUOTA'
+  if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504) return 'QUOTA' // limite ou fornecedor ocupado: tentar mais tarde
   return 'FAILED'
 }
 
-async function post(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal): Promise<unknown> {
+async function post(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal, retried = false): Promise<unknown> {
   let response: Response
   try {
     response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal, credentials: 'omit', referrerPolicy: 'no-referrer' })
   } catch {
     throw new ProviderError('NETWORK')
+  }
+  // Fornecedor temporariamente sobrecarregado (ex.: Gemini 503): uma segunda tentativa curta antes de desistir.
+  if (!retried && [500, 502, 503, 504].includes(response.status)) {
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    return post(url, headers, body, signal, true)
   }
   if (!response.ok) throw new ProviderError(failureFor(response.status), response.status)
   try {
