@@ -66,6 +66,10 @@ export const paths = {
   familyReport: '/app/reports/family',
   /** Resumo de saúde (M17): `?membro=<id|familia>&periodo=30|90|12m|custom&de&ate`. */
   healthSummary: '/app/reports/summary',
+  assistant: '/app/assistant',
+  assistantSymptoms: '/app/assistant/sintomas',
+  /** Retorno do «Continuar com Google» (pop-up; só entrega o resultado à janela de origem). */
+  googleOAuth: '/oauth/google',
   preventiveReport: '/app/reports/preventive',
   preventiveReportOf: (memberId: string) => `/app/reports/preventive?membro=${memberId}`,
   /** Mercado de profissionais (MK2): descoberta e comparação. A pesquisa exige sessão de família. */

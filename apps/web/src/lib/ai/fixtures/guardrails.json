@@ -1,0 +1,168 @@
+{
+  "version": "2026-11-25.1",
+  "systemInstruction": "És o Assistente Vita, um apoio de informação geral para famílias em Angola. Escreves em português de Portugal, em linguagem simples e curta.\nResponde SEMPRE e APENAS com um objeto JSON que cumpra o esquema indicado (campos: summary, observations, generalGuidance, suggestedSpecialty, urgency). Sem texto fora do JSON.\nPODES: descrever tendências nos dados fornecidos; dar orientação geral e educativa sobre sintomas; indicar sinais a vigiar e quando procurar cuidados, em termos gerais; dizer que os sintomas podem justificar uma consulta de UMA especialidade da lista permitida (campo suggestedSpecialty, só o id da lista; omite se não houver razão).\nNUNCA: dês um diagnóstico nem digas que a pessoa «tem» uma doença; receites; indiques medicamentos, suplementos, doses, nem alteres ou suspendas tratamentos; classifiques valores como normais, anormais ou perigosos (descreve apenas a variação); previsões de doenças; digas que dispensa um profissional de saúde.\nSe os dados ou sintomas sugerirem urgência, define urgency como EMERGENCY e não analises mais. Caso contrário usa NONE ou ROUTINE (consulta recomendada sem urgência).\nOs números e etiquetas («Medicamento A») são pseudónimos: não tentes adivinhar nomes. Não peças dados pessoais.",
+  "blockPatterns": [
+    {
+      "id": "diagnostico-afirmativo",
+      "pattern": "(?<!\\p{L})(?:(?:voce|o utilizador|a pessoa|o paciente|o doente)\\s+(?:tem|sofre de|padece de|esta com))(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "diagnostico-certeza",
+      "pattern": "(?<!\\p{L})(?:diagnostic[oa]\\s+(?:definitiv[oa]|confirmad[oa]|e)|(?:tem|sofre de|padece de)\\s+(?:certamente|com certeza|de certeza))(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "imperativo-medicacao",
+      "pattern": "(?<!\\p{L})(?:tome|tomar|tomes|tomem|ingira|ingerir|administre|aplique)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "dose",
+      "pattern": "(?<![\\p{L}\\d])\\d+(?:[.,]\\d+)?\\s*(?:mg|mcg|ug|ml|g|ui|comprimidos?|capsulas?|gotas?|ampolas?)(?![\\p{L}])",
+      "flags": "iu"
+    },
+    {
+      "id": "alterar-tratamento",
+      "pattern": "(?<!\\p{L})(?:(?:aument\\w+|reduz\\w+|diminu\\w+|par(?:e|ar)|suspend\\w+|interromp\\w+|interromper|deix(?:e|ar) de)\\s+(?:\\S+\\s+){0,4}(?:dose|doses|medicacao|medicamento|tratamento|remedio|comprimido))(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "receitar",
+      "pattern": "(?<!\\p{L})(?:receito|prescrevo|recomendo\\s+(?:o\\s+)?(?:medicamento|farmaco|suplemento|remedio))(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "farmacos",
+      "pattern": "(?<!\\p{L})(?:paracetamol|ibuprofeno|aspirina|diclofenac|amoxicilina|azitromicina|metformina|insulina|omeprazol|prednisolona|antibiotic\\w*|anti-?inflamatori\\w*|analgesic\\w*|antidepressiv\\w*|ansiolitic\\w*|antipiretic\\w*|corticoid\\w*|suplement\\w*|vitamina\\s+\\w+|xarope|pomada)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "classificar-valores",
+      "pattern": "(?<!\\p{L})(?:(?:valor|valores|resultado|resultados)\\s+(?:\\S+\\s+){0,3}(?:normal|normais|anormal|anormais|perigos\\w+|preocupante\\w*))(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "dispensa-profissional",
+      "pattern": "(?<!\\p{L})(?:nao\\s+(?:precisa|necessita|tem de|tem que)\\s+(?:de\\s+)?(?:ir\\s+ao\\s+)?(?:medico|consulta|profissional))(?!\\p{L})",
+      "flags": "iu"
+    }
+  ],
+  "alarmPatterns": [
+    {
+      "id": "dor-no-peito",
+      "pattern": "(?<!\\p{L})(?:dor(?:es)?\\s+(?:forte\\s+|intensa\\s+)?(?:no|do|nos)\\s+(?:peito|coracao)|aperto\\s+no\\s+peito|pressao\\s+no\\s+peito)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "falta-de-ar",
+      "pattern": "(?<!\\p{L})(?:falta\\s+de\\s+ar|dificuldade\\s+(?:em|para|a)\\s+respirar|nao\\s+consigo\\s+respirar|sufoc\\w+)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "avc",
+      "pattern": "(?<!\\p{L})(?:boca\\s+torta|cara\\s+(?:descaida|torta)|fala\\s+(?:arrastada|enrolada)|nao\\s+consigo\\s+falar|perda\\s+de\\s+(?:forca|movimentos?)\\s+(?:num|no|de um)\\s+(?:braco|lado|perna)|formigueiro\\s+(?:de um lado|no braco)|derrame|avc)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "hemorragia",
+      "pattern": "(?<!\\p{L})(?:hemorragia|sangramento\\s+(?:forte|intenso|abundante|que nao para)|muito\\s+sangue|vomit\\w*\\s+(?:de\\s+)?sangue|sangue\\s+no\\s+vomito|tossir\\s+sangue|fezes\\s+com\\s+sangue)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "perda-de-consciencia",
+      "pattern": "(?<!\\p{L})(?:desmai\\w+|perda\\s+de\\s+consciencia|perdeu\\s+os\\s+sentidos|inconsciente|nao\\s+responde|nao\\s+acorda)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "convulsao",
+      "pattern": "(?<!\\p{L})(?:convuls\\w+|ataque\\s+epileptico|crise\\s+epileptica)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "suicidio-autolesao",
+      "pattern": "(?<!\\p{L})(?:suicid\\w*|quero\\s+morrer|queria\\s+morrer|tirar\\s+a\\s+(?:minha\\s+)?vida|acabar\\s+com\\s+a\\s+(?:minha\\s+)?vida|autolesao|me\\s+(?:magoar|cortar|ferir)|fazer\\s+mal\\s+a\\s+mim)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "alergia-grave",
+      "pattern": "(?<!\\p{L})(?:anafila\\w+|choque\\s+anafilatico|inchaco\\s+(?:da|na)\\s+(?:lingua|garganta|cara|boca)|garganta\\s+a\\s+fechar|lingua\\s+inchada)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "intoxicacao",
+      "pattern": "(?<!\\p{L})(?:intoxica\\w+|envenen\\w+|overdose|veneno|lixivia|(?:engoli|engoliu|ingeriu|bebeu|bebi)\\s+(?:\\S+\\s+){0,2}(?:produto|medicamentos?\\s+a\\s+mais|comprimidos\\s+a\\s+mais)|muitos\\s+comprimidos)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "engasgamento",
+      "pattern": "(?<!\\p{L})(?:engasg\\w+|a\\s+sufocar|asfixi\\w+)(?!\\p{L})",
+      "flags": "iu"
+    },
+    {
+      "id": "bebe-febre",
+      "pattern": "(?<!\\p{L})(?:bebe\\s+(?:com|de)\\s+febre|recem-?nascido\\s+(?:com|de)\\s+febre|febre\\s+(?:muito\\s+)?alta\\s+(?:no|do|em)\\s+bebe)(?!\\p{L})",
+      "flags": "iu"
+    }
+  ],
+  "allowedSpecialties": [
+    {
+      "id": "5d3b6a52-6f0c-4bd4-9a54-6a3f2d6f7a01",
+      "name": "Medicina Geral"
+    },
+    {
+      "id": "0e8e0bb5-7a41-4c0e-8a61-1d5d9a0c2b02",
+      "name": "Cardiologia"
+    },
+    {
+      "id": "a4a5b3c9-2f55-4f0a-93a1-0c2f7c1d3b03",
+      "name": "Pediatria"
+    }
+  ],
+  "urgencyMessage": "O que descreveu pode ser um sinal de urgência. Procure ajuda médica imediata: ligue para o número de emergência ou dirija-se já à urgência mais próxima. Se estiver sozinho(a), peça a alguém que o(a) acompanhe.",
+  "disclaimer": "Informação geral gerada por IA; não é um diagnóstico nem substitui um profissional de saúde. Em emergência, procure ajuda imediata.",
+  "responseSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "summary",
+      "observations",
+      "generalGuidance",
+      "urgency"
+    ],
+    "properties": {
+      "summary": {
+        "type": "string",
+        "maxLength": 1200
+      },
+      "observations": {
+        "type": "array",
+        "maxItems": 8,
+        "items": {
+          "type": "string",
+          "maxLength": 400
+        }
+      },
+      "generalGuidance": {
+        "type": "array",
+        "maxItems": 8,
+        "items": {
+          "type": "string",
+          "maxLength": 400
+        }
+      },
+      "suggestedSpecialty": {
+        "type": "string",
+        "description": "Id (uuid) de uma especialidade da lista permitida; omitir se não houver razão."
+      },
+      "urgency": {
+        "type": "string",
+        "enum": [
+          "NONE",
+          "ROUTINE",
+          "EMERGENCY"
+        ]
+      }
+    }
+  }
+}

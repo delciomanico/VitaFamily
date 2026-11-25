@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ChevronDown } from 'lucide-react'
 import { Sheet } from '@/components/app/Sheet'
+import { AiSummaryCard } from '@/components/assistant/AiSummaryCard'
 import { FamilySummaryView } from '@/components/summary/FamilySummaryView'
 import { MemberSummaryView } from '@/components/summary/MemberSummaryView'
 import { PeriodControls } from '@/components/summary/PeriodControls'
@@ -109,6 +110,7 @@ export function HealthSummaryPage() {
           linkTo={(id) => `${paths.healthSummary}?${new URLSearchParams({ membro: id, periodo: active, ...(custom ? { de: range.from, ate: range.to } : {}) })}`}
         />
       )}
+      {state.status === 'success' && state.data.kind === 'member' && <AiSummaryCard key={`ai-${subject}-${range.from}-${range.to}`} memberId={subject} range={range} />}
       {state.status === 'success' && state.data.kind === 'member' && (
         <MemberSummaryView
           key={`${subject}-${range.from}-${range.to}`}

@@ -47,6 +47,8 @@ function page<M extends Record<N, ComponentType>, N extends keyof M & string>(lo
 
 export const routes: RouteObject[] = [
   { path: paths.splash, element: <RootPage /> },
+  // Retorno do pop-up OAuth da Google (assistente de IA, M18): só entrega o resultado à janela de origem.
+  { path: paths.googleOAuth, ...page(() => import('@/pages/assistant/GoogleOAuthCallback'), 'GoogleOAuthCallback') },
   // Entrada do backoffice: ecrã próprio, sem o cabeçalho do site.
   { path: paths.backofficeLogin, ...page(() => import('@/pages/site/BackofficeLoginPage'), 'BackofficeLoginPage') },
   {
@@ -203,6 +205,8 @@ export const routes: RouteObject[] = [
                 ...page(() => import('@/pages/processes/ProcessPage'), 'ProcessPage'),
               },
               { path: 'reports/summary', ...page(() => import('@/pages/reports/HealthSummaryPage'), 'HealthSummaryPage') },
+              { path: 'assistant', ...page(() => import('@/pages/assistant/AssistantPage'), 'AssistantPage') },
+              { path: 'assistant/sintomas', ...page(() => import('@/pages/assistant/SymptomsPage'), 'SymptomsPage') },
               { path: 'reports/family', ...page(() => import('@/pages/reports/FamilyReportPage'), 'FamilyReportPage') },
               {
                 path: 'reports/preventive',

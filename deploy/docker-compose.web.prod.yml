@@ -13,6 +13,8 @@ services:
       # serviço no Dokploy com o MESMO valor de VAPID_PUBLIC_KEY da API. Vazia: sem push no dispositivo.
       args:
         VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:-}
+        # Client ID OAuth (público) do «Continuar com Google» do assistente de IA (M18, OP-132). Vazio: o Gemini não é oferecido.
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     expose: ["8080"]
     # O Traefik do Dokploy só alcança contentores nesta rede; sem ela, o domínio dá 502 Bad Gateway.
     # É também por aqui (dokploy-network) que este contentor alcança "api" para o proxy de /api/.

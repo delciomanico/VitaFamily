@@ -18,6 +18,9 @@ ENV VITE_API_URL=/api/v1
 # Vazia = a app mostra que as notificações no dispositivo não estão configuradas. Só no build real (não nos testes).
 ARG VITE_VAPID_PUBLIC_KEY=""
 ENV VITE_VAPID_PUBLIC_KEY=$VITE_VAPID_PUBLIC_KEY
+# «Continuar com Google» do assistente de IA (M18, OP-132): client ID OAuth PÚBLICO do projeto Google Cloud; vazio = o Gemini não é oferecido.
+ARG VITE_GOOGLE_CLIENT_ID=""
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine

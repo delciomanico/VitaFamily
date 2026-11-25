@@ -13,6 +13,7 @@ import {
   LogOut,
   Share,
   Share2,
+  Sparkles,
   ShieldCheck,
   UserRound,
   Users,
@@ -29,6 +30,7 @@ import { Button } from '@/components/ui/Button'
 import { DetailSection } from '@/components/ui/InfoList'
 import { Modal } from '@/components/ui/Modal'
 import { useAuth } from '@/contexts/AuthContext'
+import { useAiEnabled } from '@/hooks/useAiEnabled'
 import { promptInstall, useInstallMode } from '@/lib/install'
 import { paths } from '@/routes/paths'
 
@@ -111,6 +113,7 @@ function InstallAppSection() {
 export function SettingsPage() {
   const { user, family, member, logout } = useAuth()
   const [leaving, setLeaving] = useState(false)
+  const aiEnabled = useAiEnabled()
   const name = member?.name ?? user?.name ?? ''
 
   const shortcuts: SettingsItem[] = [
@@ -119,6 +122,8 @@ export function SettingsPage() {
     { to: paths.shares, label: 'Partilhas com profissionais', description: 'Quem pode ver os seus registos', icon: Share2 },
     { to: paths.watch, label: 'Relógio', description: 'Ligar e ver as medições', icon: Watch, tone: 'meds' },
     { to: paths.alerts, label: 'Alertas', description: 'O que precisa da sua atenção', icon: Bell, tone: 'chat' },
+    // M18: só aparece com o assistente ligado no servidor (AI_ASSISTANT_ENABLED).
+    ...(aiEnabled ? [{ to: paths.assistant, label: 'Assistente Vita', description: 'Explicar os números e orientar sintomas', icon: Sparkles } satisfies SettingsItem] : []),
   ]
   const groups: { title: string; summary: string; icon: LucideIcon; items: SettingsItem[] }[] = [
     {
