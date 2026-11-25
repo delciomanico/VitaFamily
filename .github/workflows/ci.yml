@@ -24,6 +24,10 @@ jobs:
       # tests/integration/** usa testcontainers (precisa do Docker do runner, disponível por
       # omissão nos runners do GitHub); corre aqui o mesmo que o Dockerfile exclui do build.
       - run: pnpm --filter @vitafamily/api run test
+        env:
+          # O contentor de limpeza do testcontainers (Ryuk/Reaper) falhava a ligar com muitos ficheiros em paralelo
+          # («Failed to connect to Reaper»). O runner é descartável: não há nada para limpar depois.
+          TESTCONTAINERS_RYUK_DISABLED: "true"
       - run: pnpm --filter @vitafamily/api run build
 
   web:
