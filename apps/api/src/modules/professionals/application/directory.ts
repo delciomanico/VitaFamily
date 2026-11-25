@@ -117,6 +117,12 @@ export function createProfessionalDirectory<Trx>(deps: ProfessionalsDeps<Trx>) {
       return deps.withTransaction(async (trx) => (await hydrate(deps, trx, await deps.directoryRepo.listApproved(trx, filter))).map(toPublic));
     },
 
+    /** M18 (BR-AI-05/09): especialidades `HEALTH` ativas do catálogo — a lista fechada de que o assistente pode sugerir uma. Só id e nome. */
+    async listHealthSpecialties(): Promise<{ id: string; name: string }[]> {
+      const rows = await deps.specialtyRepo.list(deps.db, { activeOnly: true });
+      return rows.filter((row) => row.category === "HEALTH").map((row) => ({ id: row.id, name: row.name }));
+    },
+
     /** MK2 (BR-MKT-41): e-mail da conta SÓ para o aviso genérico de nova mensagem (porta `ProfessionalLookup` de `messaging`); `null` se não existe. */
     async getNotificationEmail(professionalId: string): Promise<string | null> {
       return deps.withTransaction((trx) => deps.directoryRepo.findNotificationEmail(trx, professionalId));

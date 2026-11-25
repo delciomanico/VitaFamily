@@ -35,6 +35,7 @@ import { createExaminationsModule, type ExaminationsModule } from "../modules/ex
 import { createLifecycleModule, type LifecycleModule } from "../modules/lifecycle/index.js";
 import { createAdminModule } from "../modules/admin/index.js";
 import { createReportsModule } from "../modules/reports/index.js";
+import { createAiAssistantModule, type SummaryFacts } from "../modules/ai-assistant/index.js";
 import { createNotificationsModule, SmtpMailer as NotificationsSmtpMailer, WebPushSender } from "../modules/notifications/index.js";
 import { createAlertsModule, type AlertsModule } from "../modules/alerts/index.js";
 import { createRecommendationsModule } from "../modules/recommendations/index.js";
@@ -79,6 +80,33 @@ function parseDurationMs(value: string): number {
   const amount = Number(match[1]);
   const unitMs = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[match[2] as "s" | "m" | "h" | "d"];
   return amount * unitMs;
+}
+
+/** Factos neutros do Resumo de saúde para o assistente (M18): números e contagens; o assistente descarta nomes e datas absolutas (BR-AI-10). */
+function summaryFacts(summary: Record<string, unknown>): SummaryFacts {
+  const num = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+  const text = (value: unknown): string => (typeof value === "string" ? value : "");
+  const obj = (value: unknown): Record<string, unknown> => (typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {});
+  const list = (value: unknown): Record<string, unknown>[] => (Array.isArray(value) ? value.map(obj) : []);
+  const medication = obj(summary.medication);
+  const exams = obj(summary.exams);
+  const counts: Record<string, number> = {};
+  for (const [section, source] of [["exams", obj(exams.byStatus)], ["appointments", obj(obj(summary.appointments).byStatus)]] as const) {
+    for (const [status, value] of Object.entries(source)) counts[`${section}.${status}`] = num(value);
+  }
+  const prescriptions = obj(summary.prescriptions);
+  if (summary.prescriptions !== undefined) counts["prescriptions.active"] = num(prescriptions.active);
+  return {
+    medications: list(medication.byMedication).map((m) => ({ taken: num(m.taken), notTaken: num(m.notTaken), unconfirmed: num(m.unconfirmed), adherencePct: typeof m.adherencePct === "number" ? m.adherencePct : null })),
+    series: list(exams.series).map((s) => ({
+      parameter: text(s.parameter),
+      unit: text(s.unit),
+      referenceMin: typeof s.referenceMin === "number" ? s.referenceMin : null,
+      referenceMax: typeof s.referenceMax === "number" ? s.referenceMax : null,
+      points: list(s.points).map((p) => ({ date: text(p.date), value: num(p.value) })).filter((p) => p.date !== ""),
+    })),
+    counts,
+  };
 }
 
 export function main(): void {
@@ -738,6 +766,40 @@ export function main(): void {
     },
   });
 
+  // M18 (ADR-039, modules.md nota 40): `ai-assistant` só conhece PORTAS; aqui ligam-se a `access` (ação `USE_AI_ASSISTANT`), ao membro (faixa etária e condições
+  // ativas, só com `includeContext`), ao Resumo de saúde de `reports` (minimizado pelo módulo) e ao catálogo `HEALTH` de `professionals`. Só se monta com a flag
+  // ligada (BR-AI-14); desligada, as rotas `ai` não existem (404). A chamada ao fornecedor de IA vive no dispositivo: o servidor nunca a vê.
+  const aiAssistant = config.AI_ASSISTANT_ENABLED
+    ? createAiAssistantModule({
+        db,
+        audit,
+        clock,
+        rateLimiter: rateLimiting.createRateLimiter("ai-assistant"),
+        sessionSecret: config.AI_SESSION_SECRET,
+        access: {
+          assertCanUse: async (trx, input) => {
+            const context = await access.policy.can(trx, { userId: input.userId, platformAdmin: input.platformAdmin, familyId: input.familyId, action: "USE_AI_ASSISTANT", subjectMemberId: input.memberId });
+            return { relation: context.relation === "TUTOR_OF" ? "TUTOR_OF" : "SELF" };
+          },
+        },
+        members: {
+          facts: async (trx, familyId, memberId) => {
+            const member = await families.findMemberById(trx, familyId, memberId);
+            if (!member) return null;
+            const conditions = await healthRecords.listSharedConditions(trx, familyId, memberId);
+            return { birthDate: member.birthDate, active: member.status === "ACTIVE", activeConditions: conditions.filter((c) => c.until === null).map((c) => c.name) };
+          },
+        },
+        summary: {
+          facts: async (actor, familyId, memberId, query, context) => {
+            const summary = (await reports.reads.memberHealthSummary(actor, familyId, memberId, query, context)) as Record<string, unknown>;
+            return { from: (summary.period as { from: string }).from, facts: summaryFacts(summary) };
+          },
+        },
+        specialties: { listAllowed: () => professionals.directory.listHealthSpecialties() },
+      })
+    : null;
+
   const admin = createAdminModule({
     db,
     users,
@@ -886,6 +948,7 @@ export function main(): void {
       router.use(consultations.adminRouter);
       router.use(recordSharing.familyRouter);
       router.use(recordSharing.professionalRouter);
+      if (aiAssistant) router.use(aiAssistant.router);
       router.use(appointments.router);
       router.use(appointments.clinicPortalRouter);
       router.use(examinations.router);

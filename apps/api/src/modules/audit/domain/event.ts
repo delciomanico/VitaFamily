@@ -263,7 +263,12 @@ export type AuditAction =
   | "RECORD_SHARE_CREATE"
   | "RECORD_SHARE_REVOKE"
   | "PROFESSIONAL_SHARE_OPEN"
-  | "RECORD_SHARES_PURGED";
+  | "RECORD_SHARES_PURGED"
+  // Assistente de IA (M18, ADR-039, BR-AI-12): `metadata` só com fornecedor, tipo, versão dos guardrails e desfecho (enum); NUNCA sintomas, séries, resposta, especialidade nem chaves.
+  | "AI_CONSENT_GRANT"
+  | "AI_CONSENT_REVOKE"
+  | "AI_SESSION_CREATE"
+  | "AI_SESSION_OUTCOME";
 
 export type AuditActorType = "USER" | "SYSTEM" | "PLATFORM_ADMIN" | "CLINIC_ACCOUNT" | "INSURANCE_ACCOUNT" | "PROFESSIONAL_ACCOUNT";
 

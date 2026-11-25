@@ -96,17 +96,25 @@ const envSchema = z.object({
   // MK4 (BR-MKT-79): receita digital do profissional. Desligada por omissão até ao parecer jurídico (OP-61/OP-125); lida no arranque
   // (ligá-la ou desligá-la exige reiniciar a API). Nunca ligar sem o parecer.
   DIGITAL_PRESCRIPTION_ENABLED: booleanEnv(false),
+
+  // M18 (ADR-039, BR-AI-14): assistente de IA ligado pelo utilizador. Desligado por omissão até à AIPD e ao parecer jurídico; lido no
+  // arranque (as rotas `ai` respondem 404 com a flag desligada). `AI_SESSION_SECRET` assina o `sessionToken` (HMAC, 15 min).
+  AI_ASSISTANT_ENABLED: booleanEnv(false),
+  AI_SESSION_SECRET: z.string().min(32, "AI_SESSION_SECRET deve ter pelo menos 32 caracteres").optional(),
   SENTRY_DSN: z.string().optional(),
 });
 
 /** Valor só para `local`/`test` (nunca produção: `loadConfig` exige o segredo real em staging/production). */
 const DEV_CLINIC_LINK_CODE_SECRET = "dev-only-clinic-link-code-secret-change-me";
 /** Valor só para `local`/`test` (production exige `RATE_LIMIT_KEY_SECRET`, ADR-038 §8). */
+/** Valor só para `local`/`test` (production com `AI_ASSISTANT_ENABLED=true` exige `AI_SESSION_SECRET`). */
+const DEV_AI_SESSION_SECRET = "dev-only-ai-session-secret-change-me-0123456789abcdef";
 const DEV_RATE_LIMIT_KEY_SECRET = "dev-only-rate-limit-key-secret-change-me-0123456789";
 
 export type Config = Readonly<
-  Omit<z.infer<typeof envSchema>, "CLINIC_LINK_CODE_SECRET" | "RATE_LIMIT_KEY_SECRET" | "RATE_LIMIT_KEY_PREFIX"> & {
+  Omit<z.infer<typeof envSchema>, "CLINIC_LINK_CODE_SECRET" | "RATE_LIMIT_KEY_SECRET" | "RATE_LIMIT_KEY_PREFIX" | "AI_SESSION_SECRET"> & {
     CLINIC_LINK_CODE_SECRET: string;
+    AI_SESSION_SECRET: string;
     RATE_LIMIT_KEY_SECRET: string;
     RATE_LIMIT_KEY_PREFIX: string;
   }
@@ -122,6 +130,7 @@ export const SENSITIVE_ENV_VARS = [
   "CLINIC_LINK_CODE_SECRET",
   "REDIS_URL",
   "RATE_LIMIT_KEY_SECRET",
+  "AI_SESSION_SECRET",
   "SMTP_URL",
   "VAPID_PRIVATE_KEY",
   "SENTRY_DSN",
@@ -154,9 +163,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       throw new Error("Configuração inválida: RATE_LIMIT_KEY_SECRET: obrigatória em staging/production (ADR-038)");
     }
   }
+  if (result.data.AI_ASSISTANT_ENABLED && result.data.AI_SESSION_SECRET === undefined && (result.data.NODE_ENV === "production" || result.data.NODE_ENV === "staging")) {
+    throw new Error("Configuração inválida: AI_SESSION_SECRET: obrigatória em staging/production com AI_ASSISTANT_ENABLED=true (ADR-039)");
+  }
   return {
     ...result.data,
     CLINIC_LINK_CODE_SECRET: secret ?? DEV_CLINIC_LINK_CODE_SECRET,
+    AI_SESSION_SECRET: result.data.AI_SESSION_SECRET ?? DEV_AI_SESSION_SECRET,
     RATE_LIMIT_KEY_SECRET: result.data.RATE_LIMIT_KEY_SECRET ?? DEV_RATE_LIMIT_KEY_SECRET,
     RATE_LIMIT_KEY_PREFIX: result.data.RATE_LIMIT_KEY_PREFIX ?? `vita:${result.data.NODE_ENV}`,
   };

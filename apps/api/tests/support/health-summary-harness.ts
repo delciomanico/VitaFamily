@@ -73,7 +73,20 @@ export interface SummaryHarness {
   stop(): Promise<void>;
 }
 
-export async function startSummaryHarness(options: { logStream?: LogSink; poolMax?: number; validateResponses?: boolean } = {}): Promise<SummaryHarness> {
+/** Contexto que `extend` recebe para ligar módulos extra (M18 `ai-assistant`) com as mesmas portas que `main/api.ts`. */
+export interface SummaryExtendContext {
+  db: Parameters<typeof withTransaction>[0];
+  audit: Parameters<typeof createFamiliesModule>[0]["audit"];
+  clock: Parameters<typeof createFamiliesModule>[0]["clock"];
+  access: ReturnType<typeof createAccessModule>;
+  families: ReturnType<typeof createFamiliesModule>;
+  healthRecords: ReturnType<typeof createHealthRecordsModule>;
+  reports: ReturnType<typeof createReportsModule>;
+}
+
+export async function startSummaryHarness(
+  options: { logStream?: LogSink; poolMax?: number; validateResponses?: boolean; extend?: (ctx: SummaryExtendContext) => import("express").Router[] } = {},
+): Promise<SummaryHarness> {
   const failLimiter = { value: false };
   let alertsModule: AlertsModule | undefined;
 
@@ -218,7 +231,7 @@ export async function startSummaryHarness(options: { logStream?: LogSink; poolMa
           examinations: examinations.reads.examinations,
         },
       });
-      return [reports.router];
+      return [reports.router, ...(options.extend?.({ db, audit, clock, access, families, healthRecords, reports }) ?? [])];
     },
     { ...(options.logStream ? { logStream: options.logStream } : {}), ...(options.poolMax ? { poolMax: options.poolMax } : {}), ...(options.validateResponses === false ? { validateResponses: false } : {}) },
   );

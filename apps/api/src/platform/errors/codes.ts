@@ -47,6 +47,7 @@ export type ErrorCode =
   | "PASSWORD_WEAK"
   | "VALIDATION_ERROR"
   | "MEMBER_BLOCKED"
+  | "AI_CONSENT_REQUIRED"
   | "RATE_LIMITED"
   | "INTERNAL_ERROR"
   | "SERVICE_UNAVAILABLE";
@@ -102,6 +103,7 @@ export const errorCatalog: Record<ErrorCode, CatalogEntry> = {
   PASSWORD_WEAK: { status: 422, title: "Palavra-passe fraca" },
   VALIDATION_ERROR: { status: 422, title: "Dados inválidos" },
   MEMBER_BLOCKED: { status: 423, title: "Perfil bloqueado" },
+  AI_CONSENT_REQUIRED: { status: 403, title: "Consentimento do assistente em falta" },
   RATE_LIMITED: { status: 429, title: "Demasiados pedidos" },
   INTERNAL_ERROR: { status: 500, title: "Erro interno" },
   SERVICE_UNAVAILABLE: { status: 503, title: "Serviço indisponível" },

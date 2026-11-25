@@ -23,15 +23,18 @@ export interface ReportsModuleDeps {
 
 export interface ReportsModule {
   router: Router;
+  /** Leituras públicas para outros módulos (ligadas em `main/api.ts`): o Resumo de saúde do membro (M18 `ai-assistant` minimiza-o; mesma `AccessPolicy`, limite e auditoria). */
+  reads: { memberHealthSummary: ReturnType<typeof createMemberHealthSummaryUseCase> };
 }
 
 /** Composition root chama isto uma vez por processo (main/api.ts). */
 export function createReportsModule(deps: ReportsModuleDeps): ReportsModule {
+  const memberHealthSummary = createMemberHealthSummaryUseCase(deps);
   const controller: ReportsController = {
     memberReport: createMemberReportUseCase(deps),
     familyReport: createFamilyReportUseCase(deps),
-    memberHealthSummary: createMemberHealthSummaryUseCase(deps),
+    memberHealthSummary,
     familyHealthSummary: createFamilyHealthSummaryUseCase(deps),
   };
-  return { router: createReportsRouter(controller) };
+  return { router: createReportsRouter(controller), reads: { memberHealthSummary } };
 }

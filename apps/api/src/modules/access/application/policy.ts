@@ -16,7 +16,7 @@ import type { DataCategory } from "../domain/sharing-grant.js";
 import type { AccessDeps, MemberFacts } from "./ports.js";
 
 /** authorization.md §1 (ações sobre dados de saúde) + §4 (partilha) + VIEW_SHARED_WITH_ME (UC-PRV-02). */
-export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_CLINIC_CONSENT" | "VIEW_CLINIC_RECEIPTS" | "VIEW_CONSULTATION_REPORT" | "VIEW_EXAM_ORDERS" | "MESSAGE_PROFESSIONALS" | "BOOK_PROFESSIONALS" | "SHARE_WITH_PROFESSIONALS" | "VIEW_SHARED_WITH_ME";
+export type Action = HealthAction | "MANAGE_SHARING" | "MANAGE_CLINIC_CONSENT" | "VIEW_CLINIC_RECEIPTS" | "VIEW_CONSULTATION_REPORT" | "VIEW_EXAM_ORDERS" | "MESSAGE_PROFESSIONALS" | "BOOK_PROFESSIONALS" | "SHARE_WITH_PROFESSIONALS" | "VIEW_SHARED_WITH_ME" | "USE_AI_ASSISTANT";
 
 export interface CanInput {
   userId: string;
@@ -40,7 +40,7 @@ export interface AccessContext {
 }
 
 function isHealthAction(action: Action): action is HealthAction {
-  return action !== "MANAGE_SHARING" && action !== "MANAGE_CLINIC_CONSENT" && action !== "VIEW_CLINIC_RECEIPTS" && action !== "VIEW_CONSULTATION_REPORT" && action !== "VIEW_EXAM_ORDERS" && action !== "MESSAGE_PROFESSIONALS" && action !== "BOOK_PROFESSIONALS" && action !== "SHARE_WITH_PROFESSIONALS" && action !== "VIEW_SHARED_WITH_ME";
+  return action !== "MANAGE_SHARING" && action !== "MANAGE_CLINIC_CONSENT" && action !== "VIEW_CLINIC_RECEIPTS" && action !== "VIEW_CONSULTATION_REPORT" && action !== "VIEW_EXAM_ORDERS" && action !== "MESSAGE_PROFESSIONALS" && action !== "BOOK_PROFESSIONALS" && action !== "SHARE_WITH_PROFESSIONALS" && action !== "VIEW_SHARED_WITH_ME" && action !== "USE_AI_ASSISTANT";
 }
 
 export interface AccessPolicy<Trx> {
@@ -157,6 +157,16 @@ export function createAccessPolicy<Trx>(deps: Pick<AccessDeps<Trx>, "familiesPor
         return { actor, subject, relation };
       }
       throw new ForbiddenError({ detail: "Sem permissão sobre as partilhas deste membro." });
+    }
+
+    if (input.action === "USE_AI_ASSISTANT") {
+      // ADR-039/BR-AI-04, authorization.md §4: o assistente de IA (envia dados de saúde a um fornecedor por ação do utilizador) é só de SELF
+      // (adulto) ou TUTOR_OF do membro-sujeito (menor ou adulto dependente); nunca DEPENDENT_SELF, nem OTHER (nem Family Admin como OTHER, nem
+      // Platform Admin), mesmo com SharingGrant. Sem categoria. A relação é reavaliada em cada pedido (perder a tutela invalida a sessão).
+      if (relation === "SELF" || relation === "TUTOR_OF") {
+        return { actor, subject, relation };
+      }
+      throw new ForbiddenError({ detail: "Sem permissão sobre o assistente deste membro." });
     }
 
     if (input.action === "MANAGE_CLINIC_CONSENT") {

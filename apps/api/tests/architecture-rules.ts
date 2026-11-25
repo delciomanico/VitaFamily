@@ -67,6 +67,8 @@ export const MODULE_DEPENDENCIES: Record<string, string[]> = {
   consultations: ["audit"],
   // record-sharing (MK4, nota 38): só `audit`; access/consultations/saúde/profissionais entram por portas ligadas em main/api.ts.
   "record-sharing": ["audit"],
+  // ai-assistant (M18, ADR-039, nota 40): só `audit`; access/membros/Resumo de saúde/catálogo entram por portas ligadas em main/api.ts. Sem fornecedor de IA no servidor.
+  "ai-assistant": ["audit"],
   // ADR-023 (modules.md §2): lê a origem (consulta/exame) pelas raízes de `appointments`/`examinations`.
   recommendations: ["access", "appointments", "examinations", "audit"],
   documents: ["access", "audit"],
