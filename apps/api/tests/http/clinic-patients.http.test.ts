@@ -360,7 +360,8 @@ describe("pacientes da clínica (AC-CLN-13, TC-CLN-08)", () => {
     await get(h, "/clinic-portal/patients?q=CANARY-Q", h.admin);
     await get(h, "/clinic-portal/search?q=CANARY-Q", h.admin);
     const dump = JSON.stringify(h.cp.audit.events).toLowerCase();
-    for (const canary of ["canary", "999 888", "1971"]) expect(dump).not.toContain(canary);
+    // O canário da data de nascimento é a data completa: «1971» sozinho aparece por acaso em UUIDs aleatórios (teste instável).
+    for (const canary of ["canary", "999 888", "1971-03-04"]) expect(dump).not.toContain(canary);
     expect(h.cp.audit.events.map((e) => e.action)).toEqual(["CLINIC_PATIENT_CREATE", "CLINIC_PATIENT_UPDATE"]);
   });
 });
