@@ -451,7 +451,8 @@ describe('regras de horário (UC-MKT-09)', () => {
 describe('bloqueios e férias (UC-MKT-09)', () => {
   it('fim ≤ início, passado ou > 366 dias ⇒ VALIDATION_ERROR', async () => {
     signIn('pro_aprovada')
-    expect(await code(portal.createProfessionalTimeOff({ startsAt: inDays(5), endsAt: inDays(5) }))).toBe('VALIDATION_ERROR')
+    const same = inDays(5) // o mesmo instante: duas chamadas podiam diferir 1 ms e o fim passava a ser posterior
+    expect(await code(portal.createProfessionalTimeOff({ startsAt: same, endsAt: same }))).toBe('VALIDATION_ERROR')
     expect(await code(portal.createProfessionalTimeOff({ startsAt: inDays(6), endsAt: inDays(5) }))).toBe('VALIDATION_ERROR')
     expect(await code(portal.createProfessionalTimeOff({ startsAt: inDays(-10), endsAt: inDays(-9) }))).toBe('VALIDATION_ERROR')
     expect(await code(portal.createProfessionalTimeOff({ startsAt: inDays(1), endsAt: inDays(400) }))).toBe('VALIDATION_ERROR')
