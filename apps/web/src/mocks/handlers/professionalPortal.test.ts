@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { pinClockToAfternoon } from '@/test/clock'
 import type { AppError } from '@/lib/errors'
 import { CREDENTIAL_MAX_BYTES } from '@/lib/professional'
 import { professionalSessionStore } from '@/lib/storage'
@@ -33,7 +34,12 @@ function signIn(id: string) {
   professionalSessionStore.setAccountId(id)
 }
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 beforeEach(() => {
+  pinClockToAfternoon()
   resetProfessionalDb()
   window.sessionStorage.clear()
 })
@@ -468,7 +474,7 @@ describe('bloqueios e férias (UC-MKT-09)', () => {
     signIn('pro_aprovada')
     await portal.createProfessionalScheduleRule({ offerId: 'ofr_ap_1', weekdays: ALL_DAYS, startTime: '09:00', endTime: '10:00' })
     const before = await portal.listProfessionalSlots(inDays(0), inDays(14))
-    const target = before[0]!
+    const target = before.at(-1)! // o mais distante: sem marcação ativa por cima (um bloqueio sobre uma é recusado, BR-MKT-53)
     const timeOff = await portal.createProfessionalTimeOff({ startsAt: target.startsAt, endsAt: target.endsAt })
     const during = await portal.listProfessionalSlots(inDays(0), inDays(14))
     expect(during).toHaveLength(before.length - 1)

@@ -9,6 +9,13 @@ export const GOOGLE_REDIRECT_PATH = '/oauth/google'
 /** Âmbito da Generative Language API (a confirmar no spike OP-133). */
 const SCOPE = 'https://www.googleapis.com/auth/generative-language.retriever'
 const MESSAGE_TYPE = 'vita-google-oauth'
+/** Tempo máximo para o utilizador concluir a autorização. */
+export const OAUTH_TIMEOUT_MS = 120_000
+/** Depois de o pop-up fechar, ainda se espera pela mensagem (pode chegar a seguir). */
+const CLOSED_GRACE_MS = 1_500
+
+/** Segundo canal (mesma origem): a política COOP da página da Google pode cortar o `window.opener` do pop-up. */
+const openChannel = (): BroadcastChannel | null => (typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(MESSAGE_TYPE))
 
 export const googleClientId = (): string | undefined => {
   const id = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined)?.trim()
@@ -45,7 +52,11 @@ export function parseOAuthHash(hash: string): { token?: string; expiresIn?: numb
 /** Chamado pela página de retorno (`/oauth/google`): entrega o resultado ao pop-up-pai e fecha. */
 export function deliverOAuthResult(hash: string): void {
   const result = parseOAuthHash(hash)
-  window.opener?.postMessage({ type: MESSAGE_TYPE, ...result }, window.location.origin)
+  const message = { type: MESSAGE_TYPE, ...result }
+  window.opener?.postMessage(message, window.location.origin)
+  const channel = openChannel()
+  channel?.postMessage(message)
+  channel?.close()
   window.close()
 }
 
@@ -69,22 +80,42 @@ export function requestGoogleToken(): Promise<string> {
   const popup = window.open(url.toString(), 'vita-google-oauth', 'popup,width=480,height=640')
   if (!popup) return Promise.reject(new Error('POPUP_BLOCKED'))
   return new Promise<string>((resolve, reject) => {
+    const channel = openChannel()
+    let closedAt: number | null = null
+    let done = false
     const finish = (action: () => void) => {
+      if (done) return
+      done = true
       window.removeEventListener('message', onMessage)
       window.clearInterval(watch)
+      window.clearTimeout(limit)
+      channel?.close()
       action()
     }
-    const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return
-      const data = event.data as { type?: string; token?: string; expiresIn?: number; state?: string; error?: string } | null
-      if (data?.type !== MESSAGE_TYPE) return
-      if (data.error || !data.token || data.state !== state) return finish(() => reject(new Error(data.error ?? 'OAUTH_FAILED')))
+    type Message = { type?: string; token?: string; expiresIn?: number; state?: string; error?: string } | null
+    const accept = (data: Message) => {
+      if (data?.error || !data?.token || data.state !== state) return finish(() => reject(new Error(data?.error ?? 'OAUTH_FAILED')))
       current = { token: data.token, expiresAt: Date.now() + (data.expiresIn ?? 3600) * 1000 }
       finish(() => resolve(data.token as string))
     }
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      const data = event.data as Message
+      if (data?.type === MESSAGE_TYPE) accept(data)
+    }
+    // No canal partilhado só conta a resposta a ESTE pedido (outro separador pode estar a autorizar ao mesmo tempo).
+    if (channel) {
+      channel.onmessage = (event: MessageEvent) => {
+        const data = event.data as Message
+        if (data?.type === MESSAGE_TYPE && data.state === state) accept(data)
+      }
+    }
     const watch = window.setInterval(() => {
-      if (popup.closed) finish(() => reject(new Error('OAUTH_CANCELLED')))
+      if (!popup.closed) return
+      closedAt ??= Date.now()
+      if (Date.now() - closedAt >= CLOSED_GRACE_MS) finish(() => reject(new Error('OAUTH_CANCELLED')))
     }, 500)
+    const limit = window.setTimeout(() => finish(() => reject(new Error('OAUTH_CANCELLED'))), OAUTH_TIMEOUT_MS)
     window.addEventListener('message', onMessage)
   })
 }

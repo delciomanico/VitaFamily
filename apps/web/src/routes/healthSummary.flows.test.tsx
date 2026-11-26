@@ -5,6 +5,7 @@ import { ToastProvider } from '@/components/ui/Toast'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { resetDb } from '@/mocks/db'
 import { healthSummaryService } from '@/services/healthSummary.service'
+import { pinClockToAfternoon } from '@/test/clock'
 import { paths } from './paths'
 import { routes } from './router'
 
@@ -26,11 +27,7 @@ const heading = () => screen.findByRole('heading', { name: 'Resumo de saúde' })
 const openSection = async (name: RegExp) => fireEvent.click(await screen.findByRole('button', { name }))
 
 beforeEach(() => {
-  // As tomas de demonstração são só as de hoje: a meio da tarde há sempre tomas passadas (de madrugada não havia nenhuma e o teste falhava).
-  const afternoon = new Date()
-  afternoon.setHours(15, 0, 0, 0)
-  vi.useFakeTimers({ toFake: ['Date'] })
-  vi.setSystemTime(afternoon)
+  pinClockToAfternoon() // as tomas de demonstração são só as de hoje: de madrugada não havia nenhuma passada
   resetDb()
   window.sessionStorage.clear()
 })

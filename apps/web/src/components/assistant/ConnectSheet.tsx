@@ -7,9 +7,11 @@ import { FormError } from '@/components/ui/states'
 import { hasApiBackend } from '@/lib/apiClient'
 import { requestGoogleToken } from '@/lib/ai/google'
 import { keyStore } from '@/lib/ai/keyStore'
-import { callProvider, ProviderError, providerLabel, type ProviderInfo } from '@/lib/ai/providers'
+import { callProvider, ProviderError, providerLabel, type ProviderCredential, type ProviderInfo } from '@/lib/ai/providers'
 import { CONSENT_VERSION, consentIntro, consentPoints, minorNotice, providerOwner } from '@/lib/ai/texts'
 import { aiService, type AiMember } from '@/services/ai.service'
+
+const BUSY_STATUSES = [429, 500, 502, 503, 504]
 
 interface Props {
   open: boolean
@@ -19,6 +21,17 @@ interface Props {
   familyId: string
   /** Chamado depois de o consentimento ficar registado. */
   onConnected: () => void
+}
+
+/** Teste mínimo, sem dados de saúde. */
+async function testConnection(provider: ProviderInfo['id'], credential: ProviderCredential): Promise<void> {
+  try {
+    await callProvider(provider, credential, { system: 'Responde apenas com a palavra: ok', user: 'ok' })
+  } catch (error) {
+    // «Ocupado» ou limite de pedidos: o fornecedor respondeu e aceitou a credencial, por isso a ligação fica feita.
+    if (error instanceof ProviderError && error.status !== undefined && BUSY_STATUSES.includes(error.status)) return
+    throw error
+  }
 }
 
 /** Texto pt-PT para uma falha do teste de ligação (nunca inclui o corpo da resposta do fornecedor). */
@@ -43,6 +56,8 @@ export function ConnectSheet({ open, onClose, provider, member, familyId, onConn
   const [agreed, setAgreed] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [busy, setBusy] = useState(false)
+  /** Passo em curso, para o utilizador saber o que está à espera. */
+  const [step, setStep] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const needsKey = provider.connect === 'apiKey'
   const label = providerLabel(provider.id)
@@ -56,13 +71,16 @@ export function ConnectSheet({ open, onClose, provider, member, familyId, onConn
       const real = hasApiBackend()
       if (needsKey) {
         if (real && !keyStore().supported()) throw new Error('Este aparelho não permite guardar a chave com segurança.')
-        // Teste mínimo, sem dados de saúde.
-        if (real) await callProvider(provider.id, { kind: 'apiKey', key: apiKey.trim() }, { system: 'Responde apenas com a palavra: ok', user: 'ok' })
+        if (real) setStep('A testar a ligação…')
+        if (real) await testConnection(provider.id, { kind: 'apiKey', key: apiKey.trim() })
         if (real) await keyStore().save(provider.id, apiKey.trim())
       } else if (real) {
+        setStep('A aguardar a autorização da Google…')
         const token = await requestGoogleToken()
-        await callProvider(provider.id, { kind: 'token', token }, { system: 'Responde apenas com a palavra: ok', user: 'ok' })
+        setStep('A testar a ligação ao Gemini…')
+        await testConnection(provider.id, { kind: 'token', token })
       }
+      setStep('A guardar o consentimento…')
       await aiService.grantConsent(familyId, member.id, provider.id, CONSENT_VERSION)
       setApiKey('')
       setAgreed(false)
@@ -71,6 +89,7 @@ export function ConnectSheet({ open, onClose, provider, member, familyId, onConn
       setError(testMessage(err))
     } finally {
       setBusy(false)
+      setStep(null)
     }
   }
 
@@ -108,6 +127,11 @@ export function ConnectSheet({ open, onClose, provider, member, familyId, onConn
         onChange={(e) => setAgreed(e.target.checked)}
         label={`Li e aceito que os dados saiam da Vita Family para ${providerOwner[provider.id]}.`}
       />
+      {step && (
+        <p role="status" className="text-base text-muted">
+          {step}
+        </p>
+      )}
       <FormError message={error} />
     </Sheet>
   )

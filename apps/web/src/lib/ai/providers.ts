@@ -42,7 +42,13 @@ export const providerLabel = (id: AiProviderId): string => PROVIDERS.find((p) =>
 
 /** Modelos por omissão (configuráveis aqui; confirmar disponibilidade na conta do utilizador, OP-133). */
 const MODELS = { CLAUDE: 'claude-haiku-5-5', OPENAI: 'gpt-4o-mini', GEMINI: 'gemini-flash-latest' } as const
+/** Se o modelo principal do Gemini continuar sobrecarregado (503), tenta-se o modelo leve. */
+const GEMINI_FALLBACK_MODEL = 'gemini-flash-lite-latest'
 const MAX_TOKENS = 1400
+/** Nos modelos Gemini atuais o «raciocínio» conta para o limite de saída: com 1400 a resposta podia vir cortada ou vazia. */
+const GEMINI_MAX_TOKENS = 8192
+/** Sem isto, um fornecedor que não responde deixava o botão a girar para sempre. */
+export const PROVIDER_TIMEOUT_MS = 45_000
 
 function failureFor(status: number): ProviderFailure {
   if (status === 401 || status === 403) return 'AUTH'
@@ -52,10 +58,18 @@ function failureFor(status: number): ProviderFailure {
 
 async function post(url: string, headers: Record<string, string>, body: unknown, signal?: AbortSignal, retried = false): Promise<unknown> {
   let response: Response
+  const timeout = new AbortController()
+  const timer = setTimeout(() => timeout.abort(), PROVIDER_TIMEOUT_MS)
+  const abort = () => timeout.abort()
+  signal?.addEventListener('abort', abort, { once: true })
   try {
-    response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal, credentials: 'omit', referrerPolicy: 'no-referrer' })
+    response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body), signal: timeout.signal, credentials: 'omit', referrerPolicy: 'no-referrer' })
   } catch {
-    throw new ProviderError('NETWORK')
+    // Demorou demais = fornecedor ocupado; o resto é falha de rede.
+    throw new ProviderError(timeout.signal.aborted && !signal?.aborted ? 'QUOTA' : 'NETWORK')
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', abort)
   }
   // Fornecedor temporariamente sobrecarregado (ex.: Gemini 503): uma segunda tentativa curta antes de desistir.
   if (!retried && [500, 502, 503, 504].includes(response.status)) {
@@ -96,12 +110,17 @@ const adapters: Record<AiProviderId, Adapter> = {
     return text(data.choices?.[0]?.message?.content)
   },
   GEMINI: async (credential, { system, user }, signal) => {
-    const data = (await post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODELS.GEMINI}:generateContent`,
-      { Authorization: `Bearer ${secret(credential)}` },
-      { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: MAX_TOKENS } },
-      signal,
-    )) as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> }
+    const generate = (model: string) =>
+      post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        { Authorization: `Bearer ${secret(credential)}` },
+        { systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: GEMINI_MAX_TOKENS } },
+        signal,
+      )
+    const data = (await generate(MODELS.GEMINI).catch((error: unknown) => {
+      if (error instanceof ProviderError && error.status === 503) return generate(GEMINI_FALLBACK_MODEL)
+      throw error
+    })) as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> }
     return text(data.candidates?.[0]?.content?.parts?.[0]?.text)
   },
 }

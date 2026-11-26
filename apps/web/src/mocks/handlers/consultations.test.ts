@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { pinClockToAfternoon } from '@/test/clock'
 import { professionalSessionStore } from '@/lib/storage'
 import { db, resetDb } from '../db'
 import { consultationsDb, resetConsultationsDb } from '../consultationsDb'
@@ -48,7 +49,12 @@ function inThePast(bookingId: string) {
   b.endsAt = new Date(Date.now() - 3_600_000).toISOString()
 }
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 beforeEach(() => {
+  pinClockToAfternoon()
   resetDb()
   resetMarketplaceDb()
   resetProfessionalDb()

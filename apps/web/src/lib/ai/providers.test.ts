@@ -72,12 +72,33 @@ describe('adaptadores dos fornecedores (chamada direta do dispositivo, BR-AI-01)
 
   it('HTTP 503 ⇒ uma nova tentativa e, se persistir, QUOTA («ocupado»)', async () => {
     vi.useFakeTimers()
-    reply({ error: {} }, 503)
-    reply({ error: {} }, 503)
+    for (let i = 0; i < 4; i++) reply({ error: {} }, 503) // modelo principal e modelo leve, duas tentativas cada
     const pending = callProvider('GEMINI', { kind: 'token', token: 't' }, REQUEST).catch((e: unknown) => e)
-    await vi.advanceTimersByTimeAsync(2000)
+    await vi.advanceTimersByTimeAsync(4000)
     expect(await pending).toMatchObject({ failure: 'QUOTA', status: 503 })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    vi.useRealTimers()
+  })
+
+  it('Gemini sobrecarregado (503) ⇒ responde com o modelo leve', async () => {
+    vi.useFakeTimers()
+    reply({ error: {} }, 503)
+    reply({ error: {} }, 503)
+    reply({ candidates: [{ content: { parts: [{ text: '{"leve":1}' }] } }] })
+    const pending = callProvider('GEMINI', { kind: 'token', token: 't' }, REQUEST)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(await pending).toBe('{"leve":1}')
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('gemini-flash-latest')
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain('gemini-flash-lite-latest')
+    vi.useRealTimers()
+  })
+
+  it('fornecedor que nunca responde ⇒ desiste ao fim do tempo limite (QUOTA, «ocupado»)', async () => {
+    vi.useFakeTimers()
+    fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => new Promise((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))))
+    const pending = callProvider('GEMINI', { kind: 'token', token: 't' }, REQUEST).catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(46_000)
+    expect(await pending).toMatchObject({ failure: 'QUOTA' })
     vi.useRealTimers()
   })
 
