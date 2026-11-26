@@ -23,11 +23,25 @@ jobs:
       - run: pnpm --filter @vitafamily/api run lint
       # tests/integration/** usa testcontainers (precisa do Docker do runner, disponível por
       # omissão nos runners do GitHub); corre aqui o mesmo que o Dockerfile exclui do build.
-      - run: pnpm --filter @vitafamily/api run test
+      - run: pnpm --filter @vitafamily/api run test 2>&1 | tee "$RUNNER_TEMP/api-test.log"
+        shell: bash # com `bash` explícito há `pipefail`: o `tee` não esconde a falha dos testes
         env:
           # O contentor de limpeza do testcontainers (Ryuk/Reaper) falhava a ligar com muitos ficheiros em paralelo
           # («Failed to connect to Reaper»). O runner é descartável: não há nada para limpar depois.
           TESTCONTAINERS_RYUK_DISABLED: "true"
+      # Falhas sem teste anotado (erro não tratado, contentor que não arranca) só apareciam como «exit code 1»: publica o
+      # fim do registo (só dados de teste) como anotação, visível sem descarregar os registos.
+      - name: Resumo da falha dos testes
+        if: failure()
+        run: |
+          log="$RUNNER_TEMP/api-test.log"
+          [ -f "$log" ] || exit 0
+          sed -i 's/\x1b\[[0-9;]*m//g' "$log" # sem códigos de cor, para as expressões abaixo encontrarem as linhas
+          summary=$( { grep -E '^ +× |^ FAIL |Unhandled|^(Error|[A-Za-z]+Error):|Test Files  |  Tests  ' "$log" | head -40; echo '…'; tail -25 "$log"; } | cut -c1-250 )
+          summary=${summary//'%'/'%25'}
+          summary=${summary//$'\r'/'%0D'}
+          summary=${summary//$'\n'/'%0A'}
+          echo "::error title=Testes da API::$summary"
       - run: pnpm --filter @vitafamily/api run build
 
   web:
