@@ -147,8 +147,8 @@ describe('mercado de profissionais (família)', () => {
     type('Primeira mensagem', 'Olá, gostava de marcar uma primeira consulta.')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar' }))
 
-    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/app\/messages\/mem_monarca\/.+/), { timeout: 5000 })
-    expect(await screen.findByText('Olá, gostava de marcar uma primeira consulta.', undefined, { timeout: 5000 })).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/app\/messages\/mem_monarca\/.+/))
+    expect(await screen.findByText('Olá, gostava de marcar uma primeira consulta.')).toBeInTheDocument()
   })
 
   it('lista de mensagens: abre a conversa seed, envia e vê a mensagem no log; suspenso só lê', async () => {

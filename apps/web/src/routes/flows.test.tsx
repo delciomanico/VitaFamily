@@ -434,14 +434,14 @@ describe('M14 R: recibos, perfil, Médico e auditoria', () => {
     const emit = await screen.findByRole('button', { name: 'Emitir' })
     await waitFor(() => expect(emit).toBeEnabled())
     fireEvent.click(emit)
-    expect(await screen.findByLabelText('Recibo R-000001', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Recibo R-000001')).toBeInTheDocument()
     expect(screen.getAllByText('Documento não fiscal').length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /Imprimir/ })).toBeInTheDocument()
     expect(db.clinicReceipts).toHaveLength(1)
 
     cleanup()
     renderAt('/clinic/finance')
-    expect(await screen.findByText('R-000001', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(await screen.findByText('R-000001')).toBeInTheDocument()
     expect(screen.getByText('Total emitido')).toBeInTheDocument()
   })
 
