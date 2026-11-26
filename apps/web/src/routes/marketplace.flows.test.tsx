@@ -148,7 +148,9 @@ describe('mercado de profissionais (família)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Enviar' }))
 
     await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/app\/messages\/mem_monarca\/.+/))
-    expect(await screen.findByText('Olá, gostava de marcar uma primeira consulta.')).toBeInTheDocument()
+    // Só dentro do registo da conversa: o endereço muda antes do ecrã, e a caixa de texto da folha (ainda montada) tem o mesmo texto
+    // e desaparecia a seguir (falhava em máquinas lentas, como a de build).
+    await waitFor(() => expect(within(screen.getByRole('log')).getByText('Olá, gostava de marcar uma primeira consulta.')).toBeInTheDocument())
   })
 
   it('lista de mensagens: abre a conversa seed, envia e vê a mensagem no log; suspenso só lê', async () => {
